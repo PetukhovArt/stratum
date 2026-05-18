@@ -23,6 +23,10 @@
 | **Layer Assignment** (new) | The longest-matching-prefix mapping from a module's project-relative path to a `LayerId`. Files outside any configured **Layer** are dropped from the **Compound DAG** in Phase 2 (Phase 3 will surface them as a violation). | layer mapping, layer assign |
 | **Miller Fan-out** (new) | A graph metric: the count of distinct dependents of a **Module** that live outside its own **Container**. Feeds the future `miller-limit` rule. Implemented as `stratum_graph::metrics::miller_fanout`. | cross-container fanout |
 | **Depth Ratio** (new) | A graph metric: `container_internal_count / public_exports`. Rewards encapsulation. `public_exports` is supplied externally until Phase 5 wires real export counts in. Implemented as `stratum_graph::metrics::depth_ratio`. | encapsulation ratio |
+| **Promotion Pressure** (refine) | A graph metric: the count of distinct dependents of a **Module** that live outside its own **Container**. Drives the `promotion-pressure` rule (Phase 5). Implemented as `stratum_graph::metrics::promotion_pressure`. Different from **Miller Fan-out** only in framing — Phase 6+ may differentiate by layer-distance weighting. | promotion score, promotion metric |
+| **`@stratum-stage` Annotation** (new) | A `// @stratum-stage N` (`N ∈ 1..=4`) directive in the leading comments of a source file. Extracted by `stratum_parser_ts::extract_stage`; `stratum-graph::GraphBuilder` reads it during build to set `Module.stage`. Falls back to `BuildConfig.default_stage` if absent. | stage directive, stage hint |
+| **Exemplar App Fixture** (new) | `tests/fixtures/exemplar-stratum-app/` — a curated FSD-shaped project with all six deliberate violation types (cycle, upward layer leak, promotion-pressure, miller-limit, depth-ratio, visibility). Drives the regression histogram gate. | exemplar fixture, reference app |
+| **Regression Fixture Gate** (new) | `crates/stratum-rules/tests/exemplar.rs` — an integration test that asserts the per-rule violation-count histogram on the **Exemplar App Fixture** is stable. CI fails if `run_all` drifts. | regression gate |
 
 ## Methodology
 

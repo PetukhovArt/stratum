@@ -52,7 +52,8 @@ impl Rule for PromotionPressure {
             modules: vec![scope],
             edge: None,
             suggestion: Some(
-                "Move this module into the lowest layer that every dependent already depends on.".into(),
+                "Move this module into the lowest layer that every dependent already depends on."
+                    .into(),
             ),
         }]
     }
@@ -110,11 +111,7 @@ mod tests {
     #[test]
     fn under_threshold_no_violation() {
         let g = build(
-            vec![
-                module(0, 1),
-                module(1, 2),
-                module(2, 2),
-            ],
+            vec![module(0, 1), module(1, 2), module(2, 2)],
             &[(1, 0), (2, 0)],
         );
         let v = PromotionPressure.check(
