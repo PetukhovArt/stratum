@@ -1,0 +1,59 @@
+---
+source: crates/stratum-config/tests/parse_snapshot.rs
+assertion_line: 9
+expression: cfg
+---
+version: 1
+project:
+  root: "./src"
+  extends: ~
+layers:
+  - id: app
+    path: src/app
+    depends_on:
+      - features
+      - entities
+      - shared
+  - id: features
+    path: src/features
+    depends_on:
+      - entities
+      - shared
+  - id: entities
+    path: src/entities
+    depends_on:
+      - shared
+  - id: shared
+    path: src/shared
+    depends_on: []
+rules:
+  stratum/depth-ratio:
+    severity: info
+    options:
+      min_ratio: 3
+    script: ~
+  stratum/miller-limit:
+    severity: warning
+    options:
+      max_children: 7
+    script: ~
+  stratum/no-circular-deps:
+    severity: error
+    options: ~
+    script: ~
+  stratum/no-cross-layer-import:
+    severity: error
+    options: ~
+    script: ~
+  stratum/stage-purity:
+    severity: error
+    options: ~
+    script: ~
+overrides:
+  - files:
+      - src/legacy/**
+    rules:
+      stratum/no-cross-layer-import:
+        severity: "off"
+        options: ~
+        script: ~

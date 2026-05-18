@@ -4,6 +4,8 @@
 
 pub mod config;
 pub mod error;
+pub mod parse;
 
 pub use config::{Config, LayerConfig, OverrideBlock, ProjectConfig, RuleConfig};
 pub use error::ConfigError;
+pub use parse::{parse_file, parse_str};

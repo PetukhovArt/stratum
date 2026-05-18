@@ -1,0 +1,29 @@
+// Stratum tooling example config - exercises JSONC.
+{
+  "$schema": "https://stratum.dev/schema/v1.json",
+  "version": 1,
+  "project": {
+    "root": "./src",
+  },
+  "layers": [
+    { "id": "app",      "path": "src/app",      "depends_on": ["features", "entities", "shared"] },
+    { "id": "features", "path": "src/features", "depends_on": ["entities", "shared"] },
+    { "id": "entities", "path": "src/entities", "depends_on": ["shared"] },
+    { "id": "shared",   "path": "src/shared",   "depends_on": [] },
+  ],
+  "rules": {
+    "stratum/no-cross-layer-import": { "severity": "error" },
+    "stratum/no-circular-deps":      { "severity": "error" },
+    "stratum/miller-limit":          { "severity": "warning", "options": { "max_children": 7 } },
+    "stratum/depth-ratio":           { "severity": "info",    "options": { "min_ratio": 3.0 } },
+    "stratum/stage-purity":          { "severity": "error" },
+  },
+  "overrides": [
+    {
+      "files": ["src/legacy/**"],
+      "rules": {
+        "stratum/no-cross-layer-import": { "severity": "off" },
+      },
+    },
+  ],
+}
