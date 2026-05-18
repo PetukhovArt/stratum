@@ -12,6 +12,7 @@ description = "Domain types and incremental database for Stratum tooling."
 workspace = true
 
 [dependencies]
+camino.workspace = true
 salsa.workspace = true
 serde.workspace = true
 serde_json.workspace = true
