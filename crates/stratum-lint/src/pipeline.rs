@@ -31,6 +31,9 @@ pub enum PipelineError {
 /// # Errors
 /// Returns [`PipelineError::Build`] if the graph cannot be assembled.
 pub fn build(root: &Utf8Path, config: &Config) -> Result<EngineInput, PipelineError> {
+    let root_abs = root
+        .canonicalize_utf8()
+        .unwrap_or_else(|_| root.to_path_buf());
     let layers: Vec<Layer> = config
         .layers
         .iter()
@@ -54,7 +57,7 @@ pub fn build(root: &Utf8Path, config: &Config) -> Result<EngineInput, PipelineEr
         })
         .collect();
     let build_cfg = BuildConfig {
-        project_root: root.to_path_buf(),
+        project_root: root_abs.clone(),
         layers,
         default_stage: Stage::new(2).unwrap_or_else(|_| unreachable!("Stage(2) is valid")),
         default_visibility: VisibilityScope::Public,
@@ -63,7 +66,7 @@ pub fn build(root: &Utf8Path, config: &Config) -> Result<EngineInput, PipelineEr
     Ok(EngineInput {
         graph: Arc::new(graph),
         config: Arc::new(config.clone()),
-        project_root: root.to_path_buf(),
+        project_root: root_abs,
     })
 }
 
