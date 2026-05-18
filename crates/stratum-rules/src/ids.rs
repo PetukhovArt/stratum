@@ -5,6 +5,10 @@ pub const NO_CIRCULAR_DEPS: RuleId = RuleId::new(2);
 pub const STAGE_PURITY: RuleId = RuleId::new(3);
 pub const MILLER_LIMIT: RuleId = RuleId::new(4);
 pub const DEPTH_RATIO: RuleId = RuleId::new(5);
+pub const VISIBILITY_SCOPE: RuleId = RuleId::new(6);
+pub const CROSS_ENTITY_PATTERN: RuleId = RuleId::new(7);
+pub const DEEP_MODULE: RuleId = RuleId::new(8);
+pub const PROMOTION_PRESSURE: RuleId = RuleId::new(9);
 
 #[must_use]
 pub fn slug_for(id: RuleId) -> Option<&'static str> {
@@ -14,6 +18,10 @@ pub fn slug_for(id: RuleId) -> Option<&'static str> {
         STAGE_PURITY => "stratum/stage-purity",
         MILLER_LIMIT => "stratum/miller-limit",
         DEPTH_RATIO => "stratum/depth-ratio",
+        VISIBILITY_SCOPE => "stratum/visibility-scope",
+        CROSS_ENTITY_PATTERN => "stratum/cross-entity-pattern",
+        DEEP_MODULE => "stratum/deep-module",
+        PROMOTION_PRESSURE => "stratum/promotion-pressure",
         _ => return None,
     })
 }
@@ -26,6 +34,10 @@ pub fn id_for(slug: &str) -> Option<RuleId> {
         "stratum/stage-purity" => STAGE_PURITY,
         "stratum/miller-limit" => MILLER_LIMIT,
         "stratum/depth-ratio" => DEPTH_RATIO,
+        "stratum/visibility-scope" => VISIBILITY_SCOPE,
+        "stratum/cross-entity-pattern" => CROSS_ENTITY_PATTERN,
+        "stratum/deep-module" => DEEP_MODULE,
+        "stratum/promotion-pressure" => PROMOTION_PRESSURE,
         _ => return None,
     })
 }
@@ -43,6 +55,10 @@ mod tests {
             STAGE_PURITY,
             MILLER_LIMIT,
             DEPTH_RATIO,
+            VISIBILITY_SCOPE,
+            CROSS_ENTITY_PATTERN,
+            DEEP_MODULE,
+            PROMOTION_PRESSURE,
         ] {
             let slug = slug_for(id).unwrap();
             assert_eq!(id_for(slug), Some(id));
