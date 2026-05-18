@@ -44,10 +44,7 @@ impl Rule for DeepModule {
         let Some(node) = graph.node_for(scope) else {
             return vec![];
         };
-        let outgoing = graph
-            .deps
-            .edges_directed(node, Direction::Outgoing)
-            .count();
+        let outgoing = graph.deps.edges_directed(node, Direction::Outgoing).count();
         let surface = u32::try_from(outgoing).unwrap_or(u32::MAX);
         if surface <= options.max_exports {
             return vec![];
@@ -134,10 +131,7 @@ mod tests {
 
     #[test]
     fn surface_over_limit_emits_violation() {
-        let g = build(
-            6,
-            &[(0, 1), (0, 2), (0, 3), (0, 4), (0, 5)],
-        );
+        let g = build(6, &[(0, 1), (0, 2), (0, 3), (0, 4), (0, 5)]);
         let v = DeepModule.check(
             &g,
             ModuleId::new(0),
