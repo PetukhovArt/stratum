@@ -2,8 +2,13 @@
 
 #![forbid(unsafe_code)]
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn crate_loads() {}
-}
+pub mod ids;
+pub mod rule;
+pub mod scope;
+
+pub use ids::{
+    DEPTH_RATIO, MILLER_LIMIT, NO_CIRCULAR_DEPS, NO_CROSS_LAYER_IMPORT, STAGE_PURITY, id_for,
+    slug_for,
+};
+pub use rule::{EmptyOptions, Rule};
+pub use scope::{ProjectScope, RuleScope};
