@@ -1,0 +1,13 @@
+---
+source: crates/stratum-parser-vue/tests/snapshot.rs
+assertion_line: 40
+expression: summaries
+---
+- - App.vue
+  - 1
+- - Empty.vue
+  - 0
+- - Legacy.vue
+  - 1
+- - Mixed.vue
+  - 2
