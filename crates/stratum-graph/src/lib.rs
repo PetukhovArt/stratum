@@ -6,6 +6,7 @@ pub mod builder;
 pub mod cycles;
 pub mod graph;
 pub mod layer_assignment;
+pub mod metrics;
 pub mod topo;
 
 pub use builder::{BuildConfig, BuildError, GraphBuilder};
