@@ -16,6 +16,7 @@ stratum-core = { path = "../stratum-core" }
 stratum-graph = { path = "../stratum-graph" }
 stratum-config = { path = "../stratum-config" }
 camino.workspace = true
+petgraph.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
@@ -26,5 +27,4 @@ insta.workspace = true
 proptest.workspace = true
 criterion.workspace = true
 indexmap.workspace = true
-petgraph.workspace = true
 rustc-hash.workspace = true
