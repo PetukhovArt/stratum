@@ -54,6 +54,34 @@ impl ArchitectureDatabase for StratumDb {
     }
 }
 
+/// Intermediate Salsa input: a single source file's content.
+///
+/// Crate-private — only `stratum-graph` (Phase 2) and `stratum-lint` (Phase 4)
+/// inside this workspace read/write it. External consumers see only the public
+/// queries on [`ArchitectureDatabase`].
+#[salsa::input]
+pub(crate) struct SourceFile {
+    pub(crate) path: camino::Utf8PathBuf,
+    #[return_ref]
+    pub(crate) text: String,
+}
+
+/// Intermediate Salsa input: extracted module data for one file.
+///
+/// The actual extraction is performed by a `LanguageExtractor` implementation
+/// in `stratum-parser-ts` / `stratum-parser-vue`; here we just memoize the
+/// result keyed by [`SourceFile`].
+///
+/// The body uses [`crate::violation::SourceLocation`] instead of `RawImport`
+/// to avoid a `stratum-core → stratum-parser-ts` dep cycle — the orchestration
+/// crate translates between them before setting this input.
+#[salsa::input]
+pub(crate) struct ExtractedFile {
+    pub(crate) source: SourceFile,
+    #[return_ref]
+    pub(crate) raw_imports: Vec<crate::violation::SourceLocation>,
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -71,5 +99,20 @@ mod tests {
             db.violations_for_file(project, PathBuf::from("x.ts"))
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn source_file_and_extracted_file_construct() {
+        let db = StratumDb::default();
+        let sf = SourceFile::new(
+            &db,
+            camino::Utf8PathBuf::from("src/foo.ts"),
+            "export const x = 1;\n".to_string(),
+        );
+        assert_eq!(sf.text(&db), "export const x = 1;\n");
+
+        let ef = ExtractedFile::new(&db, sf, Vec::new());
+        assert_eq!(ef.source(&db), sf);
+        assert!(ef.raw_imports(&db).is_empty());
     }
 }
