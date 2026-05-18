@@ -28,3 +28,8 @@ thiserror.workspace = true
 insta.workspace = true
 proptest.workspace = true
 walkdir.workspace = true
+criterion.workspace = true
+
+[[bench]]
+name = "parse_latency"
+harness = false
