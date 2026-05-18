@@ -1,6 +1,6 @@
 use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
-use stratum_core::edge::EdgeKind;
+use stratum_core::{edge::EdgeKind, stage::Stage};
 
 use crate::source_span::SourceSpan;
 
@@ -28,6 +28,9 @@ pub struct ExtractedData {
     /// Parser-level errors that did not prevent extraction (e.g. recovered
     /// syntax errors).
     pub diagnostics: Vec<ParserDiagnostic>,
+    /// `@stratum-stage N` annotation (Phase 5). `None` if absent.
+    #[serde(default)]
+    pub stage: Option<Stage>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
