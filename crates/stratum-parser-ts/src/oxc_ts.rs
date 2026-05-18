@@ -14,11 +14,8 @@ impl OxcTsExtractor {
         Self
     }
 
-    fn source_type_for(path: &Utf8Path) -> Result<SourceType, ExtractError> {
-        let ext = path
-            .extension()
-            .ok_or_else(|| ExtractError::UnsupportedExtension(path.to_path_buf()))?;
-        let st = match ext {
+    fn source_type_for(path: &Utf8Path) -> Option<SourceType> {
+        let st = match path.extension()? {
             "ts" => SourceType::default()
                 .with_typescript(true)
                 .with_module(true),
@@ -36,22 +33,20 @@ impl OxcTsExtractor {
                 .with_javascript(true)
                 .with_jsx(true)
                 .with_module(true),
-            _ => return Err(ExtractError::UnsupportedExtension(path.to_path_buf())),
+            _ => return None,
         };
-        Ok(st)
+        Some(st)
     }
 }
 
 impl LanguageExtractor for OxcTsExtractor {
     fn handles(&self, path: &Utf8Path) -> bool {
-        matches!(
-            path.extension(),
-            Some("ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs")
-        )
+        Self::source_type_for(path).is_some()
     }
 
     fn extract(&self, path: &Utf8Path, source: &str) -> Result<ExtractedData, ExtractError> {
-        let source_type = Self::source_type_for(path)?;
+        let source_type = Self::source_type_for(path)
+            .ok_or_else(|| ExtractError::UnsupportedExtension(path.to_path_buf()))?;
         let imports = collect_imports(source, source_type);
         Ok(ExtractedData {
             source_path: path.to_path_buf(),
