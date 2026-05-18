@@ -1,3 +1,4 @@
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 macro_rules! id_newtype {
@@ -5,7 +6,7 @@ macro_rules! id_newtype {
         #[doc = $doc]
         #[derive(
             Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord,
-            Serialize, Deserialize,
+            Serialize, Deserialize, JsonSchema,
         )]
         #[repr(transparent)]
         #[serde(transparent)]
