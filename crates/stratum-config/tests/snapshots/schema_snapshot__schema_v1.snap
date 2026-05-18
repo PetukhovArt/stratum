@@ -1,0 +1,97 @@
+---
+source: crates/stratum-config/tests/schema_snapshot.rs
+assertion_line: 5
+expression: schema
+---
+$schema: "http://json-schema.org/draft-07/schema#"
+definitions:
+  LayerConfig:
+    properties:
+      depends_on:
+        default: []
+        items:
+          type: string
+        type: array
+      id:
+        type: string
+      path:
+        type: string
+    required:
+      - id
+      - path
+    type: object
+  OverrideBlock:
+    properties:
+      files:
+        items:
+          type: string
+        type: array
+      rules:
+        additionalProperties:
+          $ref: "#/definitions/RuleConfig"
+        default: {}
+        type: object
+    required:
+      - files
+    type: object
+  ProjectConfig:
+    properties:
+      extends:
+        default: ~
+        type:
+          - string
+          - "null"
+      root:
+        type: string
+    required:
+      - root
+    type: object
+  RuleConfig:
+    properties:
+      options:
+        default: ~
+      script:
+        default: ~
+        type:
+          - string
+          - "null"
+      severity:
+        $ref: "#/definitions/Severity"
+    required:
+      - severity
+    type: object
+  Severity:
+    enum:
+      - "off"
+      - info
+      - warning
+      - error
+    type: string
+description: "The whole `stratum.config.jsonc` document."
+properties:
+  layers:
+    items:
+      $ref: "#/definitions/LayerConfig"
+    type: array
+  overrides:
+    default: []
+    items:
+      $ref: "#/definitions/OverrideBlock"
+    type: array
+  project:
+    $ref: "#/definitions/ProjectConfig"
+  rules:
+    additionalProperties:
+      $ref: "#/definitions/RuleConfig"
+    default: {}
+    type: object
+  version:
+    format: uint32
+    minimum: 0
+    type: integer
+required:
+  - layers
+  - project
+  - version
+title: Config
+type: object
