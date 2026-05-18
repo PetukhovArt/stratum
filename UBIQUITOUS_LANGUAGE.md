@@ -61,7 +61,7 @@
 |------|-----------|-----------------|
 | **Rule** | A check that runs over the **Compound DAG** and emits zero or more **Violations**. | check, lint rule, validator |
 | **Built-in Rule** | A **Rule** that ships inside the tool's core crates. | native rule, internal rule |
-| **Custom Rule** | A user-written **Rule**. Delivered as a **WASM Plugin** or a **Rhai Script**. | user rule, extension |
+| **Custom Rule** (refine) | A user-written **Rule** declared in `stratum.config.jsonc` with `script: "./<name>.rhai"`. Phase 9 ships **Rhai Script** support only; **WASM Plugins** are a longer-term option. Plugin `RuleId`s start at `PLUGIN_ID_FLOOR = 1000`; built-ins occupy `1..=9`. | user rule, extension |
 | **Rule Scope** | The input shape a **Rule** operates over: a **Module**, a **Container**, or the whole **Project**. Drives per-scope Salsa memoization. | rule input, scope kind |
 | **Violation** | One reported **Rule** infraction. Carries `rule`, `severity`, `message`, `file`, `location` (**Source Location**), `modules`, an optional `edge`, and an optional `suggestion`. | error, issue, finding |
 | **Severity** | One of `error`, `warning`, `info`, `off`. Only `error` fails the build (`Severity::fails_build`). | level, priority |
@@ -117,9 +117,10 @@
 |------|-----------|-----------------|
 | **Plugin** | A user extension that delivers **Custom Rules**. Two flavors: **WASM** and **Rhai**. | extension, addon |
 | **WASM Plugin** | A compiled, sandboxed **Plugin** loaded through wasmtime. | wasm rule |
-| **Rhai Script** | A **Plugin** written in the Rhai DSL. Hot-reloadable, no build step. | dsl rule, scripted rule |
-| **Plugin API** | The types and methods exposed to **Plugins** for graph access and **Violation** reporting. | extension API, SDK |
-| **Module View** | The read-only projection of a **Module** that **Rhai Scripts** see: id, path, **Layer**, **Container**, **Stage**, imports, dependents, metadata. | rhai module, plugin module |
+| **Rhai Script** (refine) | A **Plugin** written in the Rhai DSL. One `fn check(m) -> Array<Map>` per script. No build step; the linter compiles the script at startup. Dedicated hot-reload (Salsa invalidation on save) is a Phase 10 follow-up; Phase 4's `--watch` mode picks up changes on the next file event. | dsl rule, scripted rule |
+| **Plugin API** (refine) | Phase 9: Rhai only. The script sees a **Module View** and returns `Array<Map>` where each map is one **Violation** (`message`, optional `line`, optional `suggestion`). The engine is sandboxed (no FS, network, or process; `eval` disabled; bounded recursion + operations). | extension API, SDK |
+| **Module View** (refine) | The read-only projection of a **Module** the Rhai sandbox sees: `id` (int), `path` (forward-slash string), `layer` (string name), `container` (int), `stage` (int 1–4), `dependents` (Array of int), `metadata` (Map, reserved). Constructed by `stratum_plugins_rhai::build_view(graph, ModuleId)`. **Phase 9 limitation:** raw import specifier strings are not exposed yet. | rhai module, plugin module |
+| **`stratum-plugins-rhai` Crate** (new) | The Phase 9 crate. Exposes `build_engine()` (sandboxed `rhai::Engine`), `ModuleView` + `register()`, `RhaiRule` (impls `Rule`), and `load(slug, id, path) -> Result<RhaiRule, LoadError>`. Depends on `stratum-core`, `stratum-graph`, `stratum-rules`. Wired into `stratum-lint::pipeline::build` so the CLI picks up `custom/*` rules out of the box. | rhai crate, plugins crate |
 
 ## Visualization
 
