@@ -27,7 +27,18 @@ The script exits non-zero if average 2K-node layout exceeds 3 seconds
 
 | Date | Node count | Avg ms | Min ms | Max ms | Verdict |
 |------|------------|--------|--------|--------|---------|
-| _to be filled by Task 13_ | 1000 |  |  |  |  |
-| _to be filled by Task 13_ | 2000 |  |  |  |  |
-| _to be filled by Task 13_ | 5000 |  |  |  |  |
-| _to be filled by Task 13_ | 10000 |  |  |  |  |
+| 2026-05-18 | 1000 | 3836 | 3689 | 4022 | WARN |
+| 2026-05-18 | 2000 | 13203 | 12960 | 13478 | FAIL |
+| 2026-05-18 | 5000 | — | — | — | (not run — aborted after FAIL at 2K) |
+| 2026-05-18 | 10000 | — | — | — | (not run — aborted after FAIL at 2K) |
+
+## Phase 8 scope decision
+
+ELK.js does not meet the 2K budget. 2K-node layout averaged ~13 s (budget: 3 s, 4× over).
+Even 1K nodes averaged ~3.8 s, implying a real ceiling of ~500–700 nodes in the browser.
+
+Phase 8 scope amended: sliced-view threshold lowered to ≤ 500 visible nodes.
+Alternatives to evaluate before Phase 8 starts (tracked in ADR 0001):
+- **dagre-wasm** — port of dagre to WASM, handles hierarchical layouts
+- **graphviz-wasm** — svg output, needs a re-render step for interaction
+- **Custom Sugiyama in Rust/WASM** — most control, highest implementation cost
