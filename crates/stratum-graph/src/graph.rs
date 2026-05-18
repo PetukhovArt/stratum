@@ -45,10 +45,7 @@ impl CompoundGraph {
         self.deps.edge_count()
     }
 
-    pub fn modules_in_container(
-        &self,
-        container: ContainerId,
-    ) -> impl Iterator<Item = &Module> {
+    pub fn modules_in_container(&self, container: ContainerId) -> impl Iterator<Item = &Module> {
         self.modules
             .values()
             .filter(move |m| m.container == container)

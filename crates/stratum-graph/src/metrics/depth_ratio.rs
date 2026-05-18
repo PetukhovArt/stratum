@@ -2,7 +2,7 @@ use stratum_core::ids::{ContainerId, ModuleId};
 
 use crate::graph::CompoundGraph;
 
-/// Depth ratio = container_internal_count / public_exports.
+/// Depth ratio = `container_internal_count` / `public_exports`.
 ///
 /// Rewards encapsulation: a deep module exposes little of what it does.
 /// `public_exports` is supplied by the caller — Phase 1 does not yet count
@@ -10,6 +10,7 @@ use crate::graph::CompoundGraph;
 ///
 /// Returns `None` if the module is unknown or `public_exports == 0`.
 #[must_use]
+#[allow(clippy::cast_precision_loss)]
 pub fn depth_ratio(g: &CompoundGraph, module: ModuleId, public_exports: u32) -> Option<f64> {
     let m = g.modules.get(&module)?;
     let container = m.container;
@@ -32,12 +33,7 @@ mod tests {
     use petgraph::graph::DiGraph;
     use rustc_hash::FxHashMap;
     use std::path::PathBuf;
-    use stratum_core::{
-        ids::LayerId,
-        stage::Stage,
-        types::Module,
-        visibility::VisibilityScope,
-    };
+    use stratum_core::{ids::LayerId, stage::Stage, types::Module, visibility::VisibilityScope};
 
     fn m(container: u32, id: u32) -> Module {
         Module {
