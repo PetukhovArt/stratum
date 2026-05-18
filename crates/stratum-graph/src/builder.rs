@@ -145,10 +145,11 @@ impl GraphBuilder {
         }
 
         for (from_id, from_path) in &id_to_path {
-            let source = fs::read_to_string(from_path.as_std_path()).map_err(|e| BuildError::Io {
-                path: from_path.clone(),
-                source: e,
-            })?;
+            let source =
+                fs::read_to_string(from_path.as_std_path()).map_err(|e| BuildError::Io {
+                    path: from_path.clone(),
+                    source: e,
+                })?;
             let data = self
                 .extractor
                 .extract(from_path.as_ref(), &source)

@@ -33,11 +33,7 @@ mod tests {
     use rustc_hash::FxHashMap;
     use std::path::PathBuf;
     use stratum_core::{
-        edge::EdgeKind,
-        ids::LayerId,
-        stage::Stage,
-        types::Module,
-        visibility::VisibilityScope,
+        edge::EdgeKind, ids::LayerId, stage::Stage, types::Module, visibility::VisibilityScope,
     };
 
     fn module_in(container_raw: u32, id: u32) -> Module {

@@ -52,8 +52,7 @@ fn tiny_ts_graph_snapshot() {
     let prefix_with_ext = root.as_str().to_string();
     let prefix_no_ext = prefix_with_ext
         .strip_prefix(r"\\?\")
-        .map(str::to_string)
-        .unwrap_or_else(|| prefix_with_ext.clone());
+        .map_or_else(|| prefix_with_ext.clone(), str::to_string);
     for m in &mut snap.modules {
         for p in [&prefix_with_ext, &prefix_no_ext] {
             if let Some(stripped) = m.path.strip_prefix(p) {

@@ -14,10 +14,10 @@ use stratum_core::{
 };
 use stratum_graph::{CompoundGraph, find_cycles, snapshot_of};
 
-fn arb_graph(n: usize) -> impl Strategy<Value = (usize, Vec<(u32, u32)>)> {
+fn arb_graph(n: u32) -> impl Strategy<Value = (u32, Vec<(u32, u32)>)> {
     let mut candidate_edges = Vec::new();
-    for a in 0u32..n as u32 {
-        for b in 0u32..n as u32 {
+    for a in 0u32..n {
+        for b in 0u32..n {
             if a != b {
                 candidate_edges.push((a, b));
             }
@@ -35,7 +35,7 @@ fn arb_graph(n: usize) -> impl Strategy<Value = (usize, Vec<(u32, u32)>)> {
 }
 
 #[allow(clippy::unwrap_used)]
-fn build(n: usize, edges: &[(u32, u32)]) -> CompoundGraph {
+fn build(n: u32, edges: &[(u32, u32)]) -> CompoundGraph {
     let mut g = CompoundGraph {
         modules: IndexMap::new(),
         containers: IndexMap::new(),
@@ -44,7 +44,7 @@ fn build(n: usize, edges: &[(u32, u32)]) -> CompoundGraph {
         node_index: FxHashMap::default(),
     };
     for i in 0..n {
-        let id = ModuleId::new(i as u32);
+        let id = ModuleId::new(i);
         let m = Module {
             id,
             path: PathBuf::from(format!("m{i}.ts")),
@@ -78,7 +78,7 @@ proptest! {
     fn snapshot_preserves_module_and_edge_counts((n, edges) in arb_graph(8)) {
         let g = build(n, &edges);
         let s = snapshot_of(&g);
-        prop_assert_eq!(s.modules.len(), n);
+        prop_assert_eq!(s.modules.len(), n as usize);
         prop_assert_eq!(s.edges.len(), edges.len());
     }
 
