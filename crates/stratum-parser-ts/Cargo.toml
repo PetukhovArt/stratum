@@ -1,0 +1,30 @@
+[package]
+name = "stratum-parser-ts"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "TS/JS/JSX/TSX extractor for Stratum tooling, built on OXC."
+
+[lints]
+workspace = true
+
+[dependencies]
+stratum-core = { path = "../stratum-core" }
+oxc_parser.workspace = true
+oxc_ast.workspace = true
+oxc_semantic.workspace = true
+oxc_resolver.workspace = true
+oxc_allocator.workspace = true
+oxc_span.workspace = true
+oxc_syntax.workspace = true
+camino.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+proptest.workspace = true
+walkdir.workspace = true
