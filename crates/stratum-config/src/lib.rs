@@ -2,8 +2,8 @@
 
 #![forbid(unsafe_code)]
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn crate_loads() {}
-}
+pub mod config;
+pub mod error;
+
+pub use config::{Config, LayerConfig, OverrideBlock, ProjectConfig, RuleConfig};
+pub use error::ConfigError;
