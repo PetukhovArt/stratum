@@ -55,3 +55,17 @@ jobs:
             echo "::error::Frontend bundle exceeds 1.5MB budget ($size bytes)"
             exit 1
           fi
+
+  web-client-integration:
+    name: web-client integration
+    runs-on: ubuntu-latest
+    if: ${{ vars.WEB_CLIENT_PATH != '' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: build stratum-lint
+        run: cargo build --release -p stratum-lint
+      - name: run on web-client
+        timeout-minutes: 5
+        run: target/release/stratum-lint "${{ vars.WEB_CLIENT_PATH }}" --format terminal
