@@ -2,9 +2,12 @@
 
 #![forbid(unsafe_code)]
 
+pub mod builtin;
 pub mod ids;
 pub mod rule;
 pub mod scope;
+
+pub use builtin::no_cross_layer_import::NoCrossLayerImport;
 
 pub use ids::{
     DEPTH_RATIO, MILLER_LIMIT, NO_CIRCULAR_DEPS, NO_CROSS_LAYER_IMPORT, STAGE_PURITY, id_for,
