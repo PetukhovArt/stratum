@@ -81,7 +81,10 @@
 |------|-----------|-----------------|
 | **Stratum Tooling** | The whole product: **Linter**, **LSP Server**, **Visualizer**, and the shared Rust core. | the toolchain, the suite |
 | **Linter** | The CLI binary `stratum-lint`. Scans a project and reports **Violations**. | scanner, checker |
-| **LSP Server** | `stratum-lsp`. The IDE-facing server that streams **Violations** as you type. | language server |
+| **LSP Server** (refine) | `stratum-lsp`. The IDE-facing server that streams **Violations** as you type. Phase 7 ships a `tower-lsp` 0.20 backend over `tokio` stdio. `did_change` is debounced 50 ms before recompute. Capabilities: `text_document_sync = FULL`, `hover`, `document_link`. Deliberately *no* `code_action_provider` (PRD decision D10). | language server |
+| **LSP Diagnostic** (new) | The `tower_lsp::lsp_types::Diagnostic` produced from a **Violation** by `stratum_lsp::diagnostics::convert`. Maps **Severity** to `DiagnosticSeverity`, carries the rule slug in `code: NumberOrString::String`, and sets `source = "stratum-lint"`. Distinct from **Violation** (which retains `modules`, `edge`, and `suggestion`). | lsp diag, vscode diagnostic |
+| **Server State** (new) | `stratum_lsp::state::ServerState`. Holds `project_root`, the `Config`, the current `EngineInput`, plus per-`Url` caches of `doc_text`, `last_diagnostics`, and `last_violations`. Built once on `initialize`; `rebuild()` is called from the debounced `did_change` path. | lsp state |
+| **Debouncer** (new) | `stratum_lsp::debounce::Debouncer`. Per-`Url` `JoinHandle` map. `schedule(uri, wait, work)` aborts any pending task for that URI and spawns a fresh one. Used to coalesce rapid `did_change` events into a single recompute. | lsp debouncer |
 | **Visualizer** | The browser-based UI for the **Compound DAG** and its **Violations**, served from `stratum-lint visualize` by an embedded HTTP server (axum + `rust-embed`). | viewer, graph UI, Tauri app |
 | **Architecture Database** | The Salsa trait `ArchitectureDatabase`. The entire downstream-visible API of `stratum-core` — three deep queries (`compound_graph`, `violations`, `violations_for_file`). | db, query layer |
 | **Stratum DB** | `StratumDb`, the concrete `salsa::Database` implementation of **Architecture Database**. Phase 0 returns placeholder values; Phase 2+ wires real queries. | salsa db |
