@@ -62,7 +62,7 @@ impl PathResolver {
     /// Returns `ResolveError::Internal` when the resolver returns a path that is
     /// not valid UTF-8.
     pub fn resolve(&self, from: &Utf8Path, specifier: &str) -> Result<Utf8PathBuf, ResolveError> {
-        let from_dir = from.parent().unwrap_or_else(|| Utf8Path::new("."));
+        let from_dir = from.parent().unwrap_or(Utf8Path::new("."));
         match self.inner.resolve(from_dir.as_std_path(), specifier) {
             Ok(res) => {
                 let path = res.path();

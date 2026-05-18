@@ -40,18 +40,11 @@ pub struct ParserDiagnostic {
 pub enum ExtractError {
     #[error("Unsupported file extension for path {0}")]
     UnsupportedExtension(Utf8PathBuf),
-    #[error("Could not read file {path}: {source}")]
-    Io {
-        path: Utf8PathBuf,
-        #[source]
-        source: std::io::Error,
-    },
     #[error("Parser produced a hard error in {path}: {message}")]
     Hard { path: Utf8PathBuf, message: String },
 }
 
 /// Language adapter contract — one impl per language.
-/// (Phase 6 implements this for Vue SFCs.)
 pub trait LanguageExtractor: Send + Sync {
     /// Return true if this extractor handles the given path (by extension).
     fn handles(&self, path: &Utf8Path) -> bool;
