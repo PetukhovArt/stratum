@@ -1,0 +1,32 @@
+[package]
+name = "stratum-lsp"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Stratum LSP server."
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "stratum-lsp"
+path = "src/main.rs"
+
+[dependencies]
+stratum-core = { path = "../stratum-core" }
+stratum-graph = { path = "../stratum-graph" }
+stratum-rules = { path = "../stratum-rules" }
+stratum-config = { path = "../stratum-config" }
+stratum-lint = { path = "../stratum-lint" }
+tower-lsp = "0.20"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "io-std", "sync", "time"] }
+serde.workspace = true
+serde_json.workspace = true
+camino.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+insta.workspace = true
