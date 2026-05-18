@@ -3,8 +3,7 @@ use serde::{Deserialize, Serialize};
 
 /// Stratum purity rank from 1 (most pure) to 4 (impure side-effectful code).
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord,
-    Serialize, Deserialize, JsonSchema,
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
 )]
 #[serde(try_from = "u8", into = "u8")]
 pub struct Stage(u8);
@@ -24,7 +23,9 @@ impl Stage {
     }
 
     #[must_use]
-    pub const fn rank(self) -> u8 { self.0 }
+    pub const fn rank(self) -> u8 {
+        self.0
+    }
 
     /// A module at stage `self` may depend on modules at stage `other`
     /// iff `other <= self` — purer code cannot reach impurer code.
@@ -36,11 +37,15 @@ impl Stage {
 
 impl TryFrom<u8> for Stage {
     type Error = InvalidStage;
-    fn try_from(value: u8) -> Result<Self, Self::Error> { Self::new(value) }
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
 }
 
 impl From<Stage> for u8 {
-    fn from(s: Stage) -> Self { s.0 }
+    fn from(s: Stage) -> Self {
+        s.0
+    }
 }
 
 #[cfg(test)]

@@ -42,7 +42,10 @@ mod tests {
             severity: Severity::Error,
             message: "Cross-layer import from app to shared".into(),
             file: PathBuf::from("src/app/main.ts"),
-            location: SourceLocation { line: 12, column: 1 },
+            location: SourceLocation {
+                line: 12,
+                column: 1,
+            },
             modules: vec![ModuleId::new(1), ModuleId::new(2)],
             edge: Some(Edge {
                 from: ModuleId::new(1),
@@ -69,6 +72,9 @@ mod tests {
             suggestion: None,
         };
         let json = serde_json::to_string(&v).unwrap();
-        assert!(!json.contains("\"fix\""), "fix.edits is deliberately absent (PRD decision #10)");
+        assert!(
+            !json.contains("\"fix\""),
+            "fix.edits is deliberately absent (PRD decision #10)"
+        );
     }
 }
