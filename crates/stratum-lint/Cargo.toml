@@ -31,6 +31,11 @@ salsa.workspace = true
 thiserror.workspace = true
 notify = "6"
 walkdir.workspace = true
+axum = "0.7"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal"] }
+rust-embed = { version = "8", features = ["debug-embed"] }
+mime_guess = "2"
+open = "5"
 
 [dev-dependencies]
 assert_cmd = "2"
@@ -38,6 +43,8 @@ predicates = "3"
 insta.workspace = true
 tempfile = "3"
 criterion.workspace = true
+tower = "0.5"
+http-body-util = "0.1"
 
 [[bench]]
 name = "cold_lint"
