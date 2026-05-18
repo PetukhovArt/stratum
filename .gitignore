@@ -24,3 +24,19 @@ target
 .claude
 .CLAUDE.md
 .CLAUDE.local.md
+
+# Cargo workspace
+/target/
+Cargo.lock
+*.profraw
+
+# Node / ELK spike
+benches/elk-spike/node_modules/
+benches/elk-spike/results/
+
+# IDEs
+.idea/
+.vscode/
+
+# macOS
+.DS_Store
