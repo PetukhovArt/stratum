@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 pub mod extractor;
+pub mod imports;
 pub mod source_span;
 
 pub use extractor::{ExtractError, ExtractedData, LanguageExtractor, ParserDiagnostic, RawImport};
