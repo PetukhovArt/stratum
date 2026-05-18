@@ -27,7 +27,7 @@ oxc_allocator = "0.30"
 oxc_span = "0.30"
 oxc_syntax = "0.30"
 walkdir = "2"
-camino = "1"
+camino = { version = "1", features = ["serde1"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
