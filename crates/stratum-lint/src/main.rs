@@ -3,6 +3,7 @@
 use clap::Parser;
 
 mod cli;
+mod pipeline;
 
 fn main() -> miette::Result<()> {
     let cli = cli::Cli::parse();
@@ -24,7 +25,15 @@ fn main() -> miette::Result<()> {
                 Some(cli::Command::Lint { ref root }) => root.clone(),
                 _ => cli.root.clone(),
             };
-            println!("stratum-lint lint at {root}");
+            let config_path = cli
+                .config
+                .clone()
+                .unwrap_or_else(|| root.join("stratum.config.jsonc"));
+            let config = stratum_config::parse_file(&config_path)
+                .map_err(|e| miette::Report::msg(e.to_string()))?;
+            let violations =
+                pipeline::run(&root, &config).map_err(|e| miette::Report::msg(e.to_string()))?;
+            println!("Found {} violations", violations.len());
         }
     }
     Ok(())
