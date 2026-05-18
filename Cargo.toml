@@ -31,6 +31,9 @@ camino = { version = "1", features = ["serde1"] }
 petgraph = "0.6"
 indexmap = { version = "2", features = ["serde"] }
 rustc-hash = "2"
+jsonc-parser = { version = "0.23", features = ["serde"] }
+globset = "0.4"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
