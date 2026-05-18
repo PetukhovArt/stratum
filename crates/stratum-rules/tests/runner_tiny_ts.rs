@@ -67,6 +67,14 @@ fn runner_emits_expected_violations() {
         Some(1),
         "expected exactly one no-cross-layer-import violation; got {by_rule:?}"
     );
+    assert!(
+        by_rule
+            .get(&stratum_rules::STAGE_PURITY.raw())
+            .copied()
+            .unwrap_or(0)
+            >= 1,
+        "expected at least one stage-purity violation from the @stratum-stage annotations; got {by_rule:?}"
+    );
 
     let xlayer = violations
         .iter()
