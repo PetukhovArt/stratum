@@ -4,6 +4,7 @@ use clap::Parser;
 
 mod cli;
 mod pipeline;
+mod zero_config;
 
 fn main() -> miette::Result<()> {
     let cli = cli::Cli::parse();
@@ -29,8 +30,12 @@ fn main() -> miette::Result<()> {
                 .config
                 .clone()
                 .unwrap_or_else(|| root.join("stratum.config.jsonc"));
-            let config = stratum_config::parse_file(&config_path)
-                .map_err(|e| miette::Report::msg(e.to_string()))?;
+            let config = if config_path.exists() {
+                stratum_config::parse_file(&config_path)
+                    .map_err(|e| miette::Report::msg(e.to_string()))?
+            } else {
+                zero_config::infer(&root)
+            };
             let violations =
                 pipeline::run(&root, &config).map_err(|e| miette::Report::msg(e.to_string()))?;
             println!("Found {} violations", violations.len());
