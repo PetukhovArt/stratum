@@ -1,0 +1,36 @@
+name: bench
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main-checkout
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: bench PR
+        run: cargo bench --workspace -- --save-baseline pr > pr.txt 2>&1 || true
+      - name: bench main
+        working-directory: main-checkout
+        run: cargo bench --workspace -- --save-baseline main > ../main.txt 2>&1 || true
+      - name: compare
+        run: bash scripts/compare_benches.sh main pr
+      - name: post pr comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('pr.txt', 'utf8');
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '```\n' + body.slice(0, 60000) + '\n```'
+            });

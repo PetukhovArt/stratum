@@ -1,0 +1,23 @@
+{
+  "name": "@stratum/lint",
+  "version": "0.1.0",
+  "description": "Stratum architectural linter — compound-DAG layer checks for TS/Vue projects.",
+  "license": "MIT OR Apache-2.0",
+  "repository": "github:PetukhovArt/stratum",
+  "homepage": "https://github.com/PetukhovArt/stratum",
+  "bugs": "https://github.com/PetukhovArt/stratum/issues",
+  "bin": {
+    "stratum-lint": "./bin/stratum-lint.js"
+  },
+  "scripts": {
+    "postinstall": "node install.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "bin",
+    "install.js",
+    "README.md"
+  ]
+}
