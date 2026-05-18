@@ -1,0 +1,105 @@
+---
+source: crates/stratum-graph/tests/builder_tiny_ts.rs
+assertion_line: 67
+expression: snap
+---
+version: 1
+modules:
+  - id: 0
+    path: src/app/main.ts
+    container: 0
+    layer: 0
+    stage: 2
+  - id: 1
+    path: src/entities/user/User.ts
+    container: 2
+    layer: 2
+    stage: 2
+  - id: 2
+    path: src/entities/user/index.ts
+    container: 2
+    layer: 2
+    stage: 2
+  - id: 3
+    path: src/features/cart/cart.tsx
+    container: 1
+    layer: 1
+    stage: 2
+  - id: 4
+    path: src/features/cart/index.ts
+    container: 1
+    layer: 1
+    stage: 2
+  - id: 5
+    path: src/shared/api/http.ts
+    container: 3
+    layer: 3
+    stage: 2
+  - id: 6
+    path: src/shared/ui/Button.tsx
+    container: 3
+    layer: 3
+    stage: 2
+  - id: 7
+    path: src/shared/utils/format.ts
+    container: 3
+    layer: 3
+    stage: 2
+containers:
+  - id: 0
+    name: app
+    layer: 0
+    parent: ~
+  - id: 1
+    name: features
+    layer: 1
+    parent: ~
+  - id: 2
+    name: entities
+    layer: 2
+    parent: ~
+  - id: 3
+    name: shared
+    layer: 3
+    parent: ~
+layers:
+  - id: 0
+    name: app
+    depends_on:
+      - 1
+      - 2
+      - 3
+  - id: 1
+    name: features
+    depends_on:
+      - 2
+      - 3
+  - id: 2
+    name: entities
+    depends_on:
+      - 3
+  - id: 3
+    name: shared
+    depends_on: []
+edges:
+  - from: 0
+    to: 4
+    kind: static
+  - from: 0
+    to: 5
+    kind: static
+  - from: 1
+    to: 7
+    kind: static
+  - from: 2
+    to: 1
+    kind: static
+  - from: 3
+    to: 2
+    kind: static
+  - from: 3
+    to: 6
+    kind: static
+  - from: 4
+    to: 3
+    kind: static
