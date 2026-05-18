@@ -3,6 +3,7 @@
 use clap::Parser;
 
 mod cli;
+mod engine;
 mod pipeline;
 mod zero_config;
 
