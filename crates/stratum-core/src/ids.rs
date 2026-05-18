@@ -25,14 +25,10 @@ macro_rules! id_newtype {
             pub const fn new(raw: u32) -> Self {
                 Self(raw)
             }
+
+            #[must_use]
             pub const fn raw(self) -> u32 {
                 self.0
-            }
-        }
-
-        impl std::fmt::Display for $name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "{}({})", stringify!($name), self.0)
             }
         }
     };
@@ -74,10 +70,5 @@ mod tests {
         assert_eq!(s, "42");
         let b: ContainerId = serde_json::from_str(&s).unwrap();
         assert_eq!(a, b);
-    }
-
-    #[test]
-    fn ids_display_with_type_name() {
-        assert_eq!(format!("{}", LayerId::new(3)), "LayerId(3)");
     }
 }
