@@ -2,21 +2,15 @@ use std::path::PathBuf;
 
 use crate::{ids::ProjectId, violation::Violation};
 
-/// The compound graph + violations API. **This is the entire public surface
-/// of `stratum-core` to downstream crates.** Intermediate queries are
-/// `pub(crate)` and not visible from outside.
+/// The compound graph + violations API. The entire public surface of
+/// `stratum-core` to downstream crates — intermediate queries are
+/// `pub(crate)` (PRD decision D6).
 pub trait ArchitectureDatabase: salsa::Database {
-    /// Build the Compound DAG for the project.
     fn compound_graph(&self, project: Project) -> CompoundGraphSnapshot;
-
-    /// All violations for the project.
     fn violations(&self, project: Project) -> Vec<Violation>;
-
-    /// Violations restricted to one source file (LSP fast path).
     fn violations_for_file(&self, project: Project, file: PathBuf) -> Vec<Violation>;
 }
 
-/// Salsa input identifying a project root. Created by `Project::new(db, root)`.
 #[salsa::input]
 pub struct Project {
     pub root: PathBuf,
@@ -24,13 +18,11 @@ pub struct Project {
 }
 
 /// Opaque snapshot of the Compound DAG. Real shape lives in `stratum-graph` (Phase 2).
-/// Phase 0 ships an empty placeholder so callers can compile.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CompoundGraphSnapshot {
     pub module_count: usize,
 }
 
-/// Concrete Salsa database used by `stratum-lint` and tests.
 #[salsa::db]
 #[derive(Default, Clone)]
 pub struct StratumDb {
@@ -63,6 +55,7 @@ impl ArchitectureDatabase for StratumDb {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
@@ -78,11 +71,5 @@ mod tests {
             db.violations_for_file(project, PathBuf::from("x.ts"))
                 .is_empty()
         );
-    }
-
-    #[test]
-    fn public_api_surface_is_three_queries() {
-        let methods = ["compound_graph", "violations", "violations_for_file"];
-        assert_eq!(methods.len(), 3);
     }
 }
