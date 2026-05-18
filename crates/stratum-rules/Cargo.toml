@@ -1,0 +1,30 @@
+[package]
+name = "stratum-rules"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Rule trait, rule registry, and the five baseline Stratum rules."
+
+[lints]
+workspace = true
+
+[dependencies]
+stratum-core = { path = "../stratum-core" }
+stratum-graph = { path = "../stratum-graph" }
+stratum-config = { path = "../stratum-config" }
+camino.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+xxhash-rust.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+proptest.workspace = true
+criterion.workspace = true
+indexmap.workspace = true
+petgraph.workspace = true
+rustc-hash.workspace = true
