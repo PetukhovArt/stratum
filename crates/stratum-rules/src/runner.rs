@@ -32,7 +32,22 @@ pub fn run_all(
     config: &Config,
     project_root: &Utf8Path,
 ) -> Result<Vec<Violation>, ConfigError> {
-    let registry = RuleRegistry::with_builtins();
+    run_all_with_registry(graph, config, project_root, &RuleRegistry::with_builtins())
+}
+
+/// Same as [`run_all`] but lets the caller supply a registry that may include
+/// dynamically-loaded plugin rules (e.g. Rhai scripts). Built-in rules are not
+/// auto-added — pass `RuleRegistry::with_builtins()` extended via `register`.
+///
+/// # Errors
+/// Returns [`stratum_config::ConfigError`] if any override block contains an
+/// invalid glob pattern.
+pub fn run_all_with_registry(
+    graph: &CompoundGraph,
+    config: &Config,
+    project_root: &Utf8Path,
+    registry: &RuleRegistry,
+) -> Result<Vec<Violation>, ConfigError> {
     let mut all = Vec::new();
     for r in registry.rules() {
         let slug = r.slug();

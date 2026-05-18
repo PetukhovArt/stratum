@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "project": { "root": "./src" },
+  "layers": [
+    { "id": "app", "path": "src/app", "depends_on": ["legacy"] },
+    { "id": "legacy", "path": "src/legacy", "depends_on": [] }
+  ],
+  "rules": {
+    "custom/no-legacy-imports": {
+      "severity": "error",
+      "script": "./no_legacy_imports.rhai"
+    }
+  }
+}

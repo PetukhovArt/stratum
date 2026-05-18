@@ -1,0 +1,29 @@
+[package]
+name = "stratum-plugins-rhai"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Rhai-script plugin runtime for Stratum custom rules."
+
+[lints]
+workspace = true
+
+[dependencies]
+stratum-core = { path = "../stratum-core" }
+stratum-graph = { path = "../stratum-graph" }
+stratum-rules = { path = "../stratum-rules" }
+rhai = { version = "1", features = ["serde", "sync"] }
+serde.workspace = true
+serde_json.workspace = true
+camino.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+stratum-config = { path = "../stratum-config" }
+indexmap.workspace = true
+petgraph.workspace = true
+rustc-hash.workspace = true
