@@ -43,10 +43,7 @@ impl Rule for DepthRatio {
         let Some(node) = graph.node_for(scope) else {
             return vec![];
         };
-        let outgoing = graph
-            .deps
-            .edges_directed(node, Direction::Outgoing)
-            .count();
+        let outgoing = graph.deps.edges_directed(node, Direction::Outgoing).count();
         if outgoing == 0 {
             return vec![];
         }

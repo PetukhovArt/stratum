@@ -61,10 +61,10 @@ impl Rule for NoCrossLayerImport {
             };
             if !allowed.contains(&to_mod.layer) {
                 let from_layer_name = layer_def.name.clone();
-                let to_layer_name = graph
-                    .layers
-                    .get(&to_mod.layer)
-                    .map_or_else(|| format!("layer#{}", to_mod.layer.raw()), |l| l.name.clone());
+                let to_layer_name = graph.layers.get(&to_mod.layer).map_or_else(
+                    || format!("layer#{}", to_mod.layer.raw()),
+                    |l| l.name.clone(),
+                );
                 out.push(Violation {
                     rule: self.id(),
                     severity,
