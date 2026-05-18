@@ -4,7 +4,7 @@
 //! per-file *severity* is. Phase 4's CLI replaces this with per-rule Salsa
 //! queries keyed on `(rule_id, module_id, config_hash)`.
 
-use camino::Utf8PathBuf;
+use camino::{Utf8Path, Utf8PathBuf};
 
 use stratum_config::{Config, ConfigError, resolve_for_file};
 use stratum_core::{severity::Severity, violation::Violation};
@@ -17,13 +17,21 @@ use crate::registry::RuleRegistry;
 /// severity from the per-file effective config. Violations whose effective
 /// severity is `Severity::Off` are dropped.
 ///
+/// `project_root` is used to derive forward-slash relative paths from each
+/// violation's absolute file path so override globs like `src/shared/api/**`
+/// match consistently across platforms (Windows backslashes vs POSIX slashes).
+///
 /// Project-scoped rules (`no-circular-deps`) probe override resolution with the
 /// sentinel path `<project>` so file globs cannot disable them.
 ///
 /// # Errors
 /// Returns [`stratum_config::ConfigError`] if any override block contains an
 /// invalid glob pattern.
-pub fn run_all(graph: &CompoundGraph, config: &Config) -> Result<Vec<Violation>, ConfigError> {
+pub fn run_all(
+    graph: &CompoundGraph,
+    config: &Config,
+    project_root: &Utf8Path,
+) -> Result<Vec<Violation>, ConfigError> {
     let registry = RuleRegistry::with_builtins();
     let mut all = Vec::new();
     for r in registry.rules() {
@@ -38,7 +46,7 @@ pub fn run_all(graph: &CompoundGraph, config: &Config) -> Result<Vec<Violation>,
             let probe = if r.id() == ids::NO_CIRCULAR_DEPS {
                 Utf8PathBuf::from("<project>")
             } else {
-                Utf8PathBuf::from(v.file.to_string_lossy().to_string())
+                to_relative_forward_slash(&v.file, project_root)
             };
             let eff = resolve_for_file(config, &probe)?;
             let sev = eff.rules.get(slug).map_or(default_sev, |rc| rc.severity);
@@ -54,6 +62,22 @@ pub fn run_all(graph: &CompoundGraph, config: &Config) -> Result<Vec<Violation>,
             .cmp(&(b.rule.raw(), b.modules.first().map_or(0, |m| m.raw())))
     });
     Ok(all)
+}
+
+fn to_relative_forward_slash(file: &std::path::Path, project_root: &Utf8Path) -> Utf8PathBuf {
+    let abs = Utf8PathBuf::from(file.to_string_lossy().to_string());
+    let root = strip_windows_extended_prefix(project_root);
+    let rel = abs.strip_prefix(&root).unwrap_or(&abs).to_owned();
+    Utf8PathBuf::from(rel.as_str().replace('\\', "/"))
+}
+
+fn strip_windows_extended_prefix(p: &Utf8Path) -> Utf8PathBuf {
+    let s = p.as_str();
+    if let Some(rest) = s.strip_prefix(r"\\?\") {
+        Utf8PathBuf::from(rest)
+    } else {
+        p.to_owned()
+    }
 }
 
 #[cfg(test)]
@@ -152,11 +176,15 @@ mod tests {
         }
     }
 
+    fn root() -> camino::Utf8PathBuf {
+        camino::Utf8PathBuf::from("")
+    }
+
     #[test]
     fn run_all_finds_cross_layer_violation() {
         let g = build_graph_two_layers();
         let cfg = base_config();
-        let v = run_all(&g, &cfg).unwrap();
+        let v = run_all(&g, &cfg, &root()).unwrap();
         assert!(
             v.iter()
                 .any(|x| x.rule == ids::NO_CROSS_LAYER_IMPORT && x.severity == Severity::Error),
@@ -175,7 +203,7 @@ mod tests {
                 script: None,
             },
         );
-        let v = run_all(&g, &cfg).unwrap();
+        let v = run_all(&g, &cfg, &root()).unwrap();
         assert!(!v.iter().any(|x| x.rule == ids::NO_CROSS_LAYER_IMPORT));
     }
 }

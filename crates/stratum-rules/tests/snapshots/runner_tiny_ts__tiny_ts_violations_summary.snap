@@ -1,0 +1,8 @@
+---
+source: crates/stratum-rules/tests/runner_tiny_ts.rs
+assertion_line: 79
+expression: by_rule
+---
+1: 1
+2: 1
+5: 3
