@@ -2,11 +2,11 @@
 
 #![forbid(unsafe_code)]
 
-pub mod extractor;
-pub mod imports;
-pub mod oxc_ts;
-pub mod resolver;
-pub mod source_span;
+mod extractor;
+mod imports;
+mod oxc_ts;
+mod resolver;
+mod source_span;
 
 pub use extractor::{ExtractError, ExtractedData, LanguageExtractor, ParserDiagnostic, RawImport};
 pub use oxc_ts::OxcTsExtractor;
