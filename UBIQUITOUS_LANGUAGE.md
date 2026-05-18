@@ -60,6 +60,12 @@
 | **Suggestion** | Human-readable advice attached to a **Violation**. **Never** an auto-applied fix in v1 (PRD decision #10) — the `Violation` struct deliberately has no `fix.edits` field. | autofix, quick fix, suggested fix |
 | **Parser Diagnostic** (new) | A recovered parser-level error attached to **Extracted Data**. Distinct from a **Violation**: it's a syntax-level artifact, not a methodology infraction. | parse warning, syntax issue |
 | **Self-Applicability** | The invariant that the tool reports zero **Violations** on its own codebase. | dogfooding, self-check |
+| **Rule Registry** (new) | `RuleRegistry` plus the type-erased `DynRule` trait object (`DynRuleAdapter` wraps each concrete `Rule`). `RuleRegistry::with_builtins()` pre-registers the five baseline Stratum rules. | rule list, rule store |
+| **Effective Rules** (new) | The rule set that applies to a single file after **Override** resolution. `EffectiveRules { rules: BTreeMap<slug, RuleConfig> }`, produced by `resolve_for_file(config, &path)`. | per-file rules, resolved rules |
+| **Override Block** (new) | A JSONC `overrides[]` entry: `files: Vec<String>` glob list + per-rule overrides. Applied in array order, last-matching-wins per rule key. | overrides entry, scoped block |
+| **Project Scope** (new) | The `ProjectScope` marker type used by whole-graph **Rules** (`no-circular-deps`). Singleton — `RuleScope::enumerate(graph)` returns `vec![ProjectScope]`. | global scope, project-wide |
+| **Config Hash** (new) | `rule_config_hash(severity, options) -> u64` over the XXH3 algorithm. Phase 4 Salsa keys per-rule queries by `(rule_id, scope_value, config_hash)`. Stable across runs on the same input. | rule key hash, salsa key |
+| **`run_all`** (new) | The Phase 3 orchestrator `stratum_rules::run_all(graph, config, project_root) -> Result<Vec<Violation>, ConfigError>`. Runs every rule once with base options, then re-stamps per-file severity from **Effective Rules**. Phase 3 limitation: per-file *options* overrides are not yet honoured — Phase 4 fixes via Salsa. | runner, orchestrator |
 
 ## Tooling components
 
@@ -72,6 +78,8 @@
 | **Architecture Database** | The Salsa trait `ArchitectureDatabase`. The entire downstream-visible API of `stratum-core` — three deep queries (`compound_graph`, `violations`, `violations_for_file`). | db, query layer |
 | **Stratum DB** | `StratumDb`, the concrete `salsa::Database` implementation of **Architecture Database**. Phase 0 returns placeholder values; Phase 2+ wires real queries. | salsa db |
 | **`stratum-graph` Crate** (new) | The Phase 2 crate that builds the **Compound DAG** from **Extracted Data** and exposes graph algorithms (topo sort, Tarjan SCC, direct dependents/dependencies) and graph metrics. Depends on `stratum-core` and `stratum-parser-ts`. | graph crate |
+| **`stratum-config` Crate** (new) | The Phase 3 crate that parses `stratum.config.jsonc` via `jsonc-parser`, generates a JSON Schema via `schemars`, and resolves per-file **Effective Rules** through `resolve_for_file`. Depends only on `stratum-core`. | config crate |
+| **`stratum-rules` Crate** (new) | The Phase 3 crate that defines the `Rule`/`RuleScope` traits, the **Rule Registry**, the five baseline **Built-in Rules**, and the `run_all` orchestrator. Depends on `stratum-core`, `stratum-graph`, `stratum-config`. | rules crate |
 | **Public Surface** | The deliberately narrow set of types and queries `stratum-core` exports. Intermediate Salsa queries stay `pub(crate)` (PRD decision D6). | API surface, exported API |
 | **Project** | A Salsa input identifying a project root by `root: PathBuf` and `id: ProjectId`. Every query on the **Architecture Database** is parameterized on a **Project**. | workspace, repo, root |
 | **Source File** (new) | A crate-private Salsa input (`SourceFile { path: Utf8PathBuf, text: String }`) holding one file's UTF-8 source. Only `stratum-graph` and `stratum-lint` inside the workspace read or set it. | file input, source input |

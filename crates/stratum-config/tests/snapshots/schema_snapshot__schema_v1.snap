@@ -4,37 +4,68 @@ assertion_line: 5
 expression: schema
 ---
 $schema: "http://json-schema.org/draft-07/schema#"
+title: Config
+description: "The whole `stratum.config.jsonc` document."
+type: object
+required:
+  - layers
+  - project
+  - version
+properties:
+  layers:
+    type: array
+    items:
+      $ref: "#/definitions/LayerConfig"
+  overrides:
+    default: []
+    type: array
+    items:
+      $ref: "#/definitions/OverrideBlock"
+  project:
+    $ref: "#/definitions/ProjectConfig"
+  rules:
+    default: {}
+    type: object
+    additionalProperties:
+      $ref: "#/definitions/RuleConfig"
+  version:
+    type: integer
+    format: uint32
+    minimum: 0
 definitions:
   LayerConfig:
+    type: object
+    required:
+      - id
+      - path
     properties:
       depends_on:
         default: []
+        type: array
         items:
           type: string
-        type: array
       id:
         type: string
       path:
         type: string
-    required:
-      - id
-      - path
-    type: object
   OverrideBlock:
-    properties:
-      files:
-        items:
-          type: string
-        type: array
-      rules:
-        additionalProperties:
-          $ref: "#/definitions/RuleConfig"
-        default: {}
-        type: object
+    type: object
     required:
       - files
-    type: object
+    properties:
+      files:
+        type: array
+        items:
+          type: string
+      rules:
+        default: {}
+        type: object
+        additionalProperties:
+          $ref: "#/definitions/RuleConfig"
   ProjectConfig:
+    type: object
+    required:
+      - root
     properties:
       extends:
         default: ~
@@ -43,10 +74,10 @@ definitions:
           - "null"
       root:
         type: string
-    required:
-      - root
-    type: object
   RuleConfig:
+    type: object
+    required:
+      - severity
     properties:
       options:
         default: ~
@@ -57,41 +88,10 @@ definitions:
           - "null"
       severity:
         $ref: "#/definitions/Severity"
-    required:
-      - severity
-    type: object
   Severity:
+    type: string
     enum:
       - "off"
       - info
       - warning
       - error
-    type: string
-description: "The whole `stratum.config.jsonc` document."
-properties:
-  layers:
-    items:
-      $ref: "#/definitions/LayerConfig"
-    type: array
-  overrides:
-    default: []
-    items:
-      $ref: "#/definitions/OverrideBlock"
-    type: array
-  project:
-    $ref: "#/definitions/ProjectConfig"
-  rules:
-    additionalProperties:
-      $ref: "#/definitions/RuleConfig"
-    default: {}
-    type: object
-  version:
-    format: uint32
-    minimum: 0
-    type: integer
-required:
-  - layers
-  - project
-  - version
-title: Config
-type: object

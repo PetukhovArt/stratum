@@ -17,10 +17,7 @@ pub struct EffectiveRules {
 /// # Errors
 /// Returns [`ConfigError::BadGlob`] if any `overrides[].files` entry is not a
 /// valid glob.
-pub fn resolve_for_file(
-    config: &Config,
-    file: &Utf8Path,
-) -> Result<EffectiveRules, ConfigError> {
+pub fn resolve_for_file(config: &Config, file: &Utf8Path) -> Result<EffectiveRules, ConfigError> {
     let mut effective = config.rules.clone();
     for block in &config.overrides {
         let mut builder = GlobSetBuilder::new();
@@ -104,7 +101,10 @@ mod tests {
             eff.rules["stratum/no-cross-layer-import"].severity,
             Severity::Off
         );
-        assert_eq!(eff.rules["stratum/miller-limit"].severity, Severity::Warning);
+        assert_eq!(
+            eff.rules["stratum/miller-limit"].severity,
+            Severity::Warning
+        );
     }
 
     #[test]
@@ -127,7 +127,10 @@ mod tests {
     fn last_matching_override_wins_per_rule_key() {
         let mut cfg = base();
         let mut a = BTreeMap::new();
-        a.insert("stratum/no-cross-layer-import".into(), rc(Severity::Warning));
+        a.insert(
+            "stratum/no-cross-layer-import".into(),
+            rc(Severity::Warning),
+        );
         cfg.overrides.push(OverrideBlock {
             files: vec!["src/legacy/**".into()],
             rules: a,

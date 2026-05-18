@@ -49,10 +49,12 @@ fn runner_emits_expected_violations() {
     let violations = stratum_rules::run_all(&graph, &config, &root).unwrap();
 
     let by_rule: std::collections::BTreeMap<u32, usize> =
-        violations.iter().fold(Default::default(), |mut acc, v| {
-            *acc.entry(v.rule.raw()).or_insert(0) += 1;
-            acc
-        });
+        violations
+            .iter()
+            .fold(std::collections::BTreeMap::new(), |mut acc, v| {
+                *acc.entry(v.rule.raw()).or_insert(0) += 1;
+                acc
+            });
     assert_eq!(
         by_rule.get(&stratum_rules::NO_CIRCULAR_DEPS.raw()).copied(),
         Some(1),
