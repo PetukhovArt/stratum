@@ -37,6 +37,7 @@ impl RuleEngine {
 
     /// Filter violations to those whose `file` matches `file`. Mirrors
     /// `ArchitectureDatabase::violations_for_file`.
+    #[allow(dead_code)]
     #[must_use]
     pub fn run_for_file(input: &EngineInput, file: &std::path::Path) -> Vec<Violation> {
         Self::run(input)
@@ -45,6 +46,7 @@ impl RuleEngine {
             .collect()
     }
 
+    #[allow(dead_code)]
     #[must_use]
     pub fn worst_severity(violations: &[Violation]) -> Severity {
         violations
