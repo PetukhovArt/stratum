@@ -17,10 +17,16 @@ pub struct Project {
     pub id: ProjectId,
 }
 
-/// Opaque snapshot of the Compound DAG. Real shape lives in `stratum-graph` (Phase 2).
+/// Opaque marker carrying a serialised snapshot of the Compound DAG.
+///
+/// The typed shape lives in `stratum-graph::snapshot::GraphSnapshot`.
+/// `stratum-core` cannot depend on `stratum-graph` (it would form a cycle),
+/// so this trait return-value smuggles the materialised graph as a JSON
+/// string. Callers that need the typed graph go through `stratum-graph`
+/// directly on the materialised `CompoundGraph` via the CLI / LSP layer.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CompoundGraphSnapshot {
-    pub module_count: usize,
+    pub json: String,
 }
 
 #[salsa::db]
@@ -93,7 +99,7 @@ mod tests {
         let project = Project::new(&db, PathBuf::from("/tmp/example"), ProjectId::new(1));
 
         let graph = db.compound_graph(project);
-        assert_eq!(graph.module_count, 0);
+        assert!(graph.json.is_empty());
         assert!(db.violations(project).is_empty());
         assert!(
             db.violations_for_file(project, PathBuf::from("x.ts"))
