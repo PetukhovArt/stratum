@@ -53,11 +53,19 @@ pub struct BuildConfig {
 }
 
 /// Build a [`CompoundGraph`] for a given project.
-#[derive(Debug)]
 pub struct GraphBuilder {
     config: BuildConfig,
-    extractor: OxcTsExtractor,
+    extractors: Vec<Box<dyn LanguageExtractor>>,
     resolver: PathResolver,
+}
+
+impl std::fmt::Debug for GraphBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GraphBuilder")
+            .field("config", &self.config)
+            .field("extractors", &self.extractors.len())
+            .finish_non_exhaustive()
+    }
 }
 
 impl GraphBuilder {
@@ -67,9 +75,24 @@ impl GraphBuilder {
         let resolver = PathResolver::new(&config.project_root);
         Self {
             config,
-            extractor: OxcTsExtractor::new(),
+            extractors: vec![Box::new(OxcTsExtractor::new())],
             resolver,
         }
+    }
+
+    /// Register an additional language extractor. The first registered
+    /// extractor whose `handles(path)` returns `true` wins.
+    #[must_use]
+    pub fn with_extractor(mut self, extractor: Box<dyn LanguageExtractor>) -> Self {
+        self.extractors.push(extractor);
+        self
+    }
+
+    fn pick_extractor(&self, path: &Utf8Path) -> Option<&dyn LanguageExtractor> {
+        self.extractors
+            .iter()
+            .find(|e| e.handles(path))
+            .map(std::convert::AsRef::as_ref)
     }
 
     /// Walk the project, extract imports per file, and assemble the graph.
@@ -115,9 +138,10 @@ impl GraphBuilder {
                 continue;
             };
             let path = strip_windows_extended_prefix(&raw);
-            if !self.extractor.handles(path.as_ref()) {
+            let Some(extractor) = self.pick_extractor(path.as_ref()) else {
                 continue;
-            }
+            };
+            let _ = extractor;
             let stripped_root = strip_windows_extended_prefix(root);
             let Ok(rel) = path.strip_prefix(&stripped_root) else {
                 continue;
@@ -154,8 +178,15 @@ impl GraphBuilder {
                     path: from_path.clone(),
                     source: e,
                 })?;
-            let data = self
-                .extractor
+            let extractor =
+                self.pick_extractor(from_path.as_ref())
+                    .ok_or_else(|| BuildError::Parser {
+                        path: from_path.clone(),
+                        source: stratum_parser_ts::ExtractError::UnsupportedExtension(
+                            from_path.clone(),
+                        ),
+                    })?;
+            let data = extractor
                 .extract(from_path.as_ref(), &source)
                 .map_err(|e| BuildError::Parser {
                     path: from_path.clone(),

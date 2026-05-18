@@ -1,0 +1,22 @@
+[package]
+name = "stratum-parser-vue"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Vue SFC extractor for Stratum tooling (MVP scope: <script> + <script setup>)."
+
+[lints]
+workspace = true
+
+[dependencies]
+stratum-core = { path = "../stratum-core" }
+stratum-parser-ts = { path = "../stratum-parser-ts" }
+camino.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+insta.workspace = true

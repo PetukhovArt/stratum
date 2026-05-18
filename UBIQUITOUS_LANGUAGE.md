@@ -27,6 +27,10 @@
 | **`@stratum-stage` Annotation** (new) | A `// @stratum-stage N` (`N ∈ 1..=4`) directive in the leading comments of a source file. Extracted by `stratum_parser_ts::extract_stage`; `stratum-graph::GraphBuilder` reads it during build to set `Module.stage`. Falls back to `BuildConfig.default_stage` if absent. | stage directive, stage hint |
 | **Exemplar App Fixture** (new) | `tests/fixtures/exemplar-stratum-app/` — a curated FSD-shaped project with all six deliberate violation types (cycle, upward layer leak, promotion-pressure, miller-limit, depth-ratio, visibility). Drives the regression histogram gate. | exemplar fixture, reference app |
 | **Regression Fixture Gate** (new) | `crates/stratum-rules/tests/exemplar.rs` — an integration test that asserts the per-rule violation-count histogram on the **Exemplar App Fixture** is stable. CI fails if `run_all` drifts. | regression gate |
+| **SFC** (new) | Vue Single-File Component (a `.vue` file). Contains optional `<template>`, `<script>` (and/or `<script setup>`), and `<style>` blocks. Phase 6 parses only the script blocks. | Vue SFC, .vue file |
+| **SFC Splitter** (new) | `stratum_parser_vue::sfc_splitter::split(source) -> Vec<ScriptBlock>`. Hand-rolled state-machine that finds every `<script>` / `<script setup>` block and records byte ranges. Returns `SplitError::UnclosedScript` on malformed input. | block extractor, script splitter |
+| **`VueExtractor`** (new) | `LanguageExtractor` impl for `.vue` files. Splits the SFC, runs `stratum_parser_ts::collect_imports` on each script body, then re-maps spans back to SFC-absolute offsets via `stratum_parser_vue::shift`. Honours `@stratum-stage` annotations anywhere in the file. | Vue extractor, .vue parser |
+| **Vue MVP Scope** (decision D8) | Phase 6 extracts `<script>` and `<script setup>` blocks only. No template parsing, no macro expansion (`defineProps`/`defineEmits`/`defineExpose` are *not* interpreted). Mixed `<script>` + `<script setup>` merge into one logical module per file. | Vue MVP, SFC MVP scope |
 
 ## Methodology
 

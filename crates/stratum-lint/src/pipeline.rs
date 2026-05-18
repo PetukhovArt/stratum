@@ -58,7 +58,9 @@ pub fn build(root: &Utf8Path, config: &Config) -> Result<EngineInput, PipelineEr
         default_stage: Stage::new(2).unwrap_or_else(|_| unreachable!("Stage(2) is valid")),
         default_visibility: VisibilityScope::Public,
     };
-    let graph = GraphBuilder::new(build_cfg).build()?;
+    let graph = GraphBuilder::new(build_cfg)
+        .with_extractor(Box::new(stratum_parser_vue::VueExtractor::new()))
+        .build()?;
     Ok(EngineInput {
         graph: Arc::new(graph),
         config: Arc::new(config.clone()),

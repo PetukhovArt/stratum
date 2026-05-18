@@ -21,6 +21,7 @@ stratum-graph = { path = "../stratum-graph" }
 stratum-rules = { path = "../stratum-rules" }
 stratum-config = { path = "../stratum-config" }
 stratum-parser-ts = { path = "../stratum-parser-ts" }
+stratum-parser-vue = { path = "../stratum-parser-vue" }
 clap = { version = "4", features = ["derive"] }
 miette = { workspace = true }
 camino.workspace = true

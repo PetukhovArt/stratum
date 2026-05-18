@@ -11,6 +11,8 @@ mod source_span;
 
 pub use annotations::extract_stage;
 pub use extractor::{ExtractError, ExtractedData, LanguageExtractor, ParserDiagnostic, RawImport};
+pub use imports::collect_imports;
+pub use oxc_span::SourceType;
 pub use oxc_ts::OxcTsExtractor;
 pub use resolver::{PathResolver, ResolveError};
 pub use source_span::{SourceSpan, offset_to_line_col};
