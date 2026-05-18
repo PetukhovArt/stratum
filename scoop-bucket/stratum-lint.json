@@ -1,0 +1,21 @@
+{
+  "version": "0.1.0",
+  "description": "Stratum architectural linter — compound-DAG layer checks for TS/Vue projects.",
+  "homepage": "https://github.com/PetukhovArt/stratum",
+  "license": "MIT|Apache-2.0",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/PetukhovArt/stratum/releases/download/v0.1.0/stratum-lint-x86_64-pc-windows-msvc.zip",
+      "hash": "FILL_AT_RELEASE"
+    }
+  },
+  "bin": ["stratum-lint.exe", "stratum-lsp.exe"],
+  "checkver": "github",
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/PetukhovArt/stratum/releases/download/v$version/stratum-lint-x86_64-pc-windows-msvc.zip"
+      }
+    }
+  }
+}
