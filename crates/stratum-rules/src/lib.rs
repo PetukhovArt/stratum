@@ -7,6 +7,7 @@ pub mod ids;
 pub mod rule;
 pub mod scope;
 
+pub use builtin::no_circular_deps::NoCircularDeps;
 pub use builtin::no_cross_layer_import::NoCrossLayerImport;
 
 pub use ids::{
