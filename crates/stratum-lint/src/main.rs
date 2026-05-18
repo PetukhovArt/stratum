@@ -15,14 +15,8 @@ fn main() -> miette::Result<()> {
     match cli.command {
         Some(cli::Command::Init { root }) => commands::init::run(&root),
         Some(cli::Command::Snapshot { root, out }) => commands::snapshot::run(&root, &out),
-        Some(cli::Command::Visualize { root }) => {
-            println!("stratum-lint visualize at {root} (Phase 8 stub)");
-            Ok(())
-        }
-        Some(cli::Command::Diff { prev, now }) => {
-            println!("stratum-lint diff {prev} {now} (Phase 4 stub)");
-            Ok(())
-        }
+        Some(cli::Command::Visualize { root }) => commands::visualize::run(&root),
+        Some(cli::Command::Diff { prev, now }) => commands::diff::run(&prev, &now),
         cmd => {
             let root = match cmd {
                 Some(cli::Command::Lint { root }) => root,
