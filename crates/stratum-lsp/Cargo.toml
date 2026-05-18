@@ -31,3 +31,7 @@ thiserror.workspace = true
 [dev-dependencies]
 criterion.workspace = true
 insta.workspace = true
+
+[[bench]]
+name = "diagnostics_latency"
+harness = false

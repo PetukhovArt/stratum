@@ -1,0 +1,41 @@
+{
+  "name": "stratum-lsp-vscode",
+  "displayName": "Stratum LSP",
+  "description": "Architectural linter for layered codebases.",
+  "version": "0.1.0",
+  "publisher": "stratum",
+  "engines": { "vscode": "^1.75.0" },
+  "categories": ["Linters"],
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact",
+    "onLanguage:vue"
+  ],
+  "main": "./client/out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Stratum",
+      "properties": {
+        "stratum.serverPath": {
+          "type": "string",
+          "default": "stratum-lsp",
+          "description": "Path to the stratum-lsp executable."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./client",
+    "watch": "tsc -w -p ./client"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/vscode": "^1.75.0",
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9"
+  }
+}

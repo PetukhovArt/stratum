@@ -83,9 +83,13 @@ impl LanguageServer for Backend {
         let backend = self.clone_handle();
         let uri_for_work = uri.clone();
         self.debouncer
-            .schedule(uri, Duration::from_millis(DEBOUNCE_MS), move || async move {
-                backend.recompute(uri_for_work).await;
-            })
+            .schedule(
+                uri,
+                Duration::from_millis(DEBOUNCE_MS),
+                move || async move {
+                    backend.recompute(uri_for_work).await;
+                },
+            )
             .await;
     }
 
@@ -157,6 +161,8 @@ impl BackendHandle {
             (diags, viols)
         };
         let _ = violations;
-        self.client.publish_diagnostics(uri, diagnostics, None).await;
+        self.client
+            .publish_diagnostics(uri, diagnostics, None)
+            .await;
     }
 }
