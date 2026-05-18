@@ -1,6 +1,8 @@
 use oxc_allocator::Allocator;
 use oxc_ast::Visit;
-use oxc_ast::ast::{ExportAllDeclaration, ExportNamedDeclaration, ImportDeclaration};
+use oxc_ast::ast::{
+    ExportAllDeclaration, ExportNamedDeclaration, Expression, ImportDeclaration, ImportExpression,
+};
 use oxc_ast::visit::walk;
 use oxc_parser::Parser;
 use oxc_span::SourceType;
@@ -9,7 +11,8 @@ use stratum_core::edge::EdgeKind;
 use crate::extractor::RawImport;
 use crate::source_span::SourceSpan;
 
-/// Parse `source` and collect every static `import` / `export from` edge.
+/// Parse `source` and collect every static `import` / `export from` and
+/// dynamic `import()` edge.
 ///
 /// The returned vec preserves source order and includes type-only imports
 /// (callers may filter on `RawImport::type_only`).
@@ -75,6 +78,19 @@ impl<'a> Visit<'a> for ImportVisitor {
         );
         walk::walk_export_all_declaration(self, decl);
     }
+
+    fn visit_import_expression(&mut self, expr: &ImportExpression<'a>) {
+        if let Expression::StringLiteral(lit) = &expr.source {
+            self.push(
+                lit.value.as_str(),
+                lit.span.start,
+                lit.span.end,
+                EdgeKind::Runtime,
+                false,
+            );
+        }
+        walk::walk_import_expression(self, expr);
+    }
 }
 
 #[cfg(test)]
@@ -127,6 +143,32 @@ mod tests {
     fn ignores_local_export() {
         let imports = collect_imports("export const x = 1;", ts_module());
         assert!(imports.is_empty());
+    }
+
+    #[test]
+    fn collects_dynamic_import() {
+        let imports = collect_imports(r#"const x = await import("./bar");"#, ts_module());
+        assert_eq!(imports.len(), 1);
+        assert_eq!(imports[0].specifier, "./bar");
+        assert_eq!(imports[0].kind, EdgeKind::Runtime);
+        assert!(!imports[0].type_only);
+    }
+
+    #[test]
+    fn ignores_dynamic_import_with_non_literal_specifier() {
+        let imports = collect_imports("const x = await import(maybeLater);", ts_module());
+        assert!(imports.is_empty());
+    }
+
+    #[test]
+    fn collects_dynamic_import_inside_function() {
+        let imports = collect_imports(
+            r#"async function load() { return import("./bar"); }"#,
+            ts_module(),
+        );
+        assert_eq!(imports.len(), 1);
+        assert_eq!(imports[0].specifier, "./bar");
+        assert_eq!(imports[0].kind, EdgeKind::Runtime);
     }
 
     #[test]
