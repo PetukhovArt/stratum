@@ -9,11 +9,7 @@ use super::Reporter;
 pub struct SarifReporter;
 
 impl Reporter for SarifReporter {
-    fn write(
-        &self,
-        violations: &[Violation],
-        out: &mut dyn std::io::Write,
-    ) -> std::io::Result<()> {
+    fn write(&self, violations: &[Violation], out: &mut dyn std::io::Write) -> std::io::Result<()> {
         let rule_ids: BTreeSet<u32> = violations.iter().map(|v| v.rule.raw()).collect();
         let rules: Vec<_> = rule_ids
             .iter()

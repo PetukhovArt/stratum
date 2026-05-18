@@ -46,11 +46,7 @@ pub fn build(root: &Utf8Path, config: &Config) -> Result<EngineInput, PipelineEr
                 .depends_on
                 .iter()
                 .map(|dep| {
-                    let pos = config
-                        .layers
-                        .iter()
-                        .position(|x| &x.id == dep)
-                        .unwrap_or(0);
+                    let pos = config.layers.iter().position(|x| &x.id == dep).unwrap_or(0);
                     LayerId::new(u32::try_from(pos).unwrap_or(0))
                 })
                 .collect(),

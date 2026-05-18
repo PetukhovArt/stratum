@@ -27,7 +27,11 @@ fn lint_dirty_project_exits_one() {
 fn json_format_is_valid_json() {
     let out = Command::cargo_bin("stratum-lint")
         .unwrap()
-        .args(["--format", "json", "../../tests/fixtures/tiny-ts-violations"])
+        .args([
+            "--format",
+            "json",
+            "../../tests/fixtures/tiny-ts-violations",
+        ])
         .output()
         .unwrap();
     let parsed: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
@@ -39,7 +43,11 @@ fn json_format_is_valid_json() {
 fn sarif_format_has_required_fields() {
     let out = Command::cargo_bin("stratum-lint")
         .unwrap()
-        .args(["--format", "sarif", "../../tests/fixtures/tiny-ts-violations"])
+        .args([
+            "--format",
+            "sarif",
+            "../../tests/fixtures/tiny-ts-violations",
+        ])
         .output()
         .unwrap();
     let parsed: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();

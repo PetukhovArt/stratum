@@ -10,20 +10,15 @@ use crate::{
     zero_config,
 };
 
-pub fn run(
-    root: &Utf8Path,
-    format: Format,
-    config_path: Option<&Utf8Path>,
-) -> miette::Result<i32> {
-    let config = match config_path {
-        Some(p) => stratum_config::parse_file(p).map_err(|e| miette::miette!("{e}"))?,
-        None => {
-            let default = root.join("stratum.config.jsonc");
-            if default.exists() {
-                stratum_config::parse_file(&default).map_err(|e| miette::miette!("{e}"))?
-            } else {
-                zero_config::infer(root)
-            }
+pub fn run(root: &Utf8Path, format: Format, config_path: Option<&Utf8Path>) -> miette::Result<i32> {
+    let config = if let Some(p) = config_path {
+        stratum_config::parse_file(p).map_err(|e| miette::miette!("{e}"))?
+    } else {
+        let default = root.join("stratum.config.jsonc");
+        if default.exists() {
+            stratum_config::parse_file(&default).map_err(|e| miette::miette!("{e}"))?
+        } else {
+            zero_config::infer(root)
         }
     };
     let violations = pipeline::run(root, &config).map_err(|e| miette::miette!("{e}"))?;
@@ -35,11 +30,7 @@ pub fn run(
     Ok(exit_code(&violations))
 }
 
-fn write_with_format(
-    format: Format,
-    vs: &[Violation],
-    w: &mut dyn Write,
-) -> std::io::Result<()> {
+fn write_with_format(format: Format, vs: &[Violation], w: &mut dyn Write) -> std::io::Result<()> {
     match format {
         Format::Terminal => TerminalReporter.write(vs, w),
         Format::Json => JsonReporter.write(vs, w),
@@ -48,9 +39,5 @@ fn write_with_format(
 }
 
 fn exit_code(vs: &[Violation]) -> i32 {
-    if vs.iter().any(|v| v.severity == Severity::Error) {
-        1
-    } else {
-        0
-    }
+    i32::from(vs.iter().any(|v| v.severity == Severity::Error))
 }

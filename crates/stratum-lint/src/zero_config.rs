@@ -74,7 +74,10 @@ mod tests {
             .unwrap();
         let cfg = infer(&root);
         let names: Vec<&str> = cfg.layers.iter().map(|l| l.id.as_str()).collect();
-        assert_eq!(names, vec!["app", "entities", "features", "legacy", "shared"]);
+        assert_eq!(
+            names,
+            vec!["app", "entities", "features", "legacy", "shared"]
+        );
         assert_eq!(cfg.rules.len(), 5);
     }
 

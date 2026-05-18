@@ -13,9 +13,5 @@ pub trait Reporter {
     ///
     /// # Errors
     /// Returns any I/O error produced while writing.
-    fn write(
-        &self,
-        violations: &[Violation],
-        out: &mut dyn std::io::Write,
-    ) -> std::io::Result<()>;
+    fn write(&self, violations: &[Violation], out: &mut dyn std::io::Write) -> std::io::Result<()>;
 }
