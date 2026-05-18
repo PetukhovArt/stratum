@@ -28,3 +28,7 @@ walkdir.workspace = true
 insta.workspace = true
 proptest.workspace = true
 criterion.workspace = true
+
+[[bench]]
+name = "build_latency"
+harness = false
