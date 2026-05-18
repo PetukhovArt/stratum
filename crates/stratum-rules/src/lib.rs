@@ -27,7 +27,7 @@ pub use options::{
 
 pub use config_hash::rule_config_hash;
 pub use registry::{DynRule, DynRuleAdapter, RuleRegistry};
-pub use runner::run_all;
+pub use runner::{run_all, run_all_with_registry};
 
 pub use ids::{
     CROSS_ENTITY_PATTERN, DEEP_MODULE, DEPTH_RATIO, MILLER_LIMIT, NO_CIRCULAR_DEPS,

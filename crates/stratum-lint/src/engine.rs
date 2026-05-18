@@ -3,26 +3,16 @@ use std::sync::Arc;
 use camino::Utf8PathBuf;
 use stratum_core::{severity::Severity, violation::Violation};
 use stratum_graph::CompoundGraph;
+use stratum_rules::RuleRegistry;
 
-/// Input handed to the engine: the materialised graph + the resolved config +
-/// the project root used to derive relative paths for override matching.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct EngineInput {
     pub graph: Arc<CompoundGraph>,
     pub config: Arc<stratum_config::Config>,
     pub project_root: Utf8PathBuf,
+    pub registry: Arc<RuleRegistry>,
 }
 
-/// Single-shot engine over `stratum_rules::run_all`.
-///
-/// Phase 4 ships this as a plain wrapper around the Phase 3 orchestrator. The
-/// Salsa per-rule `#[salsa::tracked]` wiring sketched in the plan is deferred
-/// until Phase 7 (LSP), where incremental recompute matters most. Today's
-/// cold-run baseline (~85 µs on tiny-ts-violations) already clears the Phase 4
-/// `<50 ms` gate by three orders of magnitude, so the deferral does not block
-/// any exit criterion. The current shape keeps the API stable: callers depend
-/// on `RuleEngine::run` / `run_for_file`, not on whether the cache is a
-/// `HashMap`, Salsa, or nothing.
 #[derive(Debug)]
 pub struct RuleEngine;
 
@@ -31,11 +21,16 @@ impl RuleEngine {
     /// Returns violations sorted by `(rule_id, first_module_id)`.
     #[must_use]
     pub fn run(input: &EngineInput) -> Vec<Violation> {
-        stratum_rules::run_all(&input.graph, &input.config, &input.project_root).unwrap_or_default()
+        stratum_rules::run_all_with_registry(
+            &input.graph,
+            &input.config,
+            &input.project_root,
+            &input.registry,
+        )
+        .unwrap_or_default()
     }
 
-    /// Filter violations to those whose `file` matches `file`. Mirrors
-    /// `ArchitectureDatabase::violations_for_file`.
+    /// Filter violations to those whose `file` matches `file`.
     #[allow(dead_code)]
     #[must_use]
     pub fn run_for_file(input: &EngineInput, file: &std::path::Path) -> Vec<Violation> {
