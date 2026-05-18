@@ -56,6 +56,7 @@ impl LanguageServer for Backend {
         self.client
             .log_message(MessageType::INFO, "stratum-lsp ready")
             .await;
+        self.spawn_plugin_watcher().await;
     }
 
     async fn shutdown(&self) -> JsonRpcResult<()> {
@@ -145,6 +146,56 @@ impl Backend {
             state.doc_text.insert(uri.clone(), text);
         }
         handle.recompute(uri).await;
+    }
+
+    async fn spawn_plugin_watcher(&self) {
+        let Some(root) = self.state.lock().await.project_root.clone() else {
+            return;
+        };
+        let rx = match stratum_plugins_rhai::watch_plugins(
+            root.as_std_path(),
+            Duration::from_millis(50),
+        ) {
+            Ok(rx) => rx,
+            Err(err) => {
+                self.client
+                    .log_message(
+                        MessageType::WARNING,
+                        format!("plugin watcher failed to start: {err}"),
+                    )
+                    .await;
+                return;
+            }
+        };
+        let backend = self.clone_handle();
+        let runtime = tokio::runtime::Handle::current();
+        std::thread::spawn(move || {
+            while let Ok(change) = rx.recv() {
+                let backend = backend.clone();
+                runtime.spawn(async move { backend.reload_after_plugin_change(change).await });
+            }
+        });
+    }
+}
+
+impl BackendHandle {
+    async fn reload_after_plugin_change(self, change: stratum_plugins_rhai::PluginChange) {
+        let open_docs: Vec<Url> = {
+            let mut state = self.state.lock().await;
+            if state.rebuild().is_err() {
+                return;
+            }
+            state.doc_text.keys().cloned().collect()
+        };
+        self.client
+            .log_message(
+                MessageType::INFO,
+                format!("plugin reloaded: {}", change.path),
+            )
+            .await;
+        for uri in open_docs {
+            self.clone().recompute(uri).await;
+        }
     }
 }
 

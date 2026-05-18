@@ -21,6 +21,7 @@ stratum-graph = { path = "../stratum-graph" }
 stratum-rules = { path = "../stratum-rules" }
 stratum-config = { path = "../stratum-config" }
 stratum-lint = { path = "../stratum-lint" }
+stratum-plugins-rhai = { path = "../stratum-plugins-rhai" }
 tower-lsp = "0.20"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "io-std", "sync", "time"] }
 serde.workspace = true
