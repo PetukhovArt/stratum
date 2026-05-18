@@ -1,0 +1,65 @@
+---
+source: crates/stratum-parser-ts/tests/extractor_snapshot.rs
+assertion_line: 39
+expression: all
+---
+- - src/app/main.ts
+  - - specifier: "@/features/cart"
+      span:
+        start: 26
+        end: 43
+      kind: static
+      type_only: false
+    - specifier: ~shared/api/http
+      span:
+        start: 66
+        end: 84
+      kind: static
+      type_only: false
+- - src/entities/user/User.ts
+  - - specifier: "@/shared/utils/format"
+      span:
+        start: 25
+        end: 48
+      kind: static
+      type_only: false
+- - src/entities/user/index.ts
+  - - specifier: "./User"
+      span:
+        start: 26
+        end: 34
+      kind: static
+      type_only: true
+- - src/features/cart/cart.tsx
+  - - specifier: "@/entities/user"
+      span:
+        start: 21
+        end: 38
+      kind: static
+      type_only: false
+    - specifier: "@/shared/ui/Button"
+      span:
+        start: 63
+        end: 83
+      kind: static
+      type_only: false
+- - src/features/cart/index.ts
+  - - specifier: "./cart"
+      span:
+        start: 34
+        end: 42
+      kind: static
+      type_only: false
+- - src/legacy/old-helper.js
+  - - specifier: "../shared/api/http"
+      span:
+        start: 25
+        end: 45
+      kind: static
+      type_only: false
+- - src/shared/api/http.ts
+  - []
+- - src/shared/ui/Button.tsx
+  - []
+- - src/shared/utils/format.ts
+  - []
