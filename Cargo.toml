@@ -28,6 +28,9 @@ oxc_span = "0.30"
 oxc_syntax = "0.30"
 walkdir = "2"
 camino = { version = "1", features = ["serde1"] }
+petgraph = "0.6"
+indexmap = { version = "2", features = ["serde"] }
+rustc-hash = "2"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
