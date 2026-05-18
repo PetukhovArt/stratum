@@ -14,6 +14,7 @@ pub enum Severity {
 }
 
 impl Severity {
+    #[must_use]
     pub const fn fails_build(self) -> bool {
         matches!(self, Self::Error)
     }
@@ -32,6 +33,7 @@ impl std::fmt::Display for Severity {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
