@@ -74,7 +74,10 @@ mod tests {
         let graph = db.compound_graph(project);
         assert_eq!(graph.module_count, 0);
         assert!(db.violations(project).is_empty());
-        assert!(db.violations_for_file(project, PathBuf::from("x.ts")).is_empty());
+        assert!(
+            db.violations_for_file(project, PathBuf::from("x.ts"))
+                .is_empty()
+        );
     }
 
     #[test]

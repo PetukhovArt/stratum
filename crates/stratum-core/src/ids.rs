@@ -5,16 +5,29 @@ macro_rules! id_newtype {
     ($name:ident, $doc:literal) => {
         #[doc = $doc]
         #[derive(
-            Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord,
-            Serialize, Deserialize, JsonSchema,
+            Debug,
+            Clone,
+            Copy,
+            PartialEq,
+            Eq,
+            Hash,
+            PartialOrd,
+            Ord,
+            Serialize,
+            Deserialize,
+            JsonSchema,
         )]
         #[repr(transparent)]
         #[serde(transparent)]
         pub struct $name(pub u32);
 
         impl $name {
-            pub const fn new(raw: u32) -> Self { Self(raw) }
-            pub const fn raw(self) -> u32 { self.0 }
+            pub const fn new(raw: u32) -> Self {
+                Self(raw)
+            }
+            pub const fn raw(self) -> u32 {
+                self.0
+            }
         }
 
         impl std::fmt::Display for $name {
@@ -25,10 +38,16 @@ macro_rules! id_newtype {
     };
 }
 
-id_newtype!(ModuleId, "Stable identifier for a Module inside a Compound DAG.");
+id_newtype!(
+    ModuleId,
+    "Stable identifier for a Module inside a Compound DAG."
+);
 id_newtype!(ContainerId, "Stable identifier for a Container.");
 id_newtype!(LayerId, "Stable identifier for a Layer.");
-id_newtype!(ProjectId, "Stable identifier for a Project (workspace root).");
+id_newtype!(
+    ProjectId,
+    "Stable identifier for a Project (workspace root)."
+);
 id_newtype!(RuleId, "Stable identifier for a Rule.");
 
 #[cfg(test)]
