@@ -30,6 +30,7 @@ pub struct Violation {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::edge::EdgeKind;

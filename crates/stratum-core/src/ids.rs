@@ -32,6 +32,7 @@ id_newtype!(ProjectId, "Stable identifier for a Project (workspace root).");
 id_newtype!(RuleId, "Stable identifier for a Rule.");
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

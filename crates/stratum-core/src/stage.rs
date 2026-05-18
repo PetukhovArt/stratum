@@ -14,6 +14,8 @@ pub struct Stage(u8);
 pub struct InvalidStage(pub u8);
 
 impl Stage {
+    /// # Errors
+    /// Returns [`InvalidStage`] if `rank` is not in `1..=4`.
     pub const fn new(rank: u8) -> Result<Self, InvalidStage> {
         match rank {
             1..=4 => Ok(Self(rank)),
@@ -21,10 +23,12 @@ impl Stage {
         }
     }
 
+    #[must_use]
     pub const fn rank(self) -> u8 { self.0 }
 
     /// A module at stage `self` may depend on modules at stage `other`
     /// iff `other <= self` — purer code cannot reach impurer code.
+    #[must_use]
     pub const fn may_depend_on(self, other: Stage) -> bool {
         other.0 <= self.0
     }
@@ -40,6 +44,7 @@ impl From<Stage> for u8 {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
