@@ -2,8 +2,6 @@
 
 #![forbid(unsafe_code)]
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn crate_loads() {}
-}
+pub mod graph;
+
+pub use graph::CompoundGraph;
