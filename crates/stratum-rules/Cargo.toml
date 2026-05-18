@@ -28,3 +28,7 @@ proptest.workspace = true
 criterion.workspace = true
 indexmap.workspace = true
 rustc-hash.workspace = true
+
+[[bench]]
+name = "run_all_latency"
+harness = false
