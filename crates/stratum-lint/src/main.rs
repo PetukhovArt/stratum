@@ -1,14 +1,7 @@
 #![forbid(unsafe_code)]
 
 use clap::Parser;
-
-mod cli;
-mod commands;
-mod engine;
-mod pipeline;
-mod reporters;
-mod watch;
-mod zero_config;
+use stratum_lint::{cli, commands, watch};
 
 fn main() -> miette::Result<()> {
     let cli = cli::Cli::parse();

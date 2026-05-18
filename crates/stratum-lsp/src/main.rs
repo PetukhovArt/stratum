@@ -1,36 +1,27 @@
-use tower_lsp::jsonrpc::Result;
-use tower_lsp::lsp_types::{
-    InitializeParams, InitializeResult, ServerCapabilities, ServerInfo,
-};
-use tower_lsp::{Client, LanguageServer, LspService, Server};
+#![forbid(unsafe_code)]
+#![allow(clippy::missing_errors_doc, clippy::missing_panics_doc)]
 
-#[derive(Debug)]
-struct Backend {
-    #[allow(dead_code)]
-    client: Client,
-}
+use std::sync::Arc;
 
-#[tower_lsp::async_trait]
-impl LanguageServer for Backend {
-    async fn initialize(&self, _params: InitializeParams) -> Result<InitializeResult> {
-        Ok(InitializeResult {
-            capabilities: ServerCapabilities::default(),
-            server_info: Some(ServerInfo {
-                name: "stratum-lsp".into(),
-                version: Some(env!("CARGO_PKG_VERSION").into()),
-            }),
-        })
-    }
+use tokio::sync::Mutex;
+use tower_lsp::{LspService, Server};
 
-    async fn shutdown(&self) -> Result<()> {
-        Ok(())
-    }
-}
+mod debounce;
+mod diagnostics;
+mod document_links;
+mod hover;
+mod server;
+mod state;
 
 #[tokio::main]
 async fn main() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
-    let (service, socket) = LspService::new(|client| Backend { client });
+
+    let (service, socket) = LspService::new(|client| server::Backend {
+        client,
+        state: Arc::new(Mutex::new(state::ServerState::default())),
+        debouncer: Arc::new(debounce::Debouncer::default()),
+    });
     Server::new(stdin, stdout, socket).serve(service).await;
 }
