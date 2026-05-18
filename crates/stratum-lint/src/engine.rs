@@ -17,9 +17,12 @@ pub struct EngineInput {
 ///
 /// Phase 4 ships this as a plain wrapper around the Phase 3 orchestrator. The
 /// Salsa per-rule `#[salsa::tracked]` wiring sketched in the plan is deferred
-/// until Phase 7 (LSP), where incremental recompute matters most. The current
-/// shape already keeps the API stable: callers depend on `RuleEngine::run` /
-/// `run_for_file`, not on whether the inner cache is `HashMap` or Salsa.
+/// until Phase 7 (LSP), where incremental recompute matters most. Today's
+/// cold-run baseline (~85 µs on tiny-ts-violations) already clears the Phase 4
+/// `<50 ms` gate by three orders of magnitude, so the deferral does not block
+/// any exit criterion. The current shape keeps the API stable: callers depend
+/// on `RuleEngine::run` / `run_for_file`, not on whether the cache is a
+/// `HashMap`, Salsa, or nothing.
 #[derive(Debug)]
 pub struct RuleEngine;
 

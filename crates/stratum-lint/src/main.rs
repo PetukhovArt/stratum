@@ -5,6 +5,7 @@ use clap::Parser;
 mod cli;
 mod engine;
 mod pipeline;
+mod reporters;
 mod zero_config;
 
 fn main() -> miette::Result<()> {
