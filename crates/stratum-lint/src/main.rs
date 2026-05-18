@@ -7,6 +7,7 @@ mod commands;
 mod engine;
 mod pipeline;
 mod reporters;
+mod watch;
 mod zero_config;
 
 fn main() -> miette::Result<()> {
@@ -27,8 +28,15 @@ fn main() -> miette::Result<()> {
                 Some(cli::Command::Lint { root }) => root,
                 _ => cli.root.clone(),
             };
-            let code =
-                commands::lint::run(&root, cli.format, cli.config.as_deref())?;
+            if cli.watch {
+                let format = cli.format;
+                let config_path = cli.config.clone();
+                let root_for_lint = root.clone();
+                return watch::run(&root, || {
+                    commands::lint::run(&root_for_lint, format, config_path.as_deref())
+                });
+            }
+            let code = commands::lint::run(&root, cli.format, cli.config.as_deref())?;
             std::process::exit(code);
         }
     }
