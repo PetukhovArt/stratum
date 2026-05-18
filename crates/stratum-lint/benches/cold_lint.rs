@@ -85,11 +85,7 @@ fn bench_cold_lint_tiny_ts(c: &mut Criterion) {
                         .depends_on
                         .iter()
                         .map(|d| {
-                            let pos = config
-                                .layers
-                                .iter()
-                                .position(|x| &x.id == d)
-                                .unwrap_or(0);
+                            let pos = config.layers.iter().position(|x| &x.id == d).unwrap_or(0);
                             LayerId::new(u32::try_from(pos).unwrap())
                         })
                         .collect(),

@@ -6,11 +6,7 @@ use super::Reporter;
 pub struct JsonReporter;
 
 impl Reporter for JsonReporter {
-    fn write(
-        &self,
-        violations: &[Violation],
-        out: &mut dyn std::io::Write,
-    ) -> std::io::Result<()> {
+    fn write(&self, violations: &[Violation], out: &mut dyn std::io::Write) -> std::io::Result<()> {
         let json = serde_json::to_string_pretty(&serde_json::json!({
             "version": 1,
             "violations": violations,

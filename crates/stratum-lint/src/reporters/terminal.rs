@@ -9,11 +9,7 @@ use super::Reporter;
 pub struct TerminalReporter;
 
 impl Reporter for TerminalReporter {
-    fn write(
-        &self,
-        violations: &[Violation],
-        out: &mut dyn std::io::Write,
-    ) -> std::io::Result<()> {
+    fn write(&self, violations: &[Violation], out: &mut dyn std::io::Write) -> std::io::Result<()> {
         let mut by_file: BTreeMap<PathBuf, Vec<&Violation>> = BTreeMap::new();
         for v in violations {
             by_file.entry(v.file.clone()).or_default().push(v);

@@ -31,7 +31,7 @@ pub fn run<F: Fn() -> miette::Result<i32>>(root: &Utf8Path, lint: F) -> miette::
                 }
             }
             Ok(Err(e)) => eprintln!("watch error: {e}"),
-            Err(_) => continue,
+            Err(_) => {}
         }
     }
 }

@@ -31,8 +31,7 @@ impl RuleEngine {
     /// Returns violations sorted by `(rule_id, first_module_id)`.
     #[must_use]
     pub fn run(input: &EngineInput) -> Vec<Violation> {
-        stratum_rules::run_all(&input.graph, &input.config, &input.project_root)
-            .unwrap_or_default()
+        stratum_rules::run_all(&input.graph, &input.config, &input.project_root).unwrap_or_default()
     }
 
     /// Filter violations to those whose `file` matches `file`. Mirrors

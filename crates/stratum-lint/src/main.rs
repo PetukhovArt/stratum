@@ -18,9 +18,10 @@ fn main() -> miette::Result<()> {
         Some(cli::Command::Visualize { root }) => commands::visualize::run(&root),
         Some(cli::Command::Diff { prev, now }) => commands::diff::run(&prev, &now),
         cmd => {
-            let root = match cmd {
-                Some(cli::Command::Lint { root }) => root,
-                _ => cli.root.clone(),
+            let root = if let Some(cli::Command::Lint { root }) = cmd {
+                root
+            } else {
+                cli.root.clone()
             };
             if cli.watch {
                 let format = cli.format;
