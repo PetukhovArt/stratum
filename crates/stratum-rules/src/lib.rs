@@ -8,6 +8,7 @@ pub mod options;
 pub mod rule;
 pub mod scope;
 
+pub use builtin::depth_ratio::DepthRatio;
 pub use builtin::miller_limit::MillerLimit;
 pub use builtin::no_circular_deps::NoCircularDeps;
 pub use builtin::no_cross_layer_import::NoCrossLayerImport;
