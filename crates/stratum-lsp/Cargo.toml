@@ -24,6 +24,8 @@ stratum-lint = { path = "../stratum-lint" }
 stratum-plugins-rhai = { path = "../stratum-plugins-rhai" }
 tower-lsp = "0.20"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "io-std", "sync", "time"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 serde.workspace = true
 serde_json.workspace = true
 camino.workspace = true

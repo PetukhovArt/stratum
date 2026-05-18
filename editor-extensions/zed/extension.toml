@@ -1,0 +1,11 @@
+id = "stratum"
+name = "Stratum"
+description = "Architectural linter for TypeScript / Vue projects"
+version = "0.1.0"
+schema_version = 1
+authors = ["Stratum contributors"]
+repository = "https://github.com/PetukhovArt/stratum"
+
+[language_servers.stratum-lsp]
+name = "stratum-lsp"
+languages = ["TypeScript", "TSX", "Vue"]

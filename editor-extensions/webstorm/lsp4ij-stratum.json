@@ -1,0 +1,23 @@
+{
+  "name": "Stratum",
+  "id": "stratum",
+  "description": "Architectural linter for TypeScript / Vue projects",
+  "languageMappings": [
+    { "language": "TypeScript", "languageId": "typescript" },
+    { "language": "Vue.js", "languageId": "vue" }
+  ],
+  "fileTypeMappings": [
+    { "fileNamePattern": "*.ts", "languageId": "typescript" },
+    { "fileNamePattern": "*.tsx", "languageId": "typescriptreact" },
+    { "fileNamePattern": "*.vue", "languageId": "vue" }
+  ],
+  "serverDefinitions": [
+    {
+      "commandLine": "stratum-lsp",
+      "args": [],
+      "environment": {},
+      "rootPathMatcher": "stratum.toml"
+    }
+  ],
+  "trace": "messages"
+}
