@@ -129,12 +129,16 @@ impl GraphBuilder {
             let id = ModuleId::new(next_module_id);
             next_module_id = next_module_id.wrapping_add(1);
 
+            let annotated_stage = std::fs::read_to_string(path.as_std_path())
+                .ok()
+                .and_then(|s| stratum_parser_ts::extract_stage(&s));
+
             let module = Module {
                 id,
                 path: PathBuf::from(path.as_str()),
                 container: ContainerId::new(layer.raw()),
                 layer,
-                stage: self.config.default_stage,
+                stage: annotated_stage.unwrap_or(self.config.default_stage),
                 visibility: self.config.default_visibility.clone(),
             };
             let node = graph.deps.add_node(id);
