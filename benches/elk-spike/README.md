@@ -29,8 +29,8 @@ The script exits non-zero if average 2K-node layout exceeds 3 seconds
 |------|------------|--------|--------|--------|---------|
 | 2026-05-18 | 1000 | 3836 | 3689 | 4022 | WARN |
 | 2026-05-18 | 2000 | 13203 | 12960 | 13478 | FAIL |
-| 2026-05-18 | 5000 | — | — | — | (not run — aborted after FAIL at 2K) |
-| 2026-05-18 | 10000 | — | — | — | (not run — aborted after FAIL at 2K) |
+| 2026-05-18 | 5000 | 113925 | 100402 | 126640 | FAIL |
+| 2026-05-18 | 10000 | — | — | — | (abandoned — at 5K scaling ~114s, 10K would exceed 30 min) |
 
 ## Phase 8 scope decision
 
