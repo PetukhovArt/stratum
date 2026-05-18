@@ -15,9 +15,14 @@
 | **Type-only Import** (new) | A **Raw Import** marked `type_only` (e.g. `import type { X } from '...'`). Still recorded, so visibility rules can run on it; runtime-oriented rules filter it out. | erased import, types-only |
 | **Cycle** | A strongly-connected component in the dependency DAG. Found via Tarjan SCC. | loop, recursion |
 | **Container** | A compound node in the **Visualizer** that wraps the **Modules** of one **Layer**. | group, box, cluster |
-| **Compound Graph Snapshot** | The opaque in-memory value returned by the `compound_graph` query on the **Architecture Database**. Phase 0 ships a placeholder (`module_count: usize`); the real shape lands in `stratum-graph`. | graph value, dag snapshot |
+| **Compound Graph Snapshot** | The opaque value returned by the `compound_graph` query on the **Architecture Database**. As of Phase 2 it carries the serialised **Graph Snapshot** as a JSON string (`{ json: String }`); the typed value lives in `stratum-graph`. The newtype avoids a `stratum-core → stratum-graph` dep cycle. | graph value, dag snapshot |
+| **Graph Snapshot** (new) | The versioned, deterministic JSON shape `GraphSnapshot { version, modules, containers, layers, edges }` produced by `stratum_graph::snapshot_of(&CompoundGraph)`. Consumed by the **Visualizer** and by `compound_graph` callers. `version` bumps require a coordinated frontend release. | snapshot v1, on-wire graph |
 | **Source Location** | A 1-based `line:column` pointer carried inside a **Violation**. Distinct from a **Source Span**. | position, line/col |
-| **Source Span** (new) | A byte-offset half-open range `[start, end)` into source text, used by the parser to point at AST fragments. Convertible to a **Source Location** via `offset_to_line_col`. | byte range, AST span |
+| **Source Span** | A byte-offset half-open range `[start, end)` into source text, used by the parser to point at AST fragments. Convertible to a **Source Location** via `offset_to_line_col`. | byte range, AST span |
+| **Graph Builder** (new) | `stratum_graph::GraphBuilder` — walks a project root, picks files the **Language Extractor** handles, assigns each to its longest-matching **Layer**, then a second pass resolves **Raw Imports** through the **Path Resolver** and adds typed **Edges**. The Phase 2 entry point that materialises the **Compound DAG**. | graph constructor, dag builder |
+| **Layer Assignment** (new) | The longest-matching-prefix mapping from a module's project-relative path to a `LayerId`. Files outside any configured **Layer** are dropped from the **Compound DAG** in Phase 2 (Phase 3 will surface them as a violation). | layer mapping, layer assign |
+| **Miller Fan-out** (new) | A graph metric: the count of distinct dependents of a **Module** that live outside its own **Container**. Feeds the future `miller-limit` rule. Implemented as `stratum_graph::metrics::miller_fanout`. | cross-container fanout |
+| **Depth Ratio** (new) | A graph metric: `container_internal_count / public_exports`. Rewards encapsulation. `public_exports` is supplied externally until Phase 5 wires real export counts in. Implemented as `stratum_graph::metrics::depth_ratio`. | encapsulation ratio |
 
 ## Methodology
 
@@ -65,7 +70,8 @@
 | **LSP Server** | `stratum-lsp`. The IDE-facing server that streams **Violations** as you type. | language server |
 | **Visualizer** | The browser-based UI for the **Compound DAG** and its **Violations**, served from `stratum-lint visualize` by an embedded HTTP server (axum + `rust-embed`). | viewer, graph UI, Tauri app |
 | **Architecture Database** | The Salsa trait `ArchitectureDatabase`. The entire downstream-visible API of `stratum-core` — three deep queries (`compound_graph`, `violations`, `violations_for_file`). | db, query layer |
-| **Stratum DB** (new) | `StratumDb`, the concrete `salsa::Database` implementation of **Architecture Database**. Phase 0 returns placeholder values; Phase 2+ wires real queries. | salsa db |
+| **Stratum DB** | `StratumDb`, the concrete `salsa::Database` implementation of **Architecture Database**. Phase 0 returns placeholder values; Phase 2+ wires real queries. | salsa db |
+| **`stratum-graph` Crate** (new) | The Phase 2 crate that builds the **Compound DAG** from **Extracted Data** and exposes graph algorithms (topo sort, Tarjan SCC, direct dependents/dependencies) and graph metrics. Depends on `stratum-core` and `stratum-parser-ts`. | graph crate |
 | **Public Surface** | The deliberately narrow set of types and queries `stratum-core` exports. Intermediate Salsa queries stay `pub(crate)` (PRD decision D6). | API surface, exported API |
 | **Project** | A Salsa input identifying a project root by `root: PathBuf` and `id: ProjectId`. Every query on the **Architecture Database** is parameterized on a **Project**. | workspace, repo, root |
 | **Source File** (new) | A crate-private Salsa input (`SourceFile { path: Utf8PathBuf, text: String }`) holding one file's UTF-8 source. Only `stratum-graph` and `stratum-lint` inside the workspace read or set it. | file input, source input |
@@ -103,7 +109,8 @@
 
 - A **Module** belongs to exactly one **Layer**, sits in exactly one **Container**, and has exactly one **Stage** and one **Visibility Scope**.
 - An **Edge** is always typed as one **Edge Kind**: `static`, `DI`, or `runtime`.
-- A **Raw Import** is the parser-side precursor to an **Edge**: it carries a textual `specifier` and a **Source Span**, but no `ModuleId`. The `stratum-graph` crate (Phase 2) resolves it to an **Edge** via the **Path Resolver**.
+- A **Raw Import** is the parser-side precursor to an **Edge**: it carries a textual `specifier` and a **Source Span**, but no `ModuleId`. The **Graph Builder** in **`stratum-graph` Crate** resolves it to an **Edge** via the **Path Resolver**.
+- The **Graph Builder** materialises the **Compound DAG**. **Layer Assignment** drops files outside any configured **Layer**; the resulting graph is then serialised to a **Graph Snapshot** for the **Visualizer** and for the `compound_graph` query return value.
 - A **Stage** at `s` may depend on a **Stage** at `t` iff `t ≤ s` — purer code cannot reach impurer code.
 - A **Rule** reads the **Compound DAG** and emits zero or more **Violations**.
 - A **Violation** has one **Severity**, one **Source Location**, and points at one or more **Modules** (and optionally one **Edge**).
