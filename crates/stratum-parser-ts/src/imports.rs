@@ -1,7 +1,8 @@
 use oxc_allocator::Allocator;
 use oxc_ast::Visit;
 use oxc_ast::ast::{
-    ExportAllDeclaration, ExportNamedDeclaration, Expression, ImportDeclaration, ImportExpression,
+    Argument, CallExpression, ExportAllDeclaration, ExportNamedDeclaration, Expression,
+    ImportDeclaration, ImportExpression,
 };
 use oxc_ast::visit::walk;
 use oxc_parser::Parser;
@@ -91,6 +92,25 @@ impl<'a> Visit<'a> for ImportVisitor {
         }
         walk::walk_import_expression(self, expr);
     }
+
+    fn visit_call_expression(&mut self, call: &CallExpression<'a>) {
+        if is_require_callee(&call.callee) && call.arguments.len() == 1 {
+            if let Some(Argument::StringLiteral(lit)) = call.arguments.first() {
+                self.push(
+                    lit.value.as_str(),
+                    lit.span.start,
+                    lit.span.end,
+                    EdgeKind::Static,
+                    false,
+                );
+            }
+        }
+        walk::walk_call_expression(self, call);
+    }
+}
+
+fn is_require_callee(callee: &Expression<'_>) -> bool {
+    matches!(callee, Expression::Identifier(id) if id.name.as_str() == "require")
 }
 
 #[cfg(test)]
@@ -102,6 +122,12 @@ mod tests {
         SourceType::default()
             .with_typescript(true)
             .with_module(true)
+    }
+
+    fn cjs_script() -> SourceType {
+        SourceType::default()
+            .with_javascript(true)
+            .with_module(false)
     }
 
     #[test]
@@ -169,6 +195,21 @@ mod tests {
         assert_eq!(imports.len(), 1);
         assert_eq!(imports[0].specifier, "./bar");
         assert_eq!(imports[0].kind, EdgeKind::Runtime);
+    }
+
+    #[test]
+    fn collects_require_in_cjs() {
+        let imports = collect_imports(r#"const x = require("./bar");"#, cjs_script());
+        assert_eq!(imports.len(), 1);
+        assert_eq!(imports[0].specifier, "./bar");
+        assert_eq!(imports[0].kind, EdgeKind::Static);
+        assert!(!imports[0].type_only);
+    }
+
+    #[test]
+    fn require_with_dynamic_arg_is_ignored() {
+        let imports = collect_imports("const x = require(name);", cjs_script());
+        assert!(imports.is_empty());
     }
 
     #[test]
