@@ -49,8 +49,8 @@ jobs:
       - name: bundle size budget
         working-directory: frontend/stratum-visualizer-frontend
         run: |
-          size=$(du -sb dist | cut -f1)
-          echo "Bundle: $size bytes"
+          size=$(du -bc dist --exclude='*.map' | tail -1 | cut -f1)
+          echo "Bundle (excl. sourcemaps): $size bytes"
           if [ "$size" -gt 1572864 ]; then
             echo "::error::Frontend bundle exceeds 1.5MB budget ($size bytes)"
             exit 1
