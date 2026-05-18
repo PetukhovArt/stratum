@@ -1,0 +1,22 @@
+# Force LF line endings for all text files so cargo fmt --check passes on Windows runners.
+* text=auto eol=lf
+
+*.rs       text eol=lf
+*.toml     text eol=lf
+*.md       text eol=lf
+*.yml      text eol=lf
+*.yaml     text eol=lf
+*.json     text eol=lf
+*.js       text eol=lf
+*.ts       text eol=lf
+*.tsx      text eol=lf
+*.html     text eol=lf
+*.css      text eol=lf
+*.sh       text eol=lf
+
+*.png      binary
+*.jpg      binary
+*.jpeg     binary
+*.gif      binary
+*.ico      binary
+*.wasm     binary
