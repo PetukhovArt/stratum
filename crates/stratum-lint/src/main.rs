@@ -3,6 +3,7 @@
 use clap::Parser;
 
 mod cli;
+mod commands;
 mod engine;
 mod pipeline;
 mod reporters;
@@ -11,37 +12,24 @@ mod zero_config;
 fn main() -> miette::Result<()> {
     let cli = cli::Cli::parse();
     match cli.command {
-        Some(cli::Command::Init { root }) => {
-            println!("stratum-lint init at {root}");
-        }
-        Some(cli::Command::Snapshot { root, out }) => {
-            println!("stratum-lint snapshot at {root} → {out}");
-        }
+        Some(cli::Command::Init { root }) => commands::init::run(&root),
+        Some(cli::Command::Snapshot { root, out }) => commands::snapshot::run(&root, &out),
         Some(cli::Command::Visualize { root }) => {
-            println!("stratum-lint visualize at {root} (Phase 8)");
+            println!("stratum-lint visualize at {root} (Phase 8 stub)");
+            Ok(())
         }
         Some(cli::Command::Diff { prev, now }) => {
-            println!("stratum-lint diff {prev} {now}");
+            println!("stratum-lint diff {prev} {now} (Phase 4 stub)");
+            Ok(())
         }
-        _ => {
-            let root = match cli.command {
-                Some(cli::Command::Lint { ref root }) => root.clone(),
+        cmd => {
+            let root = match cmd {
+                Some(cli::Command::Lint { root }) => root,
                 _ => cli.root.clone(),
             };
-            let config_path = cli
-                .config
-                .clone()
-                .unwrap_or_else(|| root.join("stratum.config.jsonc"));
-            let config = if config_path.exists() {
-                stratum_config::parse_file(&config_path)
-                    .map_err(|e| miette::Report::msg(e.to_string()))?
-            } else {
-                zero_config::infer(&root)
-            };
-            let violations =
-                pipeline::run(&root, &config).map_err(|e| miette::Report::msg(e.to_string()))?;
-            println!("Found {} violations", violations.len());
+            let code =
+                commands::lint::run(&root, cli.format, cli.config.as_deref())?;
+            std::process::exit(code);
         }
     }
-    Ok(())
 }
