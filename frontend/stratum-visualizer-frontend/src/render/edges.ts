@@ -7,6 +7,9 @@ const KIND_COLORS: Record<string, number> = {
   runtime: 0xbd10e0,
 }
 
+const ERROR_COLOR = 0xff5252
+const WARN_COLOR = 0xf5c518
+
 const EDGE_FROM = '__edgeFrom'
 const EDGE_TO = '__edgeTo'
 
@@ -15,20 +18,34 @@ export interface EdgeGraphics extends Graphics {
   [EDGE_TO]?: string
 }
 
-export const buildEdgeGraphics = (edge: PositionedEdge): EdgeGraphics => {
+export interface EdgeGraphicsOptions {
+  hasError?: boolean
+  hasWarning?: boolean
+}
+
+export const buildEdgeGraphics = (
+  edge: PositionedEdge,
+  options: EdgeGraphicsOptions = {},
+): EdgeGraphics => {
   const g: EdgeGraphics = new Graphics()
   g[EDGE_FROM] = edge.from
   g[EDGE_TO] = edge.to
 
   if (edge.points.length < 2) return g
 
-  const color = KIND_COLORS[edge.kind] ?? 0xaaaaaa
+  const color = options.hasError
+    ? ERROR_COLOR
+    : options.hasWarning
+      ? WARN_COLOR
+      : (KIND_COLORS[edge.kind] ?? 0xaaaaaa)
+  const width = options.hasError ? 2.5 : 1.5
+  const alpha = options.hasError ? 1 : 0.9
   const first = edge.points[0]
   g.moveTo(first.x, first.y)
   for (let i = 1; i < edge.points.length; i++) {
     g.lineTo(edge.points[i].x, edge.points[i].y)
   }
-  g.stroke({ width: 1.5, color, alpha: 0.9 })
+  g.stroke({ width, color, alpha })
 
   drawArrowhead(g, edge.points[edge.points.length - 2], edge.points[edge.points.length - 1], color)
   return g

@@ -21,19 +21,27 @@ use crate::zero_config;
 struct VisualizerAssets;
 
 pub fn run(root: &Utf8Path) -> miette::Result<()> {
-    let config = zero_config::infer(root);
+    let config_path = root.join("stratum.config.jsonc");
+    let config = if config_path.exists() {
+        stratum_config::parse_file(&config_path).map_err(|e| miette::miette!("{e}"))?
+    } else {
+        zero_config::infer(root)
+    };
     let input = pipeline::build(root, &config).into_diagnostic()?;
     let snap = snapshot_of(&input.graph);
     let snap_json = serde_json::to_string(&snap).into_diagnostic()?;
+
+    let violations = crate::engine::RuleEngine::run(&input);
+    let violations_json = serde_json::to_string(&violations).into_diagnostic()?;
 
     let rt = Builder::new_current_thread()
         .enable_all()
         .build()
         .into_diagnostic()?;
-    rt.block_on(serve(snap_json, 0))
+    rt.block_on(serve(snap_json, violations_json, 0))
 }
 
-pub fn build_router(snapshot: &Arc<String>) -> Router {
+pub fn build_router(snapshot: &Arc<String>, violations: &Arc<String>) -> Router {
     let snap = Arc::clone(snapshot);
     let snapshot_route = get(move || {
         let snap = Arc::clone(&snap);
@@ -44,14 +52,26 @@ pub fn build_router(snapshot: &Arc<String>) -> Router {
                 .unwrap_or_else(|_| internal_error())
         }
     });
+    let vio = Arc::clone(violations);
+    let violations_route = get(move || {
+        let vio = Arc::clone(&vio);
+        async move {
+            Response::builder()
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(vio.as_ref().clone()))
+                .unwrap_or_else(|_| internal_error())
+        }
+    });
     Router::new()
         .route("/api/snapshot", snapshot_route)
+        .route("/api/violations", violations_route)
         .fallback(get(serve_asset))
 }
 
-async fn serve(snapshot_json: String, port: u16) -> miette::Result<()> {
+async fn serve(snapshot_json: String, violations_json: String, port: u16) -> miette::Result<()> {
     let snapshot = Arc::new(snapshot_json);
-    let app = build_router(&snapshot);
+    let violations = Arc::new(violations_json);
+    let app = build_router(&snapshot, &violations);
 
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", port))
         .await
