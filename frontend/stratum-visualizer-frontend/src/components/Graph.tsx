@@ -28,37 +28,48 @@ const SEVERITY: Record<string, Severity> = {
 
 // ─── glob → regex ───────────────────────────────────────────────────────────
 
+// Normalize Windows-style separators so user-typed `src/foo/**` matches paths
+// like `src\foo\bar.ts` that the Rust snapshot emits on Windows hosts.
+export const normalizePath = (p: string): string => p.replace(/\\/g, '/')
+
 export const globToRegex = (glob: string): ((p: string) => boolean) | null => {
   if (!glob) return null
   const parts = glob
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
+  if (parts.length === 0) return null
+  const escapeRe = (s: string): string => s.replace(/[.+^${}()|[\]\\]/g, '\\$&')
   const regexes = parts.map((p) => {
     const negate = p.startsWith('!')
-    const pat = negate ? p.slice(1) : p
-    const re =
-      '^' +
-      pat
-        .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-        .replace(/\*\*/g, '§§DSTAR§§')
-        .replace(/\*/g, '[^/]*')
-        .replace(/§§DSTAR§§/g, '.*')
-        .replace(/\?/g, '.') +
-      '$'
-    return { negate, re: new RegExp(re) }
-  })
-  return (path: string) => {
-    let matched = false
-    let anyPositive = false
-    for (const { negate, re } of regexes) {
-      if (!negate) anyPositive = true
-      if (re.test(path)) {
-        matched = !negate
-      }
+    const pat = normalizePath(negate ? p.slice(1) : p)
+    // Bare token (no glob metachars and no `/`) → substring match. Lets users
+    // type `gis` and find every path containing it, without learning glob syntax.
+    if (!/[*?/]/.test(pat)) {
+      return { negate, re: new RegExp(`.*${escapeRe(pat)}.*`, 'i') }
     }
-    if (!anyPositive) return !matched
-    return matched
+    // Convert glob `?` → regex `.` BEFORE expanding `**` tokens — otherwise the
+    // `?` we introduce in `(?:.+/)?` would itself get rewritten.
+    const body = escapeRe(pat)
+      .replace(/\?/g, '.')
+      .replace(/\*\*\//g, '§§DSTAR_SLASH§§')
+      .replace(/\*\*/g, '§§DSTAR§§')
+      .replace(/\*/g, '[^/]*')
+      .replace(/§§DSTAR_SLASH§§/g, '(?:.+/)?')
+      .replace(/§§DSTAR§§/g, '.*')
+    // Auto-prefix `(?:.+/)?` so user can type `src/foo/**` and have it match
+    // any tail of the path — including absolute Windows paths like
+    // `D:/projects/proj/src/foo/bar.ts`.
+    return { negate, re: new RegExp(`^(?:.+/)?${body}$`, 'i') }
+  })
+  const anyPositive = regexes.some((r) => !r.negate)
+  return (path: string) => {
+    const p = normalizePath(path)
+    let included = !anyPositive
+    for (const { negate, re } of regexes) {
+      if (re.test(p)) included = !negate
+    }
+    return included
   }
 }
 
@@ -89,8 +100,9 @@ const buildVisibility = (
       continue
     if (filters.stageFilter !== null && mod.stage !== filters.stageFilter) continue
     if (filters.query) {
-      const q = filters.query.toLowerCase()
-      if (!mod.id.toLowerCase().includes(q) && !mod.path.toLowerCase().includes(q)) continue
+      const q = normalizePath(filters.query.toLowerCase())
+      const modPath = normalizePath(mod.path.toLowerCase())
+      if (!mod.id.toLowerCase().includes(q) && !modPath.includes(q)) continue
     }
     if (matchGlob && !matchGlob(mod.path)) continue
     matchSet.add(id)

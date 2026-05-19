@@ -1,6 +1,7 @@
 import { Component, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
 import { DesignData } from '../render/design'
 import { Filters } from '../state'
+import { normalizePath } from './Graph'
 
 const EDGE_KIND_TOOLTIP: Record<string, string> = {
   static: 'Static imports — resolved at build time (import / export).',
@@ -173,10 +174,14 @@ const CommandPalette: Component<PaletteProps> = (props) => {
   ])
 
   const matchedModules = createMemo(() => {
-    const text = q().trim().toLowerCase()
+    const text = normalizePath(q().trim().toLowerCase())
     if (!text) return []
     return props.data.modules
-      .filter((m) => m.id.toLowerCase().includes(text) || m.path.toLowerCase().includes(text))
+      .filter(
+        (m) =>
+          m.id.toLowerCase().includes(text) ||
+          normalizePath(m.path.toLowerCase()).includes(text),
+      )
       .slice(0, 20)
   })
 
@@ -400,10 +405,10 @@ const FacetBar: Component<FacetBarProps> = (props) => {
           <span class="facet-label">Path</span>
           <input
             class="glob-input"
-            placeholder="src/entities/** , !src/shared/**"
+            placeholder="gis , src/features/** , !**/legacy/**"
             value={props.filters.glob}
             onInput={(e) => props.setFilters({ ...props.filters, glob: e.currentTarget.value })}
-            title="Glob filter — comma-separated. Prefix with ! to exclude."
+            title="Path filter. Bare words like `gis` match as case-insensitive substring. Globs (`*`, `**`, `?`) match path segments. Comma-separated. Prefix with `!` to exclude."
           />
           <Show when={props.filters.glob !== ''}>
             <button
