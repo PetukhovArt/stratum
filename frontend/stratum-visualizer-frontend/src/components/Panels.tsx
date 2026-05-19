@@ -15,6 +15,60 @@ import {
 } from '../render/design'
 import { Scene } from '../render/layout'
 import { Filters, HoveredEdge, HoveredMod, StageSize, Viewport } from '../state'
+import { globToRegex, normalizePath } from './Graph'
+
+const isFilterActive = (f: Filters): boolean =>
+  f.query !== '' || f.glob !== '' || f.onlyViolators || f.stageFilter !== null
+
+// Set of module ids that should remain visible in the outline given the
+// active filters. Returns null when no filter is active (everything shown).
+// Matched modules pull their ancestors AND descendants into the visible set
+// so the tree path to a match stays navigable, IDE-style.
+const visibleOutlineModules = (data: DesignData, f: Filters): Set<string> | null => {
+  if (!isFilterActive(f)) return null
+  const matchGlob = globToRegex(f.glob)
+  const q = f.query ? normalizePath(f.query.toLowerCase()) : null
+  const byId = new Map<string, DesignModule>()
+  for (const m of data.modules) byId.set(m.id, m)
+  const direct = new Set<string>()
+  for (const m of data.modules) {
+    if (
+      f.onlyViolators &&
+      m.violations.length === 0 &&
+      m.descError === 0 &&
+      m.descWarn === 0
+    )
+      continue
+    if (f.stageFilter !== null && m.stage !== f.stageFilter) continue
+    if (q) {
+      const pathLc = normalizePath(m.path.toLowerCase())
+      if (!m.id.toLowerCase().includes(q) && !pathLc.includes(q)) continue
+    }
+    if (matchGlob && !matchGlob(m.path)) continue
+    direct.add(m.id)
+  }
+  const visible = new Set<string>(direct)
+  for (const id of direct) {
+    let cur = byId.get(id)?.parentId ?? null
+    while (cur) {
+      if (visible.has(cur)) break
+      visible.add(cur)
+      cur = byId.get(cur)?.parentId ?? null
+    }
+  }
+  const queue = [...direct]
+  while (queue.length) {
+    const id = queue.shift()!
+    const kids = data.childIndex[id] ?? []
+    for (const k of kids) {
+      if (!visible.has(k)) {
+        visible.add(k)
+        queue.push(k)
+      }
+    }
+  }
+  return visible
+}
 
 const STAGE_NAMES: Record<number, string> = {
   1: 'file',
@@ -53,6 +107,27 @@ export const OutlinePanel: Component<OutlineProps> = (props) => {
     new Set(props.data.modules.filter((m) => m.depth >= 1).map((m) => m.id)),
   )
   const [tip, setTip] = createSignal<Tip | null>(null)
+
+  const visible = createMemo(() => visibleOutlineModules(props.data, props.filters))
+  const filterActive = () => visible() !== null
+  // When a glob/query/violator/stage filter is active, force-expand every
+  // ancestor of a match so the user actually sees the matched leaves without
+  // re-clicking chevrons.
+  const isCollapsed = (id: string): boolean => {
+    if (filterActive()) return false
+    return collapsed().has(id)
+  }
+  const isModuleVisible = (id: string): boolean => {
+    const v = visible()
+    return v === null || v.has(id)
+  }
+  const visibleCount = createMemo(() => {
+    const v = visible()
+    if (!v) return props.data.modules.length
+    let n = 0
+    for (const m of props.data.modules) if (v.has(m.id)) n++
+    return n
+  })
 
   const showTip = (e: MouseEvent, content: JSX.Element) =>
     setTip({ x: e.clientX, y: e.clientY, content })
@@ -228,12 +303,14 @@ export const OutlinePanel: Component<OutlineProps> = (props) => {
     <aside class="panel panel-outline">
       <header class="panel-hd">
         <span class="panel-title">Outline</span>
-        <span class="panel-count">{props.data.modules.length}</span>
+        <span class="panel-count">
+          {filterActive() ? `${visibleCount()} / ${props.data.modules.length}` : props.data.modules.length}
+        </span>
       </header>
       <div class="outline-tree" onScroll={hideTip}>
         <For each={props.data.layers}>
           {(layer) => {
-            const layerCollapsed = () => collapsed().has(layer.id)
+            const layerCollapsed = () => isCollapsed(layer.id)
             const layerDisabled = () => props.filters.disabledLayers.has(layer.id)
             const layerModules = createMemo(() =>
               props.data.modules.filter((m) => {
@@ -241,6 +318,15 @@ export const OutlinePanel: Component<OutlineProps> = (props) => {
                 return c?.layer === layer.id
               }),
             )
+            const visibleContainers = createMemo(() =>
+              containersOf(layer).filter((c) => {
+                if (!filterActive()) return true
+                return props.data.modules.some(
+                  (m) => m.container === c.id && isModuleVisible(m.id),
+                )
+              }),
+            )
+            if (filterActive() && visibleContainers().length === 0) return null
             return (
               <div class="ot-layer">
                 <div class="ot-row ot-row-layer" onClick={() => toggle(layer.id)}>
@@ -310,11 +396,12 @@ export const OutlinePanel: Component<OutlineProps> = (props) => {
                   </button>
                 </div>
                 <Show when={!layerCollapsed()}>
-                  <For each={containersOf(layer)}>
+                  <For each={visibleContainers()}>
                     {(c) => {
                       const cDisabled = () => props.filters.disabledContainers.has(c.id)
-                      const cCollapsed = () => collapsed().has(c.id)
-                      const tops = () => props.data.topByContainer[c.id] ?? []
+                      const cCollapsed = () => isCollapsed(c.id)
+                      const tops = () =>
+                        (props.data.topByContainer[c.id] ?? []).filter(isModuleVisible)
                       const containerModules = createMemo(() =>
                         props.data.modules.filter((m) => m.container === c.id),
                       )
@@ -392,6 +479,8 @@ export const OutlinePanel: Component<OutlineProps> = (props) => {
                                   hideTip={hideTip}
                                   moduleViolationsTipContent={moduleViolationsTipContent}
                                   kidsTipContent={kidsTipContent}
+                                  isModuleVisible={isModuleVisible}
+                                  isCollapsed={isCollapsed}
                                 />
                               )}
                             </For>
@@ -462,13 +551,15 @@ interface ModuleRowProps {
   hideTip: () => void
   moduleViolationsTipContent: (mod: DesignModule) => JSX.Element
   kidsTipContent: (n: number) => JSX.Element
+  isModuleVisible: (id: string) => boolean
+  isCollapsed: (id: string) => boolean
 }
 
 const ModuleRow: Component<ModuleRowProps> = (props) => {
   const mod = () => props.data.modules.find((m) => m.id === props.modId)
-  const kids = () => props.data.childIndex[props.modId] ?? []
+  const kids = () => (props.data.childIndex[props.modId] ?? []).filter(props.isModuleVisible)
   const hasKids = () => kids().length > 0
-  const isCollapsed = () => props.collapsed().has(props.modId)
+  const isCollapsed = () => props.isCollapsed(props.modId)
 
   return (
     <Show when={mod()}>
@@ -548,6 +639,8 @@ const ModuleRow: Component<ModuleRowProps> = (props) => {
                   hideTip={props.hideTip}
                   moduleViolationsTipContent={props.moduleViolationsTipContent}
                   kidsTipContent={props.kidsTipContent}
+                  isModuleVisible={props.isModuleVisible}
+                  isCollapsed={props.isCollapsed}
                 />
               )}
             </For>

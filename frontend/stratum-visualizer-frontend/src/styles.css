@@ -53,8 +53,9 @@ body {
 
 /* ─── app shell ────────────────────────────────────────────────────────── */
 .strat-app { display: flex; flex-direction: column; height: 100vh; }
-.strat-body { display: grid; flex: 1; min-height: 0; gap: 0; }
-.panel-slot { min-width: 0; overflow: hidden; }
+.strat-body { display: grid; flex: 1; min-height: 0; gap: 0; grid-template-rows: minmax(0, 1fr); }
+.panel-slot { min-width: 0; min-height: 0; overflow: hidden; display: flex; }
+.panel-slot > .panel { flex: 1; min-height: 0; width: 100%; }
 .panel-slot.collapsed { border: 0; }
 
 /* ─── header ───────────────────────────────────────────────────────────── */
