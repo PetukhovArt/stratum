@@ -13,7 +13,8 @@ async fn snapshot_route_returns_json_payload() {
     let snapshot = Arc::new(
         r#"{"version":1,"modules":[],"containers":[],"layers":[],"edges":[]}"#.to_string(),
     );
-    let router = build_router(&snapshot);
+    let violations = Arc::new(String::from("[]"));
+    let router = build_router(&snapshot, &violations);
 
     let response = router
         .oneshot(
@@ -33,7 +34,8 @@ async fn snapshot_route_returns_json_payload() {
 #[tokio::test]
 async fn root_path_serves_embedded_index_html() {
     let snapshot = Arc::new(String::from(r#"{"version":1}"#));
-    let router = build_router(&snapshot);
+    let violations = Arc::new(String::from("[]"));
+    let router = build_router(&snapshot, &violations);
 
     let response = router
         .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
@@ -48,7 +50,8 @@ async fn root_path_serves_embedded_index_html() {
 #[tokio::test]
 async fn unknown_asset_path_returns_404() {
     let snapshot = Arc::new(String::from(r#"{"version":1}"#));
-    let router = build_router(&snapshot);
+    let violations = Arc::new(String::from("[]"));
+    let router = build_router(&snapshot, &violations);
 
     let response = router
         .oneshot(
