@@ -1,4 +1,12 @@
-import { Component, createMemo, For, onCleanup, onMount, Show } from 'solid-js'
+import {
+  Component,
+  createMemo,
+  createSignal,
+  For,
+  onCleanup,
+  onMount,
+  Show,
+} from 'solid-js'
 import { DesignData, DesignModule } from '../render/design'
 import { LaidEdge, LaneInfo, ContainerInfo, ModulePos, Scene } from '../render/layout'
 import { Filters, HoveredEdge, HoveredMod, Tweaks, Viewport } from '../state'
@@ -242,18 +250,79 @@ export const Graph: Component<GraphProps> = (props) => {
     drag = null
   }
 
+  const [stageW, setStageW] = createSignal(1000)
+  const [stageH, setStageH] = createSignal(700)
+
   onMount(() => {
     svgRef.addEventListener('wheel', onWheel, { passive: false })
-    onCleanup(() => svgRef.removeEventListener('wheel', onWheel))
+    const ro = new ResizeObserver(() => {
+      const r = svgRef.getBoundingClientRect()
+      setStageW(r.width)
+      setStageH(r.height)
+    })
+    ro.observe(svgRef)
+    onCleanup(() => {
+      svgRef.removeEventListener('wheel', onWheel)
+      ro.disconnect()
+    })
   })
 
   const transformAttr = createMemo(
     () => `translate(${props.viewport.x} ${props.viewport.y}) scale(${props.viewport.zoom})`,
   )
 
-  // depth-sorted modules so parents render below children
+  // Viewport bounds in scene coordinates, with a 200-px screen-space margin so
+  // modules near edges still appear without popping.
+  const viewBounds = createMemo(() => {
+    const v = props.viewport
+    const margin = 200
+    return {
+      x1: (-v.x - margin) / v.zoom,
+      y1: (-v.y - margin) / v.zoom,
+      x2: (stageW() - v.x + margin) / v.zoom,
+      y2: (stageH() - v.y + margin) / v.zoom,
+    }
+  })
+
+  // Level-of-detail threshold — at low zoom individual leaf modules render
+  // as ~10 px squares with no readable label or shape detail. Cull leaves whose
+  // rendered width drops below `minRenderedPx`, but ALWAYS keep modules that
+  // carry a violation so errors stay visible at any zoom. Compounds (depth=0
+  // and not a leaf) are always rendered — those are the container outlines.
   const sortedMods = createMemo(() => {
-    return Object.entries(props.scene.modulePos).sort((a, b) => a[1].depth - b[1].depth)
+    const b = viewBounds()
+    const z = props.viewport.zoom
+    const minRenderedPx = 12
+    return Object.entries(props.scene.modulePos)
+      .filter(([, p]) => {
+        if (!(p.x < b.x2 && p.x + p.w > b.x1 && p.y < b.y2 && p.y + p.h > b.y1)) return false
+        if (p.depth === 0 && !p.leaf) return true
+        if (p.mod.severity) return true
+        return p.w * z >= minRenderedPx
+      })
+      .sort((a, b) => a[1].depth - b[1].depth)
+  })
+
+  const visibleContainers = createMemo(() => {
+    const b = viewBounds()
+    return props.scene.containers.filter(
+      (c) => c.absX < b.x2 && c.absX + c.width > b.x1 && c.absY < b.y2 && c.absY + c.height > b.y1,
+    )
+  })
+
+  // At low zoom edges between sub-pixel endpoints are visual noise — cull all
+  // non-violation edges (violations still render so user can spot problems).
+  const visibleEdges = createMemo(() => {
+    const b = viewBounds()
+    const lowZoom = props.viewport.zoom < 0.3
+    return props.scene.edges.filter((e) => {
+      if (lowZoom && !e.violation) return false
+      const minX = Math.min(e.x1, e.x2)
+      const maxX = Math.max(e.x1, e.x2)
+      const minY = Math.min(e.y1, e.y2)
+      const maxY = Math.max(e.y1, e.y2)
+      return minX < b.x2 && maxX > b.x1 && minY < b.y2 && maxY > b.y1
+    })
   })
 
   return (
@@ -301,7 +370,7 @@ export const Graph: Component<GraphProps> = (props) => {
         </Show>
 
         <g class="containers">
-          <For each={props.scene.containers}>
+          <For each={visibleContainers()}>
             {(c) => (
               <ContainerBox
                 container={c}
@@ -317,7 +386,7 @@ export const Graph: Component<GraphProps> = (props) => {
         </g>
 
         <g class="edges">
-          <For each={props.scene.edges}>
+          <For each={visibleEdges()}>
             {(e) => (
               <Show when={edgeVisible(e)}>
                 <EdgeLine
@@ -790,9 +859,9 @@ const EdgeLine: Component<{
           d={path()}
           fill="none"
           stroke={baseStroke()}
-          stroke-width={4}
-          opacity={0.25}
-          style={{ filter: 'blur(2px)', 'pointer-events': 'none' }}
+          stroke-width={3.5}
+          opacity={0.2}
+          style={{ 'pointer-events': 'none' }}
         />
       </Show>
       <path
@@ -803,17 +872,9 @@ const EdgeLine: Component<{
         stroke-dasharray={dasharray()}
         opacity={opacity()}
         marker-end={marker()}
-        style={{ 'pointer-events': 'none', transition: 'opacity 120ms' }}
+        style={{ 'pointer-events': 'none' }}
       />
       <Show when={sev()}>
-        <path
-          d={path()}
-          fill="none"
-          stroke="oklch(64% 0.18 25)"
-          stroke-width={3.5}
-          opacity={0.18}
-          style={{ filter: 'blur(2px)', 'pointer-events': 'none' }}
-        />
         <circle
           r={3}
           cx={(props.edge.x1 + props.edge.x2) / 2}
