@@ -417,8 +417,12 @@ body {
   position: absolute; inset: 0; width: 100%; height: 100%;
   cursor: grab;
   user-select: none;
+  contain: layout style paint;
 }
 .strat-graph:active { cursor: grabbing; }
+.strat-graph .modules,
+.strat-graph .containers,
+.strat-graph .edges { contain: layout style; }
 
 .lane-label-text { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; }
 .lane-count-text { font-family: 'JetBrains Mono', monospace; font-size: 9.5px; fill: oklch(56% 0.012 260); }
@@ -428,11 +432,7 @@ body {
 .thick-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600; fill: oklch(92% 0.005 260); }
 .thick-loc { font-family: 'JetBrains Mono', monospace; font-size: 9.5px; fill: oklch(60% 0.012 260); }
 
-@keyframes pulse {
-  0%, 100% { opacity: 0.5; transform: scale(1); }
-  50%      { opacity: 1;   transform: scale(1.4); }
-}
-.pulse-dot { transform-origin: center; transform-box: fill-box; animation: pulse 1.8s ease-in-out infinite; }
+.pulse-dot { opacity: 0.8; }
 
 @keyframes dash {
   to { stroke-dashoffset: -20; }
