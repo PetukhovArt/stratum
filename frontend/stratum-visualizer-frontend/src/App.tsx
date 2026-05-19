@@ -1,10 +1,14 @@
 import { createEffect, createResource, createSignal, onCleanup, Show } from 'solid-js'
 import { loadSnapshot, SnapshotVersionMismatchError } from './lib/snapshot'
+import { loadViolations } from './lib/violations'
 import { renderGraph, RenderHandle } from './render'
-import { GraphSnapshot } from './types'
+import { GraphSnapshot, Severity, Violation } from './types'
 
 const App = () => {
   const [snapshot] = createResource<GraphSnapshot>(() => loadSnapshot('/api/snapshot'))
+  const [violations] = createResource<Violation[]>(() =>
+    loadViolations('/api/violations').catch(() => [] as Violation[]),
+  )
   const [expanded, setExpanded] = createSignal<ReadonlySet<number>>(new Set())
   const [renderError, setRenderError] = createSignal<string | null>(null)
   let hostRef: HTMLDivElement | undefined
@@ -12,12 +16,14 @@ const App = () => {
 
   createEffect(() => {
     const data = snapshot()
+    const vios = violations() ?? []
     if (!data || !hostRef) return
     handle?.destroy()
     handle = null
     setRenderError(null)
     renderGraph(hostRef, data, {
       expanded: expanded(),
+      violations: vios,
       onAggregateClick: (layer) => {
         const next = new Set(expanded())
         next.add(layer)
@@ -32,6 +38,13 @@ const App = () => {
 
   onCleanup(() => handle?.destroy())
 
+  const stats = () => {
+    const vs = violations() ?? []
+    const errors = vs.filter((v) => v.severity === Severity.Error).length
+    const warnings = vs.filter((v) => v.severity === Severity.Warning).length
+    return { errors, warnings, total: vs.length }
+  }
+
   return (
     <div style={{ height: '100vh', display: 'flex', 'flex-direction': 'column' }}>
       <header
@@ -41,16 +54,26 @@ const App = () => {
           'border-bottom': '1px solid #333',
           background: '#111',
           color: '#eee',
+          display: 'flex',
+          'align-items': 'center',
+          gap: '16px',
         }}
       >
         <strong>Stratum Visualizer</strong>
         <Show when={snapshot()}>
           {(data) => (
-            <span style={{ 'margin-left': '16px', color: '#888' }}>
+            <span style={{ color: '#888', 'font-size': '13px' }}>
               {data().modules.length} modules · {data().containers.length} containers ·{' '}
               {data().layers.length} layers · {data().edges.length} edges
             </span>
           )}
+        </Show>
+        <Show when={violations()}>
+          <span style={{ 'font-size': '13px' }}>
+            <span style={{ color: '#ff6b6b' }}>● {stats().errors} errors</span>
+            <span style={{ 'margin-left': '12px', color: '#f5c518' }}>● {stats().warnings} warnings</span>
+            <span style={{ 'margin-left': '12px', color: '#888' }}>({stats().total} total)</span>
+          </span>
         </Show>
       </header>
       <Show when={snapshot.error}>
