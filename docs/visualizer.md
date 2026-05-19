@@ -18,7 +18,7 @@
 
 - **Источник данных** — `GraphSnapshot v1` (`stratum_graph::snapshot_of`). Версия v1 заморожена; bump = координированный фронт-релиз (см. `RELEASE.md`).
 - **Транспорт** — HTTP-сервер встроен в `stratum-lint` (`stratum-lint visualize <root>`), Axum + `rust-embed` для бандла. `/api/snapshot` + `/api/violations`.
-- **Рендер** — фронт на SolidJS + PixiJS 8 + `@dagrejs/dagre` + `pixi-viewport`. Frame-free слой `render/` (см. Plan A архитектуру).
+- **Рендер** — фронт на SolidJS + SVG (фрактальный pack-layout, без PixiJS / dagre). Frame-free слой `render/` адаптирует snapshot → `DesignData` → `Scene` (см. `frontend/stratum-visualizer-frontend/src/render/`).
 - **Конфиг** — `visualize` читает `stratum.config.jsonc` в корне проекта, fallback на zero-config inference. Тот же путь, что у `lint`.
 - **Без сервера-снаружи** — всё через локальный binary, нет аккаунтов, телеметрии, облака. Открыто в браузере = всё.
 
@@ -32,6 +32,24 @@
 | Sliced threshold | ≤ 500 видимых нод | 500 (ADR-0001) |
 
 «TBD» закрывается следующей сессией с замерами FPS / time-to-first-frame.
+
+## Test target — web-client
+
+**Основной полигон для проверки визуализатора — `D:\web-projects\web-client-stratum-stages`** (Electron + Vue/React renderer, ~1948 модулей, ~5800 рёбер). Это репрезентативный реальный проект, на нём ловятся проблемы, которых нет на tiny-ts: широкие графы, циклы, sliced threshold, перформанс на ховере/рендере рёбер.
+
+Что проверяем на нём перед релизом любой существенной фичи рендера / лейаута:
+
+1. `cargo run --release -p stratum-lint -- visualize <web-client-path>` — стартует, открывает браузер, snapshot грузится без ошибок версии.
+2. Initial layout не уезжает в вертикальную «колонку» (адаптивный pack по `sqrt(N)`).
+3. Fit-to-bounds на старте центрирует граф (`hasFitted` сигнал).
+4. Drag / wheel-zoom — без джанков, viewport батчится через `requestAnimationFrame`.
+5. Hover на модуле — соседние рёбра подсвечиваются, остальные (включая violation-рёбра) гасятся; в `connectionMode='minimal'` без выделения видны только нарушения.
+6. Низкий зум — leaf-декорации (composer-diamond, stage-dot, label) скрываются.
+7. `stratum.config.jsonc` web-клиента покрывает все «настоящие» слои: renderer FSD (core/shared/entities/features/pages/app) **+ electron/main + electron/preload + src/shared-electron + src/shared-sdk + legacy** (visualization-only, permissive `depends_on`). См. `D:\web-projects\web-client-stratum-stages\stratum.config.jsonc`.
+
+Числовые цифры замеров — в `docs/integration/2026-05-19-web-client-smoke.md` (живой документ, обновляется при каждой проверке).
+
+Tiny-ts (`crates/stratum-graph/tests/fixtures/tiny-ts`) остаётся unit/CI-фикстурой; web-client — **acceptance gate**, без зелёного прогона на нём фича не уходит в релиз.
 
 ## Что есть (v0.1, 2026-05-19)
 
@@ -76,7 +94,7 @@
 
 ### P3 — позже / опционально
 
-- [ ] **Server-side layout для огромных графов** (> 5K модулей). dagre на стороне фронта упрётся; альтернатива — Sugiyama в Rust→WASM (см. ADR-0001 «Custom Sugiyama» — Phase 12+).
+- [ ] **Server-side layout для огромных графов** (> 5K модулей). Текущий фрактальный pack-layout масштабируется до ~2K без лагов; альтернатива на верхнем пределе — Sugiyama в Rust→WASM (исторически рассматривалось в retired ADR-0001).
 - [ ] **Multi-snapshot** — открыть несколько проектов в одной вкладке, видеть зависимости между ними (если они есть через workspace/monorepo links).
 - [ ] **WebGPU renderer path** — PixiJS 8 уже умеет, для огромных графов даст FPS-boost.
 - [ ] **Voice-over / a11y** — keyboard navigation по графу, screen-reader для outline.
@@ -104,9 +122,10 @@
 
 ## Referenced docs
 
-- ADR-0001 — layout backend choice (`@dagrejs/dagre`, sliced threshold 500).
-- `docs/superpowers/plans/2026-05-19-pixijs-rendering.md` — план реализации MVP-рендера.
+- ~~ADR-0001~~ — retired 2026-05-19 вместе с dagre-зависимостью; см. PRD US-9 / план фрактального рендера.
+- `docs/superpowers/plans/2026-05-19-pixijs-rendering.md` — исторический план MVP-рендера (PixiJS, заменён на Solid+SVG).
 - `docs/superpowers/plans/2026-05-19-web-client-integration.md` — validation плана на реальном проекте (web-client).
 - `docs/integration/2026-05-19-web-client-smoke.md` — первые цифры на web-client.
+- `D:\web-projects\web-client-stratum-stages\stratum.config.jsonc` — конфиг тестового проекта (renderer FSD + electron + shared + legacy).
 - `RELEASE.md` — Snapshot version policy.
 - `UBIQUITOUS_LANGUAGE.md` — глоссарий (Graph Snapshot, Compound DAG, Container, Module, Layer).

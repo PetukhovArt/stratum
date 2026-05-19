@@ -62,7 +62,7 @@ Plan B Task 7 requires the visualizer renderer (Plan A) merged *and* a manual br
 target/release/stratum-lint.exe visualize D:/web-projects/web-client
 ```
 
-…then open DevTools and record layout time, FPS, and time-to-first-frame. Numbers feed back into ADR-0001 and the PRD.
+…then open DevTools and record layout time, FPS, and time-to-first-frame. Numbers feed back into the PRD (US-9 layout-perf metric).
 
 ## What was actually achieved
 
