@@ -35,6 +35,11 @@ Cargo.lock
 benches/elk-spike/node_modules/
 benches/elk-spike/results/
 
+# Frontend
+frontend/**/node_modules/
+frontend/**/dist/assets/
+.tmp/
+
 # IDEs
 .idea/
 .vscode/
