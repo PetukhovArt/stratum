@@ -188,13 +188,11 @@ const sizeModule = (
 
 const packGrid = (items: SizedItem[], tokens: DensityTokens, depth: number): Packed => {
   if (items.length === 0) return { width: 0, height: 0, items: [] }
-  // At depth=0 (container top-level), grow column count with N so the container stays
-  // roughly 4:1 wide instead of degenerating into a tall narrow column.
-  // perRow = max(densityBaseline, ceil(√(N × 4)))  → for N=878 that's ~59 cols.
-  const perRow =
-    depth === 0
-      ? Math.max(tokens.modulesPerRow, Math.ceil(Math.sqrt(items.length * 4)))
-      : tokens.childrenPerRow
+  // Layer top-level (depth=0): never wrap — cards keep flowing right so the
+  // scene grows horizontally inside a horizontally-scrollable lane. Deeper
+  // levels wrap at `childrenPerRow` so nested cards stay readable inside
+  // their bounding box instead of stretching it to extreme widths.
+  const perRow = depth === 0 ? items.length : tokens.childrenPerRow
   const gap = tokens.leafGap
   const placed: PlacedItem[] = []
   let x = 0
@@ -203,16 +201,14 @@ const packGrid = (items: SizedItem[], tokens: DensityTokens, depth: number): Pac
   let col = 0
   let maxRowW = 0
 
+  // Uniform left-to-right grid at every depth. Each item — leaf or compound —
+  // takes one column slot; rows wrap once `col` hits `perRow`. The old logic
+  // forced compound items onto their own row (`wrap` before AND after), which
+  // turned a feature with N sub-segments into an N-deep vertical stack
+  // instead of a horizontal grid. Letting compounds flow alongside each other
+  // keeps cards expanding to the right, matching the fractal-card design.
   for (const it of items) {
-    const isWide = !it.leaf
-    if (isWide && col > 0) {
-      maxRowW = Math.max(maxRowW, x)
-      x = 0
-      y += rowH + gap
-      rowH = 0
-      col = 0
-    }
-    if (!isWide && col >= perRow) {
+    if (col >= perRow) {
       maxRowW = Math.max(maxRowW, x)
       x = 0
       y += rowH + gap
@@ -222,14 +218,7 @@ const packGrid = (items: SizedItem[], tokens: DensityTokens, depth: number): Pac
     placed.push({ ...it, x, y })
     x += it.w + gap
     rowH = Math.max(rowH, it.h)
-    col += isWide ? perRow : 1
-    if (isWide) {
-      maxRowW = Math.max(maxRowW, x)
-      x = 0
-      y += rowH + gap
-      rowH = 0
-      col = 0
-    }
+    col += 1
   }
   maxRowW = Math.max(maxRowW, x)
   return { width: Math.max(maxRowW - gap, 0), height: y + rowH, items: placed }
