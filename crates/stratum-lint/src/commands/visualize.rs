@@ -20,7 +20,7 @@ use crate::zero_config;
 #[folder = "../../frontend/stratum-visualizer-frontend/dist/"]
 struct VisualizerAssets;
 
-pub fn run(root: &Utf8Path) -> miette::Result<()> {
+pub fn run(root: &Utf8Path, port: u16) -> miette::Result<()> {
     let config_path = root.join("stratum.config.jsonc");
     let config = if config_path.exists() {
         stratum_config::parse_file(&config_path).map_err(|e| miette::miette!("{e}"))?
@@ -38,7 +38,7 @@ pub fn run(root: &Utf8Path) -> miette::Result<()> {
         .enable_all()
         .build()
         .into_diagnostic()?;
-    rt.block_on(serve(snap_json, violations_json, 0))
+    rt.block_on(serve(snap_json, violations_json, port))
 }
 
 pub fn build_router(snapshot: &Arc<String>, violations: &Arc<String>) -> Router {

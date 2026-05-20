@@ -8,7 +8,7 @@ fn main() -> miette::Result<()> {
     match cli.command {
         Some(cli::Command::Init { root }) => commands::init::run(&root),
         Some(cli::Command::Snapshot { root, out }) => commands::snapshot::run(&root, &out),
-        Some(cli::Command::Visualize { root }) => commands::visualize::run(&root),
+        Some(cli::Command::Visualize { root, port }) => commands::visualize::run(&root, port),
         Some(cli::Command::Diff { prev, now }) => commands::diff::run(&prev, &now),
         cmd => {
             let root = if let Some(cli::Command::Lint { root }) = cmd {
