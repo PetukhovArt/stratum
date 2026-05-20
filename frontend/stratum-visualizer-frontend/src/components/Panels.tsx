@@ -91,6 +91,64 @@ interface Tip {
   content: JSX.Element
 }
 
+// ─── IDE-style icons ──────────────────────────────────────────────────────
+
+const FolderIcon: Component<{ open: boolean }> = (props) => (
+  <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+    <Show
+      when={props.open}
+      fallback={
+        <>
+          <path
+            d="M1.5 4 H5 L6 5 H12.5 V11.5 H1.5 Z"
+            stroke="currentColor"
+            stroke-width="1"
+            stroke-linejoin="round"
+          />
+          <line x1="1.5" y1="6.5" x2="12.5" y2="6.5" stroke="currentColor" stroke-width="1" />
+        </>
+      }
+    >
+      <path
+        d="M1.5 4.5 V11.5 H12.5 L13 6 H3 L2 4.5 Z"
+        stroke="currentColor"
+        stroke-width="1"
+        stroke-linejoin="round"
+      />
+      <path
+        d="M1.5 4.5 V11.5 H2.5 L3.5 6 H13"
+        stroke="currentColor"
+        stroke-width="1"
+        fill="none"
+        stroke-linejoin="round"
+      />
+    </Show>
+  </svg>
+)
+
+const FileIcon: Component = () => (
+  <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+    <path
+      d="M3.5 1.5 H8 L11 4.5 V12.5 H3.5 Z"
+      stroke="currentColor"
+      stroke-width="1"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M8 1.5 V4.5 H11"
+      stroke="currentColor"
+      stroke-width="1"
+      stroke-linejoin="round"
+    />
+  </svg>
+)
+
+const ChevSVG: Component = () => (
+  <svg width="8" height="8" viewBox="0 0 8 8">
+    <path d="M2 1 L6 4 L2 7 Z" fill="currentColor" />
+  </svg>
+)
+
 // ─── Outline ───────────────────────────────────────────────────────────────
 
 interface OutlineProps {
@@ -299,6 +357,29 @@ export const OutlinePanel: Component<OutlineProps> = (props) => {
     </div>
   )
 
+  const kindTipContent = (kind: 'composer' | 'shared'): JSX.Element => {
+    const title = kind === 'composer' ? '◇ Composer' : '_ Shared'
+    const body =
+      kind === 'composer'
+        ? 'Assembles its sibling sub-features into one composed unit. The composer is the public API of a stage-4 feature.'
+        : 'Internal helpers reused by siblings of this composed feature. Not part of the public API.'
+    return (
+      <>
+        <div class="tt-hd">
+          <span class={`tt-kind tt-kind-${kind}`} style={{ 'font-size': '11px' }}>
+            {title}
+          </span>
+        </div>
+        <div style={{ 'font-size': '11.5px', color: 'var(--tx-2)', 'line-height': 1.45 }}>
+          {body}
+        </div>
+      </>
+    )
+  }
+
+  const clearFilters = () =>
+    props.setFilters({ ...props.filters, query: '', glob: '', stageFilter: null, onlyViolators: false })
+
   return (
     <aside class="panel panel-outline">
       <header class="panel-hd">
@@ -308,6 +389,15 @@ export const OutlinePanel: Component<OutlineProps> = (props) => {
         </span>
       </header>
       <div class="outline-tree" onScroll={hideTip}>
+        <Show when={filterActive() && visibleCount() === 0}>
+          <div class="ot-empty">
+            <div class="ot-empty-icon">⌕</div>
+            <div class="ot-empty-msg">No modules match the active filters.</div>
+            <button class="ot-empty-clear" onClick={clearFilters}>
+              Clear filters
+            </button>
+          </div>
+        </Show>
         <For each={props.data.layers}>
           {(layer) => {
             const layerCollapsed = () => isCollapsed(layer.id)
@@ -343,9 +433,7 @@ export const OutlinePanel: Component<OutlineProps> = (props) => {
                     class={`ot-chev ${layerCollapsed() ? 'is-collapsed' : 'is-open'}`}
                     aria-hidden="true"
                   >
-                    <svg width="8" height="8" viewBox="0 0 8 8">
-                      <path d="M2 1 L6 4 L2 7 Z" fill="currentColor" />
-                    </svg>
+                    <ChevSVG />
                   </span>
                   <span class="ot-dot" style={{ background: `oklch(70% 0.10 ${layer.hue})` }} />
                   <span class="ot-name">{layer.label}</span>
@@ -419,11 +507,13 @@ export const OutlinePanel: Component<OutlineProps> = (props) => {
                             selectedId={props.selectedId}
                             onSelect={props.onSelect}
                             depth={0}
+                            baseDepth={1}
                             showTip={showTip}
                             moveTip={moveTip}
                             hideTip={hideTip}
                             moduleViolationsTipContent={moduleViolationsTipContent}
                             kidsTipContent={kidsTipContent}
+                            kindTipContent={kindTipContent}
                             isModuleVisible={isModuleVisible}
                             isCollapsed={isCollapsed}
                           />
@@ -448,9 +538,10 @@ export const OutlinePanel: Component<OutlineProps> = (props) => {
                               class={`ot-chev ${cCollapsed() ? 'is-collapsed' : 'is-open'}`}
                               aria-hidden="true"
                             >
-                              <svg width="8" height="8" viewBox="0 0 8 8">
-                                <path d="M2 1 L6 4 L2 7 Z" fill="currentColor" />
-                              </svg>
+                              <ChevSVG />
+                            </span>
+                            <span class="ot-icon" aria-hidden="true">
+                              <FolderIcon open={!cCollapsed()} />
                             </span>
                             <span class="ot-name ot-mono">{c.label}</span>
                             <span class="ot-meta">
@@ -510,11 +601,13 @@ export const OutlinePanel: Component<OutlineProps> = (props) => {
                                   selectedId={props.selectedId}
                                   onSelect={props.onSelect}
                                   depth={0}
+                                  baseDepth={2}
                                   showTip={showTip}
                                   moveTip={moveTip}
                                   hideTip={hideTip}
                                   moduleViolationsTipContent={moduleViolationsTipContent}
                                   kidsTipContent={kidsTipContent}
+                                  kindTipContent={kindTipContent}
                                   isModuleVisible={isModuleVisible}
                                   isCollapsed={isCollapsed}
                                 />
@@ -582,12 +675,16 @@ interface ModuleRowProps {
   toggle: (id: string) => void
   selectedId: string | null
   onSelect: (id: string) => void
+  /** Recursion depth: 0 for module right under its container/layer, +1 per nesting. */
   depth: number
+  /** Tree depth of the row's parent: 1 if the layer collapses its alias container, 2 otherwise. */
+  baseDepth: number
   showTip: (e: MouseEvent, content: JSX.Element) => void
   moveTip: (e: MouseEvent) => void
   hideTip: () => void
   moduleViolationsTipContent: (mod: DesignModule) => JSX.Element
   kidsTipContent: (n: number) => JSX.Element
+  kindTipContent: (kind: 'composer' | 'shared') => JSX.Element
   isModuleVisible: (id: string) => boolean
   isCollapsed: (id: string) => boolean
 }
@@ -598,6 +695,8 @@ const ModuleRow: Component<ModuleRowProps> = (props) => {
   const hasKids = () => kids().length > 0
   const isCollapsed = () => props.isCollapsed(props.modId)
 
+  const rowDepth = () => props.baseDepth + props.depth
+
   return (
     <Show when={mod()}>
       {(m) => (
@@ -606,7 +705,7 @@ const ModuleRow: Component<ModuleRowProps> = (props) => {
             class={`ot-row ot-row-mod ${
               props.selectedId === props.modId ? 'sel' : ''
             } kind-${m().kind}`}
-            style={{ 'padding-left': `${28 + props.depth * 14}px` }}
+            style={{ '--depth': rowDepth() }}
             onClick={() => props.onSelect(props.modId)}
           >
             <Show
@@ -621,16 +720,33 @@ const ModuleRow: Component<ModuleRowProps> = (props) => {
                   props.toggle(props.modId)
                 }}
               >
-                <svg width="8" height="8" viewBox="0 0 8 8">
-                  <path d="M2 1 L6 4 L2 7 Z" fill="currentColor" />
-                </svg>
+                <ChevSVG />
               </span>
             </Show>
+            <span class="ot-icon" aria-hidden="true">
+              <Show when={hasKids()} fallback={<FileIcon />}>
+                <FolderIcon open={!isCollapsed()} />
+              </Show>
+            </span>
             <Show when={m().kind === 'composer'}>
-              <span class="ot-kind ot-kind-c">◇</span>
+              <span
+                class="ot-kind ot-kind-c"
+                onMouseEnter={(e) => props.showTip(e, props.kindTipContent('composer'))}
+                onMouseMove={props.moveTip}
+                onMouseLeave={props.hideTip}
+              >
+                ◇
+              </span>
             </Show>
             <Show when={m().kind === 'shared'}>
-              <span class="ot-kind ot-kind-s">_</span>
+              <span
+                class="ot-kind ot-kind-s"
+                onMouseEnter={(e) => props.showTip(e, props.kindTipContent('shared'))}
+                onMouseMove={props.moveTip}
+                onMouseLeave={props.hideTip}
+              >
+                _
+              </span>
             </Show>
             <span class="ot-mono ot-mod-name">{m().label}</span>
             <Show when={m().severity === 'error'}>
@@ -671,11 +787,13 @@ const ModuleRow: Component<ModuleRowProps> = (props) => {
                   selectedId={props.selectedId}
                   onSelect={props.onSelect}
                   depth={props.depth + 1}
+                  baseDepth={props.baseDepth}
                   showTip={props.showTip}
                   moveTip={props.moveTip}
                   hideTip={props.hideTip}
                   moduleViolationsTipContent={props.moduleViolationsTipContent}
                   kidsTipContent={props.kidsTipContent}
+                  kindTipContent={props.kindTipContent}
                   isModuleVisible={props.isModuleVisible}
                   isCollapsed={props.isCollapsed}
                 />

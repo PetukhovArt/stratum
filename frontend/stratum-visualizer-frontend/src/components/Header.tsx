@@ -43,15 +43,16 @@ export const Header: Component<HeaderProps> = (props) => {
       </div>
 
       <div class="hd-c">
-        <CommandPalette
-          paletteOpen={props.paletteOpen}
-          setPaletteOpen={props.setPaletteOpen}
-          filters={props.filters}
-          setFilters={props.setFilters}
-          data={props.data}
-          onSelect={props.onSelect}
-        />
+        <HeaderPathInput filters={props.filters} setFilters={props.setFilters} />
       </div>
+      <CommandPalette
+        paletteOpen={props.paletteOpen}
+        setPaletteOpen={props.setPaletteOpen}
+        filters={props.filters}
+        setFilters={props.setFilters}
+        data={props.data}
+        onSelect={props.onSelect}
+      />
 
       <div class="hd-r">
         <div class="hd-stats">
@@ -79,6 +80,38 @@ export const Header: Component<HeaderProps> = (props) => {
     </header>
   )
 }
+
+// ─── Header path input ─────────────────────────────────────────────────────
+// Primary path filter, sits in the top bar. Supports the same syntax as the
+// old FacetBar `Path` input: substring (`gis`), glob (`src/**`), negation
+// (`!**/legacy/**`), comma-separated. Synced with `filters.glob` so the
+// graph + outline pick up the filter directly.
+
+const HeaderPathInput: Component<{
+  filters: Filters
+  setFilters: (f: Filters) => void
+}> = (props) => (
+  <div class="hd-path">
+    <span class="hd-path-ico">⌕</span>
+    <input
+      class="hd-path-input"
+      placeholder="Filter by path — gis , src/features/** , !**/legacy/**"
+      value={props.filters.glob}
+      onInput={(e) => props.setFilters({ ...props.filters, glob: e.currentTarget.value })}
+      title="Bare words match as case-insensitive substring. Globs (`*`, `**`, `?`) match path segments. Comma-separated. Prefix `!` to exclude."
+    />
+    <Show when={props.filters.glob !== ''}>
+      <button
+        class="hd-path-clear"
+        onClick={() => props.setFilters({ ...props.filters, glob: '' })}
+        title="Clear path filter"
+      >
+        ✕
+      </button>
+    </Show>
+    <span class="hd-path-kbd" title="Open command palette">⌘P</span>
+  </div>
+)
 
 // ─── Command palette ───────────────────────────────────────────────────────
 
@@ -185,13 +218,11 @@ const CommandPalette: Component<PaletteProps> = (props) => {
       .slice(0, 20)
   })
 
+  // Keep the trigger out of the DOM — the palette is now keyboard-only
+  // (⌘P / ⌘K / `/`). focusInputSoon stays to focus the modal input on open.
+  void focusInputSoon
   return (
     <>
-      <button class="palette-btn" onClick={() => { props.setPaletteOpen(true); focusInputSoon() }}>
-        <span class="palette-ico">⌕</span>
-        <span class="palette-prompt">Search modules, run commands…</span>
-        <span class="palette-kbd">⌘P</span>
-      </button>
       <Show when={props.paletteOpen}>
         <div class="palette-scrim" onClick={() => props.setPaletteOpen(false)}>
           <div class="palette-dialog" onClick={(e) => e.stopPropagation()}>
@@ -400,25 +431,6 @@ const FacetBar: Component<FacetBarProps> = (props) => {
             </button>
           </div>
         </Show>
-        <span class="facet-sep" />
-        <div class="facet-group facet-glob">
-          <span class="facet-label">Path</span>
-          <input
-            class="glob-input"
-            placeholder="gis , src/features/** , !**/legacy/**"
-            value={props.filters.glob}
-            onInput={(e) => props.setFilters({ ...props.filters, glob: e.currentTarget.value })}
-            title="Path filter. Bare words like `gis` match as case-insensitive substring. Globs (`*`, `**`, `?`) match path segments. Comma-separated. Prefix with `!` to exclude."
-          />
-          <Show when={props.filters.glob !== ''}>
-            <button
-              class="glob-clear"
-              onClick={() => props.setFilters({ ...props.filters, glob: '' })}
-            >
-              ✕
-            </button>
-          </Show>
-        </div>
         <Show when={hasActiveFilters()}>
           <button class="facet-clear" onClick={clearAll}>
             clear all
