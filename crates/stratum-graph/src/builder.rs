@@ -108,6 +108,9 @@ impl GraphBuilder {
         }
         let mut graph = CompoundGraph::empty();
 
+        // Layer roots first. We seed `next_container_id` past the highest
+        // layer id so synthesised folder containers can't collide.
+        let mut next_container_id: u32 = 0;
         for l in &self.config.layers {
             graph.layers.insert(l.id, l.clone());
             let cid = ContainerId::new(l.id.raw());
@@ -120,6 +123,18 @@ impl GraphBuilder {
                     parent: None,
                 },
             );
+            if l.id.raw() >= next_container_id {
+                next_container_id = l.id.raw() + 1;
+            }
+        }
+
+        // Folder-path → ContainerId per layer, so a directory shared by N
+        // modules collapses into a single nested container. Key is
+        // (layer_id, layer-relative dir as string) — `""` is the layer root.
+        let mut folder_to_container: FxHashMap<(stratum_core::ids::LayerId, String), ContainerId> =
+            FxHashMap::default();
+        for l in &self.config.layers {
+            folder_to_container.insert((l.id, String::new()), ContainerId::new(l.id.raw()));
         }
 
         let mut next_module_id: u32 = 0;
@@ -150,6 +165,54 @@ impl GraphBuilder {
                 continue;
             };
 
+            // Walk the directories between layer root and the file. Each
+            // intermediate folder becomes a nested SnapshotContainer, so the
+            // adapter / visualiser can render `features/auth/login.ts` as
+            // `auth` → `login.ts` instead of dumping every file into one flat
+            // layer bag.
+            let layer_obj = self
+                .config
+                .layers
+                .iter()
+                .find(|l| l.id == layer)
+                .expect("assign_layer returned an unknown layer id");
+            let layer_path_utf8 = Utf8Path::from_path(layer_obj.path.as_path());
+            let rel_to_layer = match layer_path_utf8 {
+                Some(lp) => rel.strip_prefix(lp).unwrap_or(rel),
+                None => rel,
+            };
+            let dir_rel = rel_to_layer.parent().unwrap_or(Utf8Path::new(""));
+
+            let mut current_parent_id = ContainerId::new(layer.raw());
+            let mut accum = String::new();
+            for component in dir_rel.components() {
+                let name = component.as_str();
+                if name.is_empty() {
+                    continue;
+                }
+                if !accum.is_empty() {
+                    accum.push('/');
+                }
+                accum.push_str(name);
+                let key = (layer, accum.clone());
+                let cid = *folder_to_container.entry(key).or_insert_with(|| {
+                    let new_id = ContainerId::new(next_container_id);
+                    next_container_id += 1;
+                    graph.containers.insert(
+                        new_id,
+                        Container {
+                            id: new_id,
+                            name: name.to_string(),
+                            layer,
+                            parent: Some(current_parent_id),
+                        },
+                    );
+                    new_id
+                });
+                current_parent_id = cid;
+            }
+            let module_container = current_parent_id;
+
             let id = ModuleId::new(next_module_id);
             next_module_id = next_module_id.wrapping_add(1);
 
@@ -160,7 +223,7 @@ impl GraphBuilder {
             let module = Module {
                 id,
                 path: PathBuf::from(path.as_str()),
-                container: ContainerId::new(layer.raw()),
+                container: module_container,
                 layer,
                 stage: annotated_stage.unwrap_or(self.config.default_stage),
                 visibility: self.config.default_visibility.clone(),
