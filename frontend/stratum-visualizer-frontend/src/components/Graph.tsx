@@ -571,7 +571,7 @@ const ContainerBox: Component<{
           <rect
             x={8}
             y={5}
-            width={14}
+            width={20}
             height={11}
             rx={3}
             fill={stageColor()}
@@ -581,17 +581,17 @@ const ContainerBox: Component<{
             stroke-width={0.5}
           />
           <text
-            x={15}
+            x={18}
             y={13}
             class="container-stage-num"
             fill={stageColor()}
             text-anchor="middle"
           >
-            {c().stage}
+            S{c().stage}
           </text>
-          <rect x={6} y={3} width={18} height={15} fill="transparent" />
+          <rect x={6} y={3} width={24} height={15} fill="transparent" />
         </g>
-        <text x={28} y={14} class="container-label">
+        <text x={34} y={14} class="container-label">
           {c().label}
         </text>
       </Show>
@@ -605,13 +605,13 @@ const ContainerBox: Component<{
               .filter(Boolean)
               .join('\n')}
           </title>
-          <rect x={c().width - 60} y={3} width={55} height={14} fill="transparent" />
+          <rect x={c().width - 70} y={3} width={65} height={14} fill="transparent" />
           <text x={c().width - 10} y={14} class="container-count" text-anchor="end">
             <Show when={c().errors > 0}>
-              <tspan fill="oklch(64% 0.18 25)">{c().errors}e </tspan>
+              <tspan fill="oklch(64% 0.18 25)">● {c().errors}  </tspan>
             </Show>
             <Show when={c().warnings > 0}>
-              <tspan fill="oklch(78% 0.14 70)">{c().warnings}w</tspan>
+              <tspan fill="oklch(78% 0.14 70)">▲ {c().warnings}</tspan>
             </Show>
           </text>
         </g>
@@ -742,10 +742,45 @@ const ModuleNode: Component<{
       </Show>
 
       <Show when={isCompound()}>
-        <text x={7} y={12} class={`mod-label depth-${props.pos.depth} kind-${kind()}`}>
-          {isComposer() ? '◇ ' : ''}
-          {mod().label}
-        </text>
+        <Show
+          when={props.pos.depth === 0}
+          fallback={
+            <text x={7} y={12} class={`mod-label depth-${props.pos.depth} kind-${kind()}`}>
+              {isComposer() ? '◇ ' : ''}
+              {mod().label}
+            </text>
+          }
+        >
+          {/* Top-level compound = the feature "card" — show stage chip alongside name */}
+          <g>
+            <title>{STAGE_DESC[mod().stage] ?? `Stage ${mod().stage}`}</title>
+            <rect
+              x={6}
+              y={3}
+              width={20}
+              height={11}
+              rx={3}
+              fill={STAGE_COLORS[mod().stage] ?? '#666'}
+              fill-opacity={0.18}
+              stroke={STAGE_COLORS[mod().stage] ?? '#666'}
+              stroke-opacity={0.4}
+              stroke-width={0.5}
+            />
+            <text
+              x={16}
+              y={11}
+              class="container-stage-num"
+              fill={STAGE_COLORS[mod().stage] ?? '#666'}
+              text-anchor="middle"
+            >
+              S{mod().stage}
+            </text>
+          </g>
+          <text x={32} y={12} class={`mod-label depth-${props.pos.depth} kind-${kind()}`}>
+            {isComposer() ? '◇ ' : ''}
+            {mod().label}
+          </text>
+        </Show>
         <Show when={props.pos.depth === 0 && (mod().descError > 0 || mod().descWarn > 0)}>
           <g>
             <title>
@@ -763,10 +798,10 @@ const ModuleNode: Component<{
             <rect x={props.pos.w - 50} y={2} width={48} height={14} fill="transparent" />
             <text x={props.pos.w - 6} y={12} class="mod-count" text-anchor="end">
               <Show when={mod().descError > 0}>
-                <tspan fill="oklch(64% 0.18 25)">{mod().descError}e </tspan>
+                <tspan fill="oklch(64% 0.18 25)">● {mod().descError}  </tspan>
               </Show>
               <Show when={mod().descWarn > 0}>
-                <tspan fill="oklch(78% 0.14 70)">{mod().descWarn}w</tspan>
+                <tspan fill="oklch(78% 0.14 70)">▲ {mod().descWarn}</tspan>
               </Show>
             </text>
           </g>
