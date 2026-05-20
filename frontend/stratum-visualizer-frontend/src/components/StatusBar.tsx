@@ -1,4 +1,4 @@
-import { Component, createMemo, Show } from 'solid-js'
+import { Component, createMemo, createSignal, Show } from 'solid-js'
 import { DesignData, DesignModule } from '../render/design'
 import { Filters, Viewport } from '../state'
 
@@ -121,23 +121,112 @@ export const ZoomControls: Component<{
   )
 }
 
-export const Legend: Component = () => (
-  <div class="legend">
-    <div class="legend-row">
-      <span class="legend-swatch sw-vio" />
-      <span>violation</span>
+export const Legend: Component = () => {
+  const [open, setOpen] = createSignal(true)
+  return (
+    <div class="legend">
+      <div class="legend-hd" onClick={() => setOpen(!open())}>
+        <span class="legend-hd-label">Legend</span>
+        <span class={`legend-hd-chev ${open() ? 'open' : ''}`}>▸</span>
+      </div>
+      <Show when={open()}>
+        <div class="legend-section-label">Lane</div>
+        <div class="legend-row">
+          <span class="legend-lane" />
+          <span>layer swimlane</span>
+        </div>
+
+        <div class="legend-sep" />
+        <div class="legend-section-label">Module body</div>
+        <div class="legend-row">
+          <span class="legend-mod legend-mod-regular" />
+          <span>regular leaf · stage colored</span>
+        </div>
+        <div class="legend-row">
+          <span class="legend-mod legend-mod-composer" />
+          <span>◇ composer (orchestrator)</span>
+        </div>
+        <div class="legend-row">
+          <span class="legend-mod legend-mod-shared" />
+          <span>_shared (segment-private)</span>
+        </div>
+        <div class="legend-row">
+          <span class="legend-mod legend-mod-compound" />
+          <span>compound · contains children</span>
+        </div>
+        <div class="legend-row">
+          <span class="legend-mod legend-mod-selected" />
+          <span>selected · focus ring</span>
+        </div>
+
+        <div class="legend-sep" />
+        <div class="legend-section-label">Edges</div>
+        <div class="legend-row">
+          <span class="legend-swatch" />
+          <span>static import</span>
+        </div>
+        <div class="legend-row">
+          <span class="legend-swatch sw-di" />
+          <span>DI container</span>
+        </div>
+        <div class="legend-row">
+          <span class="legend-swatch sw-runtime" />
+          <span>runtime / dynamic</span>
+        </div>
+        <div class="legend-row">
+          <span class="legend-swatch sw-vio" />
+          <span>violation (pulses)</span>
+        </div>
+        <div class="legend-row">
+          <span class="legend-swatch sw-out" />
+          <span>outgoing (on hover)</span>
+        </div>
+        <div class="legend-row">
+          <span class="legend-swatch sw-in" />
+          <span>incoming (on hover)</span>
+        </div>
+
+        <div class="legend-sep" />
+        <div class="legend-section-label">Stages</div>
+        <div class="legend-row">
+          <span class="legend-stage" data-stage="1">S1</span>
+          <span>file</span>
+        </div>
+        <div class="legend-row">
+          <span class="legend-stage" data-stage="2">S2</span>
+          <span>folder</span>
+        </div>
+        <div class="legend-row">
+          <span class="legend-stage" data-stage="3">S3</span>
+          <span>segments</span>
+        </div>
+        <div class="legend-row">
+          <span class="legend-stage" data-stage="4">S4</span>
+          <span>composed (fractal)</span>
+        </div>
+
+        <div class="legend-sep" />
+        <div class="legend-section-label">Severity</div>
+        <div class="legend-row">
+          <span class="legend-sev sev-err" />
+          <span>error</span>
+        </div>
+        <div class="legend-row">
+          <span class="legend-sev sev-warn" />
+          <span>warning</span>
+        </div>
+        <div class="legend-row">
+          <span class="legend-sev sev-info" />
+          <span>info</span>
+        </div>
+        <div class="legend-row">
+          <span class="legend-badge">
+            <span style={{ color: 'oklch(64% 0.18 25)' }}>●</span>
+            <span style={{ color: 'oklch(78% 0.14 70)' }}>▲</span>
+          </span>
+          <span>aggregate counts</span>
+        </div>
+      </Show>
     </div>
-    <div class="legend-row">
-      <span class="legend-glyph">◇</span>
-      <span>composer</span>
-    </div>
-    <div class="legend-row">
-      <span class="legend-glyph legend-glyph-s">_</span>
-      <span>_shared (segment-private)</span>
-    </div>
-    <div class="legend-row">
-      <span class="legend-thick" />
-      <span>fractal (has children)</span>
-    </div>
-  </div>
-)
+  )
+}
