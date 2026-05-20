@@ -51,5 +51,9 @@ pub enum Command {
     Visualize {
         #[arg(default_value = ".")]
         root: Utf8PathBuf,
+        /// Bind to a fixed TCP port. Default 0 = OS-assigned. Use 8080 to pair
+        /// with the Vite dev server (which proxies /api to 127.0.0.1:8080).
+        #[arg(long, default_value_t = 0)]
+        port: u16,
     },
 }
