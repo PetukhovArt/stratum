@@ -544,6 +544,11 @@ const ContainerBox: Component<{
       : 'rgba(255,255,255,0.08)'
   const stageColor = () => STAGE_COLORS[props.container.stage] ?? '#666'
   const c = () => props.container
+  // Stratum's graph builder emits exactly one root container per layer with the
+  // layer's name. Showing its label + stage badge would just duplicate the lane
+  // header — modules live directly inside the lane semantically, and the
+  // synthetic container "stage" is meaningless for a whole layer.
+  const aliasOfLayer = () => c().label === (props.layer?.label ?? null)
 
   return (
     <g
@@ -560,34 +565,36 @@ const ContainerBox: Component<{
         stroke={stroke()}
         stroke-width={props.tweaks.layerMode === 'borders' ? 1.2 : 0.8}
       />
-      <g>
-        <title>{STAGE_DESC[c().stage] ?? `Stage ${c().stage}`}</title>
-        <rect
-          x={8}
-          y={5}
-          width={14}
-          height={11}
-          rx={3}
-          fill={stageColor()}
-          fill-opacity={0.18}
-          stroke={stageColor()}
-          stroke-opacity={0.4}
-          stroke-width={0.5}
-        />
-        <text
-          x={15}
-          y={13}
-          class="container-stage-num"
-          fill={stageColor()}
-          text-anchor="middle"
-        >
-          {c().stage}
+      <Show when={!aliasOfLayer()}>
+        <g>
+          <title>{STAGE_DESC[c().stage] ?? `Stage ${c().stage}`}</title>
+          <rect
+            x={8}
+            y={5}
+            width={14}
+            height={11}
+            rx={3}
+            fill={stageColor()}
+            fill-opacity={0.18}
+            stroke={stageColor()}
+            stroke-opacity={0.4}
+            stroke-width={0.5}
+          />
+          <text
+            x={15}
+            y={13}
+            class="container-stage-num"
+            fill={stageColor()}
+            text-anchor="middle"
+          >
+            {c().stage}
+          </text>
+          <rect x={6} y={3} width={18} height={15} fill="transparent" />
+        </g>
+        <text x={28} y={14} class="container-label">
+          {c().label}
         </text>
-        <rect x={6} y={3} width={18} height={15} fill="transparent" />
-      </g>
-      <text x={28} y={14} class="container-label">
-        {c().label}
-      </text>
+      </Show>
       <Show when={c().errors > 0 || c().warnings > 0}>
         <g>
           <title>

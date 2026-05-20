@@ -326,6 +326,15 @@ export const OutlinePanel: Component<OutlineProps> = (props) => {
                 )
               }),
             )
+            // Stratum's graph builder currently emits exactly one root container
+            // per layer, named identically to the layer. Rendering it as a
+            // nested row produces a useless "core > core" duplication. Collapse
+            // the row when it's a 1:1 alias of the layer.
+            const aliasContainer = createMemo(() => {
+              const all = containersOf(layer)
+              if (all.length !== 1) return null
+              return all[0].label === layer.label ? all[0] : null
+            })
             if (filterActive() && visibleContainers().length === 0) return null
             return (
               <div class="ot-layer">
@@ -396,7 +405,34 @@ export const OutlinePanel: Component<OutlineProps> = (props) => {
                   </button>
                 </div>
                 <Show when={!layerCollapsed()}>
-                  <For each={visibleContainers()}>
+                  <Show when={aliasContainer()}>
+                    {(c) => (
+                      <For
+                        each={(props.data.topByContainer[c().id] ?? []).filter(isModuleVisible)}
+                      >
+                        {(modId) => (
+                          <ModuleRow
+                            modId={modId}
+                            data={props.data}
+                            collapsed={collapsed}
+                            toggle={toggle}
+                            selectedId={props.selectedId}
+                            onSelect={props.onSelect}
+                            depth={0}
+                            showTip={showTip}
+                            moveTip={moveTip}
+                            hideTip={hideTip}
+                            moduleViolationsTipContent={moduleViolationsTipContent}
+                            kidsTipContent={kidsTipContent}
+                            isModuleVisible={isModuleVisible}
+                            isCollapsed={isCollapsed}
+                          />
+                        )}
+                      </For>
+                    )}
+                  </Show>
+                  <Show when={!aliasContainer()}>
+                    <For each={visibleContainers()}>
                     {(c) => {
                       const cDisabled = () => props.filters.disabledContainers.has(c.id)
                       const cCollapsed = () => isCollapsed(c.id)
@@ -488,7 +524,8 @@ export const OutlinePanel: Component<OutlineProps> = (props) => {
                         </div>
                       )
                     }}
-                  </For>
+                    </For>
+                  </Show>
                 </Show>
               </div>
             )
