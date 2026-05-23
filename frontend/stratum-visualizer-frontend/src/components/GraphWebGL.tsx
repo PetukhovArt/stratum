@@ -113,5 +113,48 @@ export const GraphWebGL: Component<GraphWebGLProps> = (props) => {
     app = null
   })
 
-  return <div class="strat-graph-webgl" ref={hostRef} />
+  // ── Label overlay sync ────────────────────────────────────────────────
+  let overlayRef!: HTMLDivElement
+
+  const syncOverlay = () => {
+    if (!pxViewport || !overlayRef) return
+    const x = pxViewport.x
+    const y = pxViewport.y
+    const s = pxViewport.scale.x
+    overlayRef.style.transform = `translate(${x}px, ${y}px) scale(${s})`
+  }
+
+  // Subscribe to every Pixi ticker frame; sync is one writeAttribute, cheap.
+  onMount(() => {
+    const tick = () => syncOverlay()
+    const interval = window.setInterval(() => {
+      if (app) {
+        app.ticker.add(tick)
+        window.clearInterval(interval)
+      }
+    }, 16)
+    onCleanup(() => {
+      window.clearInterval(interval)
+      if (app) app.ticker.remove(tick)
+    })
+  })
+
+  return (
+    <div class="strat-graph-webgl" ref={hostRef}>
+      <div class="webgl-labels-overlay" ref={overlayRef}>
+        {Object.entries(props.scene.modulePos).map(([id, p]) => (
+          <div
+            class="webgl-module-label"
+            data-id={id}
+            style={{
+              transform: `translate(${p.x + 4}px, ${p.y + 2}px)`,
+              'max-width': `${p.w - 8}px`,
+            }}
+          >
+            {p.mod.label}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
