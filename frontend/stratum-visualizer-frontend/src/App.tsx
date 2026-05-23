@@ -11,6 +11,7 @@ import {
 import './styles.css'
 
 import { Graph } from './components/Graph'
+import { GraphWebGL } from './components/GraphWebGL'
 import { Header } from './components/Header'
 import { DetailsPanel, HoverTooltip, Minimap, OutlinePanel } from './components/Panels'
 import { Legend, StatusBar, ZoomControls } from './components/StatusBar'
@@ -28,6 +29,18 @@ import {
   Viewport,
 } from './state'
 import { GraphSnapshot, Violation } from './types'
+
+const readInitialRenderer = (): 'svg' | 'webgl' => {
+  const fromUrl = new URLSearchParams(window.location.search).get('renderer')
+  if (fromUrl === 'webgl' || fromUrl === 'svg') return fromUrl
+  try {
+    const v = localStorage.getItem('stratum.renderer')
+    if (v === 'webgl' || v === 'svg') return v
+  } catch (_e) {
+    /* ignore */
+  }
+  return 'svg'
+}
 
 const App: Component = () => {
   const [snapshot] = createResource<GraphSnapshot>(() => loadSnapshot('/api/snapshot'))
@@ -56,6 +69,18 @@ const App: Component = () => {
   const [stageSize, setStageSize] = createSignal({ w: 1000, h: 700 })
   const [stageRect, setStageRect] = createSignal<DOMRect | null>(null)
   const [hasFitted, setHasFitted] = createSignal(false)
+  const [renderer, setRenderer] = createSignal<'svg' | 'webgl'>(readInitialRenderer())
+  createEffect(() => {
+    const r = renderer()
+    const url = new URL(window.location.href)
+    url.searchParams.set('renderer', r)
+    window.history.replaceState({}, '', url.toString())
+    try {
+      localStorage.setItem('stratum.renderer', r)
+    } catch (_e) {
+      // localStorage may be blocked (private mode) — silently degrade.
+    }
+  })
 
   const scene = createMemo(() => {
     const d = data()
@@ -201,6 +226,8 @@ const App: Component = () => {
               onTweaksToggle={() =>
                 setTweaks({ ...tweaks(), haloThick: !tweaks().haloThick })
               }
+              renderer={renderer()}
+              onRendererToggle={() => setRenderer(renderer() === 'svg' ? 'webgl' : 'svg')}
             />
             <div class="strat-body" style={bodyStyle()}>
               <div class={`panel-slot ${leftCollapsed() ? 'collapsed' : ''}`}>
@@ -223,21 +250,42 @@ const App: Component = () => {
                 <Show when={scene()}>
                   {(sc) => (
                     <>
-                      <Graph
-                        scene={sc()}
-                        data={d()}
-                        filters={filters()}
-                        tweaks={tweaks()}
-                        selectedId={selected()}
-                        hoveredId={hovered()?.id ?? null}
-                        focusedCycle={focusedCycle()}
-                        onSelect={handleSelect}
-                        onHover={setHovered}
-                        onHoverEdge={setHoveredEdge}
-                        hoveredEdge={hoveredEdge()}
-                        viewport={viewport()}
-                        onViewportChange={setViewport}
-                      />
+                      <Show
+                        when={renderer() === 'webgl'}
+                        fallback={
+                          <Graph
+                            scene={sc()}
+                            data={d()}
+                            filters={filters()}
+                            tweaks={tweaks()}
+                            selectedId={selected()}
+                            hoveredId={hovered()?.id ?? null}
+                            focusedCycle={focusedCycle()}
+                            onSelect={handleSelect}
+                            onHover={setHovered}
+                            onHoverEdge={setHoveredEdge}
+                            hoveredEdge={hoveredEdge()}
+                            viewport={viewport()}
+                            onViewportChange={setViewport}
+                          />
+                        }
+                      >
+                        <GraphWebGL
+                          scene={sc()}
+                          data={d()}
+                          filters={filters()}
+                          tweaks={tweaks()}
+                          selectedId={selected()}
+                          hoveredId={hovered()?.id ?? null}
+                          focusedCycle={focusedCycle()}
+                          onSelect={handleSelect}
+                          onHover={setHovered}
+                          onHoverEdge={setHoveredEdge}
+                          hoveredEdge={hoveredEdge()}
+                          viewport={viewport()}
+                          onViewportChange={setViewport}
+                        />
+                      </Show>
                       <Legend />
                       <Show when={focusedCycle()}>
                         {(fc) => (

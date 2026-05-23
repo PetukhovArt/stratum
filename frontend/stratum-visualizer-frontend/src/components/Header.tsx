@@ -18,6 +18,8 @@ interface HeaderProps {
   onSelect: (id: string) => void
   onResetView: () => void
   onTweaksToggle: () => void
+  renderer: 'svg' | 'webgl'
+  onRendererToggle: () => void
 }
 
 export const Header: Component<HeaderProps> = (props) => {
@@ -67,6 +69,13 @@ export const Header: Component<HeaderProps> = (props) => {
           </span>
         </div>
         <div class="hd-actions">
+          <button
+            class="hd-btn hd-btn-renderer"
+            onClick={props.onRendererToggle}
+            title={`Renderer: ${props.renderer.toUpperCase()} (click to switch)`}
+          >
+            {props.renderer === 'webgl' ? '🌐 WebGL' : '◇ SVG'}
+          </button>
           <button class="hd-btn" onClick={props.onResetView} title="Fit to bounds (Esc)">
             ⤢ fit
           </button>
