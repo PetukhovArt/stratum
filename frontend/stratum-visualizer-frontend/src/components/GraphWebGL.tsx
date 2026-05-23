@@ -110,7 +110,7 @@ export const GraphWebGL: Component<GraphWebGLProps> = (props) => {
     pointerThrottle = now
     const rect = hostRef.getBoundingClientRect()
     const localX = (e.clientX - rect.left - pxViewport.x) / pxViewport.scale.x
-    const localY = (e.clientY - rect.top - pxViewport.y) / pxViewport.scale.x
+    const localY = (e.clientY - rect.top - pxViewport.y) / pxViewport.scale.y
     const id = hitIndex.queryPoint(localX, localY)
     if (id !== lastHoverId) {
       lastHoverId = id
@@ -122,7 +122,7 @@ export const GraphWebGL: Component<GraphWebGLProps> = (props) => {
     if (!pxViewport || !hitIndex) return
     const rect = hostRef.getBoundingClientRect()
     const localX = (e.clientX - rect.left - pxViewport.x) / pxViewport.scale.x
-    const localY = (e.clientY - rect.top - pxViewport.y) / pxViewport.scale.x
+    const localY = (e.clientY - rect.top - pxViewport.y) / pxViewport.scale.y
     const id = hitIndex.queryPoint(localX, localY)
     if (id) props.onSelect(id)
   }
