@@ -61,3 +61,15 @@ export const MODULE_STROKE = oklchToRgbHex(70, 0.02, 250)
 export const CONTAINER_FILL = oklchToRgbHex(13, 0.02, 250)
 export const LANE_FILL = oklchToRgbHex(11, 0.01, 250)
 export const TEXT_COLOR = oklchToRgbHex(88, 0.02, 250)
+
+// Per-stage hue used when `tweaks.colorMode === 'stage'`. Same numbers as the
+// SVG renderer (Graph.tsx).
+export const STAGE_HUE = [220, 150, 95, 48] as const
+
+// Highlight (hover) and selection accent — matches SVG's `oklch(85% 0.16 65)`.
+export const HOVER_OUTLINE = oklchToRgbHex(85, 0.16, 65)
+export const SELECT_OUTLINE = oklchToRgbHex(85, 0.16, 65)
+
+// Kind-specific colours.
+export const SHARED_HUE = 290
+export const COMPOSER_PATTERN_DASH: [number, number] = [3, 2]

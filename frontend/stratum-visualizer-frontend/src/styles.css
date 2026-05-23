@@ -473,9 +473,20 @@ body {
 .subgrid-bar-fill { height: 100%; background: oklch(72% 0.10 var(--accent-h)); border-radius: 2px; }
 
 .vios { display: flex; flex-direction: column; gap: 8px; }
+.vios-virtual {
+  display: block;
+  max-height: 420px;
+  overflow-y: auto;
+  margin: 0 -2px;
+  padding: 0 2px;
+}
+.vios-virtual::-webkit-scrollbar { width: 8px; }
+.vios-virtual::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 4px; }
 .vio {
   border-left: 2px solid var(--bd-2); padding: 8px 10px;
   background: var(--bg-2); border-radius: 0 6px 6px 0;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 56px;
 }
 .vio-error { border-left-color: var(--err); }
 .vio-warning { border-left-color: var(--warn); }
@@ -503,6 +514,8 @@ body {
   padding: 5px 8px; border-radius: 4px;
   font-size: 11.5px; color: var(--tx-2);
   cursor: pointer;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 26px;
 }
 .edge-row:hover { background: var(--bg-2); color: var(--tx-1); }
 .edge-row-vio { background: oklch(64% 0.18 25 / .08); }
@@ -658,15 +671,6 @@ body {
 .legend-sev.sev-info { background: var(--info); box-shadow: 0 0 6px oklch(70% 0.10 230 / .45); }
 
 /* minimap */
-.minimap {
-  position: absolute; right: 14px; bottom: 14px; z-index: 3;
-  background: oklch(20% 0.012 260 / .85); backdrop-filter: blur(12px);
-  border: 1px solid var(--bd-1); border-radius: 8px;
-  padding: 6px; display: flex; flex-direction: column; gap: 4px;
-}
-.minimap svg { display: block; cursor: crosshair; }
-.minimap-hint { font-size: 9.5px; color: var(--tx-4); text-align: center; }
-
 /* zoom controls */
 .zoom-ctrl {
   position: absolute; right: 14px; top: 14px; z-index: 3;
@@ -769,6 +773,7 @@ body {
 .panel-icon { display: block; color: currentColor; }
 
 /* ─── tooltip ────────────────────────────────────────────────────────── */
+.tt-wrap { display: inline-flex; align-items: center; }
 .tt {
   position: absolute; z-index: 5;
   background: oklch(20% 0.012 260 / .92);
@@ -780,7 +785,7 @@ body {
   font-size: 11.5px;
   color: var(--tx-1);
   pointer-events: none;
-  transition: left 60ms linear, top 60ms linear;
+  transition: left 60ms linear, top 60ms linear, opacity 80ms ease;
 }
 .tt-hd { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
 .tt-layer {
@@ -881,6 +886,8 @@ body {
 .kidgrid-item {
   background: var(--bg-2); border: 1px solid var(--bd-1); border-radius: 6px;
   padding: 6px 8px; cursor: pointer;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 60px;
 }
 .kidgrid-item:hover { background: var(--bg-3); border-color: var(--bd-2); }
 .kidgrid-item.kind-composer { border-left: 2px solid oklch(80% 0.14 65); }
@@ -952,4 +959,99 @@ body {
   text-overflow: ellipsis;
   pointer-events: none;
   user-select: none;
+}
+
+/* ─── Tiny-module hint inside HoverTooltip ─────────────────────────────────── */
+.tt-open-hint {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--bd-1);
+  font-size: 10.5px;
+  color: var(--tx-3);
+  text-align: center;
+  letter-spacing: 0.03em;
+}
+
+/* ─── Module card modal ────────────────────────────────────────────────────── */
+.modcard-backdrop {
+  position: fixed;
+  inset: 0;
+  background: oklch(0% 0 0 / .45);
+  backdrop-filter: blur(2px);
+  z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+  animation: modcard-fade-in 120ms ease-out;
+}
+@keyframes modcard-fade-in { from { opacity: 0 } to { opacity: 1 } }
+.modcard {
+  max-width: 560px;
+  width: calc(100vw - 64px);
+  max-height: calc(100vh - 96px);
+  background: oklch(16% 0.012 260);
+  border: 1px solid var(--bd-2);
+  border-radius: 10px;
+  box-shadow: 0 24px 64px oklch(0% 0 0 / .55);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  animation: modcard-pop 160ms cubic-bezier(.2,.8,.2,1);
+}
+@keyframes modcard-pop {
+  from { transform: translateY(8px) scale(.96); opacity: 0 }
+  to { transform: none; opacity: 1 }
+}
+.modcard-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--bd-1);
+}
+.modcard-hd-l {
+  display: flex; align-items: center; gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.modcard-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px; font-weight: 600;
+  color: var(--tx-1);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.modcard-close {
+  background: none; border: none;
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  color: var(--tx-3); cursor: pointer;
+  font-size: 18px; line-height: 1;
+  flex-shrink: 0;
+}
+.modcard-close:hover { background: var(--bg-3); color: var(--tx-1); }
+.modcard-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px 16px;
+}
+.modcard-path {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--tx-3);
+  margin-bottom: 12px;
+  word-break: break-all;
+}
+.modcard-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.modcard-section { margin-top: 14px; }
+.modcard-section h4 {
+  margin: 0 0 8px 0;
+  font-size: 10.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--tx-3);
+}
+.modcard-more {
+  margin-top: 6px;
+  font-size: 10.5px; color: var(--tx-3);
+  text-align: center;
 }

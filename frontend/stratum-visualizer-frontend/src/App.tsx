@@ -13,7 +13,8 @@ import './styles.css'
 import { Graph } from './components/Graph'
 import { GraphWebGL } from './components/GraphWebGL'
 import { Header } from './components/Header'
-import { DetailsPanel, HoverTooltip, Minimap, OutlinePanel } from './components/Panels'
+import { ModuleCard } from './components/ModuleCard'
+import { DetailsPanel, HoverTooltip, OutlinePanel } from './components/Panels'
 import { Legend, StatusBar, ZoomControls } from './components/StatusBar'
 import { loadSnapshot, SnapshotVersionMismatchError } from './lib/snapshot'
 import { loadViolations } from './lib/violations'
@@ -61,6 +62,7 @@ const App: Component = () => {
   const [hoveredEdge, setHoveredEdge] = createSignal<HoveredEdge | null>(null)
   const [paletteOpen, setPaletteOpen] = createSignal(false)
   const [focusedCycle, setFocusedCycle] = createSignal<string | null>(null)
+  const [cardModuleId, setCardModuleId] = createSignal<string | null>(null)
   const [leftCollapsed, setLeftCollapsed] = createSignal(false)
   const [rightCollapsed, setRightCollapsed] = createSignal(false)
   const [leftWidth, setLeftWidth] = createSignal(264)
@@ -283,6 +285,7 @@ const App: Component = () => {
                           hoveredId={hovered()?.id ?? null}
                           focusedCycle={focusedCycle()}
                           onSelect={handleSelect}
+                          onOpenCard={(id) => setCardModuleId(id)}
                           onHover={setHovered}
                           onHoverEdge={setHoveredEdge}
                           hoveredEdge={hoveredEdge()}
@@ -302,14 +305,6 @@ const App: Component = () => {
                             <button onClick={() => setFocusedCycle(null)}>exit ↩</button>
                           </div>
                         )}
-                      </Show>
-                      <Show when={tweaks().showMinimap}>
-                        <Minimap
-                          scene={sc()}
-                          viewport={viewport()}
-                          onViewportChange={setViewport}
-                          containerSize={stageSize()}
-                        />
                       </Show>
                       <ZoomControls
                         viewport={viewport()}
@@ -360,6 +355,19 @@ const App: Component = () => {
               setRightCollapsed={setRightCollapsed}
               filters={filters()}
             />
+            <Show when={cardModuleId()}>
+              {(cid) => (
+                <ModuleCard
+                  data={d()}
+                  moduleId={cid()}
+                  onClose={() => setCardModuleId(null)}
+                  onSelect={handleSelect}
+                  onFocusCycle={(vid) =>
+                    setFocusedCycle(focusedCycle() === vid ? null : vid)
+                  }
+                />
+              )}
+            </Show>
           </div>
         )}
       </Show>
