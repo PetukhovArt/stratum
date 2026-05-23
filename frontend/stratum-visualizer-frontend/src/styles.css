@@ -908,3 +908,48 @@ body {
 }
 .err-view strong { display: block; margin-bottom: 4px; color: var(--tx-1); }
 .err-view p { margin: 0; color: var(--tx-2); }
+
+/* ── WebGL renderer prototype ─────────────────────────────────────────── */
+
+.strat-graph-webgl {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--bg-1);
+  cursor: grab;
+}
+
+.strat-graph-webgl:active {
+  cursor: grabbing;
+}
+
+.strat-graph-webgl canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.webgl-labels-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform-origin: 0 0;
+  /* will-change keeps the overlay on its own layer — sync writes don't
+     repaint the canvas. */
+  will-change: transform;
+}
+
+.webgl-module-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-size: 10px;
+  color: var(--tx-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  user-select: none;
+}
