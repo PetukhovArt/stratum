@@ -39,16 +39,38 @@ export const GraphWebGL: Component<GraphWebGLProps> = (props) => {
     void initPixi()
   })
 
+  let hostResizeObserver: ResizeObserver | null = null
+
   const initPixi = async () => {
-    app = new PIXI.Application()
-    await app.init({
-      resizeTo: hostRef,
+    // Pixi v8's `resizeTo: hostRef` triggers an internal ResizeObserver that
+    // throws if the ref isn't a real Element at init time. Use explicit
+    // width/height + our own observer instead — works reliably across the
+    // Solid mount timing edge cases.
+    const w = hostRef.clientWidth || 800
+    const h = hostRef.clientHeight || 600
+    const newApp = new PIXI.Application()
+    await newApp.init({
+      width: w,
+      height: h,
       backgroundAlpha: 0,
       antialias: true,
       resolution: window.devicePixelRatio || 1,
       autoDensity: true,
     })
+    // Assign `app` only after init resolves so the ticker-sync poll never
+    // sees a half-initialized Application (avoids the "ticker.add of
+    // undefined" runaway loop).
+    app = newApp
     hostRef.appendChild(app.canvas)
+
+    hostResizeObserver = new ResizeObserver(() => {
+      if (!app) return
+      app.renderer.resize(hostRef.clientWidth, hostRef.clientHeight)
+      if (pxViewport) {
+        pxViewport.resize(hostRef.clientWidth, hostRef.clientHeight)
+      }
+    })
+    hostResizeObserver.observe(hostRef)
 
     pxViewport = new Viewport({
       screenWidth: hostRef.clientWidth,
@@ -74,6 +96,13 @@ export const GraphWebGL: Component<GraphWebGLProps> = (props) => {
         zoom: pxViewport.scale.x,
       })
     })
+
+    // Apply the current viewport prop on init. App.tsx's fit-to-bounds effect
+    // may have already fired before initPixi resolved; the viewport-sync
+    // createEffect early-returns while pxViewport is null, so we'd never
+    // catch up otherwise.
+    pxViewport.scale.set(props.viewport.zoom)
+    pxViewport.position.set(props.viewport.x, props.viewport.y)
 
     rebuildScene()
   }
@@ -152,9 +181,11 @@ export const GraphWebGL: Component<GraphWebGLProps> = (props) => {
   })
 
   onCleanup(() => {
+    if (hostResizeObserver) hostResizeObserver.disconnect()
     if (pixiScene) pixiScene.destroy()
     if (pxViewport) pxViewport.destroy({ children: true })
     if (app) app.destroy(true, { children: true, texture: true })
+    hostResizeObserver = null
     pixiScene = null
     pxViewport = null
     app = null
@@ -172,17 +203,26 @@ export const GraphWebGL: Component<GraphWebGLProps> = (props) => {
   }
 
   // Subscribe to every Pixi ticker frame; sync is one writeAttribute, cheap.
+  // `app` is set only after `app.init()` resolves, so `app.ticker` is
+  // guaranteed to exist when truthy. The poll exits the first time it sees
+  // a fully-initialized Application or gives up after 5 seconds of waiting
+  // (init really should not take that long; if it does, init failed and the
+  // canvas won't render either way — keep noise out of the console).
   onMount(() => {
     const tick = () => syncOverlay()
+    let attempts = 0
     const interval = window.setInterval(() => {
-      if (app) {
+      attempts++
+      if (app && app.ticker) {
         app.ticker.add(tick)
+        window.clearInterval(interval)
+      } else if (attempts > 312) {
         window.clearInterval(interval)
       }
     }, 16)
     onCleanup(() => {
       window.clearInterval(interval)
-      if (app) app.ticker.remove(tick)
+      if (app && app.ticker) app.ticker.remove(tick)
     })
   })
 

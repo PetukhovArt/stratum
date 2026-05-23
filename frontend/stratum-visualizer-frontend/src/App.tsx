@@ -97,7 +97,11 @@ const App: Component = () => {
     setStageRect(r)
   }
 
-  onMount(() => {
+  // stageRef is bound only when <Show when={data()}> resolves and renders
+  // the `.stage` div — which can happen AFTER this onMount fires. Set up
+  // the observer via createEffect on data() so we wait for the ref.
+  createEffect(() => {
+    if (!data() || !stageRef) return
     measureStage()
     const ro = new ResizeObserver(() => measureStage())
     ro.observe(stageRef)
