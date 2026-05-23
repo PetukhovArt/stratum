@@ -4,6 +4,9 @@ Stratum — архитектурный линтер для TS/Vue с LSP-сер�
 
 См. также: [`README.md`](./README.md) — public-фейс, [`_hot.md`](./_hot.md) — текущее состояние main.
 
+## Правила
+Do not add tests which simply restate the implementation. These provide zero confidence. 
+
 ## Структура
 
 ```
@@ -20,13 +23,12 @@ crates/
 frontend/
   stratum-visualizer-frontend/
     src/                # Solid + TypeScript
-    dist/               # vite build → embedded в stratum-lint через rust-embed
 editor-extensions/      # VSCode / Zed / WebStorm LSP-обёртки
 docs/
   integration/          # отчёты по реальным проектам (web-client smoke и т.п.)
 ```
 
-Pipeline: `adapt(GraphSnapshot, Violation[]) → DesignData → computeLayout → Scene → <Graph/> или <GraphWebGL/>`.
+Pipeline: `adapt(GraphSnapshot, Violation[]) → DesignData → computeLayout → Scene → <Graph/> или <GraphWebGL/>`. `SnapshotContainer` рекурсивный — папочная иерархия из `stratum-graph` приходит уже вложенной.
 
 ## Тестовая база: всегда web-client форк
 
@@ -46,11 +48,14 @@ Web-client после первого холодного линта (~30 сек) 
 
 Когда правишь Solid-компоненты, CSS, цвета, layout, рендер-слой — **этот режим**. HMR за миллисекунды, Rust пересобирать не надо.
 
+### Загрузка PixiJS-скиллов
+WebGL — основной рендер сцены. **Перед любой работой с PixiJS подгружай router `pixijs-skills:pixijs`** — он содержит таблицу под-скиллов и fallback на `llms.txt`, дальше под задачу загружай нужный под-скилл из роутера.
+
 ### Терминал 1 — Rust backend (живёт фоном)
 
 ```powershell
 cd D:\web-projects\stratum
-.\target\release\stratum-lint.exe visualize D:\web-projects\web-client-stratum-stages --port 8080
+.\target\release\stratum-lint.exe visualize D:\web-projects\web-client-stratum-stages --port 18080
 ```
 
 Один раз собрать `.exe` если ещё нет: `cargo build --release -p stratum-lint`.
@@ -67,7 +72,7 @@ cd D:\web-projects\stratum\frontend\stratum-visualizer-frontend
 npm run dev
 ```
 
-Vite слушает `http://localhost:5173`, проксирует `/api/*` на `127.0.0.1:8080` (см. `vite.config.ts:9-11`). Дефолт `apiPort` в конфиге — `8080`, переменная `VITE_API_PORT` нужна только если backend на другом порту.
+Vite слушает `http://localhost:5173`, проксирует `/api/*` на `127.0.0.1:18080` (см. `vite.config.ts:9-11`). Дефолт `apiPort` в конфиге — `18080` (на Windows-dev'е порт 8080 обычно занят EnterpriseDB/WAMP/Jenkins). Если запускаешь backend на 8080 — `VITE_API_PORT=8080 npm run dev`.
 
 Открываешь:
 - `http://localhost:5173/?renderer=svg` — текущий боевой рендер
@@ -100,7 +105,7 @@ cargo install cargo-watch
 
 ```powershell
 cd D:\web-projects\stratum
-cargo watch -w crates -x "run --release -p stratum-lint -- visualize D:\web-projects\web-client-stratum-stages --port 8080"
+cargo watch -w crates -x "run --release -p stratum-lint -- visualize D:\web-projects\web-client-stratum-stages --port 18080"
 ```
 
 `cargo-watch`:
@@ -124,10 +129,21 @@ npm run build                                                  # → dist/
 
 cd D:\web-projects\stratum
 cargo build --release -p stratum-lint                          # 20-45 сек
-.\target\release\stratum-lint.exe visualize D:\web-projects\web-client-stratum-stages --port 8080
+.\target\release\stratum-lint.exe visualize D:\web-projects\web-client-stratum-stages --port 18080
 ```
 
-Открываешь `http://localhost:8080/?renderer=webgl` (НЕ 5173 — backend сам отдаёт встроенный dist).
+Открываешь `http://localhost:18080/?renderer=webgl` (НЕ 5173 — backend сам отдаёт встроенный dist).
+
+## Анализ и верификация UI — Chrome MCP
+
+Для любой визуальной проверки, дебага рендера, инспекции DOM/canvas, замеров перфоманса и e2e-сценариев в браузере — **используй MCP-инструменты**, а не Playwright-скрипты или ручные скриншоты:
+
+- **`mcp__claude-in-chrome__*`** — навигация, клики, скриншоты, чтение страницы, console/network логи, GIF-запись многошаговых сценариев. Основной инструмент для «открой `http://localhost:5173/?renderer=webgl`, проверь, что граф отрендерился, сними скриншот».
+- **`mcp__plugin_chrome-devtools-mcp_chrome-devtools__*`** — DevTools-протокол: performance trace, lighthouse audit, memory snapshot, evaluate_script в контексте страницы, детальный network. Для перф-регрессий WebGL-рендера и утечек.
+
+Триггеры на подключение скиллов: `chrome-devtools`, `a11y-debugging`, `debug-optimize-lcp`, `memory-leak-debugging`, `pixijs-performance`.
+
+Workflow по умолчанию: **перед** правкой UI — снять baseline-скриншот через chrome MCP, **после** — снять второй и сравнить. Не «я поменял CSS, должно работать», а evidence-based.
 
 ## Тесты
 
@@ -153,17 +169,10 @@ CI запускает `fmt --check`, `clippy --workspace --all-targets -D warnin
 | Порт | Что |
 |---|---|
 | `5173` | Vite dev — **этот URL открывай в браузере** в HMR-режиме |
-| `8080` | Rust backend `stratum-lint visualize` — дефолт для пары с vite |
-| `18080` | Альтернативный — если 8080 занят |
-
-## Что НЕ коммитим
-
-- `frontend/stratum-visualizer-frontend/dist/` — артефакт сборки, но **нужен** для `cargo build --release` (`rust-embed` инлайнит). В `.gitignore` с feature-flag `debug-embed` для dev-билдов.
-- `target/` — Rust build cache
-- `.tmp/` — локальные эксперименты (handoff-зипы и т.п.)
-- `node_modules/`
+| `18080` | Rust backend `stratum-lint visualize` — дефолт для пары с vite (8080 на Windows почти всегда занят) |
+| `8080` | Альтернатива — если хочется привычный порт; запускай vite с `VITE_API_PORT=8080` |
 
 ## Активные ветки
 
 - `main` — Phase 10 complete, post-v0.1 roadmap смержен (2026-05-19)
-- `webgl-prototype` — WebGL прототип визуализатора (PixiJS v8 + pixi-viewport), 16 коммитов поверх main
+- `webgl-prototype` — WebGL прототип визуализатора (PixiJS v8 + pixi-viewport). Статус и follow-up'ы — в [`_hot.md`](./_hot.md)

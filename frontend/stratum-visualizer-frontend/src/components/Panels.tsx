@@ -7,15 +7,17 @@ import {
   onMount,
   Show,
 } from 'solid-js'
+import { createVirtualizer } from '@tanstack/solid-virtual'
 import {
+  DesignContainer,
   DesignData,
   DesignLayer,
   DesignModule,
   DesignViolation,
 } from '../render/design'
-import { Scene } from '../render/layout'
-import { Filters, HoveredEdge, HoveredMod, StageSize, Viewport } from '../state'
+import { Filters, HoveredEdge, HoveredMod } from '../state'
 import { globToRegex, normalizePath } from './Graph'
+import { Tooltip } from './Tooltip'
 
 const isFilterActive = (f: Filters): boolean =>
   f.query !== '' || f.glob !== '' || f.onlyViolators || f.stageFilter !== null
@@ -214,9 +216,6 @@ export const OutlinePanel: Component<OutlineProps> = (props) => {
     props.setFilters({ ...props.filters, disabledContainers: next })
   }
 
-  const containersOf = (layer: DesignLayer) =>
-    props.data.containers.filter((c) => c.layer === layer.id)
-
   // Tooltip builders ──────────────────────────────────────────────────────
   const violationsTipContent = (
     scopeModules: DesignModule[],
@@ -380,6 +379,304 @@ export const OutlinePanel: Component<OutlineProps> = (props) => {
   const clearFilters = () =>
     props.setFilters({ ...props.filters, query: '', glob: '', stageFilter: null, onlyViolators: false })
 
+  // ─── Flatten the outline tree into a 1D array for virtualization ───────
+  // Each FlatRow stores everything the renderer needs so the heavy compute
+  // (filtering, ancestor expansion, alias detection) happens once per memo
+  // invalidation, not per scroll frame.
+  type FlatRow =
+    | { type: 'layer'; layer: DesignLayer }
+    | { type: 'container'; container: DesignContainer; layer: DesignLayer }
+    | { type: 'module'; mod: DesignModule; rowDepth: number; kids: string[] }
+
+  const modulesById = createMemo(() => {
+    const m = new Map<string, DesignModule>()
+    for (const mod of props.data.modules) m.set(mod.id, mod)
+    return m
+  })
+
+  const containersByLayer = createMemo(() => {
+    const m = new Map<string, DesignContainer[]>()
+    for (const c of props.data.containers) {
+      const list = m.get(c.layer)
+      if (list) list.push(c)
+      else m.set(c.layer, [c])
+    }
+    return m
+  })
+
+  const flatRows = createMemo<FlatRow[]>(() => {
+    const out: FlatRow[] = []
+    const byId = modulesById()
+    const ctrByLayer = containersByLayer()
+
+    const pushModuleSubtree = (modId: string, baseDepth: number, depth: number) => {
+      if (!isModuleVisible(modId)) return
+      const mod = byId.get(modId)
+      if (!mod) return
+      const kids = (props.data.childIndex[modId] ?? []).filter(isModuleVisible)
+      out.push({ type: 'module', mod, rowDepth: baseDepth + depth, kids })
+      if (kids.length === 0) return
+      if (isCollapsed(modId)) return
+      for (const kidId of kids) pushModuleSubtree(kidId, baseDepth, depth + 1)
+    }
+
+    for (const layer of props.data.layers) {
+      const all = ctrByLayer.get(layer.id) ?? []
+      const aliasContainer =
+        all.length === 1 && all[0].label === layer.label ? all[0] : null
+      const visibleContainers = all.filter((c) => {
+        if (!filterActive()) return true
+        return props.data.modules.some(
+          (m) => m.container === c.id && isModuleVisible(m.id),
+        )
+      })
+      if (filterActive() && visibleContainers.length === 0) continue
+      out.push({ type: 'layer', layer })
+      if (isCollapsed(layer.id)) continue
+      if (aliasContainer) {
+        // Skip the container row — Stratum's graph builder emits one root
+        // container per layer with the layer's name; rendering it would be
+        // pure noise.
+        const tops = (props.data.topByContainer[aliasContainer.id] ?? []).filter(
+          isModuleVisible,
+        )
+        for (const tid of tops) pushModuleSubtree(tid, 1, 0)
+        continue
+      }
+      for (const c of visibleContainers) {
+        out.push({ type: 'container', container: c, layer })
+        if (isCollapsed(c.id)) continue
+        const tops = (props.data.topByContainer[c.id] ?? []).filter(isModuleVisible)
+        for (const tid of tops) pushModuleSubtree(tid, 2, 0)
+      }
+    }
+    return out
+  })
+
+  // ─── Virtualizer ────────────────────────────────────────────────────────
+  let scrollRef!: HTMLDivElement
+  const virtualizer = createVirtualizer({
+    get count() {
+      return flatRows().length
+    },
+    getScrollElement: () => scrollRef,
+    estimateSize: () => 22,
+    overscan: 8,
+  })
+
+  // ─── Per-kind renderers ─────────────────────────────────────────────────
+  const layerModulesCache = (layerId: string): DesignModule[] => {
+    const ctrByLayer = containersByLayer()
+    const ids = (ctrByLayer.get(layerId) ?? []).map((c) => c.id)
+    return props.data.modules.filter((m) => ids.includes(m.container))
+  }
+  const containerModulesCache = (cId: string): DesignModule[] =>
+    props.data.modules.filter((m) => m.container === cId)
+
+  const renderLayerRow = (layer: DesignLayer) => {
+    const layerCollapsed = () => isCollapsed(layer.id)
+    const layerDisabled = () => props.filters.disabledLayers.has(layer.id)
+    return (
+      <div class="ot-row ot-row-layer" onClick={() => toggle(layer.id)}>
+        <span
+          class={`ot-chev ${layerCollapsed() ? 'is-collapsed' : 'is-open'}`}
+          aria-hidden="true"
+        >
+          <ChevSVG />
+        </span>
+        <span class="ot-dot" style={{ background: `oklch(70% 0.10 ${layer.hue})` }} />
+        <span class="ot-name">{layer.label}</span>
+        <span class="ot-meta">
+          <Show when={layer.errors > 0}>
+            <span
+              class="pill pill-err"
+              onMouseEnter={(e) =>
+                showTip(
+                  e,
+                  violationsTipContent(layerModulesCache(layer.id), 'error', `${layer.label} layer`),
+                )
+              }
+              onMouseMove={moveTip}
+              onMouseLeave={hideTip}
+            >
+              {layer.errors}
+            </span>
+          </Show>
+          <Show when={layer.warnings > 0}>
+            <span
+              class="pill pill-warn"
+              onMouseEnter={(e) =>
+                showTip(
+                  e,
+                  violationsTipContent(
+                    layerModulesCache(layer.id),
+                    'warning',
+                    `${layer.label} layer`,
+                  ),
+                )
+              }
+              onMouseMove={moveTip}
+              onMouseLeave={hideTip}
+            >
+              {layer.warnings}
+            </span>
+          </Show>
+          <span
+            class="ot-num"
+            onMouseEnter={(e) => showTip(e, layerCountTipContent(layer))}
+            onMouseMove={moveTip}
+            onMouseLeave={hideTip}
+          >
+            {layer.modules}
+          </span>
+        </span>
+        <Tooltip content={layerDisabled() ? 'Show layer' : 'Hide layer'}>
+          <button
+            class={`ot-eye ${layerDisabled() ? 'off' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation()
+              toggleLayer(layer.id)
+            }}
+          >
+            {layerDisabled() ? '○' : '●'}
+          </button>
+        </Tooltip>
+      </div>
+    )
+  }
+
+  const renderContainerRow = (c: DesignContainer) => {
+    const cDisabled = () => props.filters.disabledContainers.has(c.id)
+    const cCollapsed = () => isCollapsed(c.id)
+    return (
+      <div class="ot-row ot-row-ctr" onClick={() => toggle(c.id)}>
+        <span
+          class={`ot-chev ${cCollapsed() ? 'is-collapsed' : 'is-open'}`}
+          aria-hidden="true"
+        >
+          <ChevSVG />
+        </span>
+        <span class="ot-icon" aria-hidden="true">
+          <FolderIcon open={!cCollapsed()} />
+        </span>
+        <span class="ot-name ot-mono">{c.label}</span>
+        <span class="ot-meta">
+          <Show when={c.errors > 0}>
+            <span
+              class="pill pill-err"
+              onMouseEnter={(e) =>
+                showTip(e, violationsTipContent(containerModulesCache(c.id), 'error', c.label))
+              }
+              onMouseMove={moveTip}
+              onMouseLeave={hideTip}
+            >
+              {c.errors}
+            </span>
+          </Show>
+          <Show when={c.warnings > 0}>
+            <span
+              class="pill pill-warn"
+              onMouseEnter={(e) =>
+                showTip(e, violationsTipContent(containerModulesCache(c.id), 'warning', c.label))
+              }
+              onMouseMove={moveTip}
+              onMouseLeave={hideTip}
+            >
+              {c.warnings}
+            </span>
+          </Show>
+        </span>
+        <button
+          class={`ot-eye ${cDisabled() ? 'off' : ''}`}
+          onClick={(e) => {
+            e.stopPropagation()
+            toggleContainer(c.id)
+          }}
+        >
+          {cDisabled() ? '○' : '●'}
+        </button>
+      </div>
+    )
+  }
+
+  const renderModuleRow = (m: DesignModule, rowDepth: number, kids: string[]) => {
+    const hasKids = kids.length > 0
+    const rowCollapsed = () => isCollapsed(m.id)
+    const isSel = () => props.selectedId === m.id
+    return (
+      <div
+        class={`ot-row ot-row-mod ${isSel() ? 'sel' : ''} kind-${m.kind}`}
+        style={{ '--depth': rowDepth }}
+        onClick={() => props.onSelect(m.id)}
+      >
+        <Show when={hasKids} fallback={<span class="ot-chev" aria-hidden="true" />}>
+          <span
+            class={`ot-chev ${rowCollapsed() ? 'is-collapsed' : 'is-open'}`}
+            aria-hidden="true"
+            onClick={(e) => {
+              e.stopPropagation()
+              toggle(m.id)
+            }}
+          >
+            <ChevSVG />
+          </span>
+        </Show>
+        <span class="ot-icon" aria-hidden="true">
+          <Show when={hasKids} fallback={<FileIcon />}>
+            <FolderIcon open={!rowCollapsed()} />
+          </Show>
+        </span>
+        <Show when={m.kind === 'composer'}>
+          <span
+            class="ot-kind ot-kind-c"
+            onMouseEnter={(e) => showTip(e, kindTipContent('composer'))}
+            onMouseMove={moveTip}
+            onMouseLeave={hideTip}
+          >
+            ◇
+          </span>
+        </Show>
+        <Show when={m.kind === 'shared'}>
+          <span
+            class="ot-kind ot-kind-s"
+            onMouseEnter={(e) => showTip(e, kindTipContent('shared'))}
+            onMouseMove={moveTip}
+            onMouseLeave={hideTip}
+          >
+            _
+          </span>
+        </Show>
+        <span class="ot-mono ot-mod-name">{m.label}</span>
+        <Show when={m.severity === 'error'}>
+          <span
+            class="ot-mod-sev sev-err"
+            onMouseEnter={(e) => showTip(e, moduleViolationsTipContent(m))}
+            onMouseMove={moveTip}
+            onMouseLeave={hideTip}
+          />
+        </Show>
+        <Show when={m.severity === 'warning'}>
+          <span
+            class="ot-mod-sev sev-warn"
+            onMouseEnter={(e) => showTip(e, moduleViolationsTipContent(m))}
+            onMouseMove={moveTip}
+            onMouseLeave={hideTip}
+          />
+        </Show>
+        <Show when={hasKids}>
+          <span
+            class="ot-mod-thick"
+            onMouseEnter={(e) => showTip(e, kidsTipContent(kids.length))}
+            onMouseMove={moveTip}
+            onMouseLeave={hideTip}
+          >
+            {kids.length}
+          </span>
+        </Show>
+      </div>
+    )
+  }
+
   return (
     <aside class="panel panel-outline">
       <header class="panel-hd">
@@ -388,7 +685,7 @@ export const OutlinePanel: Component<OutlineProps> = (props) => {
           {filterActive() ? `${visibleCount()} / ${props.data.modules.length}` : props.data.modules.length}
         </span>
       </header>
-      <div class="outline-tree" onScroll={hideTip}>
+      <div class="outline-tree" ref={scrollRef!} onScroll={hideTip}>
         <Show when={filterActive() && visibleCount() === 0}>
           <div class="ot-empty">
             <div class="ot-empty-icon">⌕</div>
@@ -398,232 +695,35 @@ export const OutlinePanel: Component<OutlineProps> = (props) => {
             </button>
           </div>
         </Show>
-        <For each={props.data.layers}>
-          {(layer) => {
-            const layerCollapsed = () => isCollapsed(layer.id)
-            const layerDisabled = () => props.filters.disabledLayers.has(layer.id)
-            const layerModules = createMemo(() =>
-              props.data.modules.filter((m) => {
-                const c = props.data.containers.find((c) => c.id === m.container)
-                return c?.layer === layer.id
-              }),
-            )
-            const visibleContainers = createMemo(() =>
-              containersOf(layer).filter((c) => {
-                if (!filterActive()) return true
-                return props.data.modules.some(
-                  (m) => m.container === c.id && isModuleVisible(m.id),
+        <Show when={!(filterActive() && visibleCount() === 0)}>
+          <div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
+            <For each={virtualizer.getVirtualItems()}>
+              {(vi) => {
+                const row = flatRows()[vi.index]
+                if (!row) return null
+                return (
+                  <div
+                    data-index={vi.index}
+                    ref={(el) => queueMicrotask(() => virtualizer.measureElement(el))}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      transform: `translateY(${vi.start}px)`,
+                    }}
+                  >
+                    {row.type === 'layer'
+                      ? renderLayerRow(row.layer)
+                      : row.type === 'container'
+                        ? renderContainerRow(row.container)
+                        : renderModuleRow(row.mod, row.rowDepth, row.kids)}
+                  </div>
                 )
-              }),
-            )
-            // Stratum's graph builder currently emits exactly one root container
-            // per layer, named identically to the layer. Rendering it as a
-            // nested row produces a useless "core > core" duplication. Collapse
-            // the row when it's a 1:1 alias of the layer.
-            const aliasContainer = createMemo(() => {
-              const all = containersOf(layer)
-              if (all.length !== 1) return null
-              return all[0].label === layer.label ? all[0] : null
-            })
-            if (filterActive() && visibleContainers().length === 0) return null
-            return (
-              <div class="ot-layer">
-                <div class="ot-row ot-row-layer" onClick={() => toggle(layer.id)}>
-                  <span
-                    class={`ot-chev ${layerCollapsed() ? 'is-collapsed' : 'is-open'}`}
-                    aria-hidden="true"
-                  >
-                    <ChevSVG />
-                  </span>
-                  <span class="ot-dot" style={{ background: `oklch(70% 0.10 ${layer.hue})` }} />
-                  <span class="ot-name">{layer.label}</span>
-                  <span class="ot-meta">
-                    <Show when={layer.errors > 0}>
-                      <span
-                        class="pill pill-err"
-                        onMouseEnter={(e) =>
-                          showTip(
-                            e,
-                            violationsTipContent(layerModules(), 'error', `${layer.label} layer`),
-                          )
-                        }
-                        onMouseMove={moveTip}
-                        onMouseLeave={hideTip}
-                      >
-                        {layer.errors}
-                      </span>
-                    </Show>
-                    <Show when={layer.warnings > 0}>
-                      <span
-                        class="pill pill-warn"
-                        onMouseEnter={(e) =>
-                          showTip(
-                            e,
-                            violationsTipContent(
-                              layerModules(),
-                              'warning',
-                              `${layer.label} layer`,
-                            ),
-                          )
-                        }
-                        onMouseMove={moveTip}
-                        onMouseLeave={hideTip}
-                      >
-                        {layer.warnings}
-                      </span>
-                    </Show>
-                    <span
-                      class="ot-num"
-                      onMouseEnter={(e) => showTip(e, layerCountTipContent(layer))}
-                      onMouseMove={moveTip}
-                      onMouseLeave={hideTip}
-                    >
-                      {layer.modules}
-                    </span>
-                  </span>
-                  <button
-                    class={`ot-eye ${layerDisabled() ? 'off' : ''}`}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      toggleLayer(layer.id)
-                    }}
-                    title={layerDisabled() ? 'show layer' : 'hide layer'}
-                  >
-                    {layerDisabled() ? '○' : '●'}
-                  </button>
-                </div>
-                <Show when={!layerCollapsed()}>
-                  <Show when={aliasContainer()}>
-                    {(c) => (
-                      <For
-                        each={(props.data.topByContainer[c().id] ?? []).filter(isModuleVisible)}
-                      >
-                        {(modId) => (
-                          <ModuleRow
-                            modId={modId}
-                            data={props.data}
-                            collapsed={collapsed}
-                            toggle={toggle}
-                            selectedId={props.selectedId}
-                            onSelect={props.onSelect}
-                            depth={0}
-                            baseDepth={1}
-                            showTip={showTip}
-                            moveTip={moveTip}
-                            hideTip={hideTip}
-                            moduleViolationsTipContent={moduleViolationsTipContent}
-                            kidsTipContent={kidsTipContent}
-                            kindTipContent={kindTipContent}
-                            isModuleVisible={isModuleVisible}
-                            isCollapsed={isCollapsed}
-                          />
-                        )}
-                      </For>
-                    )}
-                  </Show>
-                  <Show when={!aliasContainer()}>
-                    <For each={visibleContainers()}>
-                    {(c) => {
-                      const cDisabled = () => props.filters.disabledContainers.has(c.id)
-                      const cCollapsed = () => isCollapsed(c.id)
-                      const tops = () =>
-                        (props.data.topByContainer[c.id] ?? []).filter(isModuleVisible)
-                      const containerModules = createMemo(() =>
-                        props.data.modules.filter((m) => m.container === c.id),
-                      )
-                      return (
-                        <div class="ot-container">
-                          <div class="ot-row ot-row-ctr" onClick={() => toggle(c.id)}>
-                            <span
-                              class={`ot-chev ${cCollapsed() ? 'is-collapsed' : 'is-open'}`}
-                              aria-hidden="true"
-                            >
-                              <ChevSVG />
-                            </span>
-                            <span class="ot-icon" aria-hidden="true">
-                              <FolderIcon open={!cCollapsed()} />
-                            </span>
-                            <span class="ot-name ot-mono">{c.label}</span>
-                            <span class="ot-meta">
-                              <Show when={c.errors > 0}>
-                                <span
-                                  class="pill pill-err"
-                                  onMouseEnter={(e) =>
-                                    showTip(
-                                      e,
-                                      violationsTipContent(containerModules(), 'error', c.label),
-                                    )
-                                  }
-                                  onMouseMove={moveTip}
-                                  onMouseLeave={hideTip}
-                                >
-                                  {c.errors}
-                                </span>
-                              </Show>
-                              <Show when={c.warnings > 0}>
-                                <span
-                                  class="pill pill-warn"
-                                  onMouseEnter={(e) =>
-                                    showTip(
-                                      e,
-                                      violationsTipContent(
-                                        containerModules(),
-                                        'warning',
-                                        c.label,
-                                      ),
-                                    )
-                                  }
-                                  onMouseMove={moveTip}
-                                  onMouseLeave={hideTip}
-                                >
-                                  {c.warnings}
-                                </span>
-                              </Show>
-                            </span>
-                            <button
-                              class={`ot-eye ${cDisabled() ? 'off' : ''}`}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                toggleContainer(c.id)
-                              }}
-                            >
-                              {cDisabled() ? '○' : '●'}
-                            </button>
-                          </div>
-                          <Show when={!cCollapsed()}>
-                            <For each={tops()}>
-                              {(modId) => (
-                                <ModuleRow
-                                  modId={modId}
-                                  data={props.data}
-                                  collapsed={collapsed}
-                                  toggle={toggle}
-                                  selectedId={props.selectedId}
-                                  onSelect={props.onSelect}
-                                  depth={0}
-                                  baseDepth={2}
-                                  showTip={showTip}
-                                  moveTip={moveTip}
-                                  hideTip={hideTip}
-                                  moduleViolationsTipContent={moduleViolationsTipContent}
-                                  kidsTipContent={kidsTipContent}
-                                  kindTipContent={kindTipContent}
-                                  isModuleVisible={isModuleVisible}
-                                  isCollapsed={isCollapsed}
-                                />
-                              )}
-                            </For>
-                          </Show>
-                        </div>
-                      )
-                    }}
-                    </For>
-                  </Show>
-                </Show>
-              </div>
-            )
-          }}
-        </For>
+              }}
+            </For>
+          </div>
+        </Show>
       </div>
       <Show when={tip()}>{(t) => <TreeTooltip tip={t()} />}</Show>
     </aside>
@@ -668,149 +768,19 @@ const TreeTooltip: Component<{ tip: Tip }> = (props) => {
   )
 }
 
-interface ModuleRowProps {
-  modId: string
-  data: DesignData
-  collapsed: () => Set<string>
-  toggle: (id: string) => void
-  selectedId: string | null
-  onSelect: (id: string) => void
-  /** Recursion depth: 0 for module right under its container/layer, +1 per nesting. */
-  depth: number
-  /** Tree depth of the row's parent: 1 if the layer collapses its alias container, 2 otherwise. */
-  baseDepth: number
-  showTip: (e: MouseEvent, content: JSX.Element) => void
-  moveTip: (e: MouseEvent) => void
-  hideTip: () => void
-  moduleViolationsTipContent: (mod: DesignModule) => JSX.Element
-  kidsTipContent: (n: number) => JSX.Element
-  kindTipContent: (kind: 'composer' | 'shared') => JSX.Element
-  isModuleVisible: (id: string) => boolean
-  isCollapsed: (id: string) => boolean
-}
-
-const ModuleRow: Component<ModuleRowProps> = (props) => {
-  const mod = () => props.data.modules.find((m) => m.id === props.modId)
-  const kids = () => (props.data.childIndex[props.modId] ?? []).filter(props.isModuleVisible)
-  const hasKids = () => kids().length > 0
-  const isCollapsed = () => props.isCollapsed(props.modId)
-
-  const rowDepth = () => props.baseDepth + props.depth
-
-  return (
-    <Show when={mod()}>
-      {(m) => (
-        <>
-          <div
-            class={`ot-row ot-row-mod ${
-              props.selectedId === props.modId ? 'sel' : ''
-            } kind-${m().kind}`}
-            style={{ '--depth': rowDepth() }}
-            onClick={() => props.onSelect(props.modId)}
-          >
-            <Show
-              when={hasKids()}
-              fallback={<span class="ot-chev" aria-hidden="true" />}
-            >
-              <span
-                class={`ot-chev ${isCollapsed() ? 'is-collapsed' : 'is-open'}`}
-                aria-hidden="true"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  props.toggle(props.modId)
-                }}
-              >
-                <ChevSVG />
-              </span>
-            </Show>
-            <span class="ot-icon" aria-hidden="true">
-              <Show when={hasKids()} fallback={<FileIcon />}>
-                <FolderIcon open={!isCollapsed()} />
-              </Show>
-            </span>
-            <Show when={m().kind === 'composer'}>
-              <span
-                class="ot-kind ot-kind-c"
-                onMouseEnter={(e) => props.showTip(e, props.kindTipContent('composer'))}
-                onMouseMove={props.moveTip}
-                onMouseLeave={props.hideTip}
-              >
-                ◇
-              </span>
-            </Show>
-            <Show when={m().kind === 'shared'}>
-              <span
-                class="ot-kind ot-kind-s"
-                onMouseEnter={(e) => props.showTip(e, props.kindTipContent('shared'))}
-                onMouseMove={props.moveTip}
-                onMouseLeave={props.hideTip}
-              >
-                _
-              </span>
-            </Show>
-            <span class="ot-mono ot-mod-name">{m().label}</span>
-            <Show when={m().severity === 'error'}>
-              <span
-                class="ot-mod-sev sev-err"
-                onMouseEnter={(e) => props.showTip(e, props.moduleViolationsTipContent(m()))}
-                onMouseMove={props.moveTip}
-                onMouseLeave={props.hideTip}
-              />
-            </Show>
-            <Show when={m().severity === 'warning'}>
-              <span
-                class="ot-mod-sev sev-warn"
-                onMouseEnter={(e) => props.showTip(e, props.moduleViolationsTipContent(m()))}
-                onMouseMove={props.moveTip}
-                onMouseLeave={props.hideTip}
-              />
-            </Show>
-            <Show when={hasKids()}>
-              <span
-                class="ot-mod-thick"
-                onMouseEnter={(e) => props.showTip(e, props.kidsTipContent(kids().length))}
-                onMouseMove={props.moveTip}
-                onMouseLeave={props.hideTip}
-              >
-                {kids().length}
-              </span>
-            </Show>
-          </div>
-          <Show when={hasKids() && !isCollapsed()}>
-            <For each={kids()}>
-              {(kidId) => (
-                <ModuleRow
-                  modId={kidId}
-                  data={props.data}
-                  collapsed={props.collapsed}
-                  toggle={props.toggle}
-                  selectedId={props.selectedId}
-                  onSelect={props.onSelect}
-                  depth={props.depth + 1}
-                  baseDepth={props.baseDepth}
-                  showTip={props.showTip}
-                  moveTip={props.moveTip}
-                  hideTip={props.hideTip}
-                  moduleViolationsTipContent={props.moduleViolationsTipContent}
-                  kidsTipContent={props.kidsTipContent}
-                  kindTipContent={props.kindTipContent}
-                  isModuleVisible={props.isModuleVisible}
-                  isCollapsed={props.isCollapsed}
-                />
-              )}
-            </For>
-          </Show>
-        </>
-      )}
-    </Show>
-  )
-}
 
 // ─── Details panel ────────────────────────────────────────────────────────
 
 interface DetailsProps {
   data: DesignData
   selectedId: string | null
+  /**
+   * Kept on the type for API stability with App.tsx, but DELIBERATELY NOT
+   * read inside the component. Switching the panel content on every hover
+   * cratered perf — for a hub module the swap rebuilt hundreds of EdgeRow
+   * nodes, each with an O(modules) lookup, costing ~500 ms per pointermove.
+   * Hover preview lives in HoverTooltip; DetailsPanel responds to clicks.
+   */
   hoveredId: string | null
   onClose: () => void
   onFocusCycle: (vid: string) => void
@@ -819,7 +789,7 @@ interface DetailsProps {
 }
 
 export const DetailsPanel: Component<DetailsProps> = (props) => {
-  const id = () => props.selectedId ?? props.hoveredId
+  const id = () => props.selectedId
   const mod = () => (id() ? props.data.modules.find((m) => m.id === id()) ?? null : null)
 
   return (
@@ -1057,6 +1027,22 @@ const DetailsEmpty: Component<{
     }
     return { err, warn, info }
   })
+
+  // Virtualize the All-violations list — on web-client this is ~366 rows ×
+  // ~10 DOM nodes each, the single largest DOM source in the app.
+  // Each row's height varies (message wraps), so we use a 84-px estimate
+  // plus dynamic measurement via measureElement.
+  let viosScrollRef!: HTMLDivElement
+  const violations = createMemo(() => props.data.violations)
+  const virtualizer = createVirtualizer({
+    get count() {
+      return violations().length
+    },
+    getScrollElement: () => viosScrollRef,
+    estimateSize: () => 84,
+    overscan: 6,
+  })
+
   return (
     <aside class="panel panel-details">
       <header class="panel-hd">
@@ -1076,24 +1062,41 @@ const DetailsEmpty: Component<{
           <Stat label="Warnings" value={totals().warn} sev="warn" />
           <Stat label="Info" value={totals().info} sev="info" />
         </div>
-        <Section title={`All violations · ${props.data.violations.length}`}>
-          <div class="vios">
-            <For each={props.data.violations}>
-              {(v) => (
-                <div class={`vio vio-${v.severity}`}>
-                  <div class="vio-hd">
-                    <span class={`vio-sev sev-${v.severity}`}>{v.severity}</span>
-                    <span class="vio-rule">{v.rule}</span>
-                    <Show when={v.rule.includes('cycle') || v.rule.includes('circular')}>
-                      <button class="vio-focus" onClick={() => props.onFocusCycle(v.id)}>
-                        {props.focusedCycle === v.id ? '◉ focused' : '⊙ focus'}
-                      </button>
-                    </Show>
-                  </div>
-                  <div class="vio-msg">{v.message}</div>
-                </div>
-              )}
-            </For>
+        <Section title={`All violations · ${violations().length}`}>
+          <div ref={viosScrollRef!} class="vios vios-virtual">
+            <div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
+              <For each={virtualizer.getVirtualItems()}>
+                {(vi) => {
+                  const v = violations()[vi.index]
+                  if (!v) return null
+                  return (
+                    <div
+                      data-index={vi.index}
+                      ref={(el) => queueMicrotask(() => virtualizer.measureElement(el))}
+                      class={`vio vio-${v.severity}`}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        transform: `translateY(${vi.start}px)`,
+                      }}
+                    >
+                      <div class="vio-hd">
+                        <span class={`vio-sev sev-${v.severity}`}>{v.severity}</span>
+                        <span class="vio-rule">{v.rule}</span>
+                        <Show when={v.rule.includes('cycle') || v.rule.includes('circular')}>
+                          <button class="vio-focus" onClick={() => props.onFocusCycle(v.id)}>
+                            {props.focusedCycle === v.id ? '◉ focused' : '⊙ focus'}
+                          </button>
+                        </Show>
+                      </div>
+                      <div class="vio-msg">{v.message}</div>
+                    </div>
+                  )
+                }}
+              </For>
+            </div>
           </div>
         </Section>
         <Section title="Tip">
@@ -1168,109 +1171,17 @@ const Stat: Component<{
   value: number | string
   sev?: 'err' | 'warn' | 'info'
   title?: string
-}> = (props) => (
-  <div class={`stat ${props.sev ? `stat-${props.sev}` : ''}`} title={props.title}>
-    <div class="stat-val">{props.value}</div>
-    <div class="stat-lbl">{props.label}</div>
-  </div>
-)
-
-// ─── Minimap ───────────────────────────────────────────────────────────────
-
-export const Minimap: Component<{
-  scene: Scene
-  viewport: Viewport
-  onViewportChange: (v: Viewport) => void
-  containerSize: StageSize
 }> = (props) => {
-  const W = 200
-  const H = 140
-  const scale = () => {
-    const sx = W / Math.max(props.scene.width, 1)
-    const sy = H / Math.max(props.scene.height, 1)
-    return Math.min(sx, sy)
-  }
-  const offsetX = () => (W - props.scene.width * scale()) / 2
-  const offsetY = () => (H - props.scene.height * scale()) / 2
-  const vw = () => props.containerSize.w / props.viewport.zoom
-  const vh = () => props.containerSize.h / props.viewport.zoom
-  const vx = () => -props.viewport.x / props.viewport.zoom
-  const vy = () => -props.viewport.y / props.viewport.zoom
-
-  const onClick = (e: MouseEvent) => {
-    const r = (e.currentTarget as Element).getBoundingClientRect()
-    const mx = e.clientX - r.left
-    const my = e.clientY - r.top
-    const sx = (mx - offsetX()) / scale()
-    const sy = (my - offsetY()) / scale()
-    props.onViewportChange({
-      ...props.viewport,
-      x: -sx * props.viewport.zoom + props.containerSize.w / 2,
-      y: -sy * props.viewport.zoom + props.containerSize.h / 2,
-    })
-  }
-
-  return (
-    <div class="minimap">
-      <svg width={W} height={H} onClick={onClick}>
-        <rect x={0} y={0} width={W} height={H} fill="rgba(0,0,0,0.4)" rx={6} />
-        <g transform={`translate(${offsetX()}, ${offsetY()}) scale(${scale()})`}>
-          <For each={props.scene.lanes}>
-            {(lane) => (
-              <rect
-                x={0}
-                y={lane.y}
-                width={props.scene.width}
-                height={lane.height}
-                fill={`oklch(60% 0.08 ${lane.hue} / .18)`}
-              />
-            )}
-          </For>
-          <For each={props.scene.containers}>
-            {(c) => (
-              <rect
-                x={c.absX}
-                y={c.absY}
-                width={c.width}
-                height={c.height}
-                fill="rgba(255,255,255,0.05)"
-                stroke="rgba(255,255,255,0.10)"
-                stroke-width={1 / scale()}
-              />
-            )}
-          </For>
-          <For each={Object.entries(props.scene.modulePos)}>
-            {([, p]) => (
-              <Show when={p.mod.severity}>
-                <rect
-                  x={p.x}
-                  y={p.y}
-                  width={p.w}
-                  height={p.h}
-                  fill={
-                    p.mod.severity === 'error'
-                      ? 'oklch(64% 0.18 25)'
-                      : 'oklch(78% 0.14 70)'
-                  }
-                />
-              </Show>
-            )}
-          </For>
-        </g>
-        <rect
-          x={offsetX() + vx() * scale()}
-          y={offsetY() + vy() * scale()}
-          width={vw() * scale()}
-          height={vh() * scale()}
-          fill="rgba(255,255,255,0.06)"
-          stroke="oklch(85% 0.10 65)"
-          stroke-width={1.2}
-          rx={2}
-          pointer-events="none"
-        />
-      </svg>
-      <div class="minimap-hint">click to recenter</div>
+  const body = (
+    <div class={`stat ${props.sev ? `stat-${props.sev}` : ''}`}>
+      <div class="stat-val">{props.value}</div>
+      <div class="stat-lbl">{props.label}</div>
     </div>
+  )
+  return (
+    <Show when={props.title} fallback={body}>
+      <Tooltip content={props.title!}>{body}</Tooltip>
+    </Show>
   )
 }
 
@@ -1357,9 +1268,11 @@ const TooltipBody: Component<{
                   </span>
                 )}
               </Show>
-              <span class={`tt-stage tt-stage-${m().stage}`} title={stageDescription(m().stage)}>
-                ◔ {stageName(m().stage)}
-              </span>
+              <Tooltip content={stageDescription(m().stage)}>
+                <span class={`tt-stage tt-stage-${m().stage}`}>
+                  ◔ {stageName(m().stage)}
+                </span>
+              </Tooltip>
               <Show when={m().kind === 'composer'}>
                 <span class="tt-kind tt-kind-composer">◇ composer</span>
               </Show>
@@ -1376,9 +1289,9 @@ const TooltipBody: Component<{
               <Show when={m().loc > 0}>
                 <span>{m().loc} LoC</span>
               </Show>
-              <span title={stageDescription(m().stage)}>
-                stage {m().stage} · {stageName(m().stage)}
-              </span>
+              <Tooltip content={stageDescription(m().stage)}>
+                <span>stage {m().stage} · {stageName(m().stage)}</span>
+              </Tooltip>
               <span>in {inCount()}</span>
               <span>out {outCount()}</span>
               <Show when={kidsCount() > 0}>
@@ -1401,6 +1314,9 @@ const TooltipBody: Component<{
                   </div>
                 </Show>
               </div>
+            </Show>
+            <Show when={props.hoveredModule?.tiny}>
+              <div class="tt-open-hint">click to open full card</div>
             </Show>
           </>
         )}

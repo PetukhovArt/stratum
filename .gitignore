@@ -13,19 +13,6 @@ target
 # Contains mutation testing data
 **/mutants.out*/
 
-# RustRover
-#  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
-#  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
-#  and can be added to the global gitignore or merged into this file.  For a more nuclear
-#  option (not recommended) you can uncomment the following to ignore the entire idea folder.
-#.idea/
-
-# AI
-.claude
-.CLAUDE.md
-.CLAUDE.local.md
-_hot.md
-
 # Cargo workspace
 /target/
 Cargo.lock
@@ -46,3 +33,12 @@ frontend/**/dist/assets/
 
 # macOS
 .DS_Store
+
+# dist
+frontend/stratum-visualizer-frontend/dist/
+
+# AI
+CLAUDE.md
+CLAUDE.local.md
+.claude
+_hot.md

@@ -516,13 +516,6 @@ const Lane: Component<{ lane: LaneInfo; tweaks: Tweaks; dimmed: boolean; sceneW:
 
 // ─── Container compound ────────────────────────────────────────────────────
 
-const STAGE_DESC: Record<number, string> = {
-  1: 'Stage 1 · file — a single file, ≤2 exports, ~50–400 LOC. Smallest unit.',
-  2: 'Stage 2 · folder — flat folder + index.ts, 2–6 files of one theme.',
-  3: 'Stage 3 · segments — folder split into model / api / ui / lib.',
-  4: 'Stage 4 · composed — composer + ≥2 sub-features + _shared. Fractal.',
-}
-
 const STAGE_COLORS = [
   '#666',
   'oklch(74% 0.12 220)',
@@ -567,7 +560,6 @@ const ContainerBox: Component<{
       />
       <Show when={!aliasOfLayer()}>
         <g>
-          <title>{STAGE_DESC[c().stage] ?? `Stage ${c().stage}`}</title>
           <rect
             x={8}
             y={5}
@@ -597,14 +589,6 @@ const ContainerBox: Component<{
       </Show>
       <Show when={c().errors > 0 || c().warnings > 0}>
         <g>
-          <title>
-            {[
-              c().errors > 0 ? `${c().errors} error${c().errors === 1 ? '' : 's'}` : '',
-              c().warnings > 0 ? `${c().warnings} warning${c().warnings === 1 ? '' : 's'}` : '',
-            ]
-              .filter(Boolean)
-              .join('\n')}
-          </title>
           <rect x={c().width - 70} y={3} width={65} height={14} fill="transparent" />
           <text x={c().width - 10} y={14} class="container-count" text-anchor="end">
             <Show when={c().errors > 0}>
@@ -753,7 +737,6 @@ const ModuleNode: Component<{
         >
           {/* Top-level compound = the feature "card" — show stage chip alongside name */}
           <g>
-            <title>{STAGE_DESC[mod().stage] ?? `Stage ${mod().stage}`}</title>
             <rect
               x={6}
               y={3}
@@ -783,18 +766,6 @@ const ModuleNode: Component<{
         </Show>
         <Show when={props.pos.depth === 0 && (mod().descError > 0 || mod().descWarn > 0)}>
           <g>
-            <title>
-              {[
-                mod().descError > 0
-                  ? `${mod().descError} error${mod().descError === 1 ? '' : 's'} in descendants`
-                  : '',
-                mod().descWarn > 0
-                  ? `${mod().descWarn} warning${mod().descWarn === 1 ? '' : 's'} in descendants`
-                  : '',
-              ]
-                .filter(Boolean)
-                .join('\n')}
-            </title>
             <rect x={props.pos.w - 50} y={2} width={48} height={14} fill="transparent" />
             <text x={props.pos.w - 6} y={12} class="mod-count" text-anchor="end">
               <Show when={mod().descError > 0}>

@@ -26,7 +26,6 @@ export interface Tweaks {
   edgeStyle: 'curve' | 'ortho' | 'line'
   colorMode: 'layer' | 'stage'
   accent: 'amber' | 'cyan' | 'magenta' | 'lime'
-  showMinimap: boolean
   showTooltip: boolean
 }
 
@@ -39,7 +38,6 @@ export const DEFAULT_TWEAKS: Tweaks = {
   edgeStyle: 'curve',
   colorMode: 'layer',
   accent: 'amber',
-  showMinimap: true,
   showTooltip: true,
 }
 
@@ -64,6 +62,13 @@ export interface HoveredMod {
   id: string
   x: number
   y: number
+  /**
+   * True when the hovered module renders below the on-screen pixel threshold
+   * needed to read its inline label (set by the WebGL renderer; the SVG
+   * renderer leaves it undefined). Used by `HoverTooltip` to surface an
+   * "Open card" affordance for modules the user can barely see.
+   */
+  tiny?: boolean
 }
 
 export interface HoveredEdge {

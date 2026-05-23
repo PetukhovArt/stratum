@@ -2,6 +2,7 @@ import { Component, createMemo, createSignal, For, onCleanup, onMount, Show } fr
 import { DesignData } from '../render/design'
 import { Filters } from '../state'
 import { normalizePath } from './Graph'
+import { Tooltip } from './Tooltip'
 
 const EDGE_KIND_TOOLTIP: Record<string, string> = {
   static: 'Static imports — resolved at build time (import / export).',
@@ -69,19 +70,21 @@ export const Header: Component<HeaderProps> = (props) => {
           </span>
         </div>
         <div class="hd-actions">
-          <button
-            class="hd-btn hd-btn-renderer"
-            onClick={props.onRendererToggle}
-            title={`Renderer: ${props.renderer.toUpperCase()} (click to switch)`}
-          >
-            {props.renderer === 'webgl' ? '🌐 WebGL' : '◇ SVG'}
-          </button>
-          <button class="hd-btn" onClick={props.onResetView} title="Fit to bounds (Esc)">
-            ⤢ fit
-          </button>
-          <button class="hd-btn" onClick={props.onTweaksToggle} title="Open tweaks">
-            ⚙
-          </button>
+          <Tooltip content={`Renderer: ${props.renderer.toUpperCase()} (click to switch)`}>
+            <button class="hd-btn hd-btn-renderer" onClick={props.onRendererToggle}>
+              {props.renderer === 'webgl' ? '🌐 WebGL' : '◇ SVG'}
+            </button>
+          </Tooltip>
+          <Tooltip content="Fit to bounds (Esc)">
+            <button class="hd-btn" onClick={props.onResetView}>
+              ⤢ fit
+            </button>
+          </Tooltip>
+          <Tooltip content="Open tweaks">
+            <button class="hd-btn" onClick={props.onTweaksToggle}>
+              ⚙
+            </button>
+          </Tooltip>
         </div>
       </div>
 
@@ -102,23 +105,27 @@ const HeaderPathInput: Component<{
 }> = (props) => (
   <div class="hd-path">
     <span class="hd-path-ico">⌕</span>
-    <input
-      class="hd-path-input"
-      placeholder="Filter by path — gis , src/features/** , !**/legacy/**"
-      value={props.filters.glob}
-      onInput={(e) => props.setFilters({ ...props.filters, glob: e.currentTarget.value })}
-      title="Bare words match as case-insensitive substring. Globs (`*`, `**`, `?`) match path segments. Comma-separated. Prefix `!` to exclude."
-    />
+    <Tooltip content="Bare words match as case-insensitive substring. Globs (*, **, ?) match path segments. Comma-separated. Prefix ! to exclude." maxWidth={340}>
+      <input
+        class="hd-path-input"
+        placeholder="Filter by path — gis , src/features/** , !**/legacy/**"
+        value={props.filters.glob}
+        onInput={(e) => props.setFilters({ ...props.filters, glob: e.currentTarget.value })}
+      />
+    </Tooltip>
     <Show when={props.filters.glob !== ''}>
-      <button
-        class="hd-path-clear"
-        onClick={() => props.setFilters({ ...props.filters, glob: '' })}
-        title="Clear path filter"
-      >
-        ✕
-      </button>
+      <Tooltip content="Clear path filter">
+        <button
+          class="hd-path-clear"
+          onClick={() => props.setFilters({ ...props.filters, glob: '' })}
+        >
+          ✕
+        </button>
+      </Tooltip>
     </Show>
-    <span class="hd-path-kbd" title="Open command palette">⌘P</span>
+    <Tooltip content="Open command palette">
+      <span class="hd-path-kbd">⌘P</span>
+    </Tooltip>
   </div>
 )
 
@@ -368,18 +375,19 @@ const FacetBar: Component<FacetBarProps> = (props) => {
               const off = () => props.filters.disabledLayers.has(l.id)
               const tip = `${l.label} — ${l.modules} modules${
                 l.errors ? `, ${l.errors} errors` : ''
-              }${l.warnings ? `, ${l.warnings} warnings` : ''}.\nClick to toggle visibility.`
+              }${l.warnings ? `, ${l.warnings} warnings` : ''}. Click to toggle visibility.`
               return (
-                <button
-                  class={`chip chip-layer ${off() ? 'chip-off' : ''}`}
-                  onClick={() => toggleLayer(l.id)}
-                  style={{ ['--hue' as string]: l.hue }}
-                  title={tip}
-                >
-                  <span class="chip-dot" />
-                  <span class="chip-name">{l.label}</span>
-                  <span class="chip-num">{l.modules}</span>
-                </button>
+                <Tooltip content={tip}>
+                  <button
+                    class={`chip chip-layer ${off() ? 'chip-off' : ''}`}
+                    onClick={() => toggleLayer(l.id)}
+                    style={{ ['--hue' as string]: l.hue }}
+                  >
+                    <span class="chip-dot" />
+                    <span class="chip-name">{l.label}</span>
+                    <span class="chip-num">{l.modules}</span>
+                  </button>
+                </Tooltip>
               )
             }}
           </For>
@@ -391,43 +399,49 @@ const FacetBar: Component<FacetBarProps> = (props) => {
             {(k) => {
               const off = () => !props.filters.edgeKinds.has(k)
               return (
-                <button
-                  class={`chip chip-edge chip-edge-${k} ${off() ? 'chip-off' : ''}`}
-                  onClick={() => toggleKind(k)}
-                  title={EDGE_KIND_TOOLTIP[k]}
-                >
-                  <span class="chip-stroke" data-kind={k} />
-                  <span class="chip-name">{k}</span>
-                </button>
+                <Tooltip content={EDGE_KIND_TOOLTIP[k]}>
+                  <button
+                    class={`chip chip-edge chip-edge-${k} ${off() ? 'chip-off' : ''}`}
+                    onClick={() => toggleKind(k)}
+                  >
+                    <span class="chip-stroke" data-kind={k} />
+                    <span class="chip-name">{k}</span>
+                  </button>
+                </Tooltip>
               )
             }}
           </For>
         </div>
         <span class="facet-sep" />
         <div class="facet-group">
-          <button
-            class={`chip chip-mode ${props.filters.onlyViolators ? 'on' : ''}`}
-            onClick={() =>
-              props.setFilters({ ...props.filters, onlyViolators: !props.filters.onlyViolators })
-            }
-            title="Show only modules that have violations (or descendants with violations)."
+          <Tooltip content="Show only modules that have violations (or descendants with violations).">
+            <button
+              class={`chip chip-mode ${props.filters.onlyViolators ? 'on' : ''}`}
+              onClick={() =>
+                props.setFilters({ ...props.filters, onlyViolators: !props.filters.onlyViolators })
+              }
+            >
+              <span class="chip-dot sev-err" />
+              <span class="chip-name">Only violators</span>
+            </button>
+          </Tooltip>
+          <Tooltip
+            content="Paint every edge in the graph. Off by default — on real projects this draws thousands of lines and saturates the canvas. Hover a module to see its edges either way."
+            maxWidth={340}
           >
-            <span class="chip-dot sev-err" />
-            <span class="chip-name">Only violators</span>
-          </button>
-          <button
-            class={`chip chip-mode ${props.filters.connectionMode === 'all' ? 'on' : ''}`}
-            onClick={() =>
-              props.setFilters({
-                ...props.filters,
-                connectionMode: props.filters.connectionMode === 'all' ? 'minimal' : 'all',
-              })
-            }
-            title="Paint every edge in the graph. Off by default — on real projects this draws thousands of lines and saturates the canvas. Hover a module to see its edges either way."
-          >
-            <span class="chip-stroke" data-kind="static" />
-            <span class="chip-name">Show all edges</span>
-          </button>
+            <button
+              class={`chip chip-mode ${props.filters.connectionMode === 'all' ? 'on' : ''}`}
+              onClick={() =>
+                props.setFilters({
+                  ...props.filters,
+                  connectionMode: props.filters.connectionMode === 'all' ? 'minimal' : 'all',
+                })
+              }
+            >
+              <span class="chip-stroke" data-kind="static" />
+              <span class="chip-name">Show all edges</span>
+            </button>
+          </Tooltip>
         </div>
         <Show when={props.filters.stageFilter !== null}>
           <span class="facet-sep" />

@@ -1,6 +1,7 @@
 import { Component, createMemo, createSignal, Show } from 'solid-js'
 import { DesignData, DesignModule } from '../render/design'
 import { Filters, Viewport } from '../state'
+import { Tooltip } from './Tooltip'
 
 export const StatusBar: Component<{
   data: DesignData
@@ -24,14 +25,15 @@ export const StatusBar: Component<{
   return (
     <footer class="strat-status">
       <div class="status-l">
-        <button
-          class={`status-btn ${props.leftCollapsed ? 'off' : ''}`}
-          onClick={() => props.setLeftCollapsed(!props.leftCollapsed)}
-          title="Toggle outline panel (⌘[)"
-        >
-          <PanelIcon side="left" collapsed={props.leftCollapsed} />
-          <span class="status-btn-label">outline</span>
-        </button>
+        <Tooltip content="Toggle outline panel (⌘[)">
+          <button
+            class={`status-btn ${props.leftCollapsed ? 'off' : ''}`}
+            onClick={() => props.setLeftCollapsed(!props.leftCollapsed)}
+          >
+            <PanelIcon side="left" collapsed={props.leftCollapsed} />
+            <span class="status-btn-label">outline</span>
+          </button>
+        </Tooltip>
         <span class="status-sep" />
         <span class="status-info">
           {props.data.modules.length} modules · {props.data.containers.length} containers ·{' '}
@@ -51,14 +53,15 @@ export const StatusBar: Component<{
         </Show>
         <span class="status-info">zoom {Math.round(props.viewport.zoom * 100)}%</span>
         <span class="status-sep" />
-        <button
-          class={`status-btn ${props.rightCollapsed ? 'off' : ''}`}
-          onClick={() => props.setRightCollapsed(!props.rightCollapsed)}
-          title="Toggle details panel (⌘])"
-        >
-          <span class="status-btn-label">details</span>
-          <PanelIcon side="right" collapsed={props.rightCollapsed} />
-        </button>
+        <Tooltip content="Toggle details panel (⌘])">
+          <button
+            class={`status-btn ${props.rightCollapsed ? 'off' : ''}`}
+            onClick={() => props.setRightCollapsed(!props.rightCollapsed)}
+          >
+            <span class="status-btn-label">details</span>
+            <PanelIcon side="right" collapsed={props.rightCollapsed} />
+          </button>
+        </Tooltip>
       </div>
     </footer>
   )
@@ -107,15 +110,15 @@ export const ZoomControls: Component<{
   }
   return (
     <div class="zoom-ctrl">
-      <button onClick={() => zoomBy(1.2)} title="zoom in">
-        +
-      </button>
-      <button onClick={() => zoomBy(1 / 1.2)} title="zoom out">
-        −
-      </button>
-      <button onClick={() => props.fit()} title="fit">
-        ⤢
-      </button>
+      <Tooltip content="Zoom in">
+        <button onClick={() => zoomBy(1.2)}>+</button>
+      </Tooltip>
+      <Tooltip content="Zoom out">
+        <button onClick={() => zoomBy(1 / 1.2)}>−</button>
+      </Tooltip>
+      <Tooltip content="Fit to bounds (F or Esc)">
+        <button onClick={() => props.fit()}>⤢</button>
+      </Tooltip>
       <div class="zoom-val">{Math.round(props.viewport.zoom * 100)}%</div>
     </div>
   )
