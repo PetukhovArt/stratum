@@ -11,6 +11,7 @@ import {
   Viewport as ViewportState,
 } from '../state'
 import { buildPixiScene, PixiScene } from '../render/webgl/scene'
+import { buildHitTest, HitTestIndex } from '../render/webgl/hitTest'
 
 interface GraphWebGLProps {
   scene: Scene
@@ -88,6 +89,52 @@ export const GraphWebGL: Component<GraphWebGLProps> = (props) => {
     pxViewport.worldWidth = props.scene.width
     pxViewport.worldHeight = props.scene.height
   }
+
+  let hitIndex: HitTestIndex | null = null
+  let lastHoverId: string | null = null
+  let pointerThrottle = 0
+
+  const updateHitIndex = () => {
+    hitIndex = buildHitTest(props.scene)
+  }
+
+  createEffect(() => {
+    void props.scene
+    updateHitIndex()
+  })
+
+  const onPointerMove = (e: PointerEvent) => {
+    if (!pxViewport || !hitIndex) return
+    const now = performance.now()
+    if (now - pointerThrottle < 16) return
+    pointerThrottle = now
+    const rect = hostRef.getBoundingClientRect()
+    const localX = (e.clientX - rect.left - pxViewport.x) / pxViewport.scale.x
+    const localY = (e.clientY - rect.top - pxViewport.y) / pxViewport.scale.x
+    const id = hitIndex.queryPoint(localX, localY)
+    if (id !== lastHoverId) {
+      lastHoverId = id
+      props.onHover(id ? { id, x: e.clientX, y: e.clientY } : null)
+    }
+  }
+
+  const onPointerClick = (e: PointerEvent) => {
+    if (!pxViewport || !hitIndex) return
+    const rect = hostRef.getBoundingClientRect()
+    const localX = (e.clientX - rect.left - pxViewport.x) / pxViewport.scale.x
+    const localY = (e.clientY - rect.top - pxViewport.y) / pxViewport.scale.x
+    const id = hitIndex.queryPoint(localX, localY)
+    if (id) props.onSelect(id)
+  }
+
+  onMount(() => {
+    hostRef.addEventListener('pointermove', onPointerMove)
+    hostRef.addEventListener('click', onPointerClick)
+    onCleanup(() => {
+      hostRef.removeEventListener('pointermove', onPointerMove)
+      hostRef.removeEventListener('click', onPointerClick)
+    })
+  })
 
   // Rebuild whenever Scene reference changes (layout produced a new object).
   createEffect(() => {
