@@ -113,7 +113,11 @@ export const GraphWebGL: Component<GraphWebGLProps> = (props) => {
       pxViewport.removeChild(pixiScene.root)
       pixiScene.destroy()
     }
-    pixiScene = buildPixiScene(props.scene)
+    pixiScene = buildPixiScene(props.scene, {
+      filters: props.filters,
+      highlightId: props.hoveredId ?? props.selectedId,
+      focusedCycle: props.focusedCycle,
+    })
     pxViewport.addChild(pixiScene.root)
     pxViewport.worldWidth = props.scene.width
     pxViewport.worldHeight = props.scene.height
@@ -165,9 +169,16 @@ export const GraphWebGL: Component<GraphWebGLProps> = (props) => {
     })
   })
 
-  // Rebuild whenever Scene reference changes (layout produced a new object).
+  // Rebuild whenever scene, filters, focusedCycle, or selection change.
+  // Solid only tracks reads inside the effect body — touch every dependency
+  // explicitly so a filter chip toggle (no scene-ref change) still triggers
+  // a rebuild. hoveredId is excluded on purpose — pointermove at 60Hz
+  // would trigger a full scene rebuild per pixel.
   createEffect(() => {
     void props.scene
+    void props.filters
+    void props.focusedCycle
+    void props.selectedId
     if (pxViewport && app) rebuildScene()
   })
 
