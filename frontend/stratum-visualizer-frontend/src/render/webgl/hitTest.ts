@@ -25,6 +25,8 @@ export const buildHitTest = (scene: Scene, cellSize = DEFAULT_CELL): HitTestInde
     const entry: CellEntry = { id, x: p.x, y: p.y, w: p.w, h: p.h, area: p.w * p.h }
     const cx0 = Math.floor(p.x / cellSize)
     const cy0 = Math.floor(p.y / cellSize)
+    // ε on the right/bottom edge: a rect ending exactly on a cell boundary
+    // belongs to the previous cell (query AABB is right/bottom-exclusive).
     const cx1 = Math.floor((p.x + p.w - 0.001) / cellSize)
     const cy1 = Math.floor((p.y + p.h - 0.001) / cellSize)
     for (let cy = cy0; cy <= cy1; cy++) {
