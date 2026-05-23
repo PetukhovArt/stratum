@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { buildHitTest, HitTestIndex } from './hitTest'
 import type { Scene } from '../layout'
 import type { DesignModule } from '../design'
@@ -11,13 +11,12 @@ const mkMod = (id: string): DesignModule => ({
   loc: 10,
   container: 'c1',
   parentId: null,
-  childIds: [],
-  layer: 'app',
   stage: 0,
   severity: null,
   violations: [],
   descError: 0,
   descWarn: 0,
+  depth: 0,
   hasChildren: false,
   descInfo: 0,
 })
@@ -37,8 +36,11 @@ const mkScene = (): Scene => ({
 
 describe('buildHitTest', () => {
   let idx: HitTestIndex
-  it('returns an index', () => {
+  beforeEach(() => {
     idx = buildHitTest(mkScene())
+  })
+
+  it('returns an index', () => {
     expect(idx).toBeDefined()
   })
 
