@@ -30,7 +30,7 @@ pub fn build_view(g: &CompoundGraph, id: ModuleId) -> Option<ModuleView> {
         path: m.path.to_string_lossy().replace('\\', "/"),
         layer: layer_name,
         container: i64::from(m.container.raw()),
-        stage: i64::from(m.stage.rank()),
+        stage: i64::from(m.purity.rank()),
         dependents,
         metadata: Map::new(),
     })

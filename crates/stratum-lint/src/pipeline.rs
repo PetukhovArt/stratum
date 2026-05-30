@@ -5,7 +5,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use stratum_config::{Config, ConfigError};
 use stratum_core::{
     ids::{LayerId, RuleId},
-    stage::Stage,
+    purity::Purity,
     types::Layer,
     violation::Violation,
     visibility::VisibilityScope,
@@ -42,6 +42,7 @@ pub fn build(root: &Utf8Path, config: &Config) -> Result<EngineInput, PipelineEr
     let root_abs = root
         .canonicalize_utf8()
         .unwrap_or_else(|_| root.to_path_buf());
+    stratum_config::validate_layer_paths(config, &root_abs)?;
     let layers: Vec<Layer> = config
         .layers
         .iter()
@@ -63,7 +64,7 @@ pub fn build(root: &Utf8Path, config: &Config) -> Result<EngineInput, PipelineEr
     let build_cfg = BuildConfig {
         project_root: root_abs.clone(),
         layers,
-        default_stage: Stage::new(2).unwrap_or_else(|_| unreachable!("Stage(2) is valid")),
+        default_purity: Purity::new(2).unwrap_or_else(|_| unreachable!("Purity(2) is valid")),
         default_visibility: VisibilityScope::Public,
     };
     let graph = GraphBuilder::new(build_cfg)

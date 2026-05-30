@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use camino::Utf8PathBuf;
 use criterion::{Criterion, criterion_group, criterion_main};
 
-use stratum_core::{ids::LayerId, stage::Stage, types::Layer, visibility::VisibilityScope};
+use stratum_core::{ids::LayerId, purity::Purity, types::Layer, visibility::VisibilityScope};
 use stratum_graph::{BuildConfig, GraphBuilder};
 
 fn bench_run_all_tiny_ts_violations(c: &mut Criterion) {
@@ -40,7 +40,7 @@ fn bench_run_all_tiny_ts_violations(c: &mut Criterion) {
     let cfg = BuildConfig {
         project_root: root.clone(),
         layers,
-        default_stage: Stage::new(2).unwrap(),
+        default_purity: Purity::new(2).unwrap(),
         default_visibility: VisibilityScope::Public,
     };
     let graph = GraphBuilder::new(cfg).build().unwrap();

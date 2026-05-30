@@ -5,5 +5,6 @@ pub mod miller_limit;
 pub mod no_circular_deps;
 pub mod no_cross_layer_import;
 pub mod promotion_pressure;
+pub mod sdp_instability;
 pub mod stage_purity;
 pub mod visibility_scope;

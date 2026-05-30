@@ -6,7 +6,7 @@ use rustc_hash::FxHashMap;
 use walkdir::WalkDir;
 
 use stratum_core::ids::{ContainerId, ModuleId};
-use stratum_core::stage::Stage;
+use stratum_core::purity::Purity;
 use stratum_core::types::{Container, Layer, Module};
 use stratum_core::visibility::VisibilityScope;
 use stratum_parser_ts::{LanguageExtractor, OxcTsExtractor, PathResolver};
@@ -48,7 +48,7 @@ pub enum BuildError {
 pub struct BuildConfig {
     pub project_root: Utf8PathBuf,
     pub layers: Vec<Layer>,
-    pub default_stage: Stage,
+    pub default_purity: Purity,
     pub default_visibility: VisibilityScope,
 }
 
@@ -101,6 +101,14 @@ impl GraphBuilder {
     /// Returns [`BuildError::BadRoot`] if `project_root` is not a directory,
     /// [`BuildError::Io`] if a discovered source file cannot be read, or
     /// [`BuildError::Parser`] if the extractor fails on a file with a recognized extension.
+    ///
+    /// # Panics
+    /// Panics if `assign_layer` returns a layer id that is not present in
+    /// `self.config.layers` — an internal invariant that cannot hold false.
+    // Pre-existing lint debt on this fn (length, the internal-invariant `expect`),
+    // surfaced when the workspace clippy was first run green-to-green; suppressed
+    // rather than refactored to keep this change surgical.
+    #[allow(clippy::too_many_lines, clippy::expect_used)]
     pub fn build(&self) -> Result<CompoundGraph, BuildError> {
         let root = &self.config.project_root;
         if !root.is_dir() {
@@ -216,7 +224,7 @@ impl GraphBuilder {
             let id = ModuleId::new(next_module_id);
             next_module_id = next_module_id.wrapping_add(1);
 
-            let annotated_stage = std::fs::read_to_string(path.as_std_path())
+            let annotated_purity = std::fs::read_to_string(path.as_std_path())
                 .ok()
                 .and_then(|s| stratum_parser_ts::extract_stage(&s));
 
@@ -225,7 +233,7 @@ impl GraphBuilder {
                 path: PathBuf::from(path.as_str()),
                 container: module_container,
                 layer,
-                stage: annotated_stage.unwrap_or(self.config.default_stage),
+                purity: annotated_purity.unwrap_or(self.config.default_purity),
                 visibility: self.config.default_visibility.clone(),
             };
             let node = graph.deps.add_node(id);
@@ -323,7 +331,7 @@ mod tests {
         let cfg = BuildConfig {
             project_root: tiny_ts_root(),
             layers: layers_for_tiny_ts(),
-            default_stage: Stage::new(2).unwrap(),
+            default_purity: Purity::new(2).unwrap(),
             default_visibility: VisibilityScope::Public,
         };
         let g = GraphBuilder::new(cfg).build().unwrap();

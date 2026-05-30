@@ -1,9 +1,9 @@
-use stratum_core::stage::Stage;
+use stratum_core::purity::Purity;
 
 /// Scan the leading comments of `source` for a `// @stratum-stage N` directive.
 /// Returns `None` if absent or if `N` is out of the valid `1..=4` range.
 #[must_use]
-pub fn extract_stage(source: &str) -> Option<Stage> {
+pub fn extract_stage(source: &str) -> Option<Purity> {
     for line in source.lines().take(20) {
         let trimmed = line.trim_start();
         if !trimmed.starts_with("//") && !trimmed.is_empty() {
@@ -13,7 +13,7 @@ pub fn extract_stage(source: &str) -> Option<Stage> {
             let rest = rest.trim_start();
             if let Some(rank_str) = rest.strip_prefix("@stratum-stage ") {
                 if let Ok(rank) = rank_str.trim().parse::<u8>() {
-                    if let Ok(s) = Stage::new(rank) {
+                    if let Ok(s) = Purity::new(rank) {
                         return Some(s);
                     }
                 }
@@ -32,14 +32,14 @@ mod tests {
     fn finds_directive_on_first_line() {
         assert_eq!(
             extract_stage("// @stratum-stage 3\nexport const x = 1;"),
-            Some(Stage::new(3).unwrap())
+            Some(Purity::new(3).unwrap())
         );
     }
 
     #[test]
     fn finds_directive_after_other_comments() {
         let src = "// Header.\n// @stratum-stage 1\nexport const x = 1;";
-        assert_eq!(extract_stage(src), Some(Stage::new(1).unwrap()));
+        assert_eq!(extract_stage(src), Some(Purity::new(1).unwrap()));
     }
 
     #[test]
