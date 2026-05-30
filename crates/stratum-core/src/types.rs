@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     ids::{ContainerId, LayerId, ModuleId},
-    stage::Stage,
+    purity::Purity,
     visibility::VisibilityScope,
 };
 
@@ -15,7 +15,7 @@ pub struct Module {
     pub path: PathBuf,
     pub container: ContainerId,
     pub layer: LayerId,
-    pub stage: Stage,
+    pub purity: Purity,
     pub visibility: VisibilityScope,
 }
 
@@ -49,7 +49,7 @@ mod tests {
             path: PathBuf::from("src/features/cart/index.ts"),
             container: ContainerId::new(2),
             layer: LayerId::new(0),
-            stage: Stage::new(3).unwrap(),
+            purity: Purity::new(3).unwrap(),
             visibility: VisibilityScope::Public,
         };
         let json = serde_json::to_string(&m).unwrap();

@@ -11,8 +11,8 @@ use stratum_config::{Config, LayerConfig, ProjectConfig, RuleConfig};
 use stratum_core::{
     edge::EdgeKind,
     ids::{ContainerId, LayerId, ModuleId, RuleId},
+    purity::Purity,
     severity::Severity,
-    stage::Stage,
     types::{Layer, Module},
     visibility::VisibilityScope,
 };
@@ -30,7 +30,7 @@ fn module(id: u32, layer_raw: u32, path: &str) -> Module {
         path: PathBuf::from(path),
         container: ContainerId::new(layer_raw),
         layer: LayerId::new(layer_raw),
-        stage: Stage::new(2).unwrap(),
+        purity: Purity::new(2).unwrap(),
         visibility: VisibilityScope::Public,
     }
 }

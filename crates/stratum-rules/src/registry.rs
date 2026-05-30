@@ -88,14 +88,15 @@ impl RuleRegistry {
         &self.rules
     }
 
-    /// All ten Stratum rules pre-registered (5 Phase 3 baseline + 5 Phase 5 bundled).
+    /// All Stratum builtin rules pre-registered.
     #[must_use]
     pub fn with_builtins() -> Self {
         use crate::builtin::{
             cross_entity_pattern::CrossEntityPattern, deep_module::DeepModule,
             depth_ratio::DepthRatio, miller_limit::MillerLimit, no_circular_deps::NoCircularDeps,
             no_cross_layer_import::NoCrossLayerImport, promotion_pressure::PromotionPressure,
-            stage_purity::StagePurity, visibility_scope::VisibilityScope,
+            sdp_instability::Instability, stage_purity::StagePurity,
+            visibility_scope::VisibilityScope,
         };
         let mut r = Self::new();
         r.register(NoCrossLayerImport);
@@ -107,6 +108,7 @@ impl RuleRegistry {
         r.register(CrossEntityPattern);
         r.register(DeepModule);
         r.register(PromotionPressure);
+        r.register(Instability);
         r
     }
 }
@@ -116,9 +118,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn builtins_registry_has_nine_rules() {
+    fn builtins_registry_has_ten_rules() {
         let r = RuleRegistry::with_builtins();
-        assert_eq!(r.rules().len(), 9);
+        assert_eq!(r.rules().len(), 10);
     }
 
     #[test]

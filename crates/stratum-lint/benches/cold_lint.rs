@@ -10,7 +10,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 
 use stratum_config::{Config, LayerConfig, ProjectConfig, RuleConfig};
 use stratum_core::{
-    ids::LayerId, severity::Severity, stage::Stage, types::Layer, visibility::VisibilityScope,
+    ids::LayerId, purity::Purity, severity::Severity, types::Layer, visibility::VisibilityScope,
 };
 use stratum_graph::{BuildConfig, GraphBuilder};
 
@@ -94,7 +94,7 @@ fn bench_cold_lint_tiny_ts(c: &mut Criterion) {
             let cfg = BuildConfig {
                 project_root: root.clone(),
                 layers,
-                default_stage: Stage::new(2).unwrap(),
+                default_purity: Purity::new(2).unwrap(),
                 default_visibility: VisibilityScope::Public,
             };
             let graph = GraphBuilder::new(cfg).build().unwrap();

@@ -47,14 +47,14 @@ impl Rule for StagePurity {
             let Some(to_mod) = graph.modules.get(&to_id) else {
                 continue;
             };
-            if !from_mod.stage.may_depend_on(to_mod.stage) {
+            if !from_mod.purity.may_depend_on(to_mod.purity) {
                 out.push(Violation {
                     rule: self.id(),
                     severity,
                     message: format!(
                         "Stage {} module imports from stage {}: purer code cannot depend on impurer code",
-                        from_mod.stage.rank(),
-                        to_mod.stage.rank()
+                        from_mod.purity.rank(),
+                        to_mod.purity.rank()
                     ),
                     file: from_mod.path.clone(),
                     location: SourceLocation { line: 1, column: 1 },
@@ -87,7 +87,7 @@ mod tests {
     use stratum_core::{
         edge::EdgeKind,
         ids::{ContainerId, LayerId},
-        stage::Stage,
+        purity::Purity,
         types::Module,
         visibility::VisibilityScope,
     };
@@ -98,7 +98,7 @@ mod tests {
             path: PathBuf::from(format!("src/m{id}.ts")),
             container: ContainerId::new(0),
             layer: LayerId::new(0),
-            stage: Stage::new(stage_rank).unwrap(),
+            purity: Purity::new(stage_rank).unwrap(),
             visibility: VisibilityScope::Public,
         }
     }

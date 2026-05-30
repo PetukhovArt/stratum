@@ -71,7 +71,7 @@ mod tests {
     use stratum_core::{
         edge::EdgeKind,
         ids::{ContainerId, LayerId},
-        stage::Stage,
+        purity::Purity,
         types::Module,
         visibility::VisibilityScope,
     };
@@ -82,7 +82,7 @@ mod tests {
             path: PathBuf::from(format!("m{id}.ts")),
             container: ContainerId::new(container),
             layer: LayerId::new(0),
-            stage: Stage::new(2).unwrap(),
+            purity: Purity::new(2).unwrap(),
             visibility: VisibilityScope::Public,
         }
     }

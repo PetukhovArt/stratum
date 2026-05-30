@@ -12,6 +12,11 @@ pub enum ConfigError {
     Parse { path: Utf8PathBuf, message: String },
     #[error("Config validation error in {path}: {message}")]
     Validation { path: Utf8PathBuf, message: String },
+    #[error("Layer {layer:?}: path does not exist or is not a directory: {resolved}")]
+    LayerPathNotFound {
+        layer: String,
+        resolved: Utf8PathBuf,
+    },
     #[error("Invalid glob pattern {pattern:?}: {source}")]
     BadGlob {
         pattern: String,

@@ -10,7 +10,7 @@ use rustc_hash::FxHashMap;
 use stratum_core::{
     edge::EdgeKind,
     ids::{ContainerId, LayerId, ModuleId},
-    stage::Stage,
+    purity::Purity,
     types::Module,
     visibility::VisibilityScope,
 };
@@ -53,7 +53,7 @@ fn build(n: u32, edges: &[(u32, u32)]) -> CompoundGraph {
             path: PathBuf::from(format!("m{i}.ts")),
             container: ContainerId::new(container),
             layer: LayerId::new(0),
-            stage: Stage::new(2).unwrap(),
+            purity: Purity::new(2).unwrap(),
             visibility: VisibilityScope::Public,
         };
         let node = g.deps.add_node(m.id);

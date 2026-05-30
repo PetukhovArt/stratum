@@ -33,7 +33,7 @@ mod tests {
     use petgraph::graph::DiGraph;
     use rustc_hash::FxHashMap;
     use std::path::PathBuf;
-    use stratum_core::{ids::LayerId, stage::Stage, types::Module, visibility::VisibilityScope};
+    use stratum_core::{ids::LayerId, purity::Purity, types::Module, visibility::VisibilityScope};
 
     fn m(container: u32, id: u32) -> Module {
         Module {
@@ -41,7 +41,7 @@ mod tests {
             path: PathBuf::from(format!("m{id}.ts")),
             container: ContainerId::new(container),
             layer: LayerId::new(0),
-            stage: Stage::new(2).unwrap(),
+            purity: Purity::new(2).unwrap(),
             visibility: VisibilityScope::Public,
         }
     }

@@ -1,10 +1,10 @@
 #![allow(clippy::unwrap_used)]
 
 use proptest::prelude::*;
-use stratum_core::{ModuleId, Severity, Stage};
+use stratum_core::{ModuleId, Purity, Severity};
 
-fn arb_stage() -> impl Strategy<Value = Stage> {
-    (1u8..=4).prop_map(|r| Stage::new(r).unwrap())
+fn arb_stage() -> impl Strategy<Value = Purity> {
+    (1u8..=4).prop_map(|r| Purity::new(r).unwrap())
 }
 
 fn arb_severity() -> impl Strategy<Value = Severity> {

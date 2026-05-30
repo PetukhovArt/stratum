@@ -9,6 +9,7 @@ pub const VISIBILITY_SCOPE: RuleId = RuleId::new(6);
 pub const CROSS_ENTITY_PATTERN: RuleId = RuleId::new(7);
 pub const DEEP_MODULE: RuleId = RuleId::new(8);
 pub const PROMOTION_PRESSURE: RuleId = RuleId::new(9);
+pub const INSTABILITY: RuleId = RuleId::new(10);
 
 #[must_use]
 pub fn slug_for(id: RuleId) -> Option<&'static str> {
@@ -22,6 +23,7 @@ pub fn slug_for(id: RuleId) -> Option<&'static str> {
         CROSS_ENTITY_PATTERN => "stratum/cross-entity-pattern",
         DEEP_MODULE => "stratum/deep-module",
         PROMOTION_PRESSURE => "stratum/promotion-pressure",
+        INSTABILITY => "stratum/instability",
         _ => return None,
     })
 }
@@ -38,6 +40,7 @@ pub fn id_for(slug: &str) -> Option<RuleId> {
         "stratum/cross-entity-pattern" => CROSS_ENTITY_PATTERN,
         "stratum/deep-module" => DEEP_MODULE,
         "stratum/promotion-pressure" => PROMOTION_PRESSURE,
+        "stratum/instability" => INSTABILITY,
         _ => return None,
     })
 }
@@ -59,6 +62,7 @@ mod tests {
             CROSS_ENTITY_PATTERN,
             DEEP_MODULE,
             PROMOTION_PRESSURE,
+            INSTABILITY,
         ] {
             let slug = slug_for(id).unwrap();
             assert_eq!(id_for(slug), Some(id));

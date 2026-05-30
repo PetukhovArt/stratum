@@ -100,7 +100,7 @@ mod tests {
     use stratum_core::{
         edge::EdgeKind,
         ids::{ContainerId, LayerId},
-        stage::Stage,
+        purity::Purity,
         types::Module,
     };
 
@@ -110,7 +110,7 @@ mod tests {
             path: PathBuf::from(path),
             container: ContainerId::new(container),
             layer: LayerId::new(layer),
-            stage: Stage::new(2).unwrap(),
+            purity: Purity::new(2).unwrap(),
             visibility,
         }
     }
