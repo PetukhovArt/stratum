@@ -63,8 +63,9 @@ fn run(cli: cli::Cli) -> miette::Result<u8> {
             root,
             format,
             config,
-        }) => commands::context::run(&file, root.as_deref(), format, config.as_deref())
-            .map(exit_code),
+        }) => {
+            commands::context::run(&file, root.as_deref(), format, config.as_deref()).map(exit_code)
+        }
         Some(cli::Command::Lint { root, args }) => lint(&root, &args),
         None => lint(&cli.root, &cli.lint),
     }
