@@ -17,6 +17,8 @@ use stratum_parser_ts::{LanguageExtractor, OxcTsExtractor, PathResolver};
 use crate::graph::CompoundGraph;
 use crate::layer_assignment::assign_layer;
 
+mod incremental;
+
 /// On Windows, `canonicalize` returns extended-length paths (`\\?\D:\...`).
 /// `oxc_resolver` returns the non-prefixed form. Strip the prefix so both
 /// sides use a single canonical representation when used as `HashMap` keys.

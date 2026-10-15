@@ -1,6 +1,5 @@
 use std::collections::HashMap;
-use std::path::Path;
-use std::time::SystemTime;
+use std::path::PathBuf;
 
 use camino::Utf8PathBuf;
 use tower_lsp::lsp_types::{Diagnostic, InitializeParams, Url};
@@ -8,12 +7,19 @@ use tower_lsp::lsp_types::{Diagnostic, InitializeParams, Url};
 use crate::diagnostics::DiagnosticsByFile;
 use crate::paths::uri_to_path;
 
+#[derive(Debug)]
+pub struct OpenDoc {
+    pub uri: Url,
+    pub path: PathBuf,
+    pub text: String,
+    pub published: Option<Vec<Diagnostic>>,
+}
+
 #[derive(Debug, Default)]
 pub struct ServerState {
     pub root: Option<Utf8PathBuf>,
-    pub open: HashMap<String, Url>,
+    pub open: HashMap<String, OpenDoc>,
     pub diagnostics: Option<DiagnosticsByFile>,
-    pub analysis_started: Option<SystemTime>,
     pub last_error: Option<String>,
 }
 
@@ -27,14 +33,24 @@ impl ServerState {
             .unwrap_or_default()
     }
 
-    #[must_use]
-    pub fn is_stale(&self, path: &Path) -> bool {
-        let Some(started) = self.analysis_started else {
-            return true;
+    pub fn unpublished(&mut self) -> Vec<(Url, Vec<Diagnostic>)> {
+        let Some(diagnostics) = &self.diagnostics else {
+            return Vec::new();
         };
-        std::fs::metadata(path)
-            .and_then(|m| m.modified())
-            .map_or(true, |modified| modified >= started)
+        self.open
+            .iter_mut()
+            .filter_map(|(key, doc)| {
+                let current = diagnostics
+                    .get(key)
+                    .map(|f| f.items.clone())
+                    .unwrap_or_default();
+                if doc.published.as_ref() == Some(&current) {
+                    return None;
+                }
+                doc.published = Some(current.clone());
+                Some((doc.uri.clone(), current))
+            })
+            .collect()
     }
 }
 

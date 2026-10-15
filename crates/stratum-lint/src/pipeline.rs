@@ -39,6 +39,15 @@ pub enum PipelineError {
 /// - [`PipelineError::Build`] if the graph cannot be assembled.
 /// - [`PipelineError::Plugin`] if a referenced Rhai script fails to load or compile.
 pub fn build(root: &Utf8Path, config: &Config) -> Result<EngineInput, PipelineError> {
+    build_with_builder(root, config).map(|(input, _)| input)
+}
+
+/// # Errors
+/// [`PipelineError::Build`] or [`PipelineError::Plugin`], as [`build`].
+pub fn build_with_builder(
+    root: &Utf8Path,
+    config: &Config,
+) -> Result<(EngineInput, GraphBuilder), PipelineError> {
     let root_abs = root
         .canonicalize_utf8()
         .unwrap_or_else(|_| root.to_path_buf());
@@ -67,21 +76,24 @@ pub fn build(root: &Utf8Path, config: &Config) -> Result<EngineInput, PipelineEr
         default_visibility: VisibilityScope::Public,
     };
     let ignore = IgnoreSet::new(config)?;
-    let graph = GraphBuilder::new(build_cfg)
+    let builder = GraphBuilder::new(build_cfg)
         .with_extractor(Box::new(stratum_parser_vue::VueExtractor::new()))
-        .with_ignore(move |rel| ignore.is_ignored(rel))
-        .build()?;
+        .with_ignore(move |rel| ignore.is_ignored(rel));
+    let graph = builder.build()?;
 
     let mut registry = RuleRegistry::with_builtins();
     register_plugins(&mut registry, &root_abs, config)?;
     registry.validate(config)?;
 
-    Ok(EngineInput {
-        graph: Arc::new(graph),
-        config: Arc::new(config.clone()),
-        project_root: root_abs,
-        registry: Arc::new(registry),
-    })
+    Ok((
+        EngineInput {
+            graph: Arc::new(graph),
+            config: Arc::new(config.clone()),
+            project_root: root_abs,
+            registry: Arc::new(registry),
+        },
+        builder,
+    ))
 }
 
 pub fn registry(root: &Utf8Path, config: &Config) -> Result<RuleRegistry, PipelineError> {
