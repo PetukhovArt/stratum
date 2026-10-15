@@ -29,13 +29,13 @@ pub fn builtin(slug: &str) -> Option<RuleDoc> {
             &[],
         ),
         "stratum/miller-limit" => (
-            "Reports a module with fan-in above `max_children`: distinct modules from other containers (today one container per layer) whose layer may import it, i.e. is its own layer or lists it in `depends_on`. Importers whose layer does not declare it count toward stratum/promotion-pressure instead, so the two rules never count the same importer. Without any `depends_on` (zero-config) every importer is undeclared and this rule reports nothing.",
+            "Reports a module with fan-in above `max_children`: distinct modules outside its outer container (its slice in a `slices: true` layer, else its layer) whose layer may import it, i.e. is its own layer or lists it in `depends_on`. Importers whose layer does not declare it count toward stratum/promotion-pressure instead, so the two rules never count the same importer. Without any `depends_on` (zero-config) every importer is undeclared and this rule reports nothing.",
             "A module that many legitimate consumers reach is a change hotspot: every edit ripples into all of them.",
             "Split it so each consumer imports only the part it needs, or hide it behind a smaller facade.",
             &["max_children: max distinct declared importers from other containers (7)"],
         ),
         "stratum/depth-ratio" => (
-            "Reports a module whose ratio (modules in its container) / (its exports) is below `min_ratio`. Exports are counted as in stratum/deep-module; modules that export nothing are skipped.",
+            "Reports a module whose ratio (modules in its outer container, nested containers included: its slice in a `slices: true` layer, else its layer) / (its exports) is below `min_ratio`. Exports are counted as in stratum/deep-module; modules that export nothing are skipped.",
             "A shallow module exposes many names relative to the code around it, so its callers must know more than the container hides.",
             "Hide exports that only the container uses, merge related ones behind one entry point, or split the module.",
             &["min_ratio: minimum container_size / exports ratio (3.0)"],
@@ -47,7 +47,7 @@ pub fn builtin(slug: &str) -> Option<RuleDoc> {
             &[],
         ),
         "stratum/slice-fan-in" => (
-            "Reports a slice imported by more than `max_fan_in` distinct other slices. Slices are the direct children of a layer declared `slices: true`.",
+            "Reports a slice imported by more than `max_fan_in` distinct other slices, from any layer; several modules of one importing slice count once. Slices are the direct children of a layer declared `slices: true`. The message lists the importers as `<layer>/<slice>`.",
             "A slice that many slices reach turns into a god object; any change to it ripples through all of them.",
             "Narrow the slice's entry or split it so each importer reaches only the part it needs; code every slice needs may belong in a lower layer.",
             &["max_fan_in: max distinct importing slices per slice (5)"],
@@ -76,10 +76,10 @@ pub fn builtin(slug: &str) -> Option<RuleDoc> {
             "Reports a container with both segment folders (`structure.segments`) and sub-unit folders directly inside it.",
             "Segments (stage 3) and sub-units (stage 4) are two different ways to split a container; mixing them leaves code that belongs to no sub-unit next to code that does.",
             "Pick one: move the segment folders' code into sub-units, or fold the sub-units back into segments.",
-            &[],
+            &["segments: segment folder names (`structure.segments`)"],
         ),
         "stratum/container-breadth" => (
-            "Reports a container (layers are exempt) or private-zone folder with more than `max_kinds` kinds directly inside it. A kind is a child folder, or the child files sharing a stem before the first dot (`foo.ts`, `foo.test.ts` and `foo.vue` are one kind). The entry file and private zones do not count. The message names the stage to evolve to.",
+            "Reports a container (layers are exempt) or private-zone folder with more than `max_kinds` kinds directly inside it. A kind is a child folder, or the child files sharing a stem before the first dot (`foo.ts`, `foo.test.ts` and `foo.vue` are one kind). The entry file and private zones do not count. The message names the stage to evolve to. Private-zone findings are reported at info at most, whatever severity the rule is set to.",
             "Past about seven kinds a reader can no longer hold a folder in mind (Miller's limit), so the container is due to move to its next stage.",
             "Group the files into segment folders (stage 3), or split them into sub-units with their own entry file (stage 4).",
             &["max_kinds: max kinds directly in one container (6)"],
@@ -91,7 +91,7 @@ pub fn builtin(slug: &str) -> Option<RuleDoc> {
             &["max_exports: max exported names (12)"],
         ),
         "stratum/promotion-pressure" => (
-            "Reports a module imported by at least `threshold` distinct modules from other containers (today one container per layer) whose layer does not list the module's layer in `depends_on`. Declared importers count toward stratum/miller-limit instead.",
+            "Reports a module imported by at least `threshold` distinct modules outside its outer container (its slice in a `slices: true` layer, else its layer) whose layer does not list the module's layer in `depends_on`. Declared importers count toward stratum/miller-limit instead.",
             "Code reached from layers that do not declare it sits too high; moving it lower makes those imports legal instead of leaving each one a cross-layer violation.",
             "Move it into the lowest layer that all its dependents already depend on (often shared), or add the dependency to `depends_on` if it is intended.",
             &["threshold: min distinct undeclared importers from other containers (5)"],

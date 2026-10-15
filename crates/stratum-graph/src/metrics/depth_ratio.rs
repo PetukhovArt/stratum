@@ -2,7 +2,7 @@ use stratum_core::ids::{ContainerId, ModuleId};
 
 use crate::graph::CompoundGraph;
 
-/// Depth ratio = modules in `module`'s container / `module`'s export count.
+/// Depth ratio = modules in the subtree of `module`'s outer container / `module`'s export count.
 ///
 /// Returns `None` if the module is unknown or exports nothing.
 #[must_use]
@@ -12,14 +12,16 @@ pub fn depth_ratio(g: &CompoundGraph, module: ModuleId) -> Option<f64> {
     if m.exports.count == 0 {
         return None;
     }
-    let internal = container_internal_count(g, super::layer_container(g, m));
-    Some(internal as f64 / f64::from(m.exports.count))
+    let size = subtree_module_count(g, super::outer_container(g, m));
+    Some(size as f64 / f64::from(m.exports.count))
 }
 
-fn container_internal_count(g: &CompoundGraph, c: ContainerId) -> usize {
+/// Modules held by `c` or by any container nested in it.
+#[must_use]
+pub fn subtree_module_count(g: &CompoundGraph, c: ContainerId) -> usize {
     g.modules
         .values()
-        .filter(|m| super::layer_container(g, m) == c)
+        .filter(|m| m.container == c || g.containers_of(m.id).any(|x| x.id == c))
         .count()
 }
 
@@ -73,6 +75,38 @@ mod tests {
     #[test]
     fn depth_ratio_is_internal_over_exports() {
         let g = small(vec![m(1, 0, 2), m(1, 1, 0), m(1, 2, 0), m(1, 3, 0)]);
+        assert_eq!(depth_ratio(&g, ModuleId::new(0)), Some(2.0));
+    }
+
+    #[test]
+    fn size_is_the_outer_slice_subtree() {
+        use stratum_core::{
+            stage::Stage,
+            types::{Container, ContainerKind},
+        };
+        let mut g = small(vec![m(2, 0, 1), m(3, 1, 0), m(4, 2, 0), m(0, 3, 0)]);
+        for (id, kind, parent) in [
+            (0, ContainerKind::Layer, None),
+            (1, ContainerKind::Slice, Some(0)),
+            (2, ContainerKind::SubUnit, Some(1)),
+            (3, ContainerKind::Nested, Some(2)),
+            (4, ContainerKind::Slice, Some(0)),
+        ] {
+            let id = ContainerId::new(id);
+            g.containers.insert(
+                id,
+                Container {
+                    id,
+                    name: format!("c{}", id.raw()),
+                    path: PathBuf::from(format!("c{}", id.raw())),
+                    kind,
+                    layer: LayerId::new(0),
+                    parent: parent.map(ContainerId::new),
+                    stage: Stage::FLAT,
+                    entry: None,
+                },
+            );
+        }
         assert_eq!(depth_ratio(&g, ModuleId::new(0)), Some(2.0));
     }
 

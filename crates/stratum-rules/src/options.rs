@@ -113,3 +113,10 @@ impl Default for DepthRatioOptions {
         }
     }
 }
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StageMixingOptions {
+    #[serde(default)]
+    pub segments: Vec<String>,
+}

@@ -1,22 +1,22 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::BTreeSet;
 
 use stratum_core::{
-    ids::{ModuleId, RuleId},
+    ids::{ContainerId, RuleId},
     severity::Severity,
+    types::{Container, ContainerKind},
     violation::{SourceLocation, Violation},
 };
-use stratum_graph::CompoundGraph;
+use stratum_graph::{CompoundGraph, topo::direct_dependents};
 
 use crate::ids::SLICE_FAN_IN;
 use crate::options::SliceFanInOptions;
 use crate::rule::Rule;
-use crate::scope::ProjectScope;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct SliceFanIn;
 
 impl Rule for SliceFanIn {
-    type Scope = ProjectScope;
+    type Scope = ContainerId;
     type Options = SliceFanInOptions;
 
     fn id(&self) -> RuleId {
@@ -26,113 +26,77 @@ impl Rule for SliceFanIn {
         "stratum/slice-fan-in"
     }
     fn default_severity(&self) -> Severity {
-        Severity::Warning
+        Severity::Off
     }
 
     fn check(
         &self,
         graph: &CompoundGraph,
-        _scope: ProjectScope,
+        scope: ContainerId,
         options: &SliceFanInOptions,
         severity: Severity,
     ) -> Vec<Violation> {
-        let mut entity_modules: BTreeMap<String, Vec<ModuleId>> = BTreeMap::new();
-        let mut entity_of: HashMap<ModuleId, String> = HashMap::new();
-        for (mid, m) in &graph.modules {
-            if let Some(name) = entity_name(&m.path.to_string_lossy()) {
-                entity_modules.entry(name.clone()).or_default().push(*mid);
-                entity_of.insert(*mid, name);
-            }
+        let Some(slice) = graph
+            .containers
+            .get(&scope)
+            .filter(|c| c.kind == ContainerKind::Slice)
+        else {
+            return vec![];
+        };
+        let slice_of = |m| {
+            graph
+                .outer_container(m)
+                .filter(|c| c.kind == ContainerKind::Slice)
+        };
+        let members: Vec<_> = graph
+            .modules
+            .keys()
+            .copied()
+            .filter(|m| slice_of(*m).is_some_and(|c| c.id == scope))
+            .collect();
+        let importers: BTreeSet<String> = members
+            .iter()
+            .flat_map(|m| direct_dependents(graph, *m))
+            .filter_map(slice_of)
+            .filter(|c| c.id != scope)
+            .map(|c| qualified(graph, c))
+            .collect();
+        let fan_in = u32::try_from(importers.len()).unwrap_or(u32::MAX);
+        if fan_in <= options.max_fan_in {
+            return vec![];
         }
-
-        let mut feature_importers: HashMap<&str, BTreeSet<String>> = HashMap::new();
-        for (importer_id, importer) in &graph.modules {
-            let Some(feat) = feature_name(&importer.path.to_string_lossy()) else {
-                continue;
-            };
-            let Some(node) = graph.node_for(*importer_id) else {
-                continue;
-            };
-            let own_entity = entity_of.get(importer_id);
-            for e in graph
-                .deps
-                .edges_directed(node, petgraph::Direction::Outgoing)
-            {
-                let Some(entity) = entity_of.get(&graph.deps[e.target()]) else {
-                    continue;
-                };
-                if own_entity != Some(entity) {
-                    feature_importers
-                        .entry(entity.as_str())
-                        .or_default()
-                        .insert(feat.clone());
-                }
-            }
-        }
-
-        let mut out = Vec::new();
-        for (entity, members) in &entity_modules {
-            let fanout = feature_importers
-                .get(entity.as_str())
-                .map_or(0, BTreeSet::len);
-            let fanout = u32::try_from(fanout).unwrap_or(u32::MAX);
-            if fanout <= options.max_fan_in {
-                continue;
-            }
-            let representative = members
-                .iter()
-                .find(|mid| {
-                    graph
-                        .modules
-                        .get(*mid)
-                        .is_some_and(|m| m.path.to_string_lossy().ends_with("/index.ts"))
-                })
-                .or_else(|| members.first())
-                .copied();
-            let Some(rep_id) = representative else {
-                continue;
-            };
-            let Some(rep) = graph.modules.get(&rep_id) else {
-                continue;
-            };
-            out.push(Violation {
-                rule: self.id(),
-                severity,
-                message: format!(
-                    "Entity '{entity}' is imported by {fanout} features (limit {limit})",
-                    limit = options.max_fan_in
-                ),
-                file: rep.path.clone(),
-                location: SourceLocation { line: 1, column: 1 },
-                modules: vec![rep_id],
-                edge: None,
-                suggestion: Some(
-                    "Narrow the entity's public surface or split it into smaller entities so each feature reaches only what it needs.".into(),
-                ),
-            });
-        }
-        out
+        let Some(rep) = slice.entry.or_else(|| members.first().copied()) else {
+            return vec![];
+        };
+        let Some(file) = graph.modules.get(&rep).map(|m| m.path.clone()) else {
+            return vec![];
+        };
+        vec![Violation {
+            rule: self.id(),
+            severity,
+            message: format!(
+                "Slice {slice} is imported by {fan_in} other slices (limit {limit}): {list}",
+                slice = qualified(graph, slice),
+                limit = options.max_fan_in,
+                list = importers.into_iter().collect::<Vec<_>>().join(", "),
+            ),
+            file,
+            location: SourceLocation { line: 1, column: 1 },
+            modules: vec![rep],
+            edge: None,
+            suggestion: Some(
+                "Narrow the slice's entry or split it so each importer reaches only the part it needs; code every slice needs may belong in a lower layer.".into(),
+            ),
+        }]
     }
 }
 
-use petgraph::visit::EdgeRef;
-
-fn entity_name(path: &str) -> Option<String> {
-    let norm = path.replace('\\', "/");
-    let needle = "/entities/";
-    let i = norm.find(needle)?;
-    let rest = &norm[i + needle.len()..];
-    let end = rest.find('/').unwrap_or(rest.len());
-    Some(rest[..end].to_string())
-}
-
-fn feature_name(path: &str) -> Option<String> {
-    let norm = path.replace('\\', "/");
-    let needle = "/features/";
-    let i = norm.find(needle)?;
-    let rest = &norm[i + needle.len()..];
-    let end = rest.find('/').unwrap_or(rest.len());
-    Some(rest[..end].to_string())
+fn qualified(graph: &CompoundGraph, slice: &Container) -> String {
+    let layer = graph
+        .layers
+        .get(&slice.layer)
+        .map_or("?", |l| l.name.as_str());
+    format!("{layer}/{}", slice.name)
 }
 
 #[cfg(test)]
@@ -141,42 +105,59 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
-    use indexmap::IndexMap;
-    use petgraph::graph::DiGraph;
-    use rustc_hash::FxHashMap;
     use stratum_core::{
         edge::EdgeKind,
-        ids::{ContainerId, LayerId},
+        ids::{LayerId, ModuleId},
         purity::Purity,
+        stage::Stage,
         types::Module,
         visibility::VisibilityScope,
     };
 
-    fn m(id: u32, path: &str) -> Module {
-        Module {
-            id: ModuleId::new(id),
-            path: PathBuf::from(path),
-            container: ContainerId::new(1),
-            layer: LayerId::new(1),
-            purity: Purity::new(2).unwrap(),
-            visibility: VisibilityScope::Public,
-            exports: stratum_core::types::Exports::default(),
-            calls: vec![],
+    fn build(slices: u32, modules: &[u32], edges: &[(u32, u32)]) -> CompoundGraph {
+        let mut g = CompoundGraph::empty();
+        for id in 0..=slices {
+            let (kind, parent, path) = if id == 0 {
+                (ContainerKind::Layer, None, "src/l".to_owned())
+            } else {
+                (
+                    ContainerKind::Slice,
+                    Some(ContainerId::new(0)),
+                    format!("src/l/s{id}"),
+                )
+            };
+            let id = ContainerId::new(id);
+            g.containers.insert(
+                id,
+                Container {
+                    id,
+                    name: path.rsplit('/').next().unwrap().into(),
+                    path: PathBuf::from(path),
+                    kind,
+                    layer: LayerId::new(0),
+                    parent,
+                    stage: Stage::FLAT,
+                    entry: None,
+                },
+            );
         }
-    }
-
-    fn build(mods: Vec<Module>, edges: &[(u32, u32)]) -> CompoundGraph {
-        let mut g = CompoundGraph {
-            modules: IndexMap::new(),
-            containers: IndexMap::new(),
-            layers: IndexMap::new(),
-            deps: DiGraph::new(),
-            node_index: FxHashMap::default(),
-        };
-        for mm in mods {
-            let node = g.deps.add_node(mm.id);
-            g.node_index.insert(mm.id, node);
-            g.modules.insert(mm.id, mm);
+        for (i, slice) in modules.iter().enumerate() {
+            let id = ModuleId::new(u32::try_from(i).unwrap());
+            let node = g.deps.add_node(id);
+            g.node_index.insert(id, node);
+            g.modules.insert(
+                id,
+                Module {
+                    id,
+                    path: PathBuf::from(format!("src/l/s{slice}/m{i}.ts")),
+                    container: ContainerId::new(*slice),
+                    layer: LayerId::new(0),
+                    purity: Purity::new(2).unwrap(),
+                    visibility: VisibilityScope::Public,
+                    exports: stratum_core::types::Exports::default(),
+                    calls: vec![],
+                },
+            );
         }
         for (a, b) in edges {
             let na = g.node_index[&ModuleId::new(*a)];
@@ -186,39 +167,30 @@ mod tests {
         g
     }
 
-    #[test]
-    fn fanout_under_threshold_no_violation() {
-        let g = build(
-            vec![
-                m(0, "src/entities/user/index.ts"),
-                m(1, "src/features/cart/view.ts"),
-                m(2, "src/features/profile/view.ts"),
-            ],
-            &[(1, 0), (2, 0)],
-        );
-        let v = SliceFanIn.check(
-            &g,
-            ProjectScope,
-            &SliceFanInOptions { max_fan_in: 5 },
+    fn check(g: &CompoundGraph) -> Vec<Violation> {
+        SliceFanIn.check(
+            g,
+            ContainerId::new(1),
+            &SliceFanInOptions { max_fan_in: 2 },
             Severity::Warning,
-        );
-        assert!(v.is_empty());
+        )
     }
 
     #[test]
-    fn fanout_over_threshold_emits_violation() {
-        let mut mods = vec![m(0, "src/entities/user/index.ts")];
-        for i in 1..=6 {
-            mods.push(m(i, &format!("src/features/f{i}/view.ts")));
-        }
-        let edges: Vec<(u32, u32)> = (1..=6).map(|i| (i, 0)).collect();
-        let g = build(mods, &edges);
-        let v = SliceFanIn.check(
-            &g,
-            ProjectScope,
-            &SliceFanInOptions { max_fan_in: 5 },
-            Severity::Warning,
+    fn many_modules_of_one_slice_count_once() {
+        let g = build(
+            3,
+            &[1, 1, 2, 2, 2, 2, 3],
+            &[(2, 0), (3, 1), (4, 0), (5, 1), (6, 0)],
         );
+        assert!(check(&g).is_empty());
+    }
+
+    #[test]
+    fn distinct_importing_slices_over_the_limit_are_reported() {
+        let g = build(4, &[1, 1, 2, 3, 4], &[(2, 0), (3, 1), (4, 0), (1, 0)]);
+        let v = check(&g);
         assert_eq!(v.len(), 1);
+        assert!(v[0].message.contains("3 other slices"));
     }
 }
