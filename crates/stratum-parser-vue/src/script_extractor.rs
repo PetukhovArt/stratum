@@ -60,9 +60,7 @@ impl LanguageExtractor for VueExtractor {
         all_imports.sort_by_key(|i| (i.specifier.clone(), i.span.start));
         all_imports.dedup_by(|a, b| a.specifier == b.specifier && a.span.start == b.span.start);
         Ok(ExtractedData {
-            source_path: path.to_path_buf(),
             imports: all_imports,
-            diagnostics: vec![],
             purity: extract_purity(source),
             exports,
         })

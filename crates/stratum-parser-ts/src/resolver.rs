@@ -17,7 +17,6 @@ pub enum ResolveError {
 #[derive(Debug)]
 pub struct PathResolver {
     inner: Resolver,
-    project_root: Utf8PathBuf,
 }
 
 impl PathResolver {
@@ -55,7 +54,6 @@ impl PathResolver {
         };
         Self {
             inner: Resolver::new(opts),
-            project_root: project_root.to_path_buf(),
         }
     }
 
@@ -81,11 +79,6 @@ impl PathResolver {
                 reason: e.to_string(),
             }),
         }
-    }
-
-    #[must_use]
-    pub fn project_root(&self) -> &Utf8Path {
-        &self.project_root
     }
 }
 

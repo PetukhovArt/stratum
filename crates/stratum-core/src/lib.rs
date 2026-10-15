@@ -1,8 +1,4 @@
-//! Domain types and the incremental [`ArchitectureDatabase`] for Stratum
-//! tooling. The public surface is deliberately narrow: three queries on
-//! [`ArchitectureDatabase`] (`compound_graph`, `violations`,
-//! `violations_for_file`) plus the domain types they exchange. Intermediate
-//! Salsa queries are `pub(crate)` (PRD decision D6).
+//! Domain types for Stratum tooling.
 //!
 //! Stratum primitives ([`Layer`], [`Purity`], [`VisibilityScope`],
 //! [`Container`], [`EdgeKind`]) are first-class types, not configuration
@@ -10,7 +6,6 @@
 
 #![forbid(unsafe_code)]
 
-pub mod db;
 pub mod edge;
 pub mod ids;
 pub mod purity;
@@ -20,9 +15,8 @@ pub mod violation;
 pub mod visibility;
 
 pub use crate::{
-    db::{ArchitectureDatabase, CompoundGraphSnapshot, Project, StratumDb},
     edge::{Edge, EdgeKind},
-    ids::{ContainerId, LayerId, ModuleId, ProjectId, RuleId},
+    ids::{ContainerId, LayerId, ModuleId, RuleId},
     purity::{InvalidPurity, Purity},
     severity::Severity,
     types::{Container, Exports, Layer, Module},

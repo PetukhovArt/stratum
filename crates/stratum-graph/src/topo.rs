@@ -1,23 +1,9 @@
 use petgraph::Direction;
-use petgraph::algo::toposort;
 use petgraph::visit::EdgeRef;
 
 use stratum_core::ids::ModuleId;
 
 use crate::graph::CompoundGraph;
-
-/// Topologically sort the dependency DAG.
-///
-/// # Errors
-/// Returns `Err(cycle_module)` if the graph contains a cycle; the returned
-/// module is one participant of an unspecified cycle (use
-/// [`crate::cycles::find_cycles`] for full enumeration).
-pub fn topo_sort(g: &CompoundGraph) -> Result<Vec<ModuleId>, ModuleId> {
-    match toposort(&g.deps, None) {
-        Ok(order) => Ok(order.into_iter().map(|n| g.deps[n]).collect()),
-        Err(cycle) => Err(g.deps[cycle.node_id()]),
-    }
-}
 
 /// All modules that directly import `m`.
 #[must_use]
@@ -79,22 +65,6 @@ mod tests {
             g.deps.add_edge(fa, fb, EdgeKind::Static);
         }
         g
-    }
-
-    #[test]
-    fn toposort_dag() {
-        let g = graph_with_edges(3, &[(0, 1), (1, 2)]);
-        let order = topo_sort(&g).unwrap();
-        let pos: std::collections::HashMap<_, _> =
-            order.iter().enumerate().map(|(i, m)| (*m, i)).collect();
-        assert!(pos[&ModuleId::new(0)] < pos[&ModuleId::new(1)]);
-        assert!(pos[&ModuleId::new(1)] < pos[&ModuleId::new(2)]);
-    }
-
-    #[test]
-    fn toposort_cycle_errors() {
-        let g = graph_with_edges(2, &[(0, 1), (1, 0)]);
-        assert!(topo_sort(&g).is_err());
     }
 
     #[test]

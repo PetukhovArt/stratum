@@ -6,14 +6,13 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
-description = "Domain types and incremental database for Stratum tooling."
+description = "Domain types for Stratum tooling."
 
 [lints]
 workspace = true
 
 [dependencies]
 camino.workspace = true
-salsa.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 schemars.workspace = true

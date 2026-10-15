@@ -18,4 +18,4 @@ pub use snapshot::{
     CURRENT_SNAPSHOT_VERSION, GraphSnapshot, SnapshotContainer, SnapshotEdge, SnapshotLayer,
     SnapshotModule, snapshot_of,
 };
-pub use topo::{direct_dependencies, direct_dependents, topo_sort};
+pub use topo::{direct_dependencies, direct_dependents};

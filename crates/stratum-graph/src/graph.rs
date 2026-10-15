@@ -45,16 +45,6 @@ impl CompoundGraph {
         self.deps.edge_count()
     }
 
-    pub fn modules_in_container(&self, container: ContainerId) -> impl Iterator<Item = &Module> {
-        self.modules
-            .values()
-            .filter(move |m| m.container == container)
-    }
-
-    pub fn modules_in_layer(&self, layer: LayerId) -> impl Iterator<Item = &Module> {
-        self.modules.values().filter(move |m| m.layer == layer)
-    }
-
     /// Resolve a `ModuleId` to its petgraph `NodeIndex`.
     #[must_use]
     pub fn node_for(&self, m: ModuleId) -> Option<NodeIndex> {
@@ -65,20 +55,5 @@ impl CompoundGraph {
 impl Default for CompoundGraph {
     fn default() -> Self {
         Self::empty()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn empty_graph_is_empty() {
-        let g = CompoundGraph::empty();
-        assert_eq!(g.module_count(), 0);
-        assert_eq!(g.edge_count(), 0);
-        assert!(g.modules_in_layer(LayerId::new(0)).next().is_none());
-        assert!(g.modules_in_container(ContainerId::new(0)).next().is_none());
-        assert!(g.node_for(ModuleId::new(0)).is_none());
     }
 }

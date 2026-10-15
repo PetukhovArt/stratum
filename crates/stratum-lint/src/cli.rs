@@ -80,10 +80,6 @@ pub enum Command {
         #[arg(long, default_value = "stratum.snapshot.json")]
         out: Utf8PathBuf,
     },
-    Diff {
-        prev: Utf8PathBuf,
-        now: Utf8PathBuf,
-    },
     Visualize {
         #[arg(default_value = ".")]
         root: Utf8PathBuf,

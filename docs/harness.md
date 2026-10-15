@@ -43,7 +43,7 @@ stratum-lint explain <rule-slug> [ROOT] [--format agent|json] [--config PATH]   
 stratum-lint context <file> [--root ROOT] [--format agent|json] [--config PATH]
 stratum-lint rules [ROOT] [--format agent|json] [--config PATH]   # active rules incl. plugins with severity + one-line summary
 stratum-lint hook [--max N]                            # reads a Claude Code hook event from stdin
-stratum-lint init | snapshot | diff | visualize        # unchanged
+stratum-lint init | snapshot | visualize               # unchanged
 ```
 
 ### Exit codes

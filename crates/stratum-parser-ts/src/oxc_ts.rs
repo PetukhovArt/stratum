@@ -51,9 +51,7 @@ impl LanguageExtractor for OxcTsExtractor {
         let collected = collect(source, source_type);
         let purity = extract_purity(source);
         Ok(ExtractedData {
-            source_path: path.to_path_buf(),
             imports: collected.imports,
-            diagnostics: Vec::new(),
             purity,
             exports: collected.exports,
         })

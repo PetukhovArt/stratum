@@ -21,7 +21,6 @@ camino.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-salsa.workspace = true
 walkdir.workspace = true
 
 [dev-dependencies]

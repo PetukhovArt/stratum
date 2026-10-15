@@ -13,4 +13,3 @@ pub mod span_remap;
 
 pub use script_extractor::VueExtractor;
 pub use sfc_splitter::{ScriptBlock, SplitError, split};
-pub use span_remap::shift;

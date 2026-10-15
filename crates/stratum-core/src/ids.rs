@@ -40,10 +40,6 @@ id_newtype!(
 );
 id_newtype!(ContainerId, "Stable identifier for a Container.");
 id_newtype!(LayerId, "Stable identifier for a Layer.");
-id_newtype!(
-    ProjectId,
-    "Stable identifier for a Project (workspace root)."
-);
 id_newtype!(RuleId, "Stable identifier for a Rule.");
 
 #[cfg(test)]

@@ -13,16 +13,6 @@ impl SourceSpan {
         debug_assert!(start <= end);
         Self { start, end }
     }
-
-    #[must_use]
-    pub const fn len(self) -> u32 {
-        self.end - self.start
-    }
-
-    #[must_use]
-    pub const fn is_empty(self) -> bool {
-        self.start == self.end
-    }
 }
 
 /// Convert a byte offset into a 1-based (line, column).

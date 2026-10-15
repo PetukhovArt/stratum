@@ -39,7 +39,6 @@ fn run(cli: cli::Cli) -> miette::Result<u8> {
             commands::snapshot::run(&root, &out).map(|()| 0)
         }
         Some(cli::Command::Visualize { root }) => commands::visualize::run(&root).map(|()| 0),
-        Some(cli::Command::Diff { prev, now }) => commands::diff::run(&prev, &now).map(|()| 0),
         Some(cli::Command::Baseline {
             root,
             config,

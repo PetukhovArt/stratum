@@ -23,22 +23,12 @@ pub struct RawImport {
 /// Everything the parser knows about one source file.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExtractedData {
-    pub source_path: Utf8PathBuf,
     pub imports: Vec<RawImport>,
-    /// Parser-level errors that did not prevent extraction (e.g. recovered
-    /// syntax errors).
-    pub diagnostics: Vec<ParserDiagnostic>,
     /// `@stratum-purity N` annotation (Phase 5). `None` if absent.
     #[serde(default)]
     pub purity: Option<Purity>,
     #[serde(default)]
     pub exports: Exports,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ParserDiagnostic {
-    pub message: String,
-    pub span: SourceSpan,
 }
 
 #[derive(Debug, thiserror::Error)]
