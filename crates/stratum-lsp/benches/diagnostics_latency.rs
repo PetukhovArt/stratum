@@ -6,9 +6,7 @@
 use camino::Utf8PathBuf;
 use criterion::{Criterion, criterion_group, criterion_main};
 
-use stratum_lint::engine::RuleEngine;
-use stratum_lint::pipeline;
-use stratum_lint::zero_config;
+use stratum_engine::{config, pipeline};
 
 fn fixture_root() -> Utf8PathBuf {
     Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -19,11 +17,11 @@ fn fixture_root() -> Utf8PathBuf {
 
 fn bench_recompute_tiny_ts_violations(c: &mut Criterion) {
     let root = fixture_root();
-    let config = zero_config::infer(&root);
+    let config = config::infer(&root);
     c.bench_function("lsp_recompute_tiny_ts_violations", |b| {
         b.iter(|| {
             let input = pipeline::build(&root, &config).unwrap();
-            let violations = RuleEngine::run(&input);
+            let violations = input.violations().unwrap();
             criterion::black_box(violations);
         });
     });

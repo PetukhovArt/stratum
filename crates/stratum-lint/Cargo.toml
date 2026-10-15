@@ -20,16 +20,13 @@ stratum-core = { path = "../stratum-core" }
 stratum-graph = { path = "../stratum-graph" }
 stratum-rules = { path = "../stratum-rules" }
 stratum-config = { path = "../stratum-config" }
-stratum-parser-vue = { path = "../stratum-parser-vue" }
-stratum-plugins-rhai = { path = "../stratum-plugins-rhai" }
+stratum-engine = { path = "../stratum-engine" }
 clap = { version = "4", features = ["derive"] }
 miette = { workspace = true }
 camino.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-thiserror.workspace = true
 notify = "6"
-walkdir.workspace = true
 axum = "0.7"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal"] }
 rust-embed = { version = "8", features = ["debug-embed"] }

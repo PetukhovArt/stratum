@@ -1,0 +1,28 @@
+[package]
+name = "stratum-engine"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Stratum analysis engine shared by the CLI and the LSP."
+
+[lints]
+workspace = true
+
+[dependencies]
+stratum-core = { path = "../stratum-core" }
+stratum-graph = { path = "../stratum-graph" }
+stratum-rules = { path = "../stratum-rules" }
+stratum-config = { path = "../stratum-config" }
+stratum-parser-vue = { path = "../stratum-parser-vue" }
+stratum-plugins-rhai = { path = "../stratum-plugins-rhai" }
+camino.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+walkdir.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

@@ -20,9 +20,10 @@ No editor extensions are shipped: any LSP client can launch `stratum-lsp` over s
 
 - Root: first `workspaceFolders` entry, else `rootUri`, else `rootPath`, else the process cwd. `file:///c%3A/...` URIs are accepted.
 - `initialize` answers at once; the whole-project analysis runs in the background and its result is published for every open document.
-- Config: `ROOT/stratum.config.jsonc` if present, else zero-config. Editing it or a plugin script referenced from it re-runs the analysis; a broken config or plugin is reported via `window/showMessage` and the last good diagnostics stay.
+- Config: `ROOT/stratum.config.jsonc` if present, else zero-config. Editing it, a config file it `extends`, a plugin script referenced from it or `ROOT/stratum.baseline.json` re-runs the analysis; a broken config, plugin or baseline is reported via `window/showMessage` and the last good diagnostics stay.
+- Baseline: violations matched by `ROOT/stratum.baseline.json` are not published, as in the CLI and the hook.
 - The graph stays in memory. `didOpen` / `didChange` re-parse only that document from its buffer text, replace its outgoing edges and re-run the rules; nothing runs when its imports and purity are unchanged. `didClose` clears the file's diagnostics and reverts it to the text on disk. Diagnostics are published only for open documents whose diagnostics changed.
-- A full rebuild runs on a config, plugin or `tsconfig.json` change, on `workspace/didChangeWatchedFiles` creates or deletes (registered when the client supports dynamic registration), for a document created after the last build, and when an incremental update fails. Open buffers are re-applied after it.
+- A full rebuild runs on a config, plugin, baseline or `tsconfig.json` change, on `workspace/didChangeWatchedFiles` creates or deletes (registered when the client supports dynamic registration), for a document created after the last build, and when an incremental update fails. Open buffers are re-applied after it.
 - Diagnostic: `source: "stratum"`, `code` = rule slug as in config (`stratum/no-cross-layer-import`, plugin slugs too), `message` = violation message, then the suggestion on the next line. `relatedInformation` points at the imported module of an import violation, or at up to 10 other members of a cycle; a cycle is reported on each member.
 - stdout carries JSON-RPC only; logs go to `window/logMessage` (filter with `RUST_LOG`). The process exits on `exit` (code 0 after `shutdown`, else 1).
 - Claude Code routes each file extension to one LSP server, so `stratum-lsp` and a TypeScript server cannot both serve `.ts` there. Hence the separate `stratum-lsp` plugin, and the per-edit hook in the `stratum` plugin.
@@ -96,7 +97,7 @@ Baseline file (`stratum.baseline.json`): `{ "version": 1, "violations": [{ rule,
 Matching runs on the whole project before scoping, so `fixed` is project-wide and `baselined` counts only in-scope hits. An empty scope skips the graph build, so both read 0.
 
 `stratum-lint hook`: on `Stop` / `SubagentStop` with `stop_hook_active: false` it runs `--changed --format agent` in the event's `cwd` and prints `{"decision":"block","reason":"<report>"}` when new error-severity violations remain.
-On `PostToolUse` of `Edit` / `Write` for a `.ts/.tsx/.mts/.cts/.js/.vue` file under `cwd`, it lints with that file as scope (baseline honoured) and, when new error or warning violations touch it, prints `{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"<report>"}}` in the agent format, `--max` defaulting to 10.
+On `PostToolUse` of `Edit` / `Write` for a `.ts/.tsx/.mts/.cts/.js/.jsx/.mjs/.cjs/.vue` file under `cwd`, it lints with that file as scope (baseline honoured) and, when new error or warning violations touch it, prints `{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"<report>"}}` in the agent format, `--max` defaulting to 10.
 Everything else exits 0 silently. A tool failure inside the hook exits 1 (Claude Code's non-blocking error), not 2, because exit 2 would block the stop with the error text.
 
 ## Customization
@@ -107,7 +108,7 @@ Everything an architecture rule does is configurable without forking:
 - `stratum/import-policy`: declarative import boundaries in config (from / deny / allow / same-slice / message), no scripting.
 - `.rhai` plugin rules with access to modules, imports and options; an optional `fn doc()` makes them show up in `rules` / `explain` like built-ins.
 - `stratum.schema.json` at the repo root, generated from the config types; configs reference it with `"$schema"`.
-- Invalid config fails loudly (exit 2): unknown keys, unknown rule slugs, bad options (the message names slug and key), extends cycles.
+- Invalid config fails loudly (exit 2 in every command, `window/showMessage` in the LSP): unknown keys, unknown rule slugs, bad options (the message names slug and key), bad `ignore` / `overrides[].files` globs, `options` or `script` in an override, extends cycles.
 
 Reference: [custom-rules.md](custom-rules.md); a real-world config: [examples/private-project.stratum.config.jsonc](examples/private-project.stratum.config.jsonc).
 

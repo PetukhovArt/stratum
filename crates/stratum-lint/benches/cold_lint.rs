@@ -34,7 +34,6 @@ fn tiny_ts_config() -> Config {
     Config {
         version: 1,
         project: ProjectConfig {
-            root: "./src".into(),
             extends: None,
             ignore: vec![],
         },

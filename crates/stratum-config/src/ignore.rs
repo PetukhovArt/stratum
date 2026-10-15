@@ -71,7 +71,7 @@ mod tests {
     fn set(ignore: &[&str]) -> IgnoreSet {
         let text = serde_json::json!({
             "version": 1,
-            "project": { "root": ".", "ignore": ignore },
+            "project": { "ignore": ignore },
         });
         IgnoreSet::new(&serde_json::from_value(text).unwrap()).unwrap()
     }

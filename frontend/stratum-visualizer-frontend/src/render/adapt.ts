@@ -173,10 +173,10 @@ export const adaptSnapshot = (
 
   const designViolations: DesignViolation[] = violations.map((v, idx) => ({
     id: `v-${idx}`,
-    rule: ruleLabel(v.rule),
+    rule: v.rule,
     severity: severityToLabel(v.severity),
     message: v.message,
-    ruleDoc: `stratum.dev/rules/${ruleSlug(v.rule)}`,
+    ruleDoc: `stratum.dev/docs/rules/${v.rule}`,
   }))
 
   violations.forEach((v, idx) => {
@@ -322,5 +322,3 @@ export const adaptSnapshot = (
   }
 }
 
-const ruleLabel = (id: number): string => `rule-${id}`
-const ruleSlug = (id: number): string => `rule-${id}`

@@ -1,6 +1,7 @@
 use camino::Utf8Path;
+use stratum_engine::Baseline;
 
-use crate::{baseline::Baseline, commands::lint, pipeline};
+use crate::commands::lint;
 
 pub fn run(
     root: &Utf8Path,
@@ -8,13 +9,12 @@ pub fn run(
     out: Option<&Utf8Path>,
     prune: bool,
 ) -> miette::Result<()> {
-    let (config, _) = lint::load_config(root, config_path)?;
-    let input = pipeline::build(root, &config).map_err(|e| miette::miette!("{e}"))?;
-    let findings = lint::findings(&input)?;
+    let loaded = lint::load_config(root, config_path)?;
+    let findings = lint::findings(&lint::build(root, &loaded)?)?;
     let out = out.map_or_else(|| lint::default_baseline_path(root), Utf8Path::to_path_buf);
 
     let next = if prune {
-        let previous = Baseline::load(&out)?;
+        let previous = Baseline::load(&out).map_err(|e| miette::miette!("{e}"))?;
         let pruned = previous.pruned(&findings);
         println!(
             "Pruned {} fixed entries; {} remain in {out}",
@@ -27,5 +27,5 @@ pub fn run(
         println!("Baselined {} violations in {out}", accepted.len());
         accepted
     };
-    next.save(&out)
+    next.save(&out).map_err(|e| miette::miette!("{e}"))
 }

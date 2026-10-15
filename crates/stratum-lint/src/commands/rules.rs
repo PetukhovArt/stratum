@@ -5,7 +5,9 @@ use stratum_config::Config;
 use stratum_core::severity::Severity;
 use stratum_rules::{DynRule, RuleRegistry};
 
-use crate::{cli::BriefFormat, pipeline, zero_config};
+use stratum_engine::pipeline;
+
+use crate::{cli::BriefFormat, commands::lint};
 
 pub fn list(
     root: &Utf8Path,
@@ -110,21 +112,9 @@ pub fn explain(
 }
 
 fn load(root: &Utf8Path, config_path: Option<&Utf8Path>) -> miette::Result<(Config, RuleRegistry)> {
-    let config = load_config(root, config_path)?;
+    let config = lint::load_config(root, config_path)?.config;
     let registry = pipeline::registry(root, &config).map_err(|e| miette::miette!("{e}"))?;
     Ok((config, registry))
-}
-
-fn load_config(root: &Utf8Path, config_path: Option<&Utf8Path>) -> miette::Result<Config> {
-    let default = root.join("stratum.config.jsonc");
-    let path = match config_path {
-        Some(p) => Some(p.to_path_buf()),
-        None => default.exists().then_some(default),
-    };
-    match path {
-        Some(p) => stratum_config::parse_file(&p).map_err(|e| miette::miette!("{e}")),
-        None => Ok(zero_config::infer(root)),
-    }
 }
 
 fn severity_of(config: &Config, rule: &dyn DynRule) -> Severity {

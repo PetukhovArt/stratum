@@ -4,7 +4,7 @@ use camino::Utf8Path;
 use jsonc_parser::{ParseOptions, parse_to_serde_value};
 use serde_json::Value;
 
-use crate::{Config, ConfigError, IgnoreSet, extends};
+use crate::{Config, ConfigError, IgnoreSet, extends, overrides};
 
 /// Parse a JSONC string into a [`Config`], resolving `project.extends`
 /// (paths relative to `path`'s directory, or `stratum:*` presets).
@@ -28,6 +28,7 @@ pub fn parse_str(path: &Utf8Path, text: &str) -> Result<Config, ConfigError> {
     })?;
     check_layer_refs(path, &config)?;
     IgnoreSet::new(&config)?;
+    overrides::validate(&config)?;
     Ok(config)
 }
 
@@ -101,7 +102,7 @@ mod tests {
     #[test]
     fn rejects_unknown_severity() {
         let path = Utf8PathBuf::from("inline");
-        let bad = r#"{ "version": 1, "project": { "root": "." }, "layers": [],
+        let bad = r#"{ "version": 1, "project": {}, "layers": [],
                        "rules": { "x": { "severity": "panic" } } }"#;
         let err = parse_str(&path, bad).unwrap_err();
         assert!(matches!(err, ConfigError::Validation { .. }));
@@ -110,7 +111,7 @@ mod tests {
     #[test]
     fn rejects_missing_required_field() {
         let path = Utf8PathBuf::from("inline");
-        let bad = r#"{ "version": 1, "layers": [] }"#;
+        let bad = r#"{ "layers": [] }"#;
         let err = parse_str(&path, bad).unwrap_err();
         assert!(matches!(err, ConfigError::Validation { .. }));
     }
@@ -119,7 +120,7 @@ mod tests {
     fn fsd_preset_overridden_paths_keep_fsd_dependencies_and_recommended_rules() {
         let path = Utf8PathBuf::from("inline");
         let text = r#"{ "$schema": "./stratum.schema.json", "version": 1,
-            "project": { "root": ".", "extends": "stratum:fsd" },
+            "project": { "extends": "stratum:fsd" },
             "layers": [{ "id": "features", "path": "src/renderer/features" }] }"#;
         let cfg = parse_str(&path, text).unwrap();
         let features = cfg.layers.iter().find(|l| l.id == "features").unwrap();
@@ -134,14 +135,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let dir = Utf8Path::from_path(dir.path()).unwrap();
         let a = dir.join("a.jsonc");
-        fs::write(
-            &a,
-            r#"{ "project": { "root": ".", "extends": "./b.jsonc" } }"#,
-        )
-        .unwrap();
+        fs::write(&a, r#"{ "project": { "extends": "./b.jsonc" } }"#).unwrap();
         fs::write(
             dir.join("b.jsonc"),
-            r#"{ "project": { "root": ".", "extends": "./a.jsonc" } }"#,
+            r#"{ "project": { "extends": "./a.jsonc" } }"#,
         )
         .unwrap();
         let err = parse_file(&a).unwrap_err();
@@ -154,12 +151,12 @@ mod tests {
     #[test]
     fn unknown_preset_and_undeclared_layer_dependency_are_errors() {
         let path = Utf8PathBuf::from("inline");
-        let preset = r#"{ "version": 1, "project": { "root": ".", "extends": "stratum:nope" } }"#;
+        let preset = r#"{ "version": 1, "project": { "extends": "stratum:nope" } }"#;
         assert!(matches!(
             parse_str(&path, preset),
             Err(ConfigError::UnknownPreset { .. })
         ));
-        let dep = r#"{ "version": 1, "project": { "root": "." },
+        let dep = r#"{ "version": 1, "project": {},
             "layers": [{ "id": "app", "path": "src/app", "depends_on": ["shraed"] }] }"#;
         let err = parse_str(&path, dep).unwrap_err();
         assert!(err.to_string().contains("shraed"), "{err}");

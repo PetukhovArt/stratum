@@ -91,7 +91,6 @@ fn config_with_custom_rule() -> Config {
     Config {
         version: 1,
         project: ProjectConfig {
-            root: "./src".into(),
             extends: None,
             ignore: vec![],
         },

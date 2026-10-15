@@ -23,9 +23,9 @@ pub fn path_key(path: &Path) -> String {
 }
 
 fn strip_verbatim(path: &Path) -> PathBuf {
-    let s = path.to_string_lossy();
-    s.strip_prefix(r"\\?\")
-        .map_or_else(|| path.to_path_buf(), PathBuf::from)
+    PathBuf::from(stratum_engine::paths::strip_verbatim(
+        &path.to_string_lossy(),
+    ))
 }
 
 #[cfg(test)]

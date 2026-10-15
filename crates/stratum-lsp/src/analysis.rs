@@ -3,27 +3,17 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use camino::Utf8Path;
-use stratum_config::ConfigError;
+use camino::{Utf8Path, Utf8PathBuf};
 use stratum_core::ids::ModuleId;
+use stratum_engine::{
+    BASELINE_FILE, Baseline, CONFIG_FILE, EngineError, EngineInput, config, pipeline,
+};
 use stratum_graph::{BuildError, GraphBuilder};
-use stratum_lint::engine::{EngineInput, RuleEngine};
-use stratum_lint::pipeline::{self, PipelineError};
-use stratum_lint::zero_config;
 
 use crate::diagnostics::{self, DiagnosticsByFile};
 use crate::paths::path_key;
 
-pub const CONFIG_FILE: &str = "stratum.config.jsonc";
 pub const TSCONFIG_FILE: &str = "tsconfig.json";
-
-#[derive(Debug, thiserror::Error)]
-pub enum AnalysisError {
-    #[error(transparent)]
-    Config(#[from] ConfigError),
-    #[error(transparent)]
-    Pipeline(#[from] PipelineError),
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Applied {
@@ -37,6 +27,7 @@ pub enum Applied {
 pub struct Project {
     builder: GraphBuilder,
     input: EngineInput,
+    baseline: Option<Baseline>,
     modules: HashMap<String, ModuleId>,
     built: SystemTime,
 }
@@ -44,56 +35,47 @@ pub struct Project {
 #[derive(Debug)]
 pub struct Loaded {
     pub inputs: Vec<PathBuf>,
-    pub project: Result<Project, AnalysisError>,
+    pub project: Result<Project, EngineError>,
 }
 
 impl Project {
     #[must_use]
     pub fn load(root: &Utf8Path) -> Loaded {
+        let mut inputs: Vec<Utf8PathBuf> = config::watched_files(&root.join(CONFIG_FILE));
+        inputs.extend([root.join(TSCONFIG_FILE), root.join(BASELINE_FILE)]);
+        let project = Self::build(root, &mut inputs);
+        Loaded {
+            inputs: inputs
+                .into_iter()
+                .map(Utf8PathBuf::into_std_path_buf)
+                .collect(),
+            project,
+        }
+    }
+
+    fn build(root: &Utf8Path, inputs: &mut Vec<Utf8PathBuf>) -> Result<Self, EngineError> {
         let built = SystemTime::now();
-        let config_path = root.join(CONFIG_FILE);
-        let mut inputs = vec![
-            config_path.clone().into_std_path_buf(),
-            root.join(TSCONFIG_FILE).into_std_path_buf(),
-        ];
-        let config = if config_path.is_file() {
-            match stratum_config::parse_file(&config_path) {
-                Ok(c) => c,
-                Err(e) => {
-                    return Loaded {
-                        inputs,
-                        project: Err(e.into()),
-                    };
-                }
-            }
-        } else {
-            zero_config::infer(root)
-        };
+        let loaded = config::load(root, None)?;
         inputs.extend(
-            config
-                .rules
-                .values()
-                .filter_map(|r| r.script.as_ref())
-                .map(|s| root.join(s).into_std_path_buf()),
+            pipeline::plugin_scripts(root, &loaded.config)
+                .into_iter()
+                .map(|(_, script)| script),
         );
-        let project = pipeline::build_with_builder(root, &config)
-            .map(|(input, builder)| {
-                let root = input.project_root.as_std_path();
-                let modules = input
-                    .graph
-                    .modules
-                    .values()
-                    .map(|m| (path_key(&root.join(&m.path)), m.id))
-                    .collect();
-                Self {
-                    builder,
-                    input,
-                    modules,
-                    built,
-                }
-            })
-            .map_err(AnalysisError::from);
-        Loaded { inputs, project }
+        let baseline = Baseline::load_if_exists(&root.join(BASELINE_FILE))?;
+        let (input, builder) = pipeline::build_with_builder(root, &loaded.config)?;
+        let modules = input
+            .graph
+            .modules
+            .values()
+            .map(|m| (path_key(&m.path), m.id))
+            .collect();
+        Ok(Self {
+            builder,
+            input,
+            baseline,
+            modules,
+            built,
+        })
     }
 
     #[must_use]
@@ -117,9 +99,20 @@ impl Project {
         })
     }
 
-    #[must_use]
-    pub fn diagnostics(&self) -> DiagnosticsByFile {
-        diagnostics::group(&self.input, &RuleEngine::run(&self.input))
+    pub fn diagnostics(&self) -> Result<DiagnosticsByFile, EngineError> {
+        let mut findings = self.input.violations()?;
+        if let Some(baseline) = &self.baseline {
+            let baselined = baseline.matches(&findings).baselined;
+            findings = findings
+                .into_iter()
+                .zip(baselined)
+                .filter_map(|(f, baselined)| (!baselined).then_some(f))
+                .collect();
+        }
+        Ok(diagnostics::group(
+            self.input.project_root.as_std_path(),
+            &findings,
+        ))
     }
 
     fn created_after_build(&self, path: &Path) -> bool {
@@ -133,7 +126,7 @@ impl Project {
 pub struct Run {
     pub project: Option<Project>,
     pub inputs: Option<Vec<PathBuf>>,
-    pub outcome: Result<Option<DiagnosticsByFile>, AnalysisError>,
+    pub outcome: Result<Option<DiagnosticsByFile>, EngineError>,
 }
 
 #[derive(Debug)]
@@ -154,7 +147,11 @@ pub fn run(
         Some(mut p) if !rebuild => match apply_edits(&mut p, edits) {
             Some(changed) => {
                 return Run {
-                    outcome: Ok(changed.then(|| p.diagnostics())),
+                    outcome: if changed {
+                        p.diagnostics().map(Some)
+                    } else {
+                        Ok(None)
+                    },
                     project: Some(p),
                     inputs: None,
                 };
@@ -210,7 +207,7 @@ fn rebuild_and_reopen(
                 }
             }
             Run {
-                outcome: Ok(Some(project.diagnostics())),
+                outcome: project.diagnostics().map(Some),
                 project: Some(project),
                 inputs: Some(loaded.inputs),
             }
@@ -269,17 +266,31 @@ mod tests {
         );
 
         let mut project = Project::load(&root).project.unwrap();
-        let before = project.diagnostics();
+        let before = project.diagnostics().unwrap();
         assert_eq!(
             project.apply(cart.as_std_path(), &text).unwrap(),
             Applied::Changed
         );
-        let incremental = project.diagnostics();
+        let incremental = project.diagnostics().unwrap();
 
         std::fs::write(&cart, &text).unwrap();
-        let full = Project::load(&root).project.unwrap().diagnostics();
+        let full = Project::load(&root).project.unwrap().diagnostics().unwrap();
 
         assert_ne!(incremental, before);
         assert_eq!(incremental, full);
+    }
+
+    #[test]
+    fn bad_override_glob_is_an_error_not_empty_diagnostics() {
+        let dir = fixture_copy();
+        let root = Utf8Path::from_path(dir.path()).unwrap();
+        let config = root.join(CONFIG_FILE);
+        let text = std::fs::read_to_string(&config)
+            .unwrap()
+            .replace("src/shared/api/**", "src/[shared");
+        std::fs::write(&config, text).unwrap();
+
+        let err = Project::load(root).project.unwrap_err();
+        assert!(err.to_string().contains("src/[shared"), "{err}");
     }
 }

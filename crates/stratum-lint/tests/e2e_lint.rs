@@ -94,7 +94,7 @@ fn cycle_count_with_ignore(ignore: &[&str]) -> usize {
     .unwrap();
     let config = serde_json::json!({
         "version": 1,
-        "project": { "root": "./src", "ignore": ignore },
+        "project": { "ignore": ignore },
         "layers": [{ "id": "app", "path": "src", "depends_on": [] }],
         "rules": { "stratum/no-circular-deps": { "severity": "error" } },
     });

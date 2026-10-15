@@ -5,7 +5,7 @@ Status: proposal, 2026-10-15, base `main` f003638 (`project.ignore` merged). It 
 ## 0. Current code
 
 - There is one container per layer. Its id is the layer id and its parent is `None` (`crates/stratum-graph/src/builder.rs:128-140`), and every module gets that container (`builder.rs:167`). Slices do not exist in the model.
-- Folder names are hardcoded: `/entities/` and `/features/` (`crates/stratum-rules/src/builtin/cross_entity_pattern.rs:122,131`), `/index.ts` (`:88`) and `/_shared/` (`visibility_scope.rs:87`). Every module is `Public` (`crates/stratum-lint/src/pipeline.rs:67`), so `visibility-scope` never fires.
+- Folder names are hardcoded: `/entities/` and `/features/` (`crates/stratum-rules/src/builtin/cross_entity_pattern.rs:122,131`), `/index.ts` (`:88`) and `/_shared/` (`visibility_scope.rs:87`). Every module is `Public` (`crates/stratum-engine/src/pipeline.rs:67`), so `visibility-scope` never fires.
 - `Stage` is a purity rank (`crates/stratum-core/src/stage.rs:4-35`) that comes from `// @stratum-stage N` (`crates/stratum-parser-ts/src/annotations.rs:6`) and defaults to 2 (`pipeline.rs:66`).
 - The visualizer reads the snapshot field `module.stage`, which holds purity, but displays it with folder-structure labels (`frontend/.../render/adapt.ts:150`, `components/Header.tsx:126-172`). It also computes the evolution stage itself from the folder tree (`adapt.ts:223-275`). These are two different meanings under one field.
 - Container-based metrics compare `Module.container` (`crates/stratum-graph/src/metrics/miller.rs:15`, `promotion.rs:18`, `depth_ratio.rs:24`). `depth-ratio` keeps its own copy of the container size (`crates/stratum-rules/src/builtin/depth_ratio.rs:72`).
@@ -14,7 +14,7 @@ Status: proposal, 2026-10-15, base `main` f003638 (`project.ignore` merged). It 
 
 The user's config. FSD names appear only in the preset or the user's file, never in code:
 ```jsonc
-{ "version": 1, "project": { "root": ".", "extends": "stratum:recommended" },
+{ "version": 1, "project": { "extends": "stratum:recommended" },
   "structure": { "segments": ["model", "ui", "api", "lib"], "private": ["_local"] },
   "layers": [
     { "id": "screens", "path": "src/screens", "depends_on": ["domain", "kit"], "slices": true },

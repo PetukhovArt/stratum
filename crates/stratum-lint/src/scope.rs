@@ -3,7 +3,7 @@ use std::process::Command;
 
 use camino::{Utf8Path, Utf8PathBuf};
 
-use crate::report::{Finding, relative};
+use stratum_engine::{Finding, paths};
 
 #[derive(Debug, Clone, Default)]
 pub struct Scope(BTreeSet<String>);
@@ -25,7 +25,7 @@ impl Scope {
                 [cwd.join(f), root_abs.join(f).into_std_path_buf()]
                     .into_iter()
                     .find_map(|p| p.canonicalize().ok())
-                    .map(|abs| relative(&abs, root_abs))
+                    .map(|abs| paths::relative(&abs, root_abs))
                     .ok_or_else(|| {
                         miette::miette!("--files: {f} not found in the current directory or ROOT")
                     })
@@ -67,7 +67,7 @@ impl Scope {
 fn git_lines(dir: &Utf8Path, args: &[&str]) -> miette::Result<Vec<String>> {
     let out = Command::new("git")
         .arg("-C")
-        .arg(dir.as_str().strip_prefix(r"\\?\").unwrap_or(dir.as_str()))
+        .arg(dir.as_str())
         .args(args)
         .output()
         .map_err(|e| miette::miette!("Could not run git: {e}"))?;

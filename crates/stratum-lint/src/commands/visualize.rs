@@ -13,32 +13,58 @@ use rust_embed::RustEmbed;
 use stratum_graph::snapshot_of;
 use tokio::runtime::Builder;
 
-use crate::pipeline;
-use crate::zero_config;
+use serde::Serialize;
+use stratum_core::{edge::Edge, ids::ModuleId, severity::Severity, violation::SourceLocation};
+use stratum_engine::EngineInput;
+
+use crate::commands::lint;
 
 #[derive(RustEmbed)]
 #[folder = "../../frontend/stratum-visualizer-frontend/dist/"]
 struct VisualizerAssets;
 
+#[derive(Debug, Serialize)]
+struct ApiViolation {
+    rule: String,
+    severity: Severity,
+    message: String,
+    file: String,
+    location: SourceLocation,
+    modules: Vec<ModuleId>,
+    edge: Option<Edge>,
+    suggestion: Option<String>,
+}
+
 pub fn run(root: &Utf8Path) -> miette::Result<()> {
-    let config_path = root.join("stratum.config.jsonc");
-    let config = if config_path.exists() {
-        stratum_config::parse_file(&config_path).map_err(|e| miette::miette!("{e}"))?
-    } else {
-        zero_config::infer(root)
-    };
-    let input = pipeline::build(root, &config).into_diagnostic()?;
+    let input = lint::build(root, &lint::load_config(root, None)?)?;
     let snap = snapshot_of(&input.graph);
     let snap_json = serde_json::to_string(&snap).into_diagnostic()?;
-
-    let violations = crate::engine::RuleEngine::run(&input);
-    let violations_json = serde_json::to_string(&violations).into_diagnostic()?;
+    let violations_json = serde_json::to_string(&api_violations(&input)?).into_diagnostic()?;
 
     let rt = Builder::new_current_thread()
         .enable_all()
         .build()
         .into_diagnostic()?;
     rt.block_on(serve(snap_json, violations_json, 0))
+}
+
+fn api_violations(input: &EngineInput) -> miette::Result<Vec<ApiViolation>> {
+    let violations = input
+        .rule_violations()
+        .map_err(|e| miette::miette!("{e}"))?;
+    Ok(violations
+        .into_iter()
+        .map(|v| ApiViolation {
+            rule: input.slug_of(v.rule).to_owned(),
+            severity: v.severity,
+            file: input.relative(&v.file),
+            location: v.location,
+            modules: v.modules,
+            edge: v.edge,
+            message: v.message,
+            suggestion: v.suggestion,
+        })
+        .collect())
 }
 
 pub fn build_router(snapshot: &Arc<String>, violations: &Arc<String>) -> Router {
