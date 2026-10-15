@@ -1,7 +1,7 @@
 #![allow(clippy::unwrap_used)]
 
 use proptest::prelude::*;
-use stratum_core::{ModuleId, Severity, Purity};
+use stratum_core::{ModuleId, Purity, Severity};
 
 fn arb_purity() -> impl Strategy<Value = Purity> {
     (1u8..=4).prop_map(|r| Purity::new(r).unwrap())

@@ -11,8 +11,8 @@ use stratum_config::{Config, LayerConfig, ProjectConfig, RuleConfig};
 use stratum_core::{
     edge::EdgeKind,
     ids::{ContainerId, LayerId, ModuleId, RuleId},
-    severity::Severity,
     purity::Purity,
+    severity::Severity,
     types::{Layer, Module},
     visibility::VisibilityScope,
 };

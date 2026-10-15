@@ -13,8 +13,8 @@
 pub mod db;
 pub mod edge;
 pub mod ids;
-pub mod severity;
 pub mod purity;
+pub mod severity;
 pub mod types;
 pub mod violation;
 pub mod visibility;
@@ -23,8 +23,8 @@ pub use crate::{
     db::{ArchitectureDatabase, CompoundGraphSnapshot, Project, StratumDb},
     edge::{Edge, EdgeKind},
     ids::{ContainerId, LayerId, ModuleId, ProjectId, RuleId},
-    severity::Severity,
     purity::{InvalidPurity, Purity},
+    severity::Severity,
     types::{Container, Exports, Layer, Module},
     violation::{SourceLocation, Violation},
     visibility::VisibilityScope,

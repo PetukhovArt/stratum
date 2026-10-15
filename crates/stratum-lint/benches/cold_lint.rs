@@ -9,7 +9,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 
 use stratum_config::{Config, LayerConfig, ProjectConfig, RuleConfig};
 use stratum_core::{
-    ids::LayerId, severity::Severity, purity::Purity, types::Layer, visibility::VisibilityScope,
+    ids::LayerId, purity::Purity, severity::Severity, types::Layer, visibility::VisibilityScope,
 };
 use stratum_graph::{BuildConfig, GraphBuilder};
 

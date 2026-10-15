@@ -10,8 +10,8 @@ use rustc_hash::FxHashMap;
 use stratum_core::{
     edge::EdgeKind,
     ids::{ContainerId, LayerId, ModuleId},
-    severity::Severity,
     purity::Purity,
+    severity::Severity,
     types::Module,
     visibility::VisibilityScope,
 };
