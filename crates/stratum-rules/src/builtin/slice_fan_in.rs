@@ -138,6 +138,7 @@ mod tests {
                     parent,
                     stage: Stage::FLAT,
                     entry: None,
+                    segment_dirs: vec![],
                 },
             );
         }

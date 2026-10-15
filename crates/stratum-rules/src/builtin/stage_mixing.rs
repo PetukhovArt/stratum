@@ -9,15 +9,14 @@ use stratum_core::{
 use stratum_graph::CompoundGraph;
 
 use crate::ids::STAGE_MIXING;
-use crate::options::StageMixingOptions;
-use crate::rule::Rule;
+use crate::rule::{EmptyOptions, Rule};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct StageMixing;
 
 impl Rule for StageMixing {
     type Scope = ContainerId;
-    type Options = StageMixingOptions;
+    type Options = EmptyOptions;
 
     fn id(&self) -> RuleId {
         STAGE_MIXING
@@ -33,7 +32,7 @@ impl Rule for StageMixing {
         &self,
         graph: &CompoundGraph,
         scope: ContainerId,
-        options: &StageMixingOptions,
+        _options: &EmptyOptions,
         severity: Severity,
     ) -> Vec<Violation> {
         let Some(c) = graph.containers.get(&scope) else {
@@ -48,17 +47,7 @@ impl Rule for StageMixing {
         if sub_units.is_empty() {
             return vec![];
         }
-        let segments: BTreeSet<&str> = graph
-            .modules
-            .values()
-            .filter_map(|m| {
-                let rest = m.path.strip_prefix(&c.path).ok()?;
-                let mut parts = rest.iter();
-                let first = parts.next()?.to_str()?;
-                parts.next()?;
-                options.segments.iter().any(|s| s == first).then_some(first)
-            })
-            .collect();
+        let segments: BTreeSet<&str> = c.segment_dirs.iter().map(String::as_str).collect();
         if segments.is_empty() {
             return vec![];
         }
@@ -109,87 +98,65 @@ mod tests {
         visibility::VisibilityScope,
     };
 
-    fn container(id: u32, path: &str, kind: ContainerKind, parent: Option<u32>) -> Container {
+    fn container(id: u32, path: &str, kind: ContainerKind, segments: &[&str]) -> Container {
         Container {
             id: ContainerId::new(id),
             name: path.rsplit('/').next().unwrap().into(),
             path: PathBuf::from(path),
             kind,
             layer: LayerId::new(0),
-            parent: parent.map(ContainerId::new),
+            parent: id.checked_sub(1).map(ContainerId::new),
             stage: Stage::FLAT,
             entry: None,
+            segment_dirs: segments.iter().map(|s| (*s).to_owned()).collect(),
         }
     }
 
-    fn graph(files: &[(&str, u32)], sub_unit: Option<&str>) -> CompoundGraph {
+    fn check(segments: &[&str], sub_unit: Option<&[&str]>) -> Vec<Violation> {
         let mut g = CompoundGraph::empty();
         let mut cs = vec![
-            container(0, "src/features", ContainerKind::Layer, None),
-            container(1, "src/features/cart", ContainerKind::Slice, Some(0)),
+            container(0, "src/features", ContainerKind::Layer, &[]),
+            container(1, "src/features/cart", ContainerKind::Slice, segments),
         ];
-        if let Some(path) = sub_unit {
-            cs.push(container(2, path, ContainerKind::SubUnit, Some(1)));
+        if let Some(inner) = sub_unit {
+            cs.push(container(
+                2,
+                "src/features/cart/checkout",
+                ContainerKind::SubUnit,
+                inner,
+            ));
         }
         for c in cs {
             g.containers.insert(c.id, c);
         }
-        for (i, (path, container)) in files.iter().enumerate() {
-            let id = ModuleId::new(u32::try_from(i).unwrap());
-            g.modules.insert(
+        let id = ModuleId::new(0);
+        g.modules.insert(
+            id,
+            Module {
                 id,
-                Module {
-                    id,
-                    path: PathBuf::from(path),
-                    container: ContainerId::new(*container),
-                    layer: LayerId::new(0),
-                    purity: Purity::new(2).unwrap(),
-                    visibility: VisibilityScope::Public,
-                    exports: stratum_core::types::Exports::default(),
-                    calls: vec![],
-                },
-            );
-        }
-        g
-    }
-
-    fn check(g: &CompoundGraph) -> Vec<Violation> {
-        let options = StageMixingOptions {
-            segments: vec!["model".into(), "ui".into()],
-        };
-        StageMixing.check(g, ContainerId::new(1), &options, Severity::Error)
+                path: PathBuf::from("src/features/cart/index.ts"),
+                container: ContainerId::new(1),
+                layer: LayerId::new(0),
+                purity: Purity::new(2).unwrap(),
+                visibility: VisibilityScope::Public,
+                exports: stratum_core::types::Exports::default(),
+                calls: vec![],
+            },
+        );
+        StageMixing.check(&g, ContainerId::new(1), &EmptyOptions, Severity::Error)
     }
 
     #[test]
     fn segment_next_to_sub_unit_is_mixing() {
-        let g = graph(
-            &[
-                ("src/features/cart/model/store.ts", 1),
-                ("src/features/cart/checkout/index.ts", 2),
-            ],
-            Some("src/features/cart/checkout"),
-        );
-        let v = check(&g);
+        let v = check(&["model"], Some(&[]));
         assert_eq!(v.len(), 1);
         assert!(v[0].message.contains("(model)") && v[0].message.contains("(checkout)"));
     }
 
     #[test]
-    fn collection_folder_or_segments_alone_are_not_mixing() {
-        let collection = graph(
-            &[
-                ("src/features/cart/helpers/a.ts", 1),
-                ("src/features/cart/checkout/index.ts", 2),
-            ],
-            Some("src/features/cart/checkout"),
-        );
-        let segments_only = graph(&[("src/features/cart/model/store.ts", 1)], None);
-        let segment_in_sub_unit = graph(
-            &[("src/features/cart/checkout/model/a.ts", 2)],
-            Some("src/features/cart/checkout"),
-        );
-        assert!(check(&collection).is_empty());
-        assert!(check(&segments_only).is_empty());
-        assert!(check(&segment_in_sub_unit).is_empty());
+    fn sub_units_or_segments_alone_are_not_mixing() {
+        assert!(check(&[], Some(&[])).is_empty());
+        assert!(check(&["model"], None).is_empty());
+        assert!(check(&[], Some(&["model"])).is_empty());
     }
 }

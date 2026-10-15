@@ -104,6 +104,7 @@ mod tests {
                     parent: parent.map(ContainerId::new),
                     stage: Stage::FLAT,
                     entry: None,
+                    segment_dirs: vec![],
                 },
             );
         }

@@ -209,6 +209,7 @@ mod tests {
                     } else {
                         None
                     },
+                    segment_dirs: vec![],
                 },
             );
         }
