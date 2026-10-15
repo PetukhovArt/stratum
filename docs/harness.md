@@ -15,6 +15,16 @@ Integration surfaces, in order of preference:
 
 No editor extensions are shipped: any LSP client can launch `stratum-lsp` over stdio.
 
+## LSP contract
+
+- Root: first `workspaceFolders` entry, else `rootUri`, else `rootPath`, else the process cwd. `file:///c%3A/...` URIs are accepted.
+- `initialize` answers at once; the whole-project analysis runs in the background and its result is published for every open document.
+- Config: `ROOT/stratum.config.jsonc` if present, else zero-config. Editing it or a plugin script referenced from it re-runs the analysis; a broken config or plugin is reported via `window/showMessage` and the last good diagnostics stay.
+- `didOpen` / `didChange` / `didSave` re-run the analysis when the file on disk is newer than the last analysis (the graph is read from disk, so unsaved buffer text is ignored). `didClose` clears the file's diagnostics.
+- Diagnostic: `source: "stratum"`, `code` = rule slug as in config (`stratum/no-cross-layer-import`, plugin slugs too), `message` = violation message, then the suggestion on the next line. `relatedInformation` points at the imported module of an import violation, or at up to 10 other members of a cycle; a cycle is reported on each member.
+- stdout carries JSON-RPC only; logs go to `window/logMessage` (filter with `RUST_LOG`). The process exits on `exit` (code 0 after `shutdown`, else 1).
+- Claude Code routes each file extension to one LSP server, so `stratum-lsp` and a TypeScript server cannot both serve `.ts` there.
+
 ## CLI contract (stable, versioned)
 
 ```

@@ -11,6 +11,14 @@ version; a bump requires a coordinated frontend release.
 
 ## Unreleased
 
+### Removed
+
+- Editor extensions (`editor-extensions/` for VS Code, Zed, WebStorm). `stratum-lsp` stays and targets AI harnesses; see `docs/harness.md`.
+
+### Changed
+
+- `stratum-lsp`: `initialize` returns at once and analysis runs in the background; reads `stratum.config.jsonc`; re-analyzes when the config or a plugin script changes; handles `didSave`/`didClose` and `file:///c%3A/...` URIs; diagnostics carry `source: "stratum"`, the rule slug as `code` (plugin rules included), the suggestion, and `relatedInformation`.
+
 ## 0.1.0 — 2026-05-18
 
 First public release. Phases 0–10 of the implementation roadmap.
