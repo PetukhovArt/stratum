@@ -126,8 +126,9 @@ pub fn build_with_builder(
         default_purity: Purity::new(2).unwrap_or_else(|_| unreachable!("Purity(2) is valid")),
     };
     let ignore = IgnoreSet::new(config)?;
+    let vue = stratum_parser_vue::VueExtractor::new(build_cfg.tracked_calls.clone());
     let builder = GraphBuilder::new(build_cfg)
-        .with_extractor(Box::new(stratum_parser_vue::VueExtractor::new()))
+        .with_extractor(Box::new(vue))
         .with_ignore(move |rel| ignore.is_ignored(rel));
     let graph = builder.build()?;
     let registry = registry(&root_abs, config)?;

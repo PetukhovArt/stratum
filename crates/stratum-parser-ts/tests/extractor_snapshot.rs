@@ -10,7 +10,7 @@ use walkdir::WalkDir;
 fn snapshot_tiny_ts_extraction() {
     let fixture =
         Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/tiny-ts");
-    let extractor = OxcTsExtractor::new();
+    let extractor = OxcTsExtractor::default();
     let mut all = Vec::new();
 
     let mut entries: Vec<_> = WalkDir::new(fixture.as_std_path())

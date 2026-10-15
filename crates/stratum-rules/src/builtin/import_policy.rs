@@ -79,7 +79,7 @@ fn glob(pattern: &str) -> Result<globset::Glob, String> {
         .map_err(|e| format!("invalid glob {pattern:?}: {e}"))
 }
 
-fn glob_set(patterns: &[String]) -> Result<GlobSet, String> {
+pub(crate) fn glob_set(patterns: &[String]) -> Result<GlobSet, String> {
     let mut builder = GlobSetBuilder::new();
     for p in patterns {
         builder.add(glob(p)?);
@@ -110,7 +110,7 @@ fn slice_root<'a>(slice: &GlobMatcher, path: &'a str) -> Option<&'a str> {
         .find(|dir| slice.is_match(dir))
 }
 
-fn project_relative(graph: &CompoundGraph, module: &Module) -> String {
+pub(crate) fn project_relative(graph: &CompoundGraph, module: &Module) -> String {
     let path = module.path.to_string_lossy().replace('\\', "/");
     let Some(layer) = graph.layers.get(&module.layer) else {
         return path;

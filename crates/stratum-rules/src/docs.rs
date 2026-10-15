@@ -69,7 +69,10 @@ pub fn builtin(slug: &str) -> Option<RuleDoc> {
             "Some functions (DI `inject`/`provide`, global state setters) must be called from one designated place so that the wiring stays in one spot.",
             "Call the wrapper the policy's message names, or move the call into a file matched by `allow`.",
             &[
-                "a list of { calls: [name], allow: [glob], message?: string }; globs use forward slashes relative to the project root (no policies)",
+                "options: a list of policies; a call is reported by the first policy that lists its name and does not allow its file, e.g. [{ \"calls\": [\"inject\", \"provide\"], \"allow\": [\"**/_shared/*-scope.ts\"], \"message\": \"Use useXxxScope()\" }]",
+                "calls: function names; a local alias of an imported name matches too (required)",
+                "allow: globs of files where the calls are allowed, forward slashes relative to the project root ([])",
+                "message: text of the violation; the called name is appended (\"Call restricted by restricted-calls\")",
             ],
         ),
         "stratum/stage-mixing" => (

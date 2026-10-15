@@ -20,6 +20,13 @@ pub struct RawImport {
     pub type_only: bool,
 }
 
+/// A call to a tracked function: `name` is the imported name, also when the callee is a local alias.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RawCall {
+    pub name: String,
+    pub span: SourceSpan,
+}
+
 /// Everything the parser knows about one source file.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExtractedData {
@@ -29,6 +36,8 @@ pub struct ExtractedData {
     pub purity: Option<Purity>,
     #[serde(default)]
     pub exports: Exports,
+    #[serde(default)]
+    pub calls: Vec<RawCall>,
 }
 
 #[derive(Debug, thiserror::Error)]
