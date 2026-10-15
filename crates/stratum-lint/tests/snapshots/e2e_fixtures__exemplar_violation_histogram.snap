@@ -2,9 +2,15 @@
 source: crates/stratum-lint/tests/e2e_fixtures.rs
 expression: by_rule
 ---
+stratum/container-breadth: 1
 stratum/depth-ratio: 4
 stratum/miller-limit: 1
 stratum/no-circular-deps: 1
 stratum/no-cross-layer-import: 1
 stratum/promotion-pressure: 1
 stratum/public-api: 1
+stratum/restricted-calls: 1
+stratum/sibling-isolation: 1
+stratum/slice-fan-in: 1
+stratum/stage-mixing: 1
+stratum/visibility-scope: 1
