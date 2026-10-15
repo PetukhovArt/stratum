@@ -1,9 +1,6 @@
 use std::path::PathBuf;
 
-use indexmap::IndexMap;
-use petgraph::graph::DiGraph;
 use proptest::prelude::*;
-use rustc_hash::FxHashMap;
 
 use stratum_core::{
     edge::EdgeKind,
@@ -36,13 +33,7 @@ fn arb_graph(n: u32) -> impl Strategy<Value = (u32, Vec<(u32, u32)>)> {
 
 #[allow(clippy::unwrap_used)]
 fn build(n: u32, edges: &[(u32, u32)]) -> CompoundGraph {
-    let mut g = CompoundGraph {
-        modules: IndexMap::new(),
-        containers: IndexMap::new(),
-        layers: IndexMap::new(),
-        deps: DiGraph::new(),
-        node_index: FxHashMap::default(),
-    };
+    let mut g = CompoundGraph::empty();
     for i in 0..n {
         let id = ModuleId::new(i);
         let m = Module {

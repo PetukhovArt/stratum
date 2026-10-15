@@ -88,12 +88,12 @@ pub(crate) fn glob_set(patterns: &[String]) -> Result<GlobSet, String> {
 }
 
 impl Policy {
-    fn denies(&self, from: &str, to: &str) -> bool {
-        self.from.is_match(from)
-            && !self.except_from.is_match(from)
-            && self.deny.is_match(to)
-            && !self.allow.is_match(to)
-            && !self.same_slice(from, to)
+    fn governs(&self, from: &str) -> bool {
+        self.from.is_match(from) && !self.except_from.is_match(from)
+    }
+
+    fn denies_import_of(&self, from: &str, to: &str) -> bool {
+        self.deny.is_match(to) && !self.allow.is_match(to) && !self.same_slice(from, to)
     }
 
     fn same_slice(&self, from: &str, to: &str) -> bool {
@@ -157,6 +157,10 @@ impl Rule for ImportPolicy {
             return Vec::new();
         };
         let from = project_relative(graph, from_mod.layer, &from_mod.path);
+        let governing: Vec<&Policy> = options.0.iter().filter(|p| p.governs(&from)).collect();
+        if governing.is_empty() {
+            return Vec::new();
+        }
         let mut seen = BTreeSet::new();
         let mut out = Vec::new();
         for edge in graph.deps.edges_directed(node, Direction::Outgoing) {
@@ -168,7 +172,7 @@ impl Rule for ImportPolicy {
                 continue;
             }
             let to = project_relative(graph, to_mod.layer, &to_mod.path);
-            let Some(policy) = options.0.iter().find(|p| p.denies(&from, &to)) else {
+            let Some(policy) = governing.iter().find(|p| p.denies_import_of(&from, &to)) else {
                 continue;
             };
             out.push(Violation {
@@ -197,9 +201,6 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
-    use indexmap::IndexMap;
-    use petgraph::graph::DiGraph;
-    use rustc_hash::FxHashMap;
     use stratum_core::{
         edge::EdgeKind,
         ids::{ContainerId, LayerId},
@@ -209,13 +210,7 @@ mod tests {
     };
 
     fn graph(paths: &[&str], edges: &[(u32, u32)]) -> CompoundGraph {
-        let mut g = CompoundGraph {
-            modules: IndexMap::new(),
-            containers: IndexMap::new(),
-            layers: IndexMap::new(),
-            deps: DiGraph::new(),
-            node_index: FxHashMap::default(),
-        };
+        let mut g = CompoundGraph::empty();
         g.layers.insert(
             LayerId::new(0),
             Layer {

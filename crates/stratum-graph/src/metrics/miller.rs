@@ -14,9 +14,7 @@ pub fn miller_fan_in(g: &CompoundGraph, module: ModuleId) -> usize {
 mod tests {
     use super::*;
     use crate::graph::CompoundGraph;
-    use indexmap::IndexMap;
-    use petgraph::graph::DiGraph;
-    use rustc_hash::FxHashMap;
+
     use std::path::PathBuf;
     use stratum_core::ids::ContainerId;
     use stratum_core::{
@@ -37,13 +35,7 @@ mod tests {
     }
 
     fn small_graph(modules: Vec<Module>, edges: &[(u32, u32)]) -> CompoundGraph {
-        let mut g = CompoundGraph {
-            modules: IndexMap::new(),
-            containers: IndexMap::new(),
-            layers: IndexMap::new(),
-            deps: DiGraph::new(),
-            node_index: FxHashMap::default(),
-        };
+        let mut g = CompoundGraph::empty();
         for m in modules {
             let node = g.deps.add_node(m.id);
             g.node_index.insert(m.id, node);

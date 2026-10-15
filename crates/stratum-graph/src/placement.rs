@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
@@ -91,16 +91,18 @@ pub fn place(
     files: &[Utf8PathBuf],
 ) -> Placement {
     let roots: Vec<Utf8PathBuf> = layers.iter().map(|l| layer_root(root, l)).collect();
+    let root_components: Vec<Vec<Utf8Component>> =
+        roots.iter().map(|r| r.components().collect()).collect();
     let assigned: Vec<(usize, usize)> = files
         .iter()
         .enumerate()
-        .filter_map(|(file, path)| Some((file, layer_of(&roots, path)?)))
+        .filter_map(|(file, path)| Some((file, layer_of(&root_components, path)?)))
         .collect();
     let mut walk = Walk {
         layers,
         structure,
         entries: entry_dirs(structure, files, &assigned),
-        drafts: BTreeMap::new(),
+        drafts: FxHashMap::default(),
         roots,
     };
     for i in 0..layers.len() {
@@ -139,7 +141,7 @@ struct Walk<'a> {
     structure: &'a Structure,
     roots: Vec<Utf8PathBuf>,
     entries: FxHashMap<&'a Utf8Path, Entry>,
-    drafts: BTreeMap<Key, Draft>,
+    drafts: FxHashMap<Key, Draft>,
 }
 
 impl Walk<'_> {
@@ -230,10 +232,11 @@ impl Walk<'_> {
     ) {
         let layers = self.layers;
         let mut next = layers.iter().map(|l| l.id.raw() + 1).max().unwrap_or(0);
-        let ids: FxHashMap<Key, ContainerId> = self
-            .drafts
-            .keys()
-            .map(|key| {
+        let mut drafts: Vec<(Key, Draft)> = self.drafts.into_iter().collect();
+        drafts.sort_unstable_by(|(a, _), (b, _)| a.cmp(b));
+        let ids: FxHashMap<Key, ContainerId> = drafts
+            .iter()
+            .map(|(key, _)| {
                 let id = match key {
                     Key::Layer(i) => ContainerId::new(layers[*i].id.raw()),
                     Key::Path(_) => {
@@ -244,8 +247,7 @@ impl Walk<'_> {
                 (key.clone(), id)
             })
             .collect();
-        let containers = self
-            .drafts
+        let containers = drafts
             .into_iter()
             .map(|(key, d)| {
                 let id = ids[&key];
@@ -286,11 +288,12 @@ fn layer_root(root: &Utf8Path, layer: &Layer) -> Utf8PathBuf {
     out
 }
 
-fn layer_of(roots: &[Utf8PathBuf], path: &Utf8Path) -> Option<usize> {
+fn layer_of(roots: &[Vec<Utf8Component>], path: &Utf8Path) -> Option<usize> {
+    let path: Vec<Utf8Component> = path.components().collect();
     let mut best: Option<(usize, usize)> = None;
     for (i, r) in roots.iter().enumerate() {
         if path.starts_with(r) {
-            let depth = r.components().count();
+            let depth = r.len();
             if best.is_none_or(|(d, _)| depth > d) {
                 best = Some((depth, i));
             }

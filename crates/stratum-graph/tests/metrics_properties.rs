@@ -2,10 +2,7 @@
 
 use std::path::PathBuf;
 
-use indexmap::IndexMap;
-use petgraph::graph::DiGraph;
 use proptest::prelude::*;
-use rustc_hash::FxHashMap;
 
 use stratum_core::{
     edge::EdgeKind,
@@ -39,13 +36,7 @@ fn arb_edges(n: u32) -> impl Strategy<Value = Vec<(u32, u32)>> {
 }
 
 fn build(n: u32, edges: &[(u32, u32)]) -> CompoundGraph {
-    let mut g = CompoundGraph {
-        modules: IndexMap::new(),
-        containers: IndexMap::new(),
-        layers: IndexMap::new(),
-        deps: DiGraph::new(),
-        node_index: FxHashMap::default(),
-    };
+    let mut g = CompoundGraph::empty();
     for i in 0..n {
         let container = if i % 2 == 0 { 100 } else { 200 };
         let m = Module {

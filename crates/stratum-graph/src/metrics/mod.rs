@@ -4,7 +4,7 @@ pub mod depth_ratio;
 pub mod miller;
 pub mod promotion;
 
-pub use depth_ratio::{depth_ratio, subtree_module_count};
+pub use depth_ratio::depth_ratio;
 pub use miller::miller_fan_in;
 pub use promotion::promotion_pressure;
 

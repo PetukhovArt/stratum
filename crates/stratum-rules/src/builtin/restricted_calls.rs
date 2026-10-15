@@ -133,9 +133,6 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
-    use indexmap::IndexMap;
-    use petgraph::graph::DiGraph;
-    use rustc_hash::FxHashMap;
     use stratum_core::{
         ids::{ContainerId, LayerId},
         purity::Purity,
@@ -145,13 +142,7 @@ mod tests {
     };
 
     fn graph(paths: &[&str]) -> CompoundGraph {
-        let mut g = CompoundGraph {
-            modules: IndexMap::new(),
-            containers: IndexMap::new(),
-            layers: IndexMap::new(),
-            deps: DiGraph::new(),
-            node_index: FxHashMap::default(),
-        };
+        let mut g = CompoundGraph::empty();
         g.layers.insert(
             LayerId::new(0),
             Layer {

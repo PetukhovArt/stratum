@@ -92,6 +92,7 @@ mod tests {
 
     use super::*;
     use crate::BuildConfig;
+    use crate::index::GraphIndex;
 
     #[test]
     fn an_edit_that_only_adds_a_tracked_call_updates_module_calls() {
@@ -120,9 +121,11 @@ mod tests {
             .unwrap()
             .id;
         assert!(graph.modules[&id].calls.is_empty());
+        let index_before = graph.index().clone();
 
         let source = "export const formatId = (id: string) => `[${id}]`;\nconst x = inject('k');\n";
         assert!(builder.update_module(&mut graph, id, source).unwrap());
+        assert_eq!(index_before, GraphIndex::of(&graph));
 
         let calls = &graph.modules[&id].calls;
         assert_eq!(calls.len(), 1);

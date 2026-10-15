@@ -81,9 +81,6 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
-    use indexmap::IndexMap;
-    use petgraph::graph::DiGraph;
-    use rustc_hash::FxHashMap;
     use stratum_core::{
         edge::EdgeKind,
         ids::{ContainerId, LayerId},
@@ -106,13 +103,7 @@ mod tests {
     }
 
     fn build(mods: Vec<Module>, edges: &[(u32, u32)]) -> CompoundGraph {
-        let mut g = CompoundGraph {
-            modules: IndexMap::new(),
-            containers: IndexMap::new(),
-            layers: IndexMap::new(),
-            deps: DiGraph::new(),
-            node_index: FxHashMap::default(),
-        };
+        let mut g = CompoundGraph::empty();
         for m in mods {
             let node = g.deps.add_node(m.id);
             g.node_index.insert(m.id, node);

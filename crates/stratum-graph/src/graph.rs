@@ -1,5 +1,5 @@
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use indexmap::IndexMap;
 use petgraph::graph::{DiGraph, NodeIndex};
@@ -8,8 +8,9 @@ use stratum_core::{
     edge::EdgeKind,
     ids::{ContainerId, LayerId, ModuleId},
     types::{Container, ContainerKind, Layer, Module},
-    visibility::VisibilityScope,
 };
+
+use crate::index::{DirEntries, GraphIndex};
 
 /// The compound graph view used by rules, the LSP, and the visualizer.
 ///
@@ -25,6 +26,9 @@ pub struct CompoundGraph {
     pub layers: IndexMap<LayerId, Layer>,
     pub deps: DiGraph<ModuleId, EdgeKind>,
     pub node_index: rustc_hash::FxHashMap<ModuleId, NodeIndex>,
+    /// Built on first read from module paths, visibility and containers. Incremental updates
+    /// change none of these; a change to them needs a new graph, or the index goes stale.
+    index: OnceLock<GraphIndex>,
 }
 
 impl CompoundGraph {
@@ -36,7 +40,23 @@ impl CompoundGraph {
             layers: IndexMap::new(),
             deps: DiGraph::new(),
             node_index: rustc_hash::FxHashMap::default(),
+            index: OnceLock::new(),
         }
+    }
+
+    pub(crate) fn index(&self) -> &GraphIndex {
+        self.index.get_or_init(|| GraphIndex::of(self))
+    }
+
+    /// Modules held by `c` or by any container nested in it.
+    #[must_use]
+    pub fn subtree_module_count(&self, c: ContainerId) -> usize {
+        self.index().subtree_modules.get(&c).copied().unwrap_or(0)
+    }
+
+    #[must_use]
+    pub fn dir_entries(&self, dir: &Path) -> Option<&DirEntries> {
+        self.index().dirs.get(dir)
     }
 
     #[must_use]
@@ -91,32 +111,19 @@ impl CompoundGraph {
     /// Every private-zone folder that holds modules, in path order. `files` excludes
     /// modules of a zone nested inside it.
     #[must_use]
-    pub fn private_zones(&self) -> Vec<PrivateZone> {
-        let mut zones: BTreeMap<PathBuf, PrivateZone> = BTreeMap::new();
-        for m in self.modules.values() {
-            let VisibilityScope::Private { root } = &m.visibility else {
-                continue;
-            };
-            let Some(zone) = m
-                .path
-                .strip_prefix(root)
-                .ok()
-                .and_then(|rest| rest.components().next())
-            else {
-                continue;
-            };
-            let path = root.join(zone);
-            zones
-                .entry(path.clone())
-                .or_insert_with(|| PrivateZone {
-                    path,
-                    root: root.clone(),
-                    files: vec![],
-                })
-                .files
-                .push(m.id);
-        }
-        zones.into_values().collect()
+    pub fn private_zones(&self) -> &[PrivateZone] {
+        &self.index().zones
+    }
+
+    /// The private zones whose innermost enclosing container is `c`, in path order.
+    pub fn private_zones_in(&self, c: ContainerId) -> impl Iterator<Item = &PrivateZone> {
+        let index = self.index();
+        index
+            .zones
+            .iter()
+            .zip(&index.zone_containers)
+            .filter(move |(_, at)| **at == Some(c))
+            .map(|(z, _)| z)
     }
 }
 

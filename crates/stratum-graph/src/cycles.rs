@@ -41,19 +41,11 @@ pub fn find_cycles(g: &CompoundGraph) -> Vec<Cycle> {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use indexmap::IndexMap;
-    use petgraph::graph::DiGraph;
-    use rustc_hash::FxHashMap;
+
     use stratum_core::edge::EdgeKind;
 
     fn graph_with_edges(n: u32, edges: &[(u32, u32)]) -> CompoundGraph {
-        let mut g = CompoundGraph {
-            modules: IndexMap::new(),
-            containers: IndexMap::new(),
-            layers: IndexMap::new(),
-            deps: DiGraph::new(),
-            node_index: FxHashMap::default(),
-        };
+        let mut g = CompoundGraph::empty();
         for i in 0..n {
             let id = ModuleId::new(i);
             let node = g.deps.add_node(id);

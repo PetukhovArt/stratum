@@ -3,10 +3,7 @@ use stratum_core::{
     severity::Severity,
     violation::{SourceLocation, Violation},
 };
-use stratum_graph::{
-    CompoundGraph,
-    metrics::{depth_ratio, subtree_module_count},
-};
+use stratum_graph::{CompoundGraph, metrics::depth_ratio};
 
 use crate::ids::DEPTH_RATIO;
 use crate::options::DepthRatioOptions;
@@ -46,7 +43,7 @@ impl Rule for DepthRatio {
             return vec![];
         }
         let outer = graph.outer_container(scope);
-        let size = subtree_module_count(graph, outer.map_or(m.container, |c| c.id));
+        let size = graph.subtree_module_count(outer.map_or(m.container, |c| c.id));
         vec![Violation {
             rule: self.id(),
             severity,

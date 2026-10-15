@@ -4,9 +4,6 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use camino::Utf8PathBuf;
-use indexmap::IndexMap;
-use petgraph::graph::DiGraph;
-use rustc_hash::FxHashMap;
 use stratum_config::{Config, LayerConfig, ProjectConfig, RuleConfig};
 use stratum_core::{
     edge::EdgeKind,
@@ -38,13 +35,7 @@ fn module(id: u32, layer_raw: u32, path: &str) -> Module {
 }
 
 fn build_graph() -> CompoundGraph {
-    let mut g = CompoundGraph {
-        modules: IndexMap::new(),
-        containers: IndexMap::new(),
-        layers: IndexMap::new(),
-        deps: DiGraph::new(),
-        node_index: FxHashMap::default(),
-    };
+    let mut g = CompoundGraph::empty();
     g.layers.insert(
         LayerId::new(1),
         Layer {

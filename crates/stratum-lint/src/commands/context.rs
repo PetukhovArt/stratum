@@ -157,7 +157,7 @@ fn brief(input: &EngineInput, file_abs: &Utf8Path, rel: &Utf8Path) -> miette::Re
     fill_containers(&mut brief, input, container, file_abs, rel)?;
     brief.private_zones = graph
         .private_zones()
-        .into_iter()
+        .iter()
         .filter(|z| Path::new(file_abs.as_str()).starts_with(&z.root))
         .map(|z| input.relative(&z.path))
         .collect();

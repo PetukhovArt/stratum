@@ -1,4 +1,4 @@
-use stratum_core::ids::{ContainerId, ModuleId};
+use stratum_core::ids::ModuleId;
 
 use crate::graph::CompoundGraph;
 
@@ -12,29 +12,17 @@ pub fn depth_ratio(g: &CompoundGraph, module: ModuleId) -> Option<f64> {
     if m.exports.count == 0 {
         return None;
     }
-    let size = subtree_module_count(g, super::outer_container(g, m));
+    let size = g.subtree_module_count(super::outer_container(g, m));
     Some(size as f64 / f64::from(m.exports.count))
-}
-
-/// Modules held by `c` or by any container nested in it.
-#[must_use]
-pub fn subtree_module_count(g: &CompoundGraph, c: ContainerId) -> usize {
-    g.modules
-        .values()
-        .filter(|m| m.container == c || g.containers_of(m.id).any(|x| x.id == c))
-        .count()
 }
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use indexmap::IndexMap;
-    use petgraph::graph::DiGraph;
-    use rustc_hash::FxHashMap;
     use std::path::PathBuf;
     use stratum_core::{
-        ids::LayerId,
+        ids::{ContainerId, LayerId},
         purity::Purity,
         types::{Exports, Module},
         visibility::VisibilityScope,
@@ -57,13 +45,7 @@ mod tests {
     }
 
     fn small(modules: Vec<Module>) -> CompoundGraph {
-        let mut g = CompoundGraph {
-            modules: IndexMap::new(),
-            containers: IndexMap::new(),
-            layers: IndexMap::new(),
-            deps: DiGraph::new(),
-            node_index: FxHashMap::default(),
-        };
+        let mut g = CompoundGraph::empty();
         for m in modules {
             let node = g.deps.add_node(m.id);
             g.node_index.insert(m.id, node);

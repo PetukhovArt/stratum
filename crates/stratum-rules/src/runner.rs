@@ -40,6 +40,9 @@ pub fn run_all_with_registry(
     for r in registry.rules() {
         let slug = r.slug();
         let default_sev = r.default_severity();
+        if is_off_everywhere(config, slug, default_sev) {
+            continue;
+        }
         let base_options = config
             .rules
             .get(slug)
@@ -73,6 +76,16 @@ pub fn run_all_with_registry(
     Ok(all)
 }
 
+fn is_off_everywhere(config: &Config, slug: &str, default_sev: Severity) -> bool {
+    let base = config.rules.get(slug).map_or(default_sev, |rc| rc.severity);
+    base == Severity::Off
+        && config
+            .overrides
+            .iter()
+            .filter_map(|block| block.rules.get(slug))
+            .all(|rule| rule.severity == Severity::Off)
+}
+
 fn to_relative_forward_slash(file: &std::path::Path, project_root: &Utf8Path) -> Utf8PathBuf {
     let abs = Utf8PathBuf::from(file.to_string_lossy().to_string());
     let root = strip_windows_extended_prefix(project_root);
@@ -97,9 +110,6 @@ mod tests {
     use std::collections::BTreeMap;
     use std::path::PathBuf;
 
-    use indexmap::IndexMap;
-    use petgraph::graph::DiGraph;
-    use rustc_hash::FxHashMap;
     use stratum_config::{LayerConfig, ProjectConfig, RuleConfig};
     use stratum_core::{
         edge::EdgeKind,
@@ -123,13 +133,7 @@ mod tests {
     }
 
     fn build_graph_two_layers() -> CompoundGraph {
-        let mut g = CompoundGraph {
-            modules: IndexMap::new(),
-            containers: IndexMap::new(),
-            layers: IndexMap::new(),
-            deps: DiGraph::new(),
-            node_index: FxHashMap::default(),
-        };
+        let mut g = CompoundGraph::empty();
         g.layers.insert(
             LayerId::new(1),
             Layer {
@@ -283,5 +287,65 @@ mod tests {
         );
         assert_eq!(severities(Severity::Info), [Severity::Info, Severity::Info]);
         assert!(severities(Severity::Off).is_empty());
+    }
+
+    struct Counting(std::sync::Arc<std::sync::atomic::AtomicUsize>);
+
+    impl crate::rule::Rule for Counting {
+        type Scope = crate::scope::ProjectScope;
+        type Options = crate::rule::EmptyOptions;
+
+        fn id(&self) -> stratum_core::ids::RuleId {
+            ids::NO_CROSS_LAYER_IMPORT
+        }
+        fn slug(&self) -> &'static str {
+            "stratum/no-cross-layer-import"
+        }
+        fn default_severity(&self) -> Severity {
+            Severity::Warning
+        }
+        fn check(
+            &self,
+            graph: &CompoundGraph,
+            scope: crate::scope::ProjectScope,
+            options: &crate::rule::EmptyOptions,
+            severity: Severity,
+        ) -> Vec<Violation> {
+            self.0.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            Downgrading.check(graph, scope, options, severity)
+        }
+    }
+
+    #[test]
+    fn a_rule_is_run_only_where_the_config_turns_it_on() {
+        let runs = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let mut registry = RuleRegistry::new();
+        registry.register(Counting(runs.clone()));
+        let mut cfg = base_config();
+        cfg.rules
+            .get_mut("stratum/no-cross-layer-import")
+            .unwrap()
+            .severity = Severity::Off;
+        let findings = |cfg: &Config| {
+            run_all_with_registry(&CompoundGraph::empty(), cfg, &root(), &registry)
+                .unwrap()
+                .len()
+        };
+
+        assert_eq!(findings(&cfg), 0);
+        assert_eq!(runs.load(std::sync::atomic::Ordering::Relaxed), 0);
+
+        cfg.overrides.push(stratum_config::OverrideBlock {
+            files: vec!["**".into()],
+            rules: [(
+                "stratum/no-cross-layer-import".to_owned(),
+                stratum_config::OverrideRule {
+                    severity: Severity::Warning,
+                },
+            )]
+            .into(),
+        });
+        assert_eq!(findings(&cfg), 2);
+        assert_eq!(runs.load(std::sync::atomic::Ordering::Relaxed), 1);
     }
 }
