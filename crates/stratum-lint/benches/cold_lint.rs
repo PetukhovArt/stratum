@@ -37,6 +37,7 @@ fn tiny_ts_config() -> Config {
         project: ProjectConfig {
             root: "./src".into(),
             extends: None,
+            ignore: vec![],
         },
         layers: vec![
             LayerConfig {
