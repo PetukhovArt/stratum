@@ -1,17 +1,6 @@
-use std::collections::BTreeMap;
-
 use camino::{Utf8Path, Utf8PathBuf};
-use stratum_config::{Config, LayerConfig, ProjectConfig, RuleConfig};
-use stratum_core::severity::Severity;
+use stratum_config::{Config, LayerConfig, ProjectConfig};
 use walkdir::WalkDir;
-
-const BUILTIN_RULES: &[(&str, Severity)] = &[
-    ("stratum/no-cross-layer-import", Severity::Warning),
-    ("stratum/no-circular-deps", Severity::Error),
-    ("stratum/stage-purity", Severity::Warning),
-    ("stratum/miller-limit", Severity::Info),
-    ("stratum/depth-ratio", Severity::Info),
-];
 
 /// Synthesise a `Config` by inspecting `<root>/src/*` directories.
 #[must_use]
@@ -37,17 +26,7 @@ pub fn infer(root: &Utf8Path) -> Config {
     }
     layers.sort_by(|a, b| a.id.cmp(&b.id));
 
-    let mut rules = BTreeMap::new();
-    for (slug, sev) in BUILTIN_RULES {
-        rules.insert(
-            (*slug).into(),
-            RuleConfig {
-                severity: *sev,
-                options: serde_json::Value::Null,
-                script: None,
-            },
-        );
-    }
+    let rules = stratum_config::recommended_rules();
 
     Config {
         version: 1,

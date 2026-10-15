@@ -1,0 +1,151 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "LayerConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "depends_on": {
+          "default": [],
+          "description": "Ids of the layers this layer may import from.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "path": {
+          "description": "Directory relative to the project root; a module belongs to the layer with the longest matching path.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "path"
+      ],
+      "type": "object"
+    },
+    "OverrideBlock": {
+      "additionalProperties": false,
+      "properties": {
+        "files": {
+          "description": "Globs matched against forward-slash paths relative to the project root.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "rules": {
+          "additionalProperties": {
+            "$ref": "#/definitions/RuleConfig"
+          },
+          "default": {},
+          "type": "object"
+        }
+      },
+      "required": [
+        "files"
+      ],
+      "type": "object"
+    },
+    "ProjectConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "extends": {
+          "default": null,
+          "description": "A config file path relative to this file, or a built-in preset: `stratum:recommended`, `stratum:fsd`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "root": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "root"
+      ],
+      "type": "object"
+    },
+    "RuleConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "options": {
+          "default": null,
+          "description": "Rule-specific, validated against the rule when the config loads: unknown keys are errors."
+        },
+        "script": {
+          "default": null,
+          "description": "A `.rhai` script relative to the project root that implements this slug as a plugin rule.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "severity": {
+          "$ref": "#/definitions/Severity"
+        }
+      },
+      "required": [
+        "severity"
+      ],
+      "type": "object"
+    },
+    "Severity": {
+      "enum": [
+        "off",
+        "info",
+        "warning",
+        "error"
+      ],
+      "type": "string"
+    }
+  },
+  "description": "The whole `stratum.config.jsonc` document.",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "layers": {
+      "default": [],
+      "description": "Merged with the `extends` parent by `id`: a child entry overrides the parent entry field by field.",
+      "items": {
+        "$ref": "#/definitions/LayerConfig"
+      },
+      "type": "array"
+    },
+    "overrides": {
+      "default": [],
+      "description": "Appended after the `extends` parent's overrides; the last matching block wins per rule.",
+      "items": {
+        "$ref": "#/definitions/OverrideBlock"
+      },
+      "type": "array"
+    },
+    "project": {
+      "$ref": "#/definitions/ProjectConfig"
+    },
+    "rules": {
+      "additionalProperties": {
+        "$ref": "#/definitions/RuleConfig"
+      },
+      "default": {},
+      "description": "Keyed by rule slug. Merged with the `extends` parent by slug, field by field.",
+      "type": "object"
+    },
+    "version": {
+      "format": "uint32",
+      "minimum": 0.0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "project",
+    "version"
+  ],
+  "title": "Config",
+  "type": "object"
+}

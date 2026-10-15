@@ -3,7 +3,8 @@ use rhai::Engine;
 /// Construct a locked-down Rhai engine: includes the safe-by-default
 /// `StandardPackage` (strings, arrays, maps, math) but disables `eval` and
 /// bounds recursion/memory. Rhai's standard package excludes FS/network/process
-/// access by construction.
+/// access by construction. Script `print` / `debug` go to stderr: stdout carries
+/// reporter output and the LSP's JSON-RPC stream.
 #[must_use]
 pub fn build_engine() -> Engine {
     let mut engine = Engine::new();
@@ -13,6 +14,10 @@ pub fn build_engine() -> Engine {
     engine.set_max_operations(100_000);
     engine.set_max_string_size(8_192);
     engine.set_max_array_size(4_096);
+    engine.on_print(|text| eprintln!("{text}"));
+    engine.on_debug(|text, source, pos| {
+        eprintln!("[rhai {} {pos}] {text}", source.unwrap_or("script"));
+    });
     engine
 }
 

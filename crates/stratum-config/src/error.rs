@@ -12,6 +12,16 @@ pub enum ConfigError {
     Parse { path: Utf8PathBuf, message: String },
     #[error("Config validation error in {path}: {message}")]
     Validation { path: Utf8PathBuf, message: String },
+    #[error("Config {path} extends unknown preset {name:?}; built-in presets: {presets}")]
+    UnknownPreset {
+        path: Utf8PathBuf,
+        name: String,
+        presets: String,
+    },
+    #[error("Cycle in extends chain: {chain}")]
+    ExtendsCycle { chain: String },
+    #[error("Rule {slug:?}: {message}")]
+    Rule { slug: String, message: String },
     #[error("Invalid glob pattern {pattern:?}: {source}")]
     BadGlob {
         pattern: String,

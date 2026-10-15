@@ -129,3 +129,41 @@ fn rhai_rule_flags_legacy_module_via_registry() {
     assert!(custom[0].message.contains("legacy"));
     assert!(custom[0].suggestion.is_some());
 }
+
+#[test]
+fn script_sees_outgoing_imports_and_rule_options() {
+    use std::io::Write;
+
+    let mut script = tempfile::NamedTempFile::new().unwrap();
+    writeln!(
+        script,
+        r#"fn check(m, options) {{
+            let out = [];
+            for i in m.imports {{
+                if i.layer == options.banned {{
+                    out.push(#{{ message: m.layer + " -> " + i.path + " (" + i.kind + ")" }});
+                }}
+            }}
+            out
+        }}"#
+    )
+    .unwrap();
+    let path = Utf8PathBuf::from_path_buf(script.path().to_path_buf()).unwrap();
+    let rule = load("custom/banned-layer", RuleId::new(PLUGIN_ID_FLOOR), &path).unwrap();
+    let mut registry = RuleRegistry::new();
+    registry.register(rule);
+
+    let mut cfg = config_with_custom_rule();
+    cfg.rules = BTreeMap::from([(
+        "custom/banned-layer".into(),
+        RuleConfig {
+            severity: Severity::Error,
+            options: serde_json::json!({ "banned": "app" }),
+            script: None,
+        },
+    )]);
+    let violations =
+        run_all_with_registry(&build_graph(), &cfg, &Utf8PathBuf::from(""), &registry).unwrap();
+    let messages: Vec<&str> = violations.iter().map(|v| v.message.as_str()).collect();
+    assert_eq!(messages, vec!["legacy -> src/app/main.ts (static)"]);
+}
