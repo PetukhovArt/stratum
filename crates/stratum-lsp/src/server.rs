@@ -1,45 +1,177 @@
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant, SystemTime};
 
 use tokio::sync::Mutex;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tower_lsp::jsonrpc::{Error as JsonRpcError, Result as JsonRpcResult};
 use tower_lsp::lsp_types::{
-    DidChangeTextDocumentParams, DidOpenTextDocumentParams, DocumentLink, DocumentLinkOptions,
-    DocumentLinkParams, Hover, HoverParams, HoverProviderCapability, InitializeParams,
-    InitializeResult, MessageType, NumberOrString, ServerCapabilities, ServerInfo,
-    TextDocumentSyncCapability, TextDocumentSyncKind, Url,
+    DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+    DidSaveTextDocumentParams, DocumentLink, DocumentLinkOptions, DocumentLinkParams, Hover,
+    HoverParams, HoverProviderCapability, InitializeParams, InitializeResult, InitializedParams,
+    MessageType, NumberOrString, SaveOptions, ServerCapabilities, ServerInfo,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
+    TextDocumentSyncSaveOptions, Url, WorkDoneProgressOptions,
 };
 use tower_lsp::{Client, LanguageServer};
 
-use crate::debounce::Debouncer;
-use crate::state::ServerState;
+use crate::analysis;
+use crate::paths::{path_key, uri_to_path};
+use crate::state::{ServerState, resolve_root};
+use crate::watch::InputWatcher;
 use crate::{document_links, hover};
 
-const DEBOUNCE_MS: u64 = 50;
+const DEBOUNCE: Duration = Duration::from_millis(50);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Backend {
-    pub client: Client,
-    pub state: Arc<Mutex<ServerState>>,
-    pub debouncer: Arc<Debouncer>,
+    client: Client,
+    state: Arc<Mutex<ServerState>>,
+    requests: UnboundedSender<()>,
+    pending: Arc<Mutex<Option<UnboundedReceiver<()>>>>,
+    watcher: Arc<std::sync::Mutex<InputWatcher>>,
+}
+
+impl Backend {
+    #[must_use]
+    pub fn new(client: Client) -> Self {
+        let (requests, pending) = unbounded_channel();
+        Self {
+            client,
+            state: Arc::new(Mutex::new(ServerState::default())),
+            requests,
+            pending: Arc::new(Mutex::new(Some(pending))),
+            watcher: Arc::new(std::sync::Mutex::new(InputWatcher::default())),
+        }
+    }
+
+    fn request_analysis(&self) {
+        let _ = self.requests.send(());
+    }
+
+    async fn run_analyses(self, mut requests: UnboundedReceiver<()>) {
+        while requests.recv().await.is_some() {
+            tokio::time::sleep(DEBOUNCE).await;
+            while requests.try_recv().is_ok() {}
+            self.analyze_once().await;
+        }
+    }
+
+    async fn analyze_once(&self) {
+        let root = {
+            let mut state = self.state.lock().await;
+            state.analysis_started = Some(SystemTime::now());
+            state.root.clone()
+        };
+        let Some(root) = root else { return };
+        let started = Instant::now();
+        let analysis = match tokio::task::spawn_blocking(move || analysis::analyze(&root)).await {
+            Ok(a) => a,
+            Err(err) => {
+                tracing::error!("analysis crashed: {err}");
+                return;
+            }
+        };
+        let watch_result = self
+            .watcher
+            .lock()
+            .map_err(|_| "watcher lock poisoned".to_string())
+            .and_then(|mut w| {
+                w.watch(&analysis.inputs, self.requests.clone())
+                    .map_err(|e| e.to_string())
+            });
+        if let Err(err) = watch_result {
+            tracing::warn!("config watcher failed: {err}");
+        }
+        match analysis.outcome {
+            Ok(diagnostics) => {
+                let publishes: Vec<_> = {
+                    let mut state = self.state.lock().await;
+                    state.diagnostics = Some(diagnostics);
+                    state.last_error = None;
+                    state
+                        .open
+                        .iter()
+                        .map(|(key, uri)| (uri.clone(), state.diagnostics_for(key)))
+                        .collect()
+                };
+                tracing::info!("analysis done in {} ms", started.elapsed().as_millis());
+                for (uri, diags) in publishes {
+                    self.client.publish_diagnostics(uri, diags, None).await;
+                }
+            }
+            Err(err) => {
+                let message = format!("stratum: {err}");
+                tracing::error!("{message}");
+                let repeated = {
+                    let mut state = self.state.lock().await;
+                    state.last_error.replace(message.clone()).as_deref() == Some(message.as_str())
+                };
+                if !repeated {
+                    self.client.show_message(MessageType::ERROR, message).await;
+                }
+            }
+        }
+    }
+
+    async fn touch(&self, uri: Url, publish_cached: bool) {
+        let Some(path) = uri_to_path(&uri) else {
+            return;
+        };
+        let key = path_key(&path);
+        let (needs_analysis, previous) = {
+            let mut state = self.state.lock().await;
+            state.open.insert(key.clone(), uri.clone());
+            (
+                state.is_stale(&path),
+                state
+                    .diagnostics
+                    .is_some()
+                    .then(|| state.diagnostics_for(&key)),
+            )
+        };
+        if needs_analysis {
+            self.request_analysis();
+        } else if let (true, Some(diags)) = (publish_cached, previous) {
+            self.client.publish_diagnostics(uri, diags, None).await;
+        }
+    }
+
+    async fn diagnostic_at(&self, uri: &Url, line: u32) -> Option<(String, String)> {
+        let key = path_key(&uri_to_path(uri)?);
+        let state = self.state.lock().await;
+        state
+            .diagnostics_for(&key)
+            .into_iter()
+            .find(|d| d.range.start.line == line)
+            .and_then(|d| match d.code {
+                Some(NumberOrString::String(slug)) => Some((slug, d.message)),
+                _ => None,
+            })
+    }
 }
 
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> JsonRpcResult<InitializeResult> {
-        let mut state = self.state.lock().await;
-        if let Err(err) = state.init(&params) {
-            return Err(JsonRpcError::invalid_params(err.to_string()));
-        }
+        let root = resolve_root(&params)
+            .ok_or_else(|| JsonRpcError::invalid_params("no usable workspace folder or rootUri"))?;
+        self.state.lock().await.root = Some(root);
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
-                text_document_sync: Some(TextDocumentSyncCapability::Kind(
-                    TextDocumentSyncKind::FULL,
+                text_document_sync: Some(TextDocumentSyncCapability::Options(
+                    TextDocumentSyncOptions {
+                        open_close: Some(true),
+                        change: Some(TextDocumentSyncKind::FULL),
+                        save: Some(TextDocumentSyncSaveOptions::SaveOptions(SaveOptions {
+                            include_text: Some(false),
+                        })),
+                        ..Default::default()
+                    },
                 )),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 document_link_provider: Some(DocumentLinkOptions {
                     resolve_provider: Some(false),
-                    work_done_progress_options: tower_lsp::lsp_types::WorkDoneProgressOptions {
+                    work_done_progress_options: WorkDoneProgressOptions {
                         work_done_progress: None,
                     },
                 }),
@@ -52,11 +184,12 @@ impl LanguageServer for Backend {
         })
     }
 
-    async fn initialized(&self, _: tower_lsp::lsp_types::InitializedParams) {
-        self.client
-            .log_message(MessageType::INFO, "stratum-lsp ready")
-            .await;
-        self.spawn_plugin_watcher().await;
+    async fn initialized(&self, _: InitializedParams) {
+        let Some(requests) = self.pending.lock().await.take() else {
+            return;
+        };
+        tokio::spawn(self.clone().run_analyses(requests));
+        self.request_analysis();
     }
 
     async fn shutdown(&self) -> JsonRpcResult<()> {
@@ -64,156 +197,43 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        let uri = params.text_document.uri.clone();
-        let text = params.text_document.text;
-        self.refresh(uri, text).await;
+        self.touch(params.text_document.uri, true).await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
-        let uri = params.text_document.uri.clone();
-        let new_text = params
-            .content_changes
-            .into_iter()
-            .last()
-            .map(|c| c.text)
-            .unwrap_or_default();
-        {
-            let mut state = self.state.lock().await;
-            state.doc_text.insert(uri.clone(), new_text);
+        self.touch(params.text_document.uri, false).await;
+    }
+
+    async fn did_save(&self, params: DidSaveTextDocumentParams) {
+        self.touch(params.text_document.uri, false).await;
+    }
+
+    async fn did_close(&self, params: DidCloseTextDocumentParams) {
+        let uri = params.text_document.uri;
+        if let Some(path) = uri_to_path(&uri) {
+            self.state.lock().await.open.remove(&path_key(&path));
         }
-        let backend = self.clone_handle();
-        let uri_for_work = uri.clone();
-        self.debouncer
-            .schedule(
-                uri,
-                Duration::from_millis(DEBOUNCE_MS),
-                move || async move {
-                    backend.recompute(uri_for_work).await;
-                },
-            )
-            .await;
+        self.client.publish_diagnostics(uri, Vec::new(), None).await;
     }
 
     async fn hover(&self, params: HoverParams) -> JsonRpcResult<Option<Hover>> {
-        let state = self.state.lock().await;
-        let uri = params.text_document_position_params.text_document.uri;
-        let pos = params.text_document_position_params.position;
-        let Some(diags) = state.last_diagnostics.get(&uri) else {
-            return Ok(None);
-        };
-        let Some(d) = diags.iter().find(|d| d.range.start.line == pos.line) else {
-            return Ok(None);
-        };
-        let slug = match &d.code {
-            Some(NumberOrString::String(s)) => s.clone(),
-            _ => return Ok(None),
-        };
-        let suggestion = state.last_suggestion_for(&uri, pos.line);
-        Ok(Some(hover::hover_for(&slug, &d.message, suggestion)))
+        let pos = params.text_document_position_params;
+        Ok(self
+            .diagnostic_at(&pos.text_document.uri, pos.position.line)
+            .await
+            .map(|(slug, message)| hover::hover_for(&slug, &message)))
     }
 
     async fn document_link(
         &self,
         params: DocumentLinkParams,
     ) -> JsonRpcResult<Option<Vec<DocumentLink>>> {
-        let state = self.state.lock().await;
-        let uri = params.text_document.uri;
-        let Some(diags) = state.last_diagnostics.get(&uri) else {
+        let Some(path) = uri_to_path(&params.text_document.uri) else {
             return Ok(None);
         };
-        Ok(Some(document_links::links_from(diags)))
-    }
-}
-
-#[derive(Clone)]
-struct BackendHandle {
-    client: Client,
-    state: Arc<Mutex<ServerState>>,
-}
-
-impl Backend {
-    fn clone_handle(&self) -> BackendHandle {
-        BackendHandle {
-            client: self.client.clone(),
-            state: Arc::clone(&self.state),
-        }
-    }
-
-    async fn refresh(&self, uri: Url, text: String) {
-        let handle = self.clone_handle();
-        {
-            let mut state = handle.state.lock().await;
-            state.doc_text.insert(uri.clone(), text);
-        }
-        handle.recompute(uri).await;
-    }
-
-    async fn spawn_plugin_watcher(&self) {
-        let Some(root) = self.state.lock().await.project_root.clone() else {
-            return;
-        };
-        let rx = match stratum_plugins_rhai::watch_plugins(
-            root.as_std_path(),
-            Duration::from_millis(50),
-        ) {
-            Ok(rx) => rx,
-            Err(err) => {
-                self.client
-                    .log_message(
-                        MessageType::WARNING,
-                        format!("plugin watcher failed to start: {err}"),
-                    )
-                    .await;
-                return;
-            }
-        };
-        let backend = self.clone_handle();
-        let runtime = tokio::runtime::Handle::current();
-        std::thread::spawn(move || {
-            while let Ok(change) = rx.recv() {
-                let backend = backend.clone();
-                runtime.spawn(async move { backend.reload_after_plugin_change(change).await });
-            }
-        });
-    }
-}
-
-impl BackendHandle {
-    async fn reload_after_plugin_change(self, change: stratum_plugins_rhai::PluginChange) {
-        let open_docs: Vec<Url> = {
-            let mut state = self.state.lock().await;
-            if state.rebuild().is_err() {
-                return;
-            }
-            state.doc_text.keys().cloned().collect()
-        };
-        self.client
-            .log_message(
-                MessageType::INFO,
-                format!("plugin reloaded: {}", change.path),
-            )
-            .await;
-        for uri in open_docs {
-            self.clone().recompute(uri).await;
-        }
-    }
-}
-
-impl BackendHandle {
-    async fn recompute(self, uri: Url) {
-        let (diagnostics, violations) = {
-            let mut state = self.state.lock().await;
-            if state.rebuild().is_err() {
-                return;
-            }
-            let (diags, viols) = state.compute_diagnostics_for(&uri);
-            state.last_diagnostics.insert(uri.clone(), diags.clone());
-            state.last_violations.insert(uri.clone(), viols.clone());
-            (diags, viols)
-        };
-        let _ = violations;
-        self.client
-            .publish_diagnostics(uri, diagnostics, None)
-            .await;
+        let state = self.state.lock().await;
+        Ok(Some(document_links::links_from(
+            &state.diagnostics_for(&path_key(&path)),
+        )))
     }
 }

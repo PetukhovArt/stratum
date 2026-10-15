@@ -34,7 +34,7 @@ If anything breaks, fix forward before starting Plan A.
 |---|------|------|-------------------|
 | A | PixiJS rendering | [`2026-05-19-pixijs-rendering.md`](./2026-05-19-pixijs-rendering.md) | Most user-visible. The "MVP without graph" looks unfinished. Real rendering also unblocks Plan B's visualizer validation. |
 | B | private-project integration | [`2026-05-19-private-project-integration.md`](./2026-05-19-private-project-integration.md) | Real-world validation. Surfaces every misfire, crash, and perf hole in the actual product Stratum exists to lint. Confidence multiplier for any future change. |
-| C | IDE integrations (Zed + WebStorm) | [`2026-05-19-ide-integrations.md`](./2026-05-19-ide-integrations.md) | Adoption blocker for everyone outside VS Code. Discoverable dev-console errors are the half of "easy to launch" the user explicitly asked for. |
+| C | IDE integrations (dropped) | — | Editor extensions were removed; `stratum-lsp` now serves AI harnesses, see [`docs/harness.md`](../../harness.md). |
 | D | Rhai plugin hot-reload | [`2026-05-19-rhai-hot-reload.md`](./2026-05-19-rhai-hot-reload.md) | Quality-of-life for plugin authors. Small change, well-defined scope. |
 
 ## Dependencies between plans
@@ -61,12 +61,10 @@ If executing in parallel: A and (B-tasks-1-through-6) can run concurrently if yo
 2. **Plan A** (rendering) — biggest user-facing change; finish before moving on
 3. **Plan B** (private-project integration) — fold the visualizer into the integration check at Task 7
 4. **Plan D** (hot-reload) — small, contained, ship between B and C as a palate cleanser
-5. **Plan C** (IDE integrations) — last; benefits from Plan B's hardened rules and Plan D's hot-reload story
 
 ## What this roadmap does NOT cover
 
 - **Salsa per-rule queries.** Discussed; remains deferred. Revisit only if Plan B surfaces real perf pain on private-project.
-- **Marketplace publishing** for VS Code / Zed / JetBrains plugins. Manual install paths from Plan C are sufficient until adoption demands it.
 - **Custom Sugiyama (Rust→WASM)** for layout. Plan A picks `@dagrejs/dagre`; the custom path stays a Phase 12+ option per ADR-0001.
 - **Auto-fix / quickfix LSP actions.** Bigger feature, separate plan when prioritized.
 
