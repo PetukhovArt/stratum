@@ -26,6 +26,14 @@ fn context_of_file_not_created_yet() {
 }
 
 #[test]
+fn a_file_in_a_slice_not_created_yet_is_told_to_keep_off_sibling_slices() {
+    let file = "../../tests/fixtures/exemplar-stratum-app/src/entities/order/model/order.ts";
+    let brief = stdout(&["context", file]);
+    assert!(brief.contains("container src/entities/order (slice"), "{brief}");
+    assert!(brief.contains("other slices of src/entities/"), "{brief}");
+}
+
+#[test]
 fn explain_unknown_slug_exits_two_and_lists_valid_slugs() {
     Command::cargo_bin("stratum-lint")
         .unwrap()

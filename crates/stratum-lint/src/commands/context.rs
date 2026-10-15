@@ -154,17 +154,7 @@ fn brief(input: &EngineInput, file_abs: &Utf8Path, rel: &Utf8Path) -> miette::Re
     };
     let purity = module.map_or(DEFAULT_PURITY, |m| m.purity.rank());
     brief.layer = Some(layer_name(graph, layer_id));
-    let chain: Vec<&Container> = std::iter::successors(container, |c| {
-        c.parent.and_then(|p| graph.containers.get(&p))
-    })
-    .collect();
-    brief.container = chain.first().map(|c| container_brief(input, c));
-    brief.slice = chain
-        .iter()
-        .skip(1)
-        .find(|c| c.kind == ContainerKind::Slice)
-        .map(|c| container_brief(input, c));
-    brief.may_not_import = forbidden(input, rel, &chain)?;
+    fill_containers(&mut brief, input, container, file_abs, rel)?;
     brief.private_zones = graph
         .private_zones()
         .into_iter()
@@ -212,25 +202,91 @@ fn container_brief(input: &EngineInput, c: &Container) -> ContainerBrief {
     }
 }
 
+fn fill_containers(
+    brief: &mut Brief,
+    input: &EngineInput,
+    innermost: Option<&Container>,
+    file_abs: &Utf8Path,
+    rel: &Utf8Path,
+) -> miette::Result<()> {
+    let graph = &input.graph;
+    let chain: Vec<&Container> = std::iter::successors(innermost, |c| {
+        c.parent.and_then(|p| graph.containers.get(&p))
+    })
+    .collect();
+    let new_slice = chain
+        .first()
+        .and_then(|c| prospective_slice(input, c, file_abs));
+    brief.slice = chain
+        .iter()
+        .skip(1)
+        .find(|c| c.kind == ContainerKind::Slice)
+        .map(|c| container_brief(input, c));
+    brief.may_not_import = forbidden(input, rel, &chain)?;
+    if let (Some(layer), Some(_)) = (chain.first(), &new_slice)
+        && is_active(input, rel, SIBLING_ISOLATION)?
+    {
+        brief.may_not_import.insert(
+            0,
+            Forbidden::SiblingSlices {
+                parent: input.relative(&layer.path),
+            },
+        );
+    }
+    brief.container = new_slice.or_else(|| chain.first().map(|c| container_brief(input, c)));
+    Ok(())
+}
+
+fn prospective_slice(
+    input: &EngineInput,
+    container: &Container,
+    file_abs: &Utf8Path,
+) -> Option<ContainerBrief> {
+    let sliced = input
+        .graph
+        .layers
+        .get(&container.layer)
+        .is_some_and(|l| l.slices);
+    if container.kind != ContainerKind::Layer || !sliced {
+        return None;
+    }
+    let below = Path::new(file_abs.as_str())
+        .strip_prefix(&container.path)
+        .ok()?;
+    let first = below.components().next()?;
+    let is_file_slice = below.components().count() == 1;
+    let entries = &input.config.structure.entries;
+    if is_file_slice && entries.iter().any(|e| first.as_os_str() == e.as_str()) {
+        return None;
+    }
+    Some(ContainerBrief {
+        path: input.relative(&container.path.join(first)),
+        kind: ContainerKind::Slice,
+        stage: if is_file_slice { 1 } else { 2 },
+        entry: None,
+    })
+}
+
+fn is_active(input: &EngineInput, rel: &Utf8Path, id: RuleId) -> miette::Result<bool> {
+    let severities = resolve_for_file(&input.config, rel)
+        .map_err(|e| miette::miette!("{e}"))?
+        .severities;
+    Ok(input.registry.by_id(id).is_some_and(|r| {
+        severities
+            .get(r.slug())
+            .copied()
+            .unwrap_or_else(|| r.default_severity())
+            != Severity::Off
+    }))
+}
+
 fn forbidden(
     input: &EngineInput,
     rel: &Utf8Path,
     chain: &[&Container],
 ) -> miette::Result<Vec<Forbidden>> {
-    let severities = resolve_for_file(&input.config, rel)
-        .map_err(|e| miette::miette!("{e}"))?
-        .severities;
-    let active = |id: RuleId| {
-        input.registry.by_id(id).is_some_and(|r| {
-            severities
-                .get(r.slug())
-                .copied()
-                .unwrap_or_else(|| r.default_severity())
-                != Severity::Off
-        })
-    };
     let mut out = Vec::new();
-    if active(SIBLING_ISOLATION) {
+    if is_active(input, rel, SIBLING_ISOLATION)? {
         for c in chain {
             let Some(parent) = c.parent.and_then(|p| input.graph.containers.get(&p)) else {
                 continue;
@@ -243,7 +299,7 @@ fn forbidden(
             }
         }
     }
-    if active(PUBLIC_API) {
+    if is_active(input, rel, PUBLIC_API)? {
         out.push(Forbidden::ContainerInternals);
     }
     Ok(out)
