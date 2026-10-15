@@ -24,8 +24,6 @@ pub enum LoadError {
     Shape { path: Utf8PathBuf, message: String },
 }
 
-/// First `RuleId` assigned to user plugins. Built-ins occupy `1..=9`; the gap
-/// keeps registries diff-friendly in snapshots.
 pub const PLUGIN_ID_FLOOR: u32 = 1000;
 
 #[derive(serde::Deserialize)]
@@ -40,12 +38,6 @@ struct DocSpec {
     options: Vec<String>,
 }
 
-/// Read and compile `path` into a [`RhaiRule`] tagged with `slug` + `id`.
-///
-/// `slug` must outlive the resulting rule (the `Rule` trait demands `&'static
-/// str`). Callers typically pass a leaked string they own for the lifetime of
-/// the registry.
-///
 /// # Errors
 /// - [`LoadError::Io`] if the file cannot be read.
 /// - [`LoadError::Compile`] if Rhai rejects the script.

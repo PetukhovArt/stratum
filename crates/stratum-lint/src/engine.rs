@@ -17,7 +17,6 @@ pub struct EngineInput {
 pub struct RuleEngine;
 
 impl RuleEngine {
-    /// Run every registered rule once; honour per-file severity overrides.
     /// Returns violations sorted by `(rule_id, first_module_id)`.
     #[must_use]
     pub fn run(input: &EngineInput) -> Vec<Violation> {
@@ -30,7 +29,6 @@ impl RuleEngine {
         .unwrap_or_default()
     }
 
-    /// Filter violations to those whose `file` matches `file`.
     #[allow(dead_code)]
     #[must_use]
     pub fn run_for_file(input: &EngineInput, file: &std::path::Path) -> Vec<Violation> {

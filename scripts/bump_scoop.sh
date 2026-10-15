@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Update the Scoop bucket manifest after a release.
-# Usage: scripts/bump_scoop.sh v0.1.0 /path/to/scoop-stratum-bucket
 set -euo pipefail
 
 TAG="${1:?missing release tag, e.g. v0.1.0}"

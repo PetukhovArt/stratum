@@ -3,12 +3,9 @@ use std::hash::Hash;
 use stratum_core::ids::{ContainerId, ModuleId};
 use stratum_graph::CompoundGraph;
 
-/// Marker for the project-wide scope; rules that scope to the whole graph
-/// take this as their `Scope`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ProjectScope;
 
-/// The set of inputs a `Rule` is keyed on.
 pub trait RuleScope: Copy + Eq + Hash + std::fmt::Debug + Send + Sync + 'static {
     fn enumerate(graph: &CompoundGraph) -> Vec<Self>;
 }

@@ -12,8 +12,6 @@ pub struct EffectiveRules {
     pub rules: BTreeMap<String, RuleConfig>,
 }
 
-/// Resolve the effective rule set for `file` against `config`.
-///
 /// # Errors
 /// Returns [`ConfigError::BadGlob`] if any `overrides[].files` entry is not a
 /// valid glob.

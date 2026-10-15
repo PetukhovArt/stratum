@@ -80,8 +80,6 @@ export const Header: Component<HeaderProps> = (props) => {
   )
 }
 
-// ─── Command palette ───────────────────────────────────────────────────────
-
 interface PaletteProps {
   paletteOpen: boolean
   setPaletteOpen: (v: boolean) => void
@@ -274,8 +272,6 @@ const CommandPalette: Component<PaletteProps> = (props) => {
     </>
   )
 }
-
-// ─── Facet chip bar ─────────────────────────────────────────────────────────
 
 interface FacetBarProps {
   filters: Filters

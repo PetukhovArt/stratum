@@ -80,7 +80,6 @@ const App: Component = () => {
   })
 
   createEffect(() => {
-    // re-measure when panels collapse
     leftCollapsed()
     rightCollapsed()
     queueMicrotask(measureStage)
@@ -101,8 +100,6 @@ const App: Component = () => {
     })
   }
 
-  // Auto-fit the first time scene + stage size are both available, and once
-  // more whenever a brand-new scene arrives (different data → reset the flag).
   createEffect(() => {
     void scene()
     setHasFitted(false)
@@ -357,8 +354,6 @@ const ErrorView: Component<{ err: Error }> = (props) => {
   )
 }
 
-// Pick a friendly project name from any module path — first path segment that
-// looks like a real directory ("src" doesn't count).
 const deriveProjectName = (snap: GraphSnapshot): string => {
   const first = snap.modules[0]?.path ?? ''
   if (!first) return 'project'

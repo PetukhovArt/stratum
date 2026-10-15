@@ -1,9 +1,3 @@
-//! Filesystem watcher for `.rhai` plugin files.
-//!
-//! Emits a [`PluginChange`] whenever a `.rhai` file under the watched
-//! directory is modified or created. The host wires this into the lint
-//! pipeline to refresh diagnostics without a process restart.
-
 use std::path::Path;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::{Duration, Instant};
@@ -22,14 +16,8 @@ pub enum WatchError {
     Init(#[from] notify::Error),
 }
 
-/// Watch `dir` recursively and emit [`PluginChange`] events for any `.rhai`
-/// file that is created or modified.
-///
 /// Events are coalesced per path within `debounce`: a burst of OS events for
 /// the same file (common on save) collapses to a single emitted change.
-///
-/// The returned [`Receiver`] is dropped to stop the watcher. The watcher
-/// handle is moved into a background thread and dropped with the receiver.
 pub fn watch_plugins(dir: &Path, debounce: Duration) -> Result<Receiver<PluginChange>, WatchError> {
     let (raw_tx, raw_rx) = channel::<notify::Result<Event>>();
     let mut watcher = notify::recommended_watcher(raw_tx)?;

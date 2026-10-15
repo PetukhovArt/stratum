@@ -1,7 +1,3 @@
-// Design data shape — what the layout and components consume.
-// Produced by `adapt(GraphSnapshot, Violation[])` and structurally equivalent
-// to the Claude Design handoff's STRATUM_DATA.
-
 export type ModuleKind = 'regular' | 'composer' | 'shared'
 export type SeverityLabel = 'error' | 'warning' | 'info'
 
@@ -70,9 +66,7 @@ export interface DesignData {
   layers: DesignLayer[]
   containers: DesignContainer[]
   modules: DesignModule[]
-  /** parent module id → child module ids */
   childIndex: Record<string, string[]>
-  /** container id → top-level (parentId === null) module ids */
   topByContainer: Record<string, string[]>
   edges: DesignEdge[]
   violations: DesignViolation[]

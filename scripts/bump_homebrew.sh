@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Update the Homebrew tap formula after a release.
-# Usage: scripts/bump_homebrew.sh v0.1.0 /path/to/homebrew-stratum-tap
 set -euo pipefail
 
 TAG="${1:?missing release tag, e.g. v0.1.0}"

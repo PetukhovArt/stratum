@@ -1,5 +1,3 @@
-//! Type-erased rule registry. Phase 4 will wrap each entry in a Salsa query.
-
 use stratum_config::{Config, ConfigError};
 use stratum_core::{ids::RuleId, severity::Severity, violation::Violation};
 use stratum_graph::CompoundGraph;
@@ -8,14 +6,13 @@ use crate::docs::RuleDoc;
 use crate::rule::Rule;
 use crate::scope::RuleScope;
 
-/// Type-erased wrapper around a `Rule` impl. Owned by [`RuleRegistry`].
 pub trait DynRule: Send + Sync {
     fn id(&self) -> RuleId;
     fn slug(&self) -> &'static str;
     fn default_severity(&self) -> Severity;
     fn doc(&self) -> Option<RuleDoc>;
     /// # Errors
-    /// A message naming the offending option key when `options` do not fit the rule.
+    /// A message when `options` do not fit the rule, naming the offending key when one alone fails.
     fn check_options(&self, options: &serde_json::Value) -> Result<(), String>;
     fn run(
         &self,
@@ -153,7 +150,6 @@ impl RuleRegistry {
         Ok(())
     }
 
-    /// All ten Stratum rules pre-registered (5 Phase 3 baseline + 5 Phase 5 bundled).
     #[must_use]
     pub fn with_builtins() -> Self {
         use crate::builtin::{

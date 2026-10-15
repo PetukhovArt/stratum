@@ -33,9 +33,9 @@ pub enum PipelineError {
     Plugin(#[from] PluginLoadError),
 }
 
-/// Build the engine input (graph + config + root + registry).
-///
 /// # Errors
+/// - [`PipelineError::Config`] for an invalid `project.ignore` glob, an unknown rule slug or
+///   options a rule rejects.
 /// - [`PipelineError::Build`] if the graph cannot be assembled.
 /// - [`PipelineError::Plugin`] if a referenced Rhai script fails to load or compile.
 pub fn build(root: &Utf8Path, config: &Config) -> Result<EngineInput, PipelineError> {
@@ -113,10 +113,6 @@ fn register_plugins(
     Ok(())
 }
 
-/// Run the full pipeline, returning all violations.
-///
-/// # Errors
-/// Returns [`PipelineError`] if the graph cannot be built or a plugin fails to load.
 pub fn run(root: &Utf8Path, config: &Config) -> Result<Vec<Violation>, PipelineError> {
     let input = build(root, config)?;
     Ok(RuleEngine::run(&input))

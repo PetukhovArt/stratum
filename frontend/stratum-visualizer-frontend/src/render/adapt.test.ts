@@ -73,9 +73,7 @@ describe('adaptSnapshot', () => {
     const m3 = d.modules.find((m) => m.id === 'm-3')!
     expect(m3.severity).toBe('error')
     expect(m3.violations).toHaveLength(1)
-    // edge endpoints are tagged too because the violation has an `edge`
     expect(d.modules.find((m) => m.id === 'm-1')!.severity).toBe('error')
-    // edge picks up the violation tag
     expect(d.edges.find((e) => e.source === 'm-1' && e.target === 'm-3')!.violation).toMatch(
       /^v-\d+$/,
     )
@@ -92,9 +90,7 @@ describe('adaptSnapshot', () => {
       edges: [],
     }
     const d = adaptSnapshot(nested)
-    // top-level container 20 becomes the design container
     expect(d.containers.map((c) => c.id)).toEqual(['c-20'])
-    // nested container becomes a compound module attached under c-20
     const compound = d.modules.find((m) => m.id === 'cn-21')!
     expect(compound.hasChildren).toBe(true)
     expect(compound.container).toBe('c-20')

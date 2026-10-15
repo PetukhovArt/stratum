@@ -2,7 +2,6 @@ use camino::{Utf8Path, Utf8PathBuf};
 use stratum_config::{Config, LayerConfig, ProjectConfig};
 use walkdir::WalkDir;
 
-/// Synthesise a `Config` by inspecting `<root>/src/*` directories.
 #[must_use]
 pub fn infer(root: &Utf8Path) -> Config {
     let src = root.join("src");
