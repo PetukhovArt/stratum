@@ -1,11 +1,9 @@
-use std::path::{Component, Path};
-
 use petgraph::Direction;
 use petgraph::visit::EdgeRef;
 
 use stratum_core::{
     edge::Edge,
-    ids::{LayerId, ModuleId, RuleId},
+    ids::{ModuleId, RuleId},
     severity::Severity,
     types::{Container, ContainerKind},
     violation::{SourceLocation, Violation},
@@ -13,6 +11,7 @@ use stratum_core::{
 use stratum_graph::CompoundGraph;
 
 use crate::ids::PUBLIC_API;
+use crate::paths::project_relative;
 use crate::rule::{EmptyOptions, Rule};
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -44,13 +43,13 @@ impl Rule for PublicApi {
             if entered.entry == Some(to) {
                 return None;
             }
-            let unit = rel_path(graph, entered.layer, &entered.path);
+            let unit = project_relative(graph, entered.layer, &entered.path);
             let target = graph.modules.get(&to)?;
-            let target = rel_path(graph, target.layer, &target.path);
+            let target = project_relative(graph, target.layer, &target.path);
             let entry = entered
                 .entry
                 .and_then(|e| graph.modules.get(&e))
-                .map(|e| rel_path(graph, e.layer, &e.path));
+                .map(|e| project_relative(graph, e.layer, &e.path));
             Some(match entry {
                 Some(entry) => Finding {
                     message: format!("Import of `{target}` reaches inside `{unit}`"),
@@ -118,25 +117,6 @@ pub(crate) fn edge_violations(
         .collect();
     out.sort_by_key(|v| v.modules[1].raw());
     out
-}
-
-pub(crate) fn rel_path(graph: &CompoundGraph, layer: LayerId, path: &Path) -> String {
-    let root = graph.layers.get(&layer).and_then(|l| {
-        let depth = l
-            .path
-            .components()
-            .filter(|c| matches!(c, Component::Normal(_)))
-            .count();
-        graph
-            .containers
-            .values()
-            .find(|c| c.kind == ContainerKind::Layer && c.layer == layer)
-            .and_then(|c| c.path.ancestors().nth(depth))
-    });
-    root.and_then(|r| path.strip_prefix(r).ok())
-        .unwrap_or(path)
-        .to_string_lossy()
-        .replace('\\', "/")
 }
 
 #[cfg(test)]

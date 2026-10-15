@@ -9,13 +9,13 @@ use stratum_core::{
     edge::Edge,
     ids::{ModuleId, RuleId},
     severity::Severity,
-    types::Module,
     violation::{SourceLocation, Violation},
 };
 use stratum_graph::CompoundGraph;
 
 use crate::docs::RuleDoc;
 use crate::ids::IMPORT_POLICY;
+use crate::paths::project_relative;
 use crate::rule::Rule;
 
 const DEFAULT_MESSAGE: &str = "Import denied by import-policy";
@@ -110,20 +110,6 @@ fn slice_root<'a>(slice: &GlobMatcher, path: &'a str) -> Option<&'a str> {
         .find(|dir| slice.is_match(dir))
 }
 
-fn project_relative(graph: &CompoundGraph, module: &Module) -> String {
-    let path = module.path.to_string_lossy().replace('\\', "/");
-    let Some(layer) = graph.layers.get(&module.layer) else {
-        return path;
-    };
-    let layer_path = layer.path.to_string_lossy().replace('\\', "/");
-    let layer_path = layer_path.trim_start_matches("./").trim_matches('/');
-    if path.starts_with(&format!("{layer_path}/")) {
-        return path;
-    }
-    path.find(&format!("/{layer_path}/"))
-        .map_or(path.clone(), |i| path[i + 1..].to_owned())
-}
-
 impl Rule for ImportPolicy {
     type Scope = ModuleId;
     type Options = ImportPolicyOptions;
@@ -170,7 +156,7 @@ impl Rule for ImportPolicy {
         else {
             return Vec::new();
         };
-        let from = project_relative(graph, from_mod);
+        let from = project_relative(graph, from_mod.layer, &from_mod.path);
         let mut seen = BTreeSet::new();
         let mut out = Vec::new();
         for edge in graph.deps.edges_directed(node, Direction::Outgoing) {
@@ -181,7 +167,7 @@ impl Rule for ImportPolicy {
             if !seen.insert(to_id) {
                 continue;
             }
-            let to = project_relative(graph, to_mod);
+            let to = project_relative(graph, to_mod.layer, &to_mod.path);
             let Some(policy) = options.0.iter().find(|p| p.denies(&from, &to)) else {
                 continue;
             };
@@ -218,7 +204,7 @@ mod tests {
         edge::EdgeKind,
         ids::{ContainerId, LayerId},
         purity::Purity,
-        types::Layer,
+        types::{Layer, Module},
         visibility::VisibilityScope,
     };
 

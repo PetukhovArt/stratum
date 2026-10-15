@@ -6,8 +6,9 @@ use stratum_core::{
 };
 use stratum_graph::CompoundGraph;
 
-use crate::builtin::public_api::{Finding, edge_violations, rel_path};
+use crate::builtin::public_api::{Finding, edge_violations};
 use crate::ids::SIBLING_ISOLATION;
+use crate::paths::project_relative;
 use crate::rule::{EmptyOptions, Rule};
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -43,7 +44,7 @@ impl Rule for SiblingIsolation {
             if !isolated(from_unit) || !isolated(to_unit) {
                 return None;
             }
-            let rel = |c: &Container| rel_path(graph, c.layer, &c.path);
+            let rel = |c: &Container| project_relative(graph, c.layer, &c.path);
             let (from_unit, to_unit, parent) = (rel(from_unit), rel(to_unit), rel(parent));
             Some(Finding {
                 message: format!(

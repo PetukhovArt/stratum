@@ -6,8 +6,9 @@ use stratum_core::{
 };
 use stratum_graph::CompoundGraph;
 
-use crate::builtin::public_api::{Finding, edge_violations, rel_path};
+use crate::builtin::public_api::{Finding, edge_violations};
 use crate::ids::VISIBILITY_SCOPE;
+use crate::paths::project_relative;
 use crate::rule::{EmptyOptions, Rule};
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -45,8 +46,8 @@ impl Rule for VisibilityScope {
             if from.path.starts_with(root) {
                 return None;
             }
-            let root = rel_path(graph, target.layer, root);
-            let target = rel_path(graph, target.layer, &target.path);
+            let root = project_relative(graph, target.layer, root);
+            let target = project_relative(graph, target.layer, &target.path);
             Some(Finding {
                 message: format!(
                     "`{target}` is in a private zone of `{root}`; only modules under `{root}` may import it"

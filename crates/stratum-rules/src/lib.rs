@@ -4,6 +4,7 @@ pub mod builtin;
 pub mod docs;
 pub mod ids;
 pub mod options;
+mod paths;
 pub mod registry;
 pub mod rule;
 pub mod runner;
