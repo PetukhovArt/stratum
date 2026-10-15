@@ -3,6 +3,7 @@
 use stratum_core::{ids::RuleId, severity::Severity, violation::Violation};
 use stratum_graph::CompoundGraph;
 
+use crate::docs::RuleDoc;
 use crate::rule::Rule;
 use crate::scope::RuleScope;
 
@@ -11,6 +12,7 @@ pub trait DynRule: Send + Sync {
     fn id(&self) -> RuleId;
     fn slug(&self) -> &'static str;
     fn default_severity(&self) -> Severity;
+    fn doc(&self) -> Option<RuleDoc>;
     fn run(
         &self,
         graph: &CompoundGraph,
@@ -39,6 +41,9 @@ impl<R: Rule> DynRule for DynRuleAdapter<R> {
     }
     fn default_severity(&self) -> Severity {
         self.inner.default_severity()
+    }
+    fn doc(&self) -> Option<RuleDoc> {
+        self.inner.doc()
     }
 
     fn run(
@@ -86,6 +91,19 @@ impl RuleRegistry {
     #[must_use]
     pub fn rules(&self) -> &[Box<dyn DynRule>] {
         &self.rules
+    }
+
+    #[must_use]
+    pub fn by_slug(&self, slug: &str) -> Option<&dyn DynRule> {
+        self.rules
+            .iter()
+            .find(|r| r.slug() == slug)
+            .map(AsRef::as_ref)
+    }
+
+    #[must_use]
+    pub fn by_id(&self, id: RuleId) -> Option<&dyn DynRule> {
+        self.rules.iter().find(|r| r.id() == id).map(AsRef::as_ref)
     }
 
     /// All ten Stratum rules pre-registered (5 Phase 3 baseline + 5 Phase 5 bundled).

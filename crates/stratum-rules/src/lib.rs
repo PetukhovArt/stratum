@@ -4,6 +4,7 @@
 
 pub mod builtin;
 pub mod config_hash;
+pub mod docs;
 pub mod ids;
 pub mod options;
 pub mod registry;
@@ -26,6 +27,7 @@ pub use options::{
 };
 
 pub use config_hash::rule_config_hash;
+pub use docs::RuleDoc;
 pub use registry::{DynRule, DynRuleAdapter, RuleRegistry};
 pub use runner::{run_all, run_all_with_registry};
 
