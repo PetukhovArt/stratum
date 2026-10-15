@@ -35,8 +35,24 @@ fn json_format_is_valid_json() {
         .output()
         .unwrap();
     let parsed: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
-    assert_eq!(parsed["version"], 1);
-    assert!(parsed["violations"].is_array());
+    assert_eq!(parsed["version"], 2);
+    assert_eq!(parsed["summary"]["errors"], 3);
+    let v = &parsed["violations"][0];
+    assert!(v["rule"].as_str().unwrap().starts_with("stratum/"));
+    assert!(v["file"].as_str().unwrap().starts_with("src/"));
+}
+
+#[test]
+fn bad_config_is_a_tool_failure() {
+    Command::cargo_bin("stratum-lint")
+        .unwrap()
+        .args([
+            "--config",
+            "does-not-exist.jsonc",
+            "../../tests/fixtures/tiny-ts-violations",
+        ])
+        .assert()
+        .code(2);
 }
 
 #[test]
@@ -53,4 +69,10 @@ fn sarif_format_has_required_fields() {
     let parsed: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
     assert_eq!(parsed["version"], "2.1.0");
     assert_eq!(parsed["runs"][0]["tool"]["driver"]["name"], "stratum-lint");
+    let result = &parsed["runs"][0]["results"][0];
+    assert!(result["ruleId"].as_str().unwrap().starts_with("stratum/"));
+    let uri = result["locations"][0]["physicalLocation"]["artifactLocation"]["uri"]
+        .as_str()
+        .unwrap();
+    assert!(uri.starts_with("src/"), "uri is ROOT-relative: {uri}");
 }

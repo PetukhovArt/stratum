@@ -55,6 +55,34 @@ stratum-lint init | snapshot | diff | visualize        # unchanged
 Entries are fingerprinted by `rule slug + relative file + message`, without line numbers, so line shifts do not resurrect them.
 A run reports `N baselined` and `M fixed — run "stratum-lint baseline --prune"`; the baseline only ever shrinks unless regenerated on purpose.
 
+### Gate output
+
+`--format agent`:
+
+```
+stratum: 1 error, 2 warnings, 4 baselined, 1 fixed - run "stratum-lint baseline --prune", scope 3 files, 0.42s
+error stratum/no-circular-deps (1) - stratum-lint explain stratum/no-circular-deps
+  src/a.ts:1  Circular dependency: a.ts -> b.ts
+  fix: Break the cycle ...
+warning stratum/no-cross-layer-import (2) - stratum-lint explain stratum/no-cross-layer-import
+  src/shared/x.ts:1 -> src/features/y.ts  Module imports from layer 'features' ...
+  ...
++2 more rules over --max 20: stratum/depth-ratio (3), ...
+```
+
+- `-> file` is the import target when the violation has an edge.
+- Messages longer than 240 chars are clipped; `--format json` has the full text.
+- A zero-config run appends `| zero-config: layers inferred from src/*, ...` to the summary line.
+
+`--format json` (version 2): `{ "version": 2, "summary": { errors, warnings, infos, baselined, fixed, scope_files, zero_config, elapsed_ms }, "violations": [{ rule, severity, message, file, location: { line, column }, edge: { from, to, kind } | null, suggestion }] }`.
+`--format sarif` uses slugs as `ruleId` and ROOT-relative `uri` with `uriBaseId: "%SRCROOT%"`.
+
+Baseline file (`stratum.baseline.json`): `{ "version": 1, "violations": [{ rule, file, message, count? }] }`; `count` is omitted when 1.
+Matching runs on the whole project before scoping, so `fixed` is project-wide and `baselined` counts only in-scope hits. An empty scope skips the graph build, so both read 0.
+
+`stratum-lint hook`: on `Stop` / `SubagentStop` with `stop_hook_active: false` it runs `--changed --format agent` in the event's `cwd` and prints `{"decision":"block","reason":"<report>"}` when new error-severity violations remain.
+Everything else exits 0 silently. A tool failure inside the hook exits 1 (Claude Code's non-blocking error), not 2, because exit 2 would block the stop with the error text.
+
 ## Customization
 
 Everything an architecture rule does is configurable without forking:
