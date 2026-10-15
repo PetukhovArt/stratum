@@ -1,9 +1,3 @@
-//! Pure orchestration over [`RuleRegistry`].
-//!
-//! Phase 3 limitation: per-file *options* overrides are not honoured — only
-//! per-file *severity* is. Phase 4's CLI replaces this with per-rule Salsa
-//! queries keyed on `(rule_id, module_id, config_hash)`.
-
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 
@@ -16,16 +10,9 @@ use stratum_graph::CompoundGraph;
 use crate::ids;
 use crate::registry::RuleRegistry;
 
-/// Run every registered rule against `graph`, then re-stamp each violation's
+/// Run every built-in rule against `graph`, then re-stamp each violation's
 /// severity from the per-file effective config. Violations whose effective
 /// severity is `Severity::Off` are dropped.
-///
-/// `project_root` is used to derive forward-slash relative paths from each
-/// violation's absolute file path so override globs like `src/shared/api/**`
-/// match consistently across platforms (Windows backslashes vs POSIX slashes).
-///
-/// Project-scoped rules (`no-circular-deps`) probe override resolution with the
-/// sentinel path `<project>` so file globs cannot disable them.
 ///
 /// # Errors
 /// Returns [`stratum_config::ConfigError`] if any override block contains an
@@ -38,9 +25,7 @@ pub fn run_all(
     run_all_with_registry(graph, config, project_root, &RuleRegistry::with_builtins())
 }
 
-/// Same as [`run_all`] but lets the caller supply a registry that may include
-/// dynamically-loaded plugin rules (e.g. Rhai scripts). Built-in rules are not
-/// auto-added — pass `RuleRegistry::with_builtins()` extended via `register`.
+/// [`run_all`] over `registry` as given: built-in rules are not added to it.
 ///
 /// # Errors
 /// Returns [`stratum_config::ConfigError`] if any override block contains an

@@ -1,5 +1,3 @@
-// Shared cross-component state types — filters, tweaks, viewport.
-
 export interface Filters {
   disabledLayers: Set<string>
   disabledContainers: Set<string>
@@ -8,12 +6,6 @@ export interface Filters {
   query: string
   glob: string
   stageFilter: number | null
-  /**
-   * `minimal` (default) — render only violation edges + edges adjacent to the
-   * hovered/selected module. The thousands of static edges in a real codebase
-   * stay hidden until the user opts in via the facet chip.
-   * `all` — render every edge that passes the other filters.
-   */
   connectionMode: 'minimal' | 'all'
 }
 

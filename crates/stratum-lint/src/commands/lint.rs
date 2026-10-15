@@ -72,7 +72,6 @@ pub fn gate(root: &Utf8Path, args: &LintArgs) -> miette::Result<Report> {
     Ok(Report::new(kept, summary))
 }
 
-/// The bool is true when no config file exists and layers were inferred.
 pub fn load_config(root: &Utf8Path, path: Option<&Utf8Path>) -> miette::Result<(Config, bool)> {
     let parse = |p: &Utf8Path| stratum_config::parse_file(p).map_err(|e| miette::miette!("{e}"));
     if let Some(p) = path {

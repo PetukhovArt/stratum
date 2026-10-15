@@ -26,10 +26,6 @@ const SEVERITY: Record<string, Severity> = {
   info: { stroke: 'oklch(70% 0.10 230)', fill: 'oklch(70% 0.10 230 / .14)', glow: 'oklch(70% 0.10 230 / .30)' },
 }
 
-// ─── glob → regex ───────────────────────────────────────────────────────────
-
-// Normalize Windows-style separators so user-typed `src/foo/**` matches paths
-// like `src\foo\bar.ts` that the Rust snapshot emits on Windows hosts.
 export const normalizePath = (p: string): string => p.replace(/\\/g, '/')
 
 export const globToRegex = (glob: string): ((p: string) => boolean) | null => {
@@ -43,13 +39,9 @@ export const globToRegex = (glob: string): ((p: string) => boolean) | null => {
   const regexes = parts.map((p) => {
     const negate = p.startsWith('!')
     const pat = normalizePath(negate ? p.slice(1) : p)
-    // Bare token (no glob metachars and no `/`) → substring match. Lets users
-    // type `gis` and find every path containing it, without learning glob syntax.
     if (!/[*?/]/.test(pat)) {
       return { negate, re: new RegExp(`.*${escapeRe(pat)}.*`, 'i') }
     }
-    // Convert glob `?` → regex `.` BEFORE expanding `**` tokens — otherwise the
-    // `?` we introduce in `(?:.+/)?` would itself get rewritten.
     const body = escapeRe(pat)
       .replace(/\?/g, '.')
       .replace(/\*\*\//g, '§§DSTAR_SLASH§§')
@@ -57,9 +49,6 @@ export const globToRegex = (glob: string): ((p: string) => boolean) | null => {
       .replace(/\*/g, '[^/]*')
       .replace(/§§DSTAR_SLASH§§/g, '(?:.+/)?')
       .replace(/§§DSTAR§§/g, '.*')
-    // Auto-prefix `(?:.+/)?` so user can type `src/foo/**` and have it match
-    // any tail of the path — including absolute Windows paths like
-    // `D:/projects/proj/src/foo/bar.ts`.
     return { negate, re: new RegExp(`^(?:.+/)?${body}$`, 'i') }
   })
   const anyPositive = regexes.some((r) => !r.negate)
@@ -146,7 +135,6 @@ export const Graph: Component<GraphProps> = (props) => {
     buildVisibility(props.scene, props.filters, containerLayer()),
   )
 
-  // Pre-index edges by module so neighbour/connected checks become O(1).
   const edgesByMod = createMemo(() => {
     const m = new Map<string, LaidEdge[]>()
     for (const e of props.scene.edges) {
@@ -213,9 +201,6 @@ export const Graph: Component<GraphProps> = (props) => {
     if (props.filters.onlyViolators && !e.violation) return false
     if (!visibleMods().has(e.source) || !visibleMods().has(e.target)) return false
     if (!props.filters.edgeKinds.has(e.kind)) return false
-    // Connection density gate: in `minimal` mode (default), only paint violation edges
-    // + edges touching the hovered/selected module. Saves ~5000 SVG nodes on real
-    // projects without losing the "where are the problems?" signal.
     if (props.filters.connectionMode === 'minimal' && !e.violation) {
       const h = highlight()
       if (!h || (e.source !== h && e.target !== h)) return false
@@ -226,9 +211,6 @@ export const Graph: Component<GraphProps> = (props) => {
   const edgeDim = (e: LaidEdge): boolean => {
     if (props.focusedCycle) return false
     const h = highlight()
-    // When something's hovered/selected, dim everything not adjacent — including
-    // violation edges. Otherwise non-adjacent violations dominate the canvas and
-    // drown out the green neighbour highlight the user came to inspect.
     if (h && e.source !== h && e.target !== h) return true
     return false
   }
@@ -283,8 +265,6 @@ export const Graph: Component<GraphProps> = (props) => {
     () => `translate(${props.viewport.x} ${props.viewport.y}) scale(${props.viewport.zoom})`,
   )
 
-  // Viewport bounds in scene coordinates, with a 200-px screen-space margin so
-  // modules near edges still appear without popping.
   const viewBounds = createMemo(() => {
     const v = props.viewport
     const margin = 200
@@ -296,11 +276,6 @@ export const Graph: Component<GraphProps> = (props) => {
     }
   })
 
-  // Level-of-detail threshold — at low zoom individual leaf modules render
-  // as ~10 px squares with no readable label or shape detail. Cull leaves whose
-  // rendered width drops below `minRenderedPx`, but ALWAYS keep modules that
-  // carry a violation so errors stay visible at any zoom. Compounds (depth=0
-  // and not a leaf) are always rendered — those are the container outlines.
   const sortedMods = createMemo(() => {
     const b = viewBounds()
     const z = props.viewport.zoom
@@ -322,8 +297,6 @@ export const Graph: Component<GraphProps> = (props) => {
     )
   })
 
-  // At low zoom edges between sub-pixel endpoints are visual noise — cull all
-  // non-violation edges (violations still render so user can spot problems).
   const visibleEdges = createMemo(() => {
     const b = viewBounds()
     const lowZoom = props.viewport.zoom < 0.3
@@ -453,8 +426,6 @@ const containerLayerOf = (pos: ModulePos, scene: Scene): string => {
   return c?.layer ?? ''
 }
 
-// ─── Lane ───────────────────────────────────────────────────────────────────
-
 const Lane: Component<{ lane: LaneInfo; tweaks: Tweaks; dimmed: boolean; sceneW: number }> = (
   props,
 ) => {
@@ -513,8 +484,6 @@ const Lane: Component<{ lane: LaneInfo; tweaks: Tweaks; dimmed: boolean; sceneW:
     </Show>
   )
 }
-
-// ─── Container compound ────────────────────────────────────────────────────
 
 const STAGE_DESC: Record<number, string> = {
   1: 'Stage 1 · file — a single file, ≤2 exports, ~50–400 LOC. Smallest unit.',
@@ -612,8 +581,6 @@ const ContainerBox: Component<{
     </g>
   )
 }
-
-// ─── Module Node ────────────────────────────────────────────────────────────
 
 const STAGE_HUE = [220, 150, 95, 48]
 
@@ -777,8 +744,6 @@ const ModuleNode: Component<{
     </g>
   )
 }
-
-// ─── Edge ──────────────────────────────────────────────────────────────────
 
 const edgePath = (e: LaidEdge, style: Tweaks['edgeStyle']): string => {
   const dy = e.y2 - e.y1

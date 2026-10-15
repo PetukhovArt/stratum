@@ -1,5 +1,3 @@
-//! Rhai-script plugin runtime for Stratum custom rules.
-
 #![forbid(unsafe_code)]
 #![allow(clippy::missing_errors_doc, clippy::missing_panics_doc)]
 

@@ -1,5 +1,3 @@
-//! JSONC-based config + override resolution + JSON Schema generation for Stratum.
-
 #![forbid(unsafe_code)]
 
 pub mod config;

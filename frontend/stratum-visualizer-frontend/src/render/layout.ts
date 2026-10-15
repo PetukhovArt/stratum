@@ -1,9 +1,3 @@
-// Fractal layout — recursive sizing + grid packing.
-//
-// Every module can have children. Leaves are small squares whose side scales
-// gently by sqrt(loc). Compound modules become packed grids of their children.
-// Containers are packed wrapping rows inside each lane.
-
 import { DesignData, DesignModule } from './design'
 
 export type Density = 'compact' | 'cozy' | 'roomy'
@@ -11,7 +5,6 @@ export type Density = 'compact' | 'cozy' | 'roomy'
 export interface LayoutOptions {
   density?: Density
   laneMaxWidth?: number
-  /** Reserved — vertical/horizontal lane stacking. Currently TB only. */
   direction?: 'TB' | 'LR'
 }
 
@@ -188,9 +181,6 @@ const sizeModule = (
 
 const packGrid = (items: SizedItem[], tokens: DensityTokens, depth: number): Packed => {
   if (items.length === 0) return { width: 0, height: 0, items: [] }
-  // At depth=0 (container top-level), grow column count with N so the container stays
-  // roughly 4:1 wide instead of degenerating into a tall narrow column.
-  // perRow = max(densityBaseline, ceil(√(N × 4)))  → for N=878 that's ~59 cols.
   const perRow =
     depth === 0
       ? Math.max(tokens.modulesPerRow, Math.ceil(Math.sqrt(items.length * 4)))
@@ -310,13 +300,9 @@ const emitPositions = (
 
 export const computeLayout = (data: DesignData, options: LayoutOptions = {}): Scene => {
   const tokens = DENSITY[options.density ?? 'cozy']
-  // Lanes don't wrap container rows by default — we'd rather grow horizontally
-  // than turn the scene into a 1:30 ribbon. Callers can clamp via `laneMaxWidth`
-  // if they want a square viewport at the cost of more vertical stacking.
   const laneMaxWidth = options.laneMaxWidth ?? Number.POSITIVE_INFINITY
   const byId = new Map(data.modules.map((m) => [m.id, m]))
 
-  // 1) Size every container.
   const sizedContainers: SizedContainer[] = data.containers.map((c) => {
     const tops = data.topByContainer[c.id] ?? []
     const sized = tops.map((id) => sizeModule(id, data, tokens, byId, 0))
@@ -337,7 +323,6 @@ export const computeLayout = (data: DesignData, options: LayoutOptions = {}): Sc
     }
   })
 
-  // 2) Pack containers per lane (wrap rows).
   const lanes: LaneInfo[] = data.layers.map((layer) => {
     const inLane = sizedContainers.filter((c) => c.data.layer === layer.id)
     const packed = packLane(inLane, laneMaxWidth - 2 * tokens.lanePadX, tokens)
@@ -351,7 +336,6 @@ export const computeLayout = (data: DesignData, options: LayoutOptions = {}): Sc
     } as LaneInfo & { _placements: LanePlacement[] }
   })
 
-  // 3) Stack lanes top → bottom.
   const laneOriginX = tokens.laneLabelWidth + 8
   let cursor = 0
   for (const lane of lanes) {
@@ -360,7 +344,6 @@ export const computeLayout = (data: DesignData, options: LayoutOptions = {}): Sc
     cursor += lane.height + tokens.laneGapY
   }
 
-  // 4) Absolute positions per module.
   const modulePos: Record<string, ModulePos> = {}
   for (const sized of sizedContainers) {
     const lane = lanes.find((l) => l.id === sized.data.layer) as LaneInfo & {
@@ -378,7 +361,6 @@ export const computeLayout = (data: DesignData, options: LayoutOptions = {}): Sc
     }
   }
 
-  // 5) Resolve edges.
   const edges: LaidEdge[] = []
   data.edges.forEach((e, i) => {
     const a = modulePos[e.source]
@@ -402,7 +384,6 @@ export const computeLayout = (data: DesignData, options: LayoutOptions = {}): Sc
   const lastLane = lanes[lanes.length - 1]
   const sceneH = lastLane ? lastLane.y + lastLane.height + 16 : 0
 
-  // Strip private packing data from the public lane shape.
   const cleanLanes: LaneInfo[] = lanes.map(({ x, y, width, height, ...rest }) => ({
     ...(rest as Omit<LaneInfo, 'x' | 'y' | 'width' | 'height'>),
     x,

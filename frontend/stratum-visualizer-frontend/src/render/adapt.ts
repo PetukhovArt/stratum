@@ -11,7 +11,6 @@ import {
   SeverityLabel,
 } from './design'
 
-// Layer hue palette — cycled by layer index so renderer stays deterministic.
 const LAYER_HUE_PALETTE = [28, 56, 145, 220, 290, 0, 100, 180, 260, 340]
 const layerHue = (idx: number): number => LAYER_HUE_PALETTE[idx % LAYER_HUE_PALETTE.length]
 
@@ -92,7 +91,6 @@ export const adaptSnapshot = (
   }
   for (const c of snapshot.containers) findRoot(c.id)
 
-  // ── 1. Emit modules (nested containers → compound modules; files → leaves) ──
   const modules: DesignModule[] = []
   const childIndex: Record<string, string[]> = {}
   const topByContainer: Record<string, string[]> = {}
@@ -173,7 +171,6 @@ export const adaptSnapshot = (
     for (const tid of topByContainer[cid]) setDepth(tid, 0)
   }
 
-  // ── 2. Violations + attach to modules ──
   const designViolations: DesignViolation[] = violations.map((v, idx) => ({
     id: `v-${idx}`,
     rule: ruleLabel(v.rule),
@@ -220,7 +217,6 @@ export const adaptSnapshot = (
     for (const tid of topByContainer[cid]) aggregate(tid)
   }
 
-  // ── 3. Stage inference for compound modules ──
   const computeStage = (id: string): number => {
     const m = byId.get(id)
     if (!m) return 1
@@ -241,7 +237,6 @@ export const adaptSnapshot = (
   }
   for (const m of modules) if (m.hasChildren) m.stage = computeStage(m.id)
 
-  // ── 4. Edges ──
   const edgeViolation = (from: number, to: number): string | null => {
     for (let i = 0; i < violations.length; i++) {
       const v = violations[i]
@@ -256,7 +251,6 @@ export const adaptSnapshot = (
     violation: edgeViolation(e.from, e.to),
   }))
 
-  // ── 5. Layers + containers ──
   const containerStage = (rootCid: number): number => {
     const tops = (topByContainer[containerKey(rootCid)] ?? [])
       .map((tid) => byId.get(tid))
@@ -328,6 +322,5 @@ export const adaptSnapshot = (
   }
 }
 
-// TODO: when the rule registry is exposed via /api, replace these with real labels.
 const ruleLabel = (id: number): string => `rule-${id}`
 const ruleSlug = (id: number): string => `rule-${id}`

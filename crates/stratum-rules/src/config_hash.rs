@@ -1,14 +1,8 @@
-//! Stable hash for the *effective* config of one rule on one file.
-//!
-//! Phase 4's Salsa wiring keys per-rule queries by
-//! `(rule_id, scope_value, config_hash(rule_options + severity))`.
-
 use serde::Serialize;
 use xxhash_rust::xxh3::Xxh3;
 
 use stratum_core::severity::Severity;
 
-/// Compute a stable u64 hash of `(severity, options)` for one rule on one file.
 pub fn rule_config_hash<O: Serialize>(severity: Severity, options: &O) -> u64 {
     let mut h = Xxh3::new();
     h.update(&[severity as u8]);

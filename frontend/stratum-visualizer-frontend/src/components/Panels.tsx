@@ -20,10 +20,6 @@ import { globToRegex, normalizePath } from './Graph'
 const isFilterActive = (f: Filters): boolean =>
   f.query !== '' || f.glob !== '' || f.onlyViolators || f.stageFilter !== null
 
-// Set of module ids that should remain visible in the outline given the
-// active filters. Returns null when no filter is active (everything shown).
-// Matched modules pull their ancestors AND descendants into the visible set
-// so the tree path to a match stays navigable, IDE-style.
 const visibleOutlineModules = (data: DesignData, f: Filters): Set<string> | null => {
   if (!isFilterActive(f)) return null
   const matchGlob = globToRegex(f.glob)
@@ -91,8 +87,6 @@ interface Tip {
   content: JSX.Element
 }
 
-// ─── Outline ───────────────────────────────────────────────────────────────
-
 interface OutlineProps {
   data: DesignData
   filters: Filters
@@ -102,7 +96,6 @@ interface OutlineProps {
 }
 
 export const OutlinePanel: Component<OutlineProps> = (props) => {
-  // Start with deep children collapsed
   const [collapsed, setCollapsed] = createSignal<Set<string>>(
     new Set(props.data.modules.filter((m) => m.depth >= 1).map((m) => m.id)),
   )
@@ -110,9 +103,6 @@ export const OutlinePanel: Component<OutlineProps> = (props) => {
 
   const visible = createMemo(() => visibleOutlineModules(props.data, props.filters))
   const filterActive = () => visible() !== null
-  // When a glob/query/violator/stage filter is active, force-expand every
-  // ancestor of a match so the user actually sees the matched leaves without
-  // re-clicking chevrons.
   const isCollapsed = (id: string): boolean => {
     if (filterActive()) return false
     return collapsed().has(id)
@@ -159,7 +149,6 @@ export const OutlinePanel: Component<OutlineProps> = (props) => {
   const containersOf = (layer: DesignLayer) =>
     props.data.containers.filter((c) => c.layer === layer.id)
 
-  // Tooltip builders ──────────────────────────────────────────────────────
   const violationsTipContent = (
     scopeModules: DesignModule[],
     sev: 'error' | 'warning' | 'info',
@@ -651,8 +640,6 @@ const ModuleRow: Component<ModuleRowProps> = (props) => {
   )
 }
 
-// ─── Details panel ────────────────────────────────────────────────────────
-
 interface DetailsProps {
   data: DesignData
   selectedId: string | null
@@ -1020,8 +1007,6 @@ const Stat: Component<{
   </div>
 )
 
-// ─── Minimap ───────────────────────────────────────────────────────────────
-
 export const Minimap: Component<{
   scene: Scene
   viewport: Viewport
@@ -1118,8 +1103,6 @@ export const Minimap: Component<{
     </div>
   )
 }
-
-// ─── Hover tooltip (modules + edges) ───────────────────────────────────────
 
 export const HoverTooltip: Component<{
   data: DesignData

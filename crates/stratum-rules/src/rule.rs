@@ -4,7 +4,6 @@ use stratum_graph::CompoundGraph;
 use crate::docs::RuleDoc;
 use crate::scope::RuleScope;
 
-/// The contract every Stratum rule implements.
 pub trait Rule: Send + Sync {
     type Scope: RuleScope;
     type Options: serde::de::DeserializeOwned + Default + Clone + Send + Sync + 'static;
@@ -26,7 +25,6 @@ pub trait Rule: Send + Sync {
     ) -> Vec<Violation>;
 }
 
-/// Rules with no options.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct EmptyOptions;
 

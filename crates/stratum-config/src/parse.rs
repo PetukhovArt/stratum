@@ -31,8 +31,6 @@ pub fn parse_str(path: &Utf8Path, text: &str) -> Result<Config, ConfigError> {
     Ok(config)
 }
 
-/// Read `path` from disk and parse it as JSONC.
-///
 /// # Errors
 /// Returns [`ConfigError::Io`] if the file cannot be read; otherwise see [`parse_str`].
 pub fn parse_file(path: &Utf8Path) -> Result<Config, ConfigError> {

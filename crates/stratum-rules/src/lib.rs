@@ -1,5 +1,3 @@
-//! Rule trait + registry + the five baseline Stratum rules.
-
 #![forbid(unsafe_code)]
 
 pub mod builtin;

@@ -1,9 +1,3 @@
-//! Watch mode for `stratum-lint --watch`.
-//!
-//! Manual smoke test: `cargo run -p stratum-lint -- --watch tests/fixtures/tiny-ts`,
-//! then modify any file under that root; expect the lint output to re-render
-//! after a 200ms debounce.
-
 use std::sync::mpsc::channel;
 use std::time::{Duration, Instant};
 

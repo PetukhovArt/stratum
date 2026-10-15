@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Compare two criterion baselines stored under target/criterion/<bench>/<baseline>.
-# Fails (exit 1) when any bench regresses more than the threshold.
 set -euo pipefail
 
 BASE="${1:-main}"

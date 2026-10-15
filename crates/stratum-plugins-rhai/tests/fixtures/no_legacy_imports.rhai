@@ -1,4 +1,3 @@
-// Custom rule: flag any module that lives under src/legacy/.
 fn check(m) {
     if m.path.contains("/legacy/") {
         return [

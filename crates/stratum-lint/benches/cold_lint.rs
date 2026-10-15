@@ -1,4 +1,3 @@
-// Baseline 2026-05-18 on Windows 10 Pro: ~2.6 ms cold lint on tiny-ts (PRD target < 200 ms).
 #![allow(clippy::unwrap_used)]
 
 use std::collections::BTreeMap;
