@@ -21,9 +21,20 @@ A parent may extend further; a cycle is an error. Merge, child over parent:
 | `layers` | by `id`; a child entry overrides only the fields it sets, new ids are appended |
 | `rules` | by slug; a child entry overrides only the fields it sets (`{ "severity": "off" }` keeps the parent's `options`) |
 | `overrides` | parent blocks first, then the child's |
+| `project.ignore` | parent globs first, then the child's |
 | anything else | the child's value |
 
-Errors fail the run with exit code 2: an unknown key, an unknown rule slug, an option the rule does not take or a wrongly typed one (the message names the slug and the key), a `depends_on` naming an undeclared layer.
+Errors fail the run with exit code 2: an unknown key, an unknown rule slug, an option the rule does not take or a wrongly typed one (the message names the slug and the key), a `depends_on` naming an undeclared layer, an invalid `project.ignore` glob.
+
+## `project.ignore`: files outside the graph
+
+```jsonc
+"project": { "root": ".", "ignore": ["src/public/**", "**/__tests__/**", "**/*.test.ts", "!**/build"] }
+```
+
+Globs relative to the project root. An ignored file is not walked, parsed or put in the graph, and an import of it makes no edge, like an import of a package. A matching directory is skipped whole, so nothing under it can be un-ignored.
+Built-in defaults come first in every config, zero-config included: `**/node_modules`, `**/dist`, `**/out`, `**/build`, `**/coverage`, `**/.git`, `**/*.d.ts`. The last matching glob wins; `!glob` un-ignores.
+`overrides` only change severity: the files stay in the graph and still make cycles and importers. Use `ignore` for code that is not part of the architecture (vendored bundles, tests).
 
 ## `stratum/import-policy`: import boundaries without scripting
 

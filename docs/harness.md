@@ -101,7 +101,7 @@ Everything else exits 0 silently. A tool failure inside the hook exits 1 (Claude
 
 Everything an architecture rule does is configurable without forking:
 
-- `stratum.config.jsonc`: layers, per-rule `severity` / `options`, `overrides` by glob, `extends` (local file or a built-in preset: `stratum:recommended`, `stratum:fsd`).
+- `stratum.config.jsonc`: layers, per-rule `severity` / `options`, `overrides` by glob (severity only), `project.ignore` (files out of the graph; defaults skip `node_modules`, `dist`, `out`, `build`, `coverage`, `.git`, `*.d.ts`), `extends` (local file or a built-in preset: `stratum:recommended`, `stratum:fsd`).
 - `stratum/import-policy`: declarative import boundaries in config (from / deny / allow / same-slice / message), no scripting.
 - `.rhai` plugin rules with access to modules, imports and options; an optional `fn doc()` makes them show up in `rules` / `explain` like built-ins.
 - `stratum.schema.json` at the repo root, generated from the config types; configs reference it with `"$schema"`.

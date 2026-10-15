@@ -33,6 +33,7 @@ pub fn infer(root: &Utf8Path) -> Config {
         project: ProjectConfig {
             root: Utf8PathBuf::from("./src"),
             extends: None,
+            ignore: vec![],
         },
         layers,
         rules,

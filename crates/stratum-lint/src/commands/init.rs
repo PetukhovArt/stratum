@@ -61,6 +61,7 @@ mod tests {
             project: stratum_config::ProjectConfig {
                 root: "./src".into(),
                 extends: None,
+                ignore: vec![],
             },
             layers: vec![],
             rules: BTreeMap::new(),

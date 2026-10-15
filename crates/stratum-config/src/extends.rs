@@ -93,7 +93,7 @@ fn merge(parent: Value, child: Value) -> Value {
             "layers" => merge_layers(inherited, value),
             "rules" => merge_rules(inherited, value),
             "overrides" => append(inherited, value),
-            "project" => merge_fields(inherited, value),
+            "project" => merge_project(inherited, value),
             _ => value,
         };
         base.insert(key, merged);
@@ -109,6 +109,18 @@ fn merge_fields(parent: Option<Value>, child: Value) -> Value {
         }
         (_, child) => child,
     }
+}
+
+fn merge_project(parent: Option<Value>, child: Value) -> Value {
+    let ignore = append(
+        parent.as_ref().and_then(|p| p.get("ignore")).cloned(),
+        child.get("ignore").cloned().unwrap_or(Value::Array(vec![])),
+    );
+    let mut merged = merge_fields(parent, child);
+    if let Some(fields) = merged.as_object_mut() {
+        fields.insert("ignore".into(), ignore);
+    }
+    merged
 }
 
 fn merge_rules(parent: Option<Value>, child: Value) -> Value {
@@ -220,6 +232,16 @@ mod tests {
         assert_eq!(
             merged["overrides"],
             json!([{ "files": ["a/**"] }, { "files": ["b/**"] }])
+        );
+    }
+
+    #[test]
+    fn child_ignore_appends_to_parent_ignore() {
+        let parent = json!({ "project": { "root": ".", "ignore": ["a/**"] } });
+        let child = json!({ "project": { "root": "src", "ignore": ["!a/keep.ts"] } });
+        assert_eq!(
+            merge(parent, child)["project"],
+            json!({ "root": "src", "ignore": ["a/**", "!a/keep.ts"] })
         );
     }
 }

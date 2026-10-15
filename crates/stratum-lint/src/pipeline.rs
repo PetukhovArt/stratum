@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use camino::{Utf8Path, Utf8PathBuf};
-use stratum_config::{Config, ConfigError};
+use stratum_config::{Config, ConfigError, IgnoreSet};
 use stratum_core::{
     ids::{LayerId, RuleId},
     stage::Stage,
@@ -66,8 +66,10 @@ pub fn build(root: &Utf8Path, config: &Config) -> Result<EngineInput, PipelineEr
         default_stage: Stage::new(2).unwrap_or_else(|_| unreachable!("Stage(2) is valid")),
         default_visibility: VisibilityScope::Public,
     };
+    let ignore = IgnoreSet::new(config)?;
     let graph = GraphBuilder::new(build_cfg)
         .with_extractor(Box::new(stratum_parser_vue::VueExtractor::new()))
+        .with_ignore(move |rel| ignore.is_ignored(rel))
         .build()?;
 
     let mut registry = RuleRegistry::with_builtins();

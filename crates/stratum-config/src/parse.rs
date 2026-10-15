@@ -4,7 +4,7 @@ use camino::Utf8Path;
 use jsonc_parser::{ParseOptions, parse_to_serde_value};
 use serde_json::Value;
 
-use crate::{Config, ConfigError, extends};
+use crate::{Config, ConfigError, IgnoreSet, extends};
 
 /// Parse a JSONC string into a [`Config`], resolving `project.extends`
 /// (paths relative to `path`'s directory, or `stratum:*` presets).
@@ -14,7 +14,8 @@ use crate::{Config, ConfigError, extends};
 /// [`ConfigError::Io`] when an extended file cannot be read,
 /// [`ConfigError::UnknownPreset`] / [`ConfigError::ExtendsCycle`] for a bad `extends` chain, or
 /// [`ConfigError::Validation`] when the merged document does not match the [`Config`] schema
-/// or a layer depends on an undeclared layer.
+/// or a layer depends on an undeclared layer;
+/// [`ConfigError::BadGlob`] for an invalid `project.ignore` glob.
 pub fn parse_str(path: &Utf8Path, text: &str) -> Result<Config, ConfigError> {
     let document = parse_jsonc(path, text)?;
     let mut merged = extends::resolve(path, document)?;
@@ -26,6 +27,7 @@ pub fn parse_str(path: &Utf8Path, text: &str) -> Result<Config, ConfigError> {
         message: e.to_string(),
     })?;
     check_layer_refs(path, &config)?;
+    IgnoreSet::new(&config)?;
     Ok(config)
 }
 

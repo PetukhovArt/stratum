@@ -92,6 +92,7 @@ fn config_with_custom_rule() -> Config {
         project: ProjectConfig {
             root: "./src".into(),
             extends: None,
+            ignore: vec![],
         },
         layers: vec![LayerConfig {
             id: "app".into(),

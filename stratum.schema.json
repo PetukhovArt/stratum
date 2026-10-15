@@ -61,6 +61,14 @@
             "null"
           ]
         },
+        "ignore": {
+          "default": [],
+          "description": "Globs relative to the project root, on top of the built-in defaults (`node_modules`, `dist`, `out`, `build`, `coverage`, `.git`, `*.d.ts`). Matching files and directories are never walked or parsed; imports of them make no edge. `!glob` un-ignores; the last matching glob wins. Appended after the `extends` parent's list.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "root": {
           "type": "string"
         }
