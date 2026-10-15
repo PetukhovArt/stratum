@@ -70,4 +70,45 @@ mod tests {
         );
         assert_eq!(miller_fan_in(&g, ModuleId::new(0)), 2);
     }
+
+    #[test]
+    fn sliced_layer_counts_importers_from_other_slices_only() {
+        use stratum_core::{
+            stage::Stage,
+            types::{Container, ContainerKind},
+        };
+        let mut g = small_graph(
+            vec![
+                module_in(3, 0),
+                module_in(4, 1),
+                module_in(2, 2),
+                module_in(5, 3),
+            ],
+            &[(1, 0), (2, 0), (3, 0)],
+        );
+        for (id, kind, parent) in [
+            (0, ContainerKind::Layer, None),
+            (1, ContainerKind::Slice, Some(0)),
+            (2, ContainerKind::Slice, Some(0)),
+            (3, ContainerKind::SubUnit, Some(1)),
+            (4, ContainerKind::SubUnit, Some(1)),
+            (5, ContainerKind::Nested, Some(2)),
+        ] {
+            let id = ContainerId::new(id);
+            g.containers.insert(
+                id,
+                Container {
+                    id,
+                    name: format!("c{}", id.raw()),
+                    path: PathBuf::from(format!("c{}", id.raw())),
+                    kind,
+                    layer: LayerId::new(0),
+                    parent: parent.map(ContainerId::new),
+                    stage: Stage::FLAT,
+                    entry: None,
+                },
+            );
+        }
+        assert_eq!(miller_fan_in(&g, ModuleId::new(0)), 2);
+    }
 }

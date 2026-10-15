@@ -16,6 +16,8 @@ pub trait Rule: Send + Sync {
         crate::docs::builtin(self.slug())
     }
 
+    /// `severity` is the ceiling: stamp findings with it, or with a lower severity to downgrade
+    /// them. The runner caps every finding at the configured severity and never raises one.
     fn check(
         &self,
         graph: &CompoundGraph,

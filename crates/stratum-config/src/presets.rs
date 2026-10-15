@@ -10,7 +10,7 @@ const RECOMMENDED: &str = "stratum:recommended";
 const FSD: &str = "stratum:fsd";
 pub const NAMES: [&str; 2] = [RECOMMENDED, FSD];
 
-const RECOMMENDED_RULES: [(&str, Severity); 11] = [
+const RECOMMENDED_RULES: [(&str, Severity); 12] = [
     ("stratum/no-cross-layer-import", Severity::Warning),
     ("stratum/no-circular-deps", Severity::Error),
     ("stratum/purity", Severity::Warning),
@@ -22,6 +22,7 @@ const RECOMMENDED_RULES: [(&str, Severity); 11] = [
     ("stratum/restricted-calls", Severity::Off),
     ("stratum/stage-mixing", Severity::Off),
     ("stratum/container-breadth", Severity::Info),
+    ("stratum/slice-fan-in", Severity::Off),
 ];
 
 const FSD_RULES: [(&str, Severity); 7] = [

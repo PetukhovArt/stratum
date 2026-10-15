@@ -55,7 +55,7 @@ mod tests {
             names,
             vec!["app", "entities", "features", "legacy", "shared"]
         );
-        assert_eq!(cfg.rules.len(), 11);
+        assert_eq!(cfg.rules.len(), 12);
     }
 
     #[test]

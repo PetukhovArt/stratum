@@ -7,11 +7,12 @@ use stratum_config::{Config, ConfigError, resolve_for_file};
 use stratum_core::{severity::Severity, violation::Violation};
 use stratum_graph::CompoundGraph;
 
+use crate::ids;
 use crate::registry::RuleRegistry;
 
-/// Run every built-in rule against `graph`, then re-stamp each violation's
-/// severity from the per-file effective config. Violations whose effective
-/// severity is `Severity::Off` are dropped.
+/// Run every built-in rule against `graph`, then cap each violation's severity
+/// at the per-file effective config: a rule may downgrade a finding, never
+/// upgrade it. Violations whose effective severity is `Severity::Off` are dropped.
 ///
 /// # Errors
 /// Returns [`stratum_config::ConfigError`] if any override block contains an
@@ -40,11 +41,14 @@ pub fn run_all_with_registry(
     for r in registry.rules() {
         let slug = r.slug();
         let default_sev = r.default_severity();
-        let base_options = config
+        let mut base_options = config
             .rules
             .get(slug)
             .map_or_else(|| serde_json::Value::Null, |rc| rc.options.clone());
-        let raw = r.run(graph, default_sev, &base_options);
+        if r.id() == ids::STAGE_MIXING {
+            base_options = with_segments(base_options, &config.structure.segments);
+        }
+        let raw = r.run(graph, Severity::Error, &base_options);
         for mut v in raw {
             let probe = if r.project_wide() {
                 Utf8PathBuf::from("<project>")
@@ -62,7 +66,7 @@ pub fn run_all_with_registry(
             if sev == Severity::Off {
                 continue;
             }
-            v.severity = sev;
+            v.severity = v.severity.clamp(Severity::Info, sev);
             all.push(v);
         }
     }
@@ -71,6 +75,17 @@ pub fn run_all_with_registry(
             .cmp(&(b.rule.raw(), b.modules.first().map_or(0, |m| m.raw())))
     });
     Ok(all)
+}
+
+fn with_segments(options: serde_json::Value, segments: &[String]) -> serde_json::Value {
+    let mut fields = match options {
+        serde_json::Value::Object(fields) => fields,
+        _ => serde_json::Map::new(),
+    };
+    fields
+        .entry("segments")
+        .or_insert_with(|| serde_json::json!(segments));
+    serde_json::Value::Object(fields)
 }
 
 fn to_relative_forward_slash(file: &std::path::Path, project_root: &Utf8Path) -> Utf8PathBuf {
@@ -221,5 +236,67 @@ mod tests {
         );
         let v = run_all(&g, &cfg, &root()).unwrap();
         assert!(!v.iter().any(|x| x.rule == ids::NO_CROSS_LAYER_IMPORT));
+    }
+
+    struct Downgrading;
+
+    impl crate::rule::Rule for Downgrading {
+        type Scope = crate::scope::ProjectScope;
+        type Options = crate::rule::EmptyOptions;
+
+        fn id(&self) -> stratum_core::ids::RuleId {
+            ids::NO_CROSS_LAYER_IMPORT
+        }
+        fn slug(&self) -> &'static str {
+            "stratum/no-cross-layer-import"
+        }
+        fn default_severity(&self) -> Severity {
+            Severity::Warning
+        }
+        fn check(
+            &self,
+            _graph: &CompoundGraph,
+            _scope: crate::scope::ProjectScope,
+            _options: &crate::rule::EmptyOptions,
+            severity: Severity,
+        ) -> Vec<Violation> {
+            [severity, Severity::Info]
+                .into_iter()
+                .map(|severity| Violation {
+                    rule: ids::NO_CROSS_LAYER_IMPORT,
+                    severity,
+                    message: String::new(),
+                    file: PathBuf::from("src/a.ts"),
+                    location: stratum_core::violation::SourceLocation { line: 1, column: 1 },
+                    modules: vec![],
+                    edge: None,
+                    suggestion: None,
+                })
+                .collect()
+        }
+    }
+
+    #[test]
+    fn a_rule_may_downgrade_a_finding_but_never_upgrade_it() {
+        let mut registry = RuleRegistry::new();
+        registry.register(Downgrading);
+        let severities = |configured| {
+            let mut cfg = base_config();
+            cfg.rules
+                .get_mut("stratum/no-cross-layer-import")
+                .unwrap()
+                .severity = configured;
+            run_all_with_registry(&CompoundGraph::empty(), &cfg, &root(), &registry)
+                .unwrap()
+                .into_iter()
+                .map(|v| v.severity)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            severities(Severity::Error),
+            [Severity::Error, Severity::Info]
+        );
+        assert_eq!(severities(Severity::Info), [Severity::Info, Severity::Info]);
+        assert!(severities(Severity::Off).is_empty());
     }
 }
