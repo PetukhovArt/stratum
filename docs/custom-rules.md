@@ -6,7 +6,7 @@ Editors and agents validate `stratum.config.jsonc` against [`stratum.schema.json
 ## `extends`: presets and shared configs
 
 ```jsonc
-{ "version": 1, "project": { "root": ".", "extends": "stratum:fsd" } }
+{ "version": 1, "project": { "extends": "stratum:fsd" } }
 ```
 
 `extends` takes a file path relative to the extending config, or a built-in preset:
@@ -29,7 +29,7 @@ Errors fail the run with exit code 2: an unknown key, an unknown rule slug, an o
 ## `project.ignore`: files outside the graph
 
 ```jsonc
-"project": { "root": ".", "ignore": ["src/public/**", "**/__tests__/**", "**/*.test.ts", "!**/build"] }
+"project": { "ignore": ["src/public/**", "**/__tests__/**", "**/*.test.ts", "!**/build"] }
 ```
 
 Globs relative to the project root. An ignored file is not walked, parsed or put in the graph, and an import of it makes no edge, like an import of a package. A matching directory is skipped whole, so nothing under it can be un-ignored.
@@ -97,7 +97,6 @@ Stratum lets you write project-specific rules in [Rhai](https://rhai.rs/) — a 
    ```jsonc
    {
      "version": 1,
-     "project": { "root": "./src" },
      "layers": [ /* ... */ ],
      "rules": {
        "custom/no-legacy-imports": {

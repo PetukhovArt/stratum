@@ -237,11 +237,11 @@ mod tests {
 
     #[test]
     fn child_ignore_appends_to_parent_ignore() {
-        let parent = json!({ "project": { "root": ".", "ignore": ["a/**"] } });
-        let child = json!({ "project": { "root": "src", "ignore": ["!a/keep.ts"] } });
+        let parent = json!({ "project": { "ignore": ["a/**"] } });
+        let child = json!({ "project": { "ignore": ["!a/keep.ts"] } });
         assert_eq!(
             merge(parent, child)["project"],
-            json!({ "root": "src", "ignore": ["a/**", "!a/keep.ts"] })
+            json!({ "ignore": ["a/**", "!a/keep.ts"] })
         );
     }
 }

@@ -10,6 +10,7 @@ use stratum_core::severity::Severity;
 #[serde(deny_unknown_fields)]
 pub struct Config {
     pub version: u32,
+    #[serde(default)]
     pub project: ProjectConfig,
     /// Merged with the `extends` parent by `id`: a child entry overrides the parent entry field by field.
     #[serde(default)]
@@ -22,11 +23,9 @@ pub struct Config {
     pub overrides: Vec<OverrideBlock>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ProjectConfig {
-    #[schemars(with = "String")]
-    pub root: Utf8PathBuf,
     /// A config file path relative to this file, or a built-in preset: `stratum:recommended`, `stratum:fsd`.
     #[serde(default)]
     pub extends: Option<String>,
@@ -69,7 +68,14 @@ pub struct OverrideBlock {
     /// Globs matched against forward-slash paths relative to the project root.
     pub files: Vec<String>,
     #[serde(default)]
-    pub rules: BTreeMap<String, RuleConfig>,
+    pub rules: BTreeMap<String, OverrideRule>,
+}
+
+/// Severity only: options and scripts come from the base `rules` entry.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct OverrideRule {
+    pub severity: Severity,
 }
 
 #[cfg(test)]
@@ -107,10 +113,8 @@ mod tests {
             files: vec!["src/legacy/**".into()],
             rules: BTreeMap::from([(
                 "stratum/no-cross-layer-import".into(),
-                RuleConfig {
+                OverrideRule {
                     severity: Severity::Off,
-                    options: serde_json::Value::Null,
-                    script: None,
                 },
             )]),
         };

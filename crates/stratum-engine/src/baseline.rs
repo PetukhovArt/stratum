@@ -1,12 +1,36 @@
 use std::collections::BTreeMap;
 
-use camino::Utf8Path;
+use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
 
-use crate::report::Finding;
+use crate::finding::Finding;
 
-pub const FILE_NAME: &str = "stratum.baseline.json";
+pub const BASELINE_FILE: &str = "stratum.baseline.json";
 const VERSION: u32 = 1;
+
+#[derive(Debug, thiserror::Error)]
+pub enum BaselineError {
+    #[error("Could not read baseline {path}: {source}")]
+    Read {
+        path: Utf8PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("Invalid baseline {path}: {source}")]
+    Invalid {
+        path: Utf8PathBuf,
+        #[source]
+        source: serde_json::Error,
+    },
+    #[error("Unsupported baseline version {found} in {path} (expected {VERSION})")]
+    Version { path: Utf8PathBuf, found: u32 },
+    #[error("Could not write {path}: {source}")]
+    Write {
+        path: Utf8PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Fingerprint {
@@ -89,16 +113,20 @@ impl Baseline {
         Self(map)
     }
 
-    pub fn load(path: &Utf8Path) -> miette::Result<Self> {
-        let text = std::fs::read_to_string(path)
-            .map_err(|e| miette::miette!("Could not read baseline {path}: {e}"))?;
-        let file: File = serde_json::from_str(&text)
-            .map_err(|e| miette::miette!("Invalid baseline {path}: {e}"))?;
+    pub fn load(path: &Utf8Path) -> Result<Self, BaselineError> {
+        let text = std::fs::read_to_string(path).map_err(|source| BaselineError::Read {
+            path: path.to_path_buf(),
+            source,
+        })?;
+        let file: File = serde_json::from_str(&text).map_err(|source| BaselineError::Invalid {
+            path: path.to_path_buf(),
+            source,
+        })?;
         if file.version != VERSION {
-            return Err(miette::miette!(
-                "Unsupported baseline version {} in {path} (expected {VERSION})",
-                file.version
-            ));
+            return Err(BaselineError::Version {
+                path: path.to_path_buf(),
+                found: file.version,
+            });
         }
         let mut map = BTreeMap::new();
         for mut e in file.violations {
@@ -108,7 +136,15 @@ impl Baseline {
         Ok(Self(map))
     }
 
-    pub fn save(&self, path: &Utf8Path) -> miette::Result<()> {
+    pub fn load_if_exists(path: &Utf8Path) -> Result<Option<Self>, BaselineError> {
+        if path.exists() {
+            Self::load(path).map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn save(&self, path: &Utf8Path) -> Result<(), BaselineError> {
         let file = File {
             version: VERSION,
             violations: self
@@ -120,9 +156,16 @@ impl Baseline {
                 })
                 .collect(),
         };
-        let mut json = serde_json::to_string_pretty(&file).map_err(|e| miette::miette!("{e}"))?;
+        let mut json =
+            serde_json::to_string_pretty(&file).map_err(|source| BaselineError::Invalid {
+                path: path.to_path_buf(),
+                source,
+            })?;
         json.push('\n');
-        std::fs::write(path, json).map_err(|e| miette::miette!("Could not write {path}: {e}"))
+        std::fs::write(path, json).map_err(|source| BaselineError::Write {
+            path: path.to_path_buf(),
+            source,
+        })
     }
 
     #[must_use]
@@ -175,8 +218,8 @@ impl Baseline {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use crate::report::Location;
     use stratum_core::severity::Severity;
+    use stratum_core::violation::SourceLocation;
 
     fn finding(file: &str, line: u32) -> Finding {
         Finding {
@@ -184,7 +227,7 @@ mod tests {
             severity: Severity::Error,
             message: "cycle".into(),
             file: file.into(),
-            location: Location { line, column: 1 },
+            location: SourceLocation { line, column: 1 },
             edge: None,
             suggestion: None,
             members: Vec::new(),

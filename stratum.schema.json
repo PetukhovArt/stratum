@@ -39,7 +39,7 @@
         },
         "rules": {
           "additionalProperties": {
-            "$ref": "#/definitions/RuleConfig"
+            "$ref": "#/definitions/OverrideRule"
           },
           "default": {},
           "type": "object"
@@ -47,6 +47,19 @@
       },
       "required": [
         "files"
+      ],
+      "type": "object"
+    },
+    "OverrideRule": {
+      "additionalProperties": false,
+      "description": "Severity only: options and scripts come from the base `rules` entry.",
+      "properties": {
+        "severity": {
+          "$ref": "#/definitions/Severity"
+        }
+      },
+      "required": [
+        "severity"
       ],
       "type": "object"
     },
@@ -68,14 +81,8 @@
             "type": "string"
           },
           "type": "array"
-        },
-        "root": {
-          "type": "string"
         }
       },
-      "required": [
-        "root"
-      ],
       "type": "object"
     },
     "RuleConfig": {
@@ -134,7 +141,15 @@
       "type": "array"
     },
     "project": {
-      "$ref": "#/definitions/ProjectConfig"
+      "allOf": [
+        {
+          "$ref": "#/definitions/ProjectConfig"
+        }
+      ],
+      "default": {
+        "extends": null,
+        "ignore": []
+      }
     },
     "rules": {
       "additionalProperties": {
@@ -151,7 +166,6 @@
     }
   },
   "required": [
-    "project",
     "version"
   ],
   "title": "Config",

@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use stratum_core::ids::ModuleId;
-use stratum_core::{severity::Severity, violation::Violation};
-use stratum_lint::engine::EngineInput;
+use stratum_core::severity::Severity;
+use stratum_engine::Finding;
 use tower_lsp::lsp_types::{
     Diagnostic, DiagnosticRelatedInformation, DiagnosticSeverity, Location, NumberOrString,
     Position, Range,
@@ -23,34 +22,23 @@ pub struct FileDiagnostics {
 pub type DiagnosticsByFile = HashMap<String, FileDiagnostics>;
 
 #[must_use]
-pub fn group(input: &EngineInput, violations: &[Violation]) -> DiagnosticsByFile {
-    let root = input.project_root.as_std_path();
-    let module_path = |id: ModuleId| {
-        input
-            .graph
-            .modules
-            .get(&id)
-            .map(|m| absolute(root, &m.path))
-    };
+pub fn group(root: &Path, findings: &[Finding]) -> DiagnosticsByFile {
     let mut out = DiagnosticsByFile::new();
-    for v in violations {
-        let slug = input.registry.by_id(v.rule).map_or("unknown", |r| r.slug());
-        let file = absolute(root, &v.file);
+    for f in findings {
+        let file = root.join(&f.file);
         let base = Diagnostic {
-            range: point(v.location.line, v.location.column),
-            severity: Some(severity_to_lsp(v.severity)),
-            code: Some(NumberOrString::String(slug.to_string())),
+            range: point(f.location.line, f.location.column),
+            severity: Some(severity_to_lsp(f.severity)),
+            code: Some(NumberOrString::String(f.rule.clone())),
             source: Some(SOURCE.into()),
-            message: match &v.suggestion {
-                Some(s) => format!("{}\n{s}", v.message),
-                None => v.message.clone(),
+            message: match &f.suggestion {
+                Some(s) => format!("{}\n{s}", f.message),
+                None => f.message.clone(),
             },
             ..Default::default()
         };
-        if let Some(edge) = &v.edge {
-            let related = module_path(edge.to)
-                .and_then(|p| related(&p, "imported module"))
-                .map(|r| vec![r]);
+        if let Some(edge) = &f.edge {
+            let related = related(&root.join(&edge.to), "imported module").map(|r| vec![r]);
             push(
                 &mut out,
                 file,
@@ -59,8 +47,8 @@ pub fn group(input: &EngineInput, violations: &[Violation]) -> DiagnosticsByFile
                     ..base
                 },
             );
-        } else if v.modules.len() > 1 {
-            let members: Vec<PathBuf> = v.modules.iter().filter_map(|m| module_path(*m)).collect();
+        } else if f.members.len() > 1 {
+            let members: Vec<PathBuf> = f.members.iter().map(|m| root.join(m)).collect();
             for (i, member) in members.iter().enumerate() {
                 let others = members
                     .iter()
@@ -99,14 +87,6 @@ fn push(out: &mut DiagnosticsByFile, path: PathBuf, d: Diagnostic) {
         })
         .items
         .push(d);
-}
-
-fn absolute(root: &Path, p: &Path) -> PathBuf {
-    if p.is_absolute() {
-        p.to_path_buf()
-    } else {
-        root.join(p)
-    }
 }
 
 fn related(path: &Path, message: &str) -> Option<DiagnosticRelatedInformation> {

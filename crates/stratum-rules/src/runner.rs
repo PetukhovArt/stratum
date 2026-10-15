@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::collections::{BTreeMap, HashMap};
 
 use camino::{Utf8Path, Utf8PathBuf};
 
@@ -37,7 +37,7 @@ pub fn run_all_with_registry(
     registry: &RuleRegistry,
 ) -> Result<Vec<Violation>, ConfigError> {
     let mut all = Vec::new();
-    let mut severities_by_file: HashMap<Utf8PathBuf, HashMap<String, Severity>> = HashMap::new();
+    let mut severities_by_file: HashMap<Utf8PathBuf, BTreeMap<String, Severity>> = HashMap::new();
     for r in registry.rules() {
         let slug = r.slug();
         let default_sev = r.default_severity();
@@ -55,13 +55,8 @@ pub fn run_all_with_registry(
             let severities = match severities_by_file.entry(probe) {
                 Entry::Occupied(e) => e.into_mut(),
                 Entry::Vacant(e) => {
-                    let eff = resolve_for_file(config, e.key())?;
-                    e.insert(
-                        eff.rules
-                            .into_iter()
-                            .map(|(slug, rc)| (slug, rc.severity))
-                            .collect(),
-                    )
+                    let severities = resolve_for_file(config, e.key())?.severities;
+                    e.insert(severities)
                 }
             };
             let sev = severities.get(slug).copied().unwrap_or(default_sev);
@@ -179,7 +174,6 @@ mod tests {
         Config {
             version: 1,
             project: ProjectConfig {
-                root: "./src".into(),
                 extends: None,
                 ignore: vec![],
             },

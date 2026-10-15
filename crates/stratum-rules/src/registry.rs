@@ -130,22 +130,29 @@ impl RuleRegistry {
     /// [`ConfigError::Rule`] naming the slug, and the option key when one is at fault,
     /// for an unknown slug in `rules` or `overrides` or options its rule rejects.
     pub fn validate(&self, config: &Config) -> Result<(), ConfigError> {
-        let entries = config
-            .rules
-            .iter()
-            .chain(config.overrides.iter().flat_map(|o| o.rules.iter()));
-        for (slug, rule_config) in entries {
-            let Some(rule) = self.by_slug(slug) else {
-                return Err(ConfigError::Rule {
-                    slug: slug.clone(),
-                    message: "unknown rule; run `stratum-lint rules` for the list".into(),
-                });
-            };
-            rule.check_options(&rule_config.options)
+        let rule_of = |slug: &String| {
+            self.by_slug(slug).ok_or_else(|| ConfigError::Rule {
+                slug: slug.clone(),
+                message: format!(
+                    "unknown rule; valid slugs: {}",
+                    self.rules
+                        .iter()
+                        .map(|r| r.slug())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+            })
+        };
+        for (slug, rule_config) in &config.rules {
+            rule_of(slug)?
+                .check_options(&rule_config.options)
                 .map_err(|message| ConfigError::Rule {
                     slug: slug.clone(),
                     message,
                 })?;
+        }
+        for slug in config.overrides.iter().flat_map(|o| o.rules.keys()) {
+            rule_of(slug)?;
         }
         Ok(())
     }
@@ -187,7 +194,7 @@ mod tests {
 
     fn validate(rules: &serde_json::Value) -> Result<(), ConfigError> {
         let config: Config = serde_json::from_value(serde_json::json!({
-            "version": 1, "project": { "root": "." }, "rules": rules,
+            "version": 1, "rules": rules,
         }))
         .unwrap();
         RuleRegistry::with_builtins().validate(&config)

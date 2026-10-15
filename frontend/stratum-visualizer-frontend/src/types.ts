@@ -53,7 +53,7 @@ export interface ViolationEdge {
 }
 
 export interface Violation {
-  rule: number
+  rule: string
   severity: Severity
   message: string
   file: string

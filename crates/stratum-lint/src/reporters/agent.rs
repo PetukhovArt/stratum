@@ -158,8 +158,9 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
-    use crate::report::{EdgeRef, Location};
+    use crate::report::EdgeRef;
     use stratum_core::edge::EdgeKind;
+    use stratum_core::violation::SourceLocation;
 
     fn finding(rule: &str, severity: Severity, file: &str) -> Finding {
         Finding {
@@ -167,7 +168,7 @@ mod tests {
             severity,
             message: format!("{rule} in {file}"),
             file: file.into(),
-            location: Location { line: 4, column: 1 },
+            location: SourceLocation { line: 4, column: 1 },
             edge: Some(EdgeRef {
                 from: file.into(),
                 to: "src/app/main.ts".into(),

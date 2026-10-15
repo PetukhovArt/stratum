@@ -3,6 +3,7 @@ use std::io::Read;
 use camino::{Utf8Path, Utf8PathBuf};
 use serde::Deserialize;
 use stratum_core::severity::Severity;
+use stratum_engine::paths;
 
 use crate::{
     cli::{Format, LintArgs},
@@ -11,7 +12,6 @@ use crate::{
 };
 
 const EDIT_TOOLS: [&str; 2] = ["Edit", "Write"];
-const SOURCE_EXTENSIONS: [&str; 6] = ["ts", "tsx", "mts", "cts", "js", "vue"];
 const POST_TOOL_USE_MAX: usize = 10;
 
 #[derive(Debug, Deserialize)]
@@ -95,14 +95,11 @@ fn post_tool_use(event: HookEvent, max: Option<usize>) -> miette::Result<Option<
 }
 
 fn source_under(root: &Utf8Path, file: &Utf8Path) -> Option<Utf8PathBuf> {
-    if !file
-        .extension()
-        .is_some_and(|e| SOURCE_EXTENSIONS.contains(&e))
-    {
+    if !stratum_engine::is_source(file) {
         return None;
     }
-    let root = root.canonicalize_utf8().ok()?;
-    let file = root.join(file).canonicalize_utf8().ok()?;
+    let root = paths::canonicalize(root).ok()?;
+    let file = paths::canonicalize(&root.join(file)).ok()?;
     file.starts_with(&root).then_some(file)
 }
 

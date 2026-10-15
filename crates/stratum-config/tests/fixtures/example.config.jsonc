@@ -2,9 +2,6 @@
 {
   "$schema": "https://stratum.dev/schema/v1.json",
   "version": 1,
-  "project": {
-    "root": "./src",
-  },
   "layers": [
     { "id": "app",      "path": "src/app",      "depends_on": ["features", "entities", "shared"] },
     { "id": "features", "path": "src/features", "depends_on": ["entities", "shared"] },

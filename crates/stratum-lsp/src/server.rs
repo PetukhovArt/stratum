@@ -24,7 +24,6 @@ use crate::watch::InputWatcher;
 use crate::{document_links, hover};
 
 const DEBOUNCE: Duration = Duration::from_millis(50);
-const WATCHED_SOURCES: &str = "**/*.{ts,tsx,js,jsx,mjs,cjs,vue}";
 
 #[derive(Debug)]
 pub enum Job {
@@ -182,7 +181,10 @@ impl Backend {
     async fn register_source_watcher(&self) {
         let options = DidChangeWatchedFilesRegistrationOptions {
             watchers: vec![FileSystemWatcher {
-                glob_pattern: GlobPattern::String(WATCHED_SOURCES.into()),
+                glob_pattern: GlobPattern::String(format!(
+                    "**/*.{{{}}}",
+                    stratum_engine::SOURCE_EXTENSIONS.join(",")
+                )),
                 kind: None,
             }],
         };

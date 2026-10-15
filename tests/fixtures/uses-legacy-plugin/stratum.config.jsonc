@@ -1,6 +1,5 @@
 {
   "version": 1,
-  "project": { "root": "./src" },
   "layers": [
     { "id": "app", "path": "src/app", "depends_on": ["legacy"] },
     { "id": "legacy", "path": "src/legacy", "depends_on": [] }

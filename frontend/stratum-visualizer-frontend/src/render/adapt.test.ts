@@ -59,7 +59,7 @@ describe('adaptSnapshot', () => {
   it('attaches violations to involved modules and propagates severity', () => {
     const violations: Violation[] = [
       {
-        rule: 7,
+        rule: 'stratum/no-cross-layer-import',
         severity: Severity.Error,
         message: 'cross-layer',
         file: 'x',

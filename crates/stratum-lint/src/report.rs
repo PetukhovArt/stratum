@@ -1,35 +1,8 @@
-use std::path::Path;
 use std::time::Duration;
 
-use camino::Utf8Path;
 use serde::Serialize;
 use stratum_core::severity::Severity;
-
-#[derive(Debug, Clone, Serialize)]
-pub struct Location {
-    pub line: u32,
-    pub column: u32,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct EdgeRef {
-    pub from: String,
-    pub to: String,
-    pub kind: stratum_core::edge::EdgeKind,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct Finding {
-    pub rule: String,
-    pub severity: Severity,
-    pub message: String,
-    pub file: String,
-    pub location: Location,
-    pub edge: Option<EdgeRef>,
-    pub suggestion: Option<String>,
-    #[serde(skip)]
-    pub members: Vec<String>,
-}
+pub use stratum_engine::{EdgeRef, Finding};
 
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct Summary {
@@ -79,21 +52,4 @@ impl Report {
 
 fn count(findings: &[Finding], severity: Severity) -> usize {
     findings.iter().filter(|f| f.severity == severity).count()
-}
-
-/// `path` relative to `root` with forward slashes; `path` itself (slashes normalised) when outside `root`.
-#[must_use]
-pub fn relative(path: &Path, root: &Utf8Path) -> String {
-    let path = path.to_string_lossy();
-    let path = strip_verbatim(&path).replace('\\', "/");
-    let root = strip_verbatim(root.as_str()).replace('\\', "/");
-    let root = root.trim_end_matches('/');
-    match path.strip_prefix(root) {
-        Some(rest) if rest.starts_with('/') => rest[1..].to_owned(),
-        _ => path,
-    }
-}
-
-fn strip_verbatim(s: &str) -> &str {
-    s.strip_prefix(r"\\?\").unwrap_or(s)
 }

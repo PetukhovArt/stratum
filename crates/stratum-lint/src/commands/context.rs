@@ -4,21 +4,16 @@ use std::path::Path;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use serde::Serialize;
-use stratum_config::Config;
 use stratum_core::{
-    ids::{LayerId, ModuleId},
+    ids::LayerId,
     severity::Severity,
     types::{Layer, Module},
-    violation::Violation,
     visibility::VisibilityScope,
 };
+use stratum_engine::{CONFIG_FILE, EngineInput, paths};
 use stratum_graph::{CompoundGraph, assign_layer, direct_dependencies, direct_dependents};
 
-use crate::{
-    cli::BriefFormat,
-    engine::{EngineInput, RuleEngine},
-    pipeline, zero_config,
-};
+use crate::{cli::BriefFormat, commands::lint};
 
 const DEFAULT_PURITY: u8 = 2;
 const SHOWN_PER_LIST: usize = 3;
@@ -81,9 +76,8 @@ pub fn run(
         miette::miette!("{file_abs} is outside the project root {root}; pass --root")
     })?;
     let rel = Utf8PathBuf::from(rel.as_str().replace('\\', "/"));
-    let config = load_config(&root, config_path)?;
-    let input = pipeline::build(&root, &config).map_err(|e| miette::miette!("{e}"))?;
-    let brief = brief(&input, &root, &file_abs, &rel);
+    let input = lint::build(&root, &lint::load_config(&root, config_path)?)?;
+    let brief = brief(&input, &file_abs, &rel)?;
     match format {
         BriefFormat::Agent => print!("{}", render_agent(&brief)),
         BriefFormat::Json => {
@@ -94,7 +88,7 @@ pub fn run(
     Ok(0)
 }
 
-fn brief(input: &EngineInput, root: &Utf8Path, file_abs: &Utf8Path, rel: &Utf8Path) -> Brief {
+fn brief(input: &EngineInput, file_abs: &Utf8Path, rel: &Utf8Path) -> miette::Result<Brief> {
     let graph = &input.graph;
     let layers: Vec<Layer> = graph.layers.values().cloned().collect();
     let module = graph
@@ -131,7 +125,7 @@ fn brief(input: &EngineInput, root: &Utf8Path, file_abs: &Utf8Path, rel: &Utf8Pa
             .collect(),
     };
     let Some(layer_id) = layer_id else {
-        return brief;
+        return Ok(brief);
     };
     let purity = module.map_or(DEFAULT_PURITY, |m| m.purity.rank());
     brief.layer = Some(layer_name(graph, layer_id));
@@ -164,42 +158,36 @@ fn brief(input: &EngineInput, root: &Utf8Path, file_abs: &Utf8Path, rel: &Utf8Pa
         .map(|l| l.name.clone())
         .collect();
     if let Some(m) = module {
-        fill_from_graph(&mut brief, input, root, m);
+        fill_from_graph(&mut brief, input, m)?;
     }
-    brief
+    Ok(brief)
 }
 
-fn fill_from_graph(brief: &mut Brief, input: &EngineInput, root: &Utf8Path, m: &Module) {
+fn fill_from_graph(brief: &mut Brief, input: &EngineInput, m: &Module) -> miette::Result<()> {
     let graph = &input.graph;
     brief.imports = direct_dependencies(graph, m.id).len();
     brief.dependents = direct_dependents(graph, m.id).len();
-    let slug = |v: &Violation| {
-        input.registry.by_id(v.rule).map_or_else(
-            || format!("rule#{}", v.rule.raw()),
-            |r| r.slug().to_string(),
-        )
-    };
+    let here = input.relative(&m.path);
     let mut seen_imports = BTreeSet::new();
-    for v in RuleEngine::run(input) {
-        let from_here = v.edge.as_ref().is_some_and(|e| e.from == m.id);
-        let touches = v.file == m.path || (v.edge.is_none() && v.modules.contains(&m.id));
+    for f in lint::findings(input)? {
+        let from_here = f.edge.as_ref().is_some_and(|e| e.from == here);
+        let touches = f.file == here || (f.edge.is_none() && f.members.contains(&here));
         if !(from_here || touches) {
             continue;
         }
-        if let Some(edge) = v.edge.as_ref().filter(|_| from_here) {
-            let target = module_rel(graph, root, edge.to);
-            if seen_imports.insert((target.clone(), v.rule.raw())) {
+        if let Some(edge) = f.edge.as_ref().filter(|_| from_here) {
+            if seen_imports.insert((edge.to.clone(), f.rule.clone())) {
                 brief.violating_imports.push(ViolatingImport {
-                    target,
-                    rule: slug(&v),
-                    severity: v.severity,
+                    target: edge.to.clone(),
+                    rule: f.rule.clone(),
+                    severity: f.severity,
                 });
             }
         }
         brief.violations.push(FileViolation {
-            rule: slug(&v),
-            severity: v.severity,
-            message: v.message,
+            rule: f.rule,
+            severity: f.severity,
+            message: f.message,
             on_import: from_here,
         });
     }
@@ -207,6 +195,7 @@ fn fill_from_graph(brief: &mut Brief, input: &EngineInput, root: &Utf8Path, m: &
     brief
         .violating_imports
         .sort_by(|a, b| b.severity.cmp(&a.severity));
+    Ok(())
 }
 
 fn render_agent(b: &Brief) -> String {
@@ -323,19 +312,6 @@ fn visibility_name(graph: &CompoundGraph, v: &VisibilityScope) -> String {
     }
 }
 
-fn module_rel(graph: &CompoundGraph, root: &Utf8Path, id: ModuleId) -> String {
-    graph.modules.get(&id).map_or_else(
-        || format!("module#{}", id.raw()),
-        |m| {
-            let p = m.path.to_string_lossy();
-            p.strip_prefix(root.as_str())
-                .unwrap_or(&p)
-                .trim_start_matches(['/', '\\'])
-                .replace('\\', "/")
-        },
-    )
-}
-
 fn absolutize(path: &Utf8Path) -> miette::Result<Utf8PathBuf> {
     let joined = if path.is_absolute() {
         path.to_path_buf()
@@ -348,8 +324,7 @@ fn absolutize(path: &Utf8Path) -> miette::Result<Utf8PathBuf> {
     let mut existing = joined.as_path();
     let mut missing = Vec::new();
     loop {
-        if let Ok(canon) = existing.canonicalize_utf8() {
-            let mut out = strip_extended_prefix(&canon);
+        if let Ok(mut out) = paths::canonicalize(existing) {
             for part in missing.iter().rev() {
                 out.push(part);
             }
@@ -363,29 +338,13 @@ fn absolutize(path: &Utf8Path) -> miette::Result<Utf8PathBuf> {
     }
 }
 
-fn strip_extended_prefix(p: &Utf8Path) -> Utf8PathBuf {
-    Utf8PathBuf::from(p.as_str().strip_prefix(r"\\?\").unwrap_or(p.as_str()))
-}
-
 fn discover_root(file_abs: &Utf8Path) -> miette::Result<Utf8PathBuf> {
     let ancestors = || file_abs.ancestors().skip(1);
-    if let Some(dir) = ancestors().find(|d| d.join("stratum.config.jsonc").is_file()) {
+    if let Some(dir) = ancestors().find(|d| d.join(CONFIG_FILE).is_file()) {
         return Ok(dir.to_path_buf());
     }
     if let Some(dir) = ancestors().find(|d| d.join("package.json").is_file()) {
         return Ok(dir.to_path_buf());
     }
     absolutize(Utf8Path::new("."))
-}
-
-fn load_config(root: &Utf8Path, config_path: Option<&Utf8Path>) -> miette::Result<Config> {
-    let default = root.join("stratum.config.jsonc");
-    let path = match config_path {
-        Some(p) => Some(p.to_path_buf()),
-        None => default.exists().then_some(default),
-    };
-    match path {
-        Some(p) => stratum_config::parse_file(&p).map_err(|e| miette::miette!("{e}")),
-        None => Ok(zero_config::infer(root)),
-    }
 }
