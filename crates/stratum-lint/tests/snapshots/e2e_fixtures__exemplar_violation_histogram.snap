@@ -7,3 +7,4 @@ stratum/miller-limit: 1
 stratum/no-circular-deps: 1
 stratum/no-cross-layer-import: 1
 stratum/promotion-pressure: 1
+stratum/public-api: 1

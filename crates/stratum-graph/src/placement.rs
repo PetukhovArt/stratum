@@ -199,7 +199,8 @@ impl Walk<'_> {
             home_kind = kind;
             loose = false;
         }
-        if sliced && names.len() == 1 {
+        let layer_entry = names.len() == 1 && self.structure.entry_rank(names[0]).is_some();
+        if sliced && names.len() == 1 && !layer_entry {
             let key = Key::Path(path.to_path_buf());
             let mut slice = Draft::new(ContainerKind::Slice, layer, Some(home), Some(module));
             slice.is_file = true;
@@ -357,6 +358,7 @@ mod tests {
                 ..Structure::default()
             };
             let mut files: Vec<Utf8PathBuf> = [
+                "src/entities/index.ts",
                 "src/entities/order.ts",
                 "src/entities/flat/a.ts",
                 "src/entities/user/index.ts",
@@ -447,6 +449,22 @@ mod tests {
             abs("src/entities/user/index.ts")
         );
         assert_eq!(f.at("src/entities/flat").entry, None);
+    }
+
+    #[test]
+    fn entry_file_in_a_sliced_layer_root_is_the_layer_entry_not_a_slice() {
+        let f = Fixture::new();
+        let home = f.home("src/entities/index.ts");
+        assert_eq!(home.kind, ContainerKind::Layer);
+        let entry = f.at("src/entities").entry.unwrap();
+        let entry_module = &f.placement.modules[usize::try_from(entry.raw()).unwrap()];
+        assert_eq!(f.files[entry_module.file], abs("src/entities/index.ts"));
+        assert!(
+            f.placement
+                .containers
+                .values()
+                .all(|c| c.path.as_path() != abs("src/entities/index.ts").as_std_path())
+        );
     }
 
     #[test]
