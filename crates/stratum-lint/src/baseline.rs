@@ -21,9 +21,30 @@ impl Fingerprint {
         Self {
             rule: f.rule.clone(),
             file: f.file.clone(),
-            message: f.message.clone(),
+            message: without_numbers(&f.message),
         }
     }
+}
+
+fn without_numbers(message: &str) -> String {
+    let mut out = String::with_capacity(message.len());
+    let mut chars = message.chars().peekable();
+    while let Some(c) = chars.next() {
+        if !c.is_ascii_digit() {
+            out.push(c);
+            continue;
+        }
+        out.push('#');
+        while let Some(&next) = chars.peek() {
+            let decimal_point =
+                next == '.' && chars.clone().nth(1).is_some_and(|d| d.is_ascii_digit());
+            if !next.is_ascii_digit() && !decimal_point {
+                break;
+            }
+            chars.next();
+        }
+    }
+    out
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -80,7 +101,8 @@ impl Baseline {
             ));
         }
         let mut map = BTreeMap::new();
-        for e in file.violations {
+        for mut e in file.violations {
+            e.fingerprint.message = without_numbers(&e.fingerprint.message);
             *map.entry(e.fingerprint).or_insert(0) += e.count;
         }
         Ok(Self(map))
@@ -174,6 +196,19 @@ mod tests {
         let base = Baseline::from_findings(&[finding("a.ts", 3)]);
         let m = base.matches(&[finding("a.ts", 40), finding("a.ts", 41)]);
         assert_eq!(m.baselined, vec![true, false]);
+        assert_eq!(m.fixed, 0);
+    }
+
+    #[test]
+    fn a_changed_metric_in_the_message_stays_baselined() {
+        let with_message = |message: &str| Finding {
+            message: message.into(),
+            ..finding("a.ts", 1)
+        };
+        let base =
+            Baseline::from_findings(&[with_message("Depth ratio 0.33 below 3.0 (limit 5).")]);
+        let m = base.matches(&[with_message("Depth ratio 0.25 below 3.0 (limit 5).")]);
+        assert_eq!(m.baselined, vec![true]);
         assert_eq!(m.fixed, 0);
     }
 

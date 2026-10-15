@@ -63,7 +63,8 @@ stratum-lint init | snapshot | diff | visualize        # unchanged
 
 ### Baseline
 
-Entries are fingerprinted by `rule slug + relative file + message`, without line numbers, so line shifts do not resurrect them.
+Entries are fingerprinted by `rule slug + relative file + message`, without line numbers and with every number in the message masked as `#`, so line shifts and changed metrics do not resurrect them.
+Hook output never shows the `fixed` hint: tightening the baseline is a separate change, not part of the agent's current edit.
 A run reports `N baselined` and `M fixed — run "stratum-lint baseline --prune"`; the baseline only ever shrinks unless regenerated on purpose.
 
 ### Gate output

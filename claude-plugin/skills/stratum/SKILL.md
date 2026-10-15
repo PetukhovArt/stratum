@@ -9,7 +9,7 @@ Stratum supplies facts about the dependency graph; you supply the judgement. Rul
 
 ## Before the edit
 
-Run `stratum-lint context <file> --format agent` before you create, move or rename a file, or add an import that crosses a layer or slice. For a new file, pass the path it will have. The output says where the file sits and what it may import: place the file and pick imports from it.
+Run `stratum-lint context <file> --format agent` before you create, move or rename a file, or add an import that crosses a layer or slice. For a new file, pass the path it will have. The output says where the file sits and what it may import: place the file and pick imports from it. `context` is read-only and accepts a path that does not exist yet: run it whenever you decide where a module goes, even when you only answer a question and create nothing.
 
 ## Reading a report
 

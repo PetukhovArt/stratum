@@ -124,7 +124,9 @@ fn agent_args(max: Option<usize>, files: Vec<Utf8PathBuf>, changed: Option<Strin
 }
 
 fn render(args: &LintArgs, report: &Report) -> miette::Result<String> {
+    let mut report = report.clone();
+    report.summary.fixed = 0;
     let mut text = Vec::new();
-    lint::render(args, report, &mut text).map_err(|e| miette::miette!("{e}"))?;
+    lint::render(args, &report, &mut text).map_err(|e| miette::miette!("{e}"))?;
     Ok(String::from_utf8_lossy(&text).trim_end().to_owned())
 }
