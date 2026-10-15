@@ -25,6 +25,7 @@ pub enum LoadError {
 }
 
 pub const PLUGIN_ID_FLOOR: u32 = 1000;
+const _: () = assert!(PLUGIN_ID_FLOOR > stratum_rules::ids::max_builtin());
 
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]

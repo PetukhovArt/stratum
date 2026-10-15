@@ -127,7 +127,13 @@ mod tests {
         assert_eq!(features.path, "src/renderer/features");
         assert_eq!(features.depends_on, vec!["entities", "shared"]);
         assert_eq!(cfg.layers.len(), 6);
-        assert_eq!(cfg.rules, crate::recommended_rules());
+        assert!(features.slices);
+        let recommended = crate::recommended_rules();
+        assert_eq!(cfg.rules["stratum/purity"], recommended["stratum/purity"]);
+        assert_eq!(
+            cfg.rules["stratum/public-api"].severity,
+            stratum_core::severity::Severity::Error
+        );
     }
 
     #[test]

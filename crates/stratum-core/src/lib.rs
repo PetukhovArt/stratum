@@ -10,6 +10,8 @@ pub mod edge;
 pub mod ids;
 pub mod purity;
 pub mod severity;
+pub mod stage;
+pub mod structure;
 pub mod types;
 pub mod violation;
 pub mod visibility;
@@ -19,7 +21,9 @@ pub use crate::{
     ids::{ContainerId, LayerId, ModuleId, RuleId},
     purity::{InvalidPurity, Purity},
     severity::Severity,
-    types::{Container, Exports, Layer, Module},
+    stage::{InvalidStage, Stage},
+    structure::Structure,
+    types::{Call, Container, ContainerKind, Exports, Layer, Module},
     violation::{SourceLocation, Violation},
     visibility::VisibilityScope,
 };

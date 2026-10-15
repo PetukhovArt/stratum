@@ -6,66 +6,43 @@ pub const PURITY: RuleId = RuleId::new(3);
 pub const MILLER_LIMIT: RuleId = RuleId::new(4);
 pub const DEPTH_RATIO: RuleId = RuleId::new(5);
 pub const VISIBILITY_SCOPE: RuleId = RuleId::new(6);
-pub const CROSS_ENTITY_PATTERN: RuleId = RuleId::new(7);
+pub const SLICE_FAN_IN: RuleId = RuleId::new(7);
 pub const DEEP_MODULE: RuleId = RuleId::new(8);
 pub const PROMOTION_PRESSURE: RuleId = RuleId::new(9);
 pub const IMPORT_POLICY: RuleId = RuleId::new(10);
+pub const PUBLIC_API: RuleId = RuleId::new(11);
+pub const SIBLING_ISOLATION: RuleId = RuleId::new(12);
+pub const RESTRICTED_CALLS: RuleId = RuleId::new(13);
+pub const STAGE_MIXING: RuleId = RuleId::new(14);
+pub const CONTAINER_BREADTH: RuleId = RuleId::new(15);
+
+pub const BUILTIN: [RuleId; 15] = [
+    NO_CROSS_LAYER_IMPORT,
+    NO_CIRCULAR_DEPS,
+    PURITY,
+    MILLER_LIMIT,
+    DEPTH_RATIO,
+    VISIBILITY_SCOPE,
+    SLICE_FAN_IN,
+    DEEP_MODULE,
+    PROMOTION_PRESSURE,
+    IMPORT_POLICY,
+    PUBLIC_API,
+    SIBLING_ISOLATION,
+    RESTRICTED_CALLS,
+    STAGE_MIXING,
+    CONTAINER_BREADTH,
+];
 
 #[must_use]
-pub fn slug_for(id: RuleId) -> Option<&'static str> {
-    Some(match id {
-        NO_CROSS_LAYER_IMPORT => "stratum/no-cross-layer-import",
-        NO_CIRCULAR_DEPS => "stratum/no-circular-deps",
-        PURITY => "stratum/purity",
-        MILLER_LIMIT => "stratum/miller-limit",
-        DEPTH_RATIO => "stratum/depth-ratio",
-        VISIBILITY_SCOPE => "stratum/visibility-scope",
-        CROSS_ENTITY_PATTERN => "stratum/cross-entity-pattern",
-        DEEP_MODULE => "stratum/deep-module",
-        PROMOTION_PRESSURE => "stratum/promotion-pressure",
-        IMPORT_POLICY => "stratum/import-policy",
-        _ => return None,
-    })
-}
-
-#[must_use]
-pub fn id_for(slug: &str) -> Option<RuleId> {
-    Some(match slug {
-        "stratum/no-cross-layer-import" => NO_CROSS_LAYER_IMPORT,
-        "stratum/no-circular-deps" => NO_CIRCULAR_DEPS,
-        "stratum/purity" => PURITY,
-        "stratum/miller-limit" => MILLER_LIMIT,
-        "stratum/depth-ratio" => DEPTH_RATIO,
-        "stratum/visibility-scope" => VISIBILITY_SCOPE,
-        "stratum/cross-entity-pattern" => CROSS_ENTITY_PATTERN,
-        "stratum/deep-module" => DEEP_MODULE,
-        "stratum/promotion-pressure" => PROMOTION_PRESSURE,
-        "stratum/import-policy" => IMPORT_POLICY,
-        _ => return None,
-    })
-}
-
-#[cfg(test)]
-#[allow(clippy::unwrap_used)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn slug_round_trip() {
-        for id in [
-            NO_CROSS_LAYER_IMPORT,
-            NO_CIRCULAR_DEPS,
-            PURITY,
-            MILLER_LIMIT,
-            DEPTH_RATIO,
-            VISIBILITY_SCOPE,
-            CROSS_ENTITY_PATTERN,
-            DEEP_MODULE,
-            PROMOTION_PRESSURE,
-            IMPORT_POLICY,
-        ] {
-            let slug = slug_for(id).unwrap();
-            assert_eq!(id_for(slug), Some(id));
+pub const fn max_builtin() -> u32 {
+    let mut max = 0;
+    let mut i = 0;
+    while i < BUILTIN.len() {
+        if BUILTIN[i].raw() > max {
+            max = BUILTIN[i].raw();
         }
+        i += 1;
     }
+    max
 }

@@ -237,6 +237,7 @@ mod tests {
                 name: "renderer".into(),
                 path: PathBuf::from("src/renderer"),
                 depends_on: vec![],
+                slices: false,
             },
         );
         for (i, path) in paths.iter().enumerate() {
@@ -253,6 +254,7 @@ mod tests {
                     purity: Purity::new(2).unwrap(),
                     visibility: VisibilityScope::Public,
                     exports: stratum_core::types::Exports::default(),
+                    calls: vec![],
                 },
             );
         }

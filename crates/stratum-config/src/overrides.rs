@@ -70,6 +70,7 @@ mod tests {
         rules.insert("stratum/miller-limit".into(), rc(Severity::Warning));
         Config {
             version: 1,
+            structure: stratum_core::structure::Structure::default(),
             project: ProjectConfig {
                 extends: None,
                 ignore: vec![],
@@ -78,6 +79,7 @@ mod tests {
                 id: "shared".into(),
                 path: "src/shared".into(),
                 depends_on: vec![],
+                slices: false,
             }],
             rules,
             overrides: vec![],

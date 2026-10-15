@@ -8,7 +8,6 @@ use stratum_core::{
     purity::Purity,
     types::Layer,
     violation::Violation,
-    visibility::VisibilityScope,
 };
 use stratum_graph::{BuildConfig, CompoundGraph, GraphBuilder};
 use stratum_plugins_rhai::{LoadError as PluginLoadError, PLUGIN_ID_FLOOR};
@@ -116,13 +115,15 @@ pub fn build_with_builder(
                     LayerId::new(u32::try_from(pos).unwrap_or(0))
                 })
                 .collect(),
+            slices: l.slices,
         })
         .collect();
     let build_cfg = BuildConfig {
         project_root: root_abs.clone(),
         layers,
+        structure: config.structure.clone(),
+        tracked_calls: stratum_rules::tracked_calls(config),
         default_purity: Purity::new(2).unwrap_or_else(|_| unreachable!("Purity(2) is valid")),
-        default_visibility: VisibilityScope::Public,
     };
     let ignore = IgnoreSet::new(config)?;
     let builder = GraphBuilder::new(build_cfg)

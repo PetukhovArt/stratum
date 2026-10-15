@@ -41,16 +41,48 @@ pub fn builtin(slug: &str) -> Option<RuleDoc> {
             &["min_ratio: minimum container_size / exports ratio (3.0)"],
         ),
         "stratum/visibility-scope" => (
-            "A module may import another only if the target's visibility admits it: public = anyone, layer = same layer, container = same container, shared = importers under a `/_shared/` path. Every module is public today, so this rule reports nothing yet.",
-            "Visibility keeps a module's internals private to the scope that owns them.",
-            "Import the target through a public entry point, move the importer into the allowed scope, or widen the target's visibility.",
+            "A module inside a private-zone folder (named in `structure.private`, default `_shared`) may be imported only by modules under that folder's parent. When zones nest, the innermost one decides. Every other module is public.",
+            "A private zone holds what a folder's own children share; folder-structure makes it visible to direct siblings only (iso:148), so outside code cannot grow a dependency on those internals.",
+            "Import through the entry of the container that owns the zone, move the importer under the zone's parent, or move the code out of the zone if it is meant to be shared.",
             &[],
         ),
-        "stratum/cross-entity-pattern" => (
-            "Reports an entity (`/entities/<name>/`) imported by more than `max_fanout` distinct features (`/features/<name>/`). Reported on the entity's index.ts, else its first module.",
-            "An entity that every feature reaches turns into a god object; any change to it ripples through all features.",
-            "Narrow the entity's public API or split it so each feature imports only the slice it needs.",
-            &["max_fanout: max distinct importing features per entity (5)"],
+        "stratum/slice-fan-in" => (
+            "Reports a slice imported by more than `max_fan_in` distinct other slices. Slices are the direct children of a layer declared `slices: true`.",
+            "A slice that many slices reach turns into a god object; any change to it ripples through all of them.",
+            "Narrow the slice's entry or split it so each importer reaches only the part it needs; code every slice needs may belong in a lower layer.",
+            &["max_fan_in: max distinct importing slices per slice (5)"],
+        ),
+        "stratum/public-api" => (
+            "An import from outside a container (a slice, sub-unit or nested container; layers are exempt) must target that container's entry file (`structure.entries`, e.g. `index.ts`). The outermost container that holds the target but not the importer is checked. When that container has no entry file, the message says so.",
+            "folder-structure lets the outside reach a unit only through its `index.ts` (bas:228); a deep import binds the importer to internals, so every internal move becomes a breaking change.",
+            "Import from the container's entry, export the needed name from the entry, or add an entry file if the container has none.",
+            &[],
+        ),
+        "stratum/sibling-isolation" => (
+            "Reports an import between two different slices or sub-units that share a parent container, at any depth. Nested containers, and the entry-bearing children of a layer without `slices`, are not isolated.",
+            "Siblings that import each other stop being independent units: neither can change, move or be deleted alone, and their parent no longer is the one place that composes them.",
+            "Move the shared code down (to a lower layer or the parent's private zone), or compose the two siblings in their parent. To allow chosen cross-imports, set this rule to off in an `overrides` block matching those importers.",
+            &[],
+        ),
+        "stratum/restricted-calls" => (
+            "Reports a call to a listed function name outside the files matched by `allow`, at the call's line. A plain identifier callee matches, and so does a local alias of an imported listed name (`import { inject as i }`, then `i()`). Member calls such as `x.inject()` do not.",
+            "Some functions (DI `inject`/`provide`, global state setters) must be called from one designated place so that the wiring stays in one spot.",
+            "Call the wrapper the policy's message names, or move the call into a file matched by `allow`.",
+            &[
+                "a list of { calls: [name], allow: [glob], message?: string }; globs use forward slashes relative to the project root (no policies)",
+            ],
+        ),
+        "stratum/stage-mixing" => (
+            "Reports a container with both segment folders (`structure.segments`) and sub-unit folders directly inside it.",
+            "Segments (stage 3) and sub-units (stage 4) are two different ways to split a container; mixing them leaves code that belongs to no sub-unit next to code that does.",
+            "Pick one: move the segment folders' code into sub-units, or fold the sub-units back into segments.",
+            &[],
+        ),
+        "stratum/container-breadth" => (
+            "Reports a container (layers are exempt) or private-zone folder with more than `max_kinds` kinds directly inside it. A kind is a child folder, or the child files sharing a stem before the first dot (`foo.ts`, `foo.test.ts` and `foo.vue` are one kind). The entry file and private zones do not count. The message names the stage to evolve to.",
+            "Past about seven kinds a reader can no longer hold a folder in mind (Miller's limit), so the container is due to move to its next stage.",
+            "Group the files into segment folders (stage 3), or split them into sub-units with their own entry file (stage 4).",
+            &["max_kinds: max kinds directly in one container (6)"],
         ),
         "stratum/deep-module" => (
             "Reports a module that exports more than `max_exports` names. Counted: distinct top-level export names (declarations, `export { }`, `export { } from`, `export * as ns from`, types included, overloads and merged declarations once), `export default` and `export =` as 1, and every `export * from` as 1 (the message flags these: the real surface may be larger). CommonJS `module.exports` is not counted. Vue SFC: the exports of a plain `<script>` (its default export counts 1) plus, in `<script setup>`, each `defineProps` / `defineEmits` member, each `defineExpose` property and each `defineModel` call; a props or emits type that is not a type literal or a local interface / object type alias counts 1.",

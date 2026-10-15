@@ -120,6 +120,7 @@ mod tests {
             purity: Purity::new(2).unwrap(),
             visibility: VisibilityScope::Public,
             exports: stratum_core::types::Exports::default(),
+            calls: vec![],
         }
     }
 
@@ -143,6 +144,7 @@ mod tests {
                     name: (*name).into(),
                     path: PathBuf::from(format!("src/{name}")),
                     depends_on: deps.iter().map(|i| LayerId::new(*i)).collect(),
+                    slices: false,
                 },
             );
         }

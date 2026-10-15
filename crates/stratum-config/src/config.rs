@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use camino::Utf8PathBuf;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use stratum_core::severity::Severity;
+use stratum_core::{severity::Severity, structure::Structure};
 
 /// The whole `stratum.config.jsonc` document.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -12,6 +12,9 @@ pub struct Config {
     pub version: u32,
     #[serde(default)]
     pub project: ProjectConfig,
+    /// Merged with the `extends` parent field by field; a child list replaces the parent's list.
+    #[serde(default)]
+    pub structure: Structure,
     /// Merged with the `extends` parent by `id`: a child entry overrides the parent entry field by field.
     #[serde(default)]
     pub layers: Vec<LayerConfig>,
@@ -47,6 +50,9 @@ pub struct LayerConfig {
     /// Ids of the layers this layer may import from.
     #[serde(default)]
     pub depends_on: Vec<String>,
+    /// Each direct child of `path`, folder or source file, is a slice: a container isolated from its siblings.
+    #[serde(default)]
+    pub slices: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

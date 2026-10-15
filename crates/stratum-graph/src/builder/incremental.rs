@@ -28,9 +28,9 @@ impl GraphBuilder {
             .values()
             .filter_map(|m| Some((Utf8PathBuf::from_path_buf(m.path.clone()).ok()?, m.id)))
             .collect();
-        let (exports, edges) = self.edges_of(path, source, &path_to_id)?;
-        let purity =
-            stratum_parser_ts::extract_purity(source).unwrap_or(self.config.default_purity);
+        let facts = self.facts_of(path, source, &path_to_id)?;
+        let (exports, edges) = (facts.exports, facts.edges);
+        let purity = facts.purity.unwrap_or(self.config.default_purity);
 
         let old: Vec<(ModuleId, EdgeKind)> = graph
             .deps

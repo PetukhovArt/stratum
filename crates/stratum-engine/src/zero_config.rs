@@ -19,6 +19,7 @@ pub fn infer(root: &Utf8Path) -> Config {
                     id: name.clone(),
                     path: Utf8PathBuf::from(format!("src/{name}")),
                     depends_on: vec![],
+                    slices: false,
                 });
             }
         }
@@ -30,6 +31,7 @@ pub fn infer(root: &Utf8Path) -> Config {
     Config {
         version: 1,
         project: ProjectConfig::default(),
+        structure: stratum_core::structure::Structure::default(),
         layers,
         rules,
         overrides: vec![],
@@ -53,7 +55,7 @@ mod tests {
             names,
             vec!["app", "entities", "features", "legacy", "shared"]
         );
-        assert_eq!(cfg.rules.len(), 5);
+        assert_eq!(cfg.rules.len(), 11);
     }
 
     #[test]

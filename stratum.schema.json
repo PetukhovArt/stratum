@@ -19,6 +19,11 @@
         "path": {
           "description": "Directory relative to the project root; a module belongs to the layer with the longest matching path.",
           "type": "string"
+        },
+        "slices": {
+          "default": false,
+          "description": "Each direct child of `path`, folder or source file, is a slice: a container isolated from its siblings.",
+          "type": "boolean"
         }
       },
       "required": [
@@ -117,6 +122,45 @@
         "error"
       ],
       "type": "string"
+    },
+    "Structure": {
+      "additionalProperties": false,
+      "description": "Names that shape containers. Each list matches whole path components, never substrings.",
+      "properties": {
+        "entries": {
+          "default": [
+            "index.ts",
+            "index.tsx",
+            "index.js",
+            "index.jsx",
+            "index.vue"
+          ],
+          "description": "Exact file names. A folder holding one is a container, and that file is its only import target from outside.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "private": {
+          "default": [
+            "_shared"
+          ],
+          "description": "Private-zone folder names: visible only inside their parent folder's subtree.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "segments": {
+          "default": [],
+          "description": "Folder names that group a container's files by purpose. A segment folder is never a container.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
     }
   },
   "description": "The whole `stratum.config.jsonc` document.",
@@ -158,6 +202,27 @@
       "default": {},
       "description": "Keyed by rule slug. Merged with the `extends` parent by slug, field by field.",
       "type": "object"
+    },
+    "structure": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/Structure"
+        }
+      ],
+      "default": {
+        "entries": [
+          "index.ts",
+          "index.tsx",
+          "index.js",
+          "index.jsx",
+          "index.vue"
+        ],
+        "private": [
+          "_shared"
+        ],
+        "segments": []
+      },
+      "description": "Merged with the `extends` parent field by field; a child list replaces the parent's list."
     },
     "version": {
       "format": "uint32",

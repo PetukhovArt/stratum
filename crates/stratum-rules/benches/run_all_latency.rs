@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use camino::Utf8PathBuf;
 use criterion::{Criterion, criterion_group, criterion_main};
 
-use stratum_core::{ids::LayerId, purity::Purity, types::Layer, visibility::VisibilityScope};
+use stratum_core::{ids::LayerId, purity::Purity, types::Layer};
 use stratum_graph::{BuildConfig, GraphBuilder};
 
 fn bench_run_all_tiny_ts_violations(c: &mut Criterion) {
@@ -35,13 +35,15 @@ fn bench_run_all_tiny_ts_violations(c: &mut Criterion) {
                     LayerId::new(u32::try_from(pos).unwrap())
                 })
                 .collect(),
+            slices: false,
         })
         .collect();
     let cfg = BuildConfig {
         project_root: root.clone(),
         layers,
         default_purity: Purity::new(2).unwrap(),
-        default_visibility: VisibilityScope::Public,
+        structure: stratum_core::structure::Structure::default(),
+        tracked_calls: std::collections::HashSet::new(),
     };
     let graph = GraphBuilder::new(cfg).build().unwrap();
     c.bench_function("run_all_tiny_ts_violations", |b| {

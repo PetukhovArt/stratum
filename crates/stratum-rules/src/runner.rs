@@ -7,7 +7,6 @@ use stratum_config::{Config, ConfigError, resolve_for_file};
 use stratum_core::{severity::Severity, violation::Violation};
 use stratum_graph::CompoundGraph;
 
-use crate::ids;
 use crate::registry::RuleRegistry;
 
 /// Run every built-in rule against `graph`, then re-stamp each violation's
@@ -47,7 +46,7 @@ pub fn run_all_with_registry(
             .map_or_else(|| serde_json::Value::Null, |rc| rc.options.clone());
         let raw = r.run(graph, default_sev, &base_options);
         for mut v in raw {
-            let probe = if r.id() == ids::NO_CIRCULAR_DEPS {
+            let probe = if r.project_wide() {
                 Utf8PathBuf::from("<project>")
             } else {
                 to_relative_forward_slash(&v.file, project_root)
@@ -94,6 +93,7 @@ fn strip_windows_extended_prefix(p: &Utf8Path) -> Utf8PathBuf {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+    use crate::ids;
     use std::collections::BTreeMap;
     use std::path::PathBuf;
 
@@ -118,6 +118,7 @@ mod tests {
             purity: Purity::new(2).unwrap(),
             visibility: VisibilityScope::Public,
             exports: stratum_core::types::Exports::default(),
+            calls: vec![],
         }
     }
 
@@ -136,6 +137,7 @@ mod tests {
                 name: "features".into(),
                 path: PathBuf::from("src/features"),
                 depends_on: vec![LayerId::new(2)],
+                slices: false,
             },
         );
         g.layers.insert(
@@ -145,6 +147,7 @@ mod tests {
                 name: "shared".into(),
                 path: PathBuf::from("src/shared"),
                 depends_on: vec![],
+                slices: false,
             },
         );
         for m in [
@@ -173,6 +176,7 @@ mod tests {
         );
         Config {
             version: 1,
+            structure: stratum_core::structure::Structure::default(),
             project: ProjectConfig {
                 extends: None,
                 ignore: vec![],
@@ -181,6 +185,7 @@ mod tests {
                 id: "shared".into(),
                 path: "src/shared".into(),
                 depends_on: vec![],
+                slices: false,
             }],
             rules,
             overrides: vec![],

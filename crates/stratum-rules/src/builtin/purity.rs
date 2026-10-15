@@ -101,6 +101,7 @@ mod tests {
             purity: Purity::new(purity_rank).unwrap(),
             visibility: VisibilityScope::Public,
             exports: stratum_core::types::Exports::default(),
+            calls: vec![],
         }
     }
 

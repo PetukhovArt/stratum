@@ -11,7 +11,7 @@ use stratum_core::{
     visibility::VisibilityScope,
 };
 use stratum_engine::{CONFIG_FILE, EngineInput, paths};
-use stratum_graph::{CompoundGraph, assign_layer, direct_dependencies, direct_dependents};
+use stratum_graph::{CompoundGraph, direct_dependencies, direct_dependents};
 
 use crate::{cli::BriefFormat, commands::lint};
 
@@ -95,9 +95,10 @@ fn brief(input: &EngineInput, file_abs: &Utf8Path, rel: &Utf8Path) -> miette::Re
         .modules
         .values()
         .find(|m| Path::new(file_abs.as_str()) == m.path);
-    let layer_id = module
-        .map(|m| m.layer)
-        .or_else(|| assign_layer(&layers, rel));
+    let container = module
+        .and_then(|m| graph.containers.get(&m.container))
+        .or_else(|| graph.container_at(Path::new(file_abs.as_str())));
+    let layer_id = module.map(|m| m.layer).or(container.map(|c| c.layer));
     let status = match (module, layer_id) {
         (Some(_), _) => Status::Module,
         (None, None) => Status::OutsideLayers,
@@ -129,16 +130,13 @@ fn brief(input: &EngineInput, file_abs: &Utf8Path, rel: &Utf8Path) -> miette::Re
     };
     let purity = module.map_or(DEFAULT_PURITY, |m| m.purity.rank());
     brief.layer = Some(layer_name(graph, layer_id));
-    brief.container = Some(
-        module
-            .and_then(|m| graph.containers.get(&m.container))
-            .map_or_else(|| layer_name(graph, layer_id), |c| c.name.clone()),
-    );
+    brief.container =
+        Some(container.map_or_else(|| layer_name(graph, layer_id), |c| c.name.clone()));
     brief.purity = Some(purity);
     brief.max_import_purity = Some(purity);
     brief.visibility = Some(module.map_or_else(
         || "public".to_string(),
-        |m| visibility_name(graph, &m.visibility),
+        |m| visibility_name(input, &m.visibility),
     ));
     brief.may_import_layers = std::iter::once(layer_id)
         .chain(
@@ -297,18 +295,10 @@ fn layer_name(graph: &CompoundGraph, id: LayerId) -> String {
         .map_or_else(|| format!("layer#{}", id.raw()), |l| l.name.clone())
 }
 
-fn visibility_name(graph: &CompoundGraph, v: &VisibilityScope) -> String {
+fn visibility_name(input: &EngineInput, v: &VisibilityScope) -> String {
     match v {
         VisibilityScope::Public => "public".into(),
-        VisibilityScope::Shared => "shared".into(),
-        VisibilityScope::Layer { id } => format!("layer {}", layer_name(graph, *id)),
-        VisibilityScope::Container { id } => format!(
-            "container {}",
-            graph
-                .containers
-                .get(id)
-                .map_or_else(|| format!("#{}", id.raw()), |c| c.name.clone())
-        ),
+        VisibilityScope::Private { root } => format!("private to {}", input.relative(root)),
     }
 }
 

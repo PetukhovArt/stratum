@@ -94,6 +94,7 @@ fn merge(parent: Value, child: Value) -> Value {
             "rules" => merge_rules(inherited, value),
             "overrides" => append(inherited, value),
             "project" => merge_project(inherited, value),
+            "structure" => merge_fields(inherited, value),
             _ => value,
         };
         base.insert(key, merged);

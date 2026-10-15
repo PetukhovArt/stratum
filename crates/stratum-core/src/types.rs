@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     ids::{ContainerId, LayerId, ModuleId},
     purity::Purity,
+    stage::Stage,
+    violation::SourceLocation,
     visibility::VisibilityScope,
 };
 
@@ -19,6 +21,14 @@ pub struct Module {
     pub visibility: VisibilityScope,
     #[serde(default)]
     pub exports: Exports,
+    #[serde(default)]
+    pub calls: Vec<Call>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Call {
+    pub name: String,
+    pub location: SourceLocation,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -29,13 +39,25 @@ pub struct Exports {
     pub star_reexports: u32,
 }
 
-/// A compound node grouping Modules of one Layer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ContainerKind {
+    Layer,
+    Slice,
+    SubUnit,
+    Nested,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Container {
     pub id: ContainerId,
     pub name: String,
+    pub path: PathBuf,
+    pub kind: ContainerKind,
     pub layer: LayerId,
     pub parent: Option<ContainerId>,
+    pub stage: Stage,
+    pub entry: Option<ModuleId>,
 }
 
 /// A named group of Modules with its own visibility and dependency direction.
@@ -45,4 +67,5 @@ pub struct Layer {
     pub name: String,
     pub path: PathBuf,
     pub depends_on: Vec<LayerId>,
+    pub slices: bool,
 }

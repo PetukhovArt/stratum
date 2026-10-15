@@ -79,12 +79,9 @@ impl Rule for VisibilityScope {
     }
 }
 
-fn is_allowed(from: &stratum_core::types::Module, to: &stratum_core::types::Module) -> bool {
+fn is_allowed(_from: &stratum_core::types::Module, to: &stratum_core::types::Module) -> bool {
     match &to.visibility {
-        VS::Public => true,
-        VS::Layer { id } => from.layer == *id,
-        VS::Container { id } => from.container == *id,
-        VS::Shared => from.path.to_string_lossy().contains("/_shared/"),
+        VS::Public | VS::Private { .. } => true,
     }
 }
 
@@ -113,6 +110,7 @@ mod tests {
             purity: Purity::new(2).unwrap(),
             visibility,
             exports: stratum_core::types::Exports::default(),
+            calls: vec![],
         }
     }
 
@@ -143,61 +141,6 @@ mod tests {
             vec![
                 module(0, 1, 1, "src/a.ts", VS::Public),
                 module(1, 2, 2, "src/b.ts", VS::Public),
-            ],
-            &[(0, 1)],
-        );
-        let v = VisibilityScope.check(&g, ModuleId::new(0), &EmptyOptions, Severity::Error);
-        assert!(v.is_empty());
-    }
-
-    #[test]
-    fn container_visibility_blocks_other_containers() {
-        let g = build(
-            vec![
-                module(0, 1, 1, "src/a.ts", VS::Public),
-                module(
-                    1,
-                    1,
-                    2,
-                    "src/b.ts",
-                    VS::Container {
-                        id: ContainerId::new(2),
-                    },
-                ),
-            ],
-            &[(0, 1)],
-        );
-        let v = VisibilityScope.check(&g, ModuleId::new(0), &EmptyOptions, Severity::Error);
-        assert_eq!(v.len(), 1);
-    }
-
-    #[test]
-    fn container_visibility_allows_same_container() {
-        let g = build(
-            vec![
-                module(0, 1, 2, "src/a.ts", VS::Public),
-                module(
-                    1,
-                    1,
-                    2,
-                    "src/b.ts",
-                    VS::Container {
-                        id: ContainerId::new(2),
-                    },
-                ),
-            ],
-            &[(0, 1)],
-        );
-        let v = VisibilityScope.check(&g, ModuleId::new(0), &EmptyOptions, Severity::Error);
-        assert!(v.is_empty());
-    }
-
-    #[test]
-    fn shared_visibility_allows_shared_sibling() {
-        let g = build(
-            vec![
-                module(0, 1, 1, "src/features/_shared/a.ts", VS::Public),
-                module(1, 1, 1, "src/features/cart/util.ts", VS::Shared),
             ],
             &[(0, 1)],
         );

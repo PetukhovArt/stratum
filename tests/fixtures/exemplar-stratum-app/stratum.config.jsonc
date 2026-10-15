@@ -13,7 +13,7 @@
     "stratum/miller-limit":           { "severity": "warning", "options": { "max_children": 2 } },
     "stratum/depth-ratio":            { "severity": "info" },
     "stratum/visibility-scope":       { "severity": "error" },
-    "stratum/cross-entity-pattern":   { "severity": "warning", "options": { "max_fanout": 2 } },
+    "stratum/slice-fan-in":           { "severity": "warning", "options": { "max_fan_in": 2 } },
     "stratum/deep-module":            { "severity": "info", "options": { "max_exports": 5 } },
     "stratum/promotion-pressure":     { "severity": "info", "options": { "threshold": 1 } }
   }

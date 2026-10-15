@@ -33,6 +33,7 @@ fn module(id: u32, layer_raw: u32, path: &str) -> Module {
         purity: Purity::new(2).unwrap(),
         visibility: VisibilityScope::Public,
         exports: stratum_core::types::Exports::default(),
+        calls: vec![],
     }
 }
 
@@ -51,6 +52,7 @@ fn build_graph() -> CompoundGraph {
             name: "app".into(),
             path: PathBuf::from("src/app"),
             depends_on: vec![],
+            slices: false,
         },
     );
     g.layers.insert(
@@ -60,6 +62,7 @@ fn build_graph() -> CompoundGraph {
             name: "legacy".into(),
             path: PathBuf::from("src/legacy"),
             depends_on: vec![],
+            slices: false,
         },
     );
     for m in [
@@ -90,6 +93,7 @@ fn config_with_custom_rule() -> Config {
     );
     Config {
         version: 1,
+        structure: stratum_core::structure::Structure::default(),
         project: ProjectConfig {
             extends: None,
             ignore: vec![],
@@ -98,6 +102,7 @@ fn config_with_custom_rule() -> Config {
             id: "app".into(),
             path: "src/app".into(),
             depends_on: vec![],
+            slices: false,
         }],
         rules,
         overrides: vec![],

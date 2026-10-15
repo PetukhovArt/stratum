@@ -2,7 +2,7 @@
 source: crates/stratum-lint/tests/e2e_context.rs
 expression: "stdout(&[\"context\", &file])"
 ---
-src/features/cart/index.ts: layer features, container features, purity 2, visibility public
+src/features/cart/index.ts: layer features, container cart, purity 2, visibility public
 may import: layers features, shared; modules at purity <= 2
 imported by: layers app, features
 imports: 2 modules, 1 violate:

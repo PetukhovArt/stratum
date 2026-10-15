@@ -12,12 +12,15 @@ pub fn depth_ratio(g: &CompoundGraph, module: ModuleId) -> Option<f64> {
     if m.exports.count == 0 {
         return None;
     }
-    let internal = container_internal_count(g, m.container);
+    let internal = container_internal_count(g, super::layer_container(g, m));
     Some(internal as f64 / f64::from(m.exports.count))
 }
 
 fn container_internal_count(g: &CompoundGraph, c: ContainerId) -> usize {
-    g.modules.values().filter(|m| m.container == c).count()
+    g.modules
+        .values()
+        .filter(|m| super::layer_container(g, m) == c)
+        .count()
 }
 
 #[cfg(test)]
@@ -47,6 +50,7 @@ mod tests {
                 count: exports,
                 star_reexports: 0,
             },
+            calls: vec![],
         }
     }
 

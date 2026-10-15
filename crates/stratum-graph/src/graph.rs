@@ -1,10 +1,14 @@
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+
 use indexmap::IndexMap;
 use petgraph::graph::{DiGraph, NodeIndex};
 
 use stratum_core::{
     edge::EdgeKind,
     ids::{ContainerId, LayerId, ModuleId},
-    types::{Container, Layer, Module},
+    types::{Container, ContainerKind, Layer, Module},
+    visibility::VisibilityScope,
 };
 
 /// The compound graph view used by rules, the LSP, and the visualizer.
@@ -50,6 +54,77 @@ impl CompoundGraph {
     pub fn node_for(&self, m: ModuleId) -> Option<NodeIndex> {
         self.node_index.get(&m).copied()
     }
+
+    /// From the innermost container of `m` out to its `Layer` container.
+    pub fn containers_of(&self, m: ModuleId) -> impl Iterator<Item = &Container> {
+        let innermost = self
+            .modules
+            .get(&m)
+            .and_then(|m| self.containers.get(&m.container));
+        std::iter::successors(innermost, |c| {
+            c.parent.and_then(|p| self.containers.get(&p))
+        })
+    }
+
+    /// The slice holding `m`, else its `Layer` container.
+    #[must_use]
+    pub fn outer_container(&self, m: ModuleId) -> Option<&Container> {
+        let mut outer = None;
+        for c in self.containers_of(m) {
+            if c.kind == ContainerKind::Slice {
+                return Some(c);
+            }
+            outer = Some(c);
+        }
+        outer
+    }
+
+    /// The innermost container enclosing `path`, which need not exist on disk.
+    #[must_use]
+    pub fn container_at(&self, path: &Path) -> Option<&Container> {
+        self.containers
+            .values()
+            .filter(|c| path.starts_with(&c.path))
+            .max_by_key(|c| c.path.components().count())
+    }
+
+    /// Every private-zone folder that holds modules, in path order. `files` excludes
+    /// modules of a zone nested inside it.
+    #[must_use]
+    pub fn private_zones(&self) -> Vec<PrivateZone> {
+        let mut zones: BTreeMap<PathBuf, PrivateZone> = BTreeMap::new();
+        for m in self.modules.values() {
+            let VisibilityScope::Private { root } = &m.visibility else {
+                continue;
+            };
+            let Some(zone) = m
+                .path
+                .strip_prefix(root)
+                .ok()
+                .and_then(|rest| rest.components().next())
+            else {
+                continue;
+            };
+            let path = root.join(zone);
+            zones
+                .entry(path.clone())
+                .or_insert_with(|| PrivateZone {
+                    path,
+                    root: root.clone(),
+                    files: vec![],
+                })
+                .files
+                .push(m.id);
+        }
+        zones.into_values().collect()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrivateZone {
+    pub path: PathBuf,
+    pub root: PathBuf,
+    pub files: Vec<ModuleId>,
 }
 
 impl Default for CompoundGraph {

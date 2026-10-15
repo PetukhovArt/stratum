@@ -1,4 +1,4 @@
-pub mod cross_entity_pattern;
+pub mod container_breadth;
 pub mod deep_module;
 pub mod depth_ratio;
 pub mod import_policy;
@@ -6,5 +6,10 @@ pub mod miller_limit;
 pub mod no_circular_deps;
 pub mod no_cross_layer_import;
 pub mod promotion_pressure;
+pub mod public_api;
 pub mod purity;
+pub mod restricted_calls;
+pub mod sibling_isolation;
+pub mod slice_fan_in;
+pub mod stage_mixing;
 pub mod visibility_scope;

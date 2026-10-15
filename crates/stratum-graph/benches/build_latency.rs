@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use camino::Utf8PathBuf;
 use criterion::{Criterion, criterion_group, criterion_main};
 
-use stratum_core::{ids::LayerId, purity::Purity, types::Layer, visibility::VisibilityScope};
+use stratum_core::{ids::LayerId, purity::Purity, types::Layer};
 use stratum_graph::{BuildConfig, GraphBuilder};
 
 #[allow(clippy::unwrap_used)]
@@ -23,28 +23,33 @@ fn bench_build_tiny_ts(c: &mut Criterion) {
                 name: "app".into(),
                 path: PathBuf::from("src/app"),
                 depends_on: vec![],
+                slices: false,
             },
             Layer {
                 id: LayerId::new(1),
                 name: "features".into(),
                 path: PathBuf::from("src/features"),
                 depends_on: vec![],
+                slices: false,
             },
             Layer {
                 id: LayerId::new(2),
                 name: "entities".into(),
                 path: PathBuf::from("src/entities"),
                 depends_on: vec![],
+                slices: false,
             },
             Layer {
                 id: LayerId::new(3),
                 name: "shared".into(),
                 path: PathBuf::from("src/shared"),
                 depends_on: vec![],
+                slices: false,
             },
         ],
         default_purity: Purity::new(2).unwrap(),
-        default_visibility: VisibilityScope::Public,
+        structure: stratum_core::structure::Structure::default(),
+        tracked_calls: std::collections::HashSet::new(),
     };
     c.bench_function("build_tiny_ts_cold", |b| {
         b.iter(|| {

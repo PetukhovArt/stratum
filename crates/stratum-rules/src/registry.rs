@@ -11,6 +11,7 @@ pub trait DynRule: Send + Sync {
     fn slug(&self) -> &'static str;
     fn default_severity(&self) -> Severity;
     fn doc(&self) -> Option<RuleDoc>;
+    fn project_wide(&self) -> bool;
     /// # Errors
     /// A message when `options` do not fit the rule, naming the offending key when one alone fails.
     fn check_options(&self, options: &serde_json::Value) -> Result<(), String>;
@@ -45,6 +46,9 @@ impl<R: Rule> DynRule for DynRuleAdapter<R> {
     }
     fn doc(&self) -> Option<RuleDoc> {
         self.inner.doc()
+    }
+    fn project_wide(&self) -> bool {
+        R::Scope::PROJECT_WIDE
     }
 
     fn check_options(&self, options: &serde_json::Value) -> Result<(), String> {
@@ -160,11 +164,12 @@ impl RuleRegistry {
     #[must_use]
     pub fn with_builtins() -> Self {
         use crate::builtin::{
-            cross_entity_pattern::CrossEntityPattern, deep_module::DeepModule,
-            depth_ratio::DepthRatio, import_policy::ImportPolicy, miller_limit::MillerLimit,
+            container_breadth::ContainerBreadth, deep_module::DeepModule, depth_ratio::DepthRatio,
+            import_policy::ImportPolicy, miller_limit::MillerLimit,
             no_circular_deps::NoCircularDeps, no_cross_layer_import::NoCrossLayerImport,
-            promotion_pressure::PromotionPressure, purity::PurityRule,
-            visibility_scope::VisibilityScope,
+            promotion_pressure::PromotionPressure, public_api::PublicApi, purity::PurityRule,
+            restricted_calls::RestrictedCalls, sibling_isolation::SiblingIsolation,
+            slice_fan_in::SliceFanIn, stage_mixing::StageMixing, visibility_scope::VisibilityScope,
         };
         let mut r = Self::new();
         r.register(NoCrossLayerImport);
@@ -173,10 +178,15 @@ impl RuleRegistry {
         r.register(MillerLimit);
         r.register(DepthRatio);
         r.register(VisibilityScope);
-        r.register(CrossEntityPattern);
+        r.register(SliceFanIn);
         r.register(DeepModule);
         r.register(PromotionPressure);
         r.register(ImportPolicy);
+        r.register(PublicApi);
+        r.register(SiblingIsolation);
+        r.register(RestrictedCalls);
+        r.register(StageMixing);
+        r.register(ContainerBreadth);
         r
     }
 }
@@ -187,16 +197,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn every_rule_id_is_registered_under_its_slug() {
+    fn builtin_ids_are_exactly_the_registered_rules() {
         let r = RuleRegistry::with_builtins();
-        let ids: Vec<RuleId> = (0..=255)
-            .map(RuleId::new)
-            .filter(|id| crate::ids::slug_for(*id).is_some())
-            .collect();
-        assert!(!ids.is_empty());
-        for id in ids {
-            assert_eq!(r.by_id(id).map(DynRule::slug), crate::ids::slug_for(id));
-        }
+        let mut registered: Vec<RuleId> = r.rules().iter().map(|rule| rule.id()).collect();
+        registered.sort_unstable();
+        assert_eq!(registered, crate::ids::BUILTIN);
     }
 
     fn validate(rules: &serde_json::Value) -> Result<(), ConfigError> {

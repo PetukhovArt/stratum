@@ -8,9 +8,7 @@ use camino::Utf8PathBuf;
 use criterion::{Criterion, criterion_group, criterion_main};
 
 use stratum_config::{Config, LayerConfig, ProjectConfig, RuleConfig};
-use stratum_core::{
-    ids::LayerId, purity::Purity, severity::Severity, types::Layer, visibility::VisibilityScope,
-};
+use stratum_core::{ids::LayerId, purity::Purity, severity::Severity, types::Layer};
 use stratum_graph::{BuildConfig, GraphBuilder};
 
 fn tiny_ts_config() -> Config {
@@ -33,6 +31,7 @@ fn tiny_ts_config() -> Config {
     }
     Config {
         version: 1,
+        structure: stratum_core::structure::Structure::default(),
         project: ProjectConfig {
             extends: None,
             ignore: vec![],
@@ -42,21 +41,25 @@ fn tiny_ts_config() -> Config {
                 id: "app".into(),
                 path: "src/app".into(),
                 depends_on: vec!["features".into(), "entities".into(), "shared".into()],
+                slices: false,
             },
             LayerConfig {
                 id: "features".into(),
                 path: "src/features".into(),
                 depends_on: vec!["entities".into(), "shared".into()],
+                slices: false,
             },
             LayerConfig {
                 id: "entities".into(),
                 path: "src/entities".into(),
                 depends_on: vec!["shared".into()],
+                slices: false,
             },
             LayerConfig {
                 id: "shared".into(),
                 path: "src/shared".into(),
                 depends_on: vec![],
+                slices: false,
             },
         ],
         rules,
@@ -88,13 +91,15 @@ fn bench_cold_lint_tiny_ts(c: &mut Criterion) {
                             LayerId::new(u32::try_from(pos).unwrap())
                         })
                         .collect(),
+                    slices: false,
                 })
                 .collect();
             let cfg = BuildConfig {
                 project_root: root.clone(),
                 layers,
                 default_purity: Purity::new(2).unwrap(),
-                default_visibility: VisibilityScope::Public,
+                structure: stratum_core::structure::Structure::default(),
+                tracked_calls: std::collections::HashSet::new(),
             };
             let graph = GraphBuilder::new(cfg).build().unwrap();
             let g = Arc::new(graph);

@@ -7,23 +7,23 @@ use stratum_core::{
 };
 use stratum_graph::CompoundGraph;
 
-use crate::ids::CROSS_ENTITY_PATTERN;
-use crate::options::CrossEntityPatternOptions;
+use crate::ids::SLICE_FAN_IN;
+use crate::options::SliceFanInOptions;
 use crate::rule::Rule;
 use crate::scope::ProjectScope;
 
 #[derive(Debug, Default, Clone, Copy)]
-pub struct CrossEntityPattern;
+pub struct SliceFanIn;
 
-impl Rule for CrossEntityPattern {
+impl Rule for SliceFanIn {
     type Scope = ProjectScope;
-    type Options = CrossEntityPatternOptions;
+    type Options = SliceFanInOptions;
 
     fn id(&self) -> RuleId {
-        CROSS_ENTITY_PATTERN
+        SLICE_FAN_IN
     }
     fn slug(&self) -> &'static str {
-        "stratum/cross-entity-pattern"
+        "stratum/slice-fan-in"
     }
     fn default_severity(&self) -> Severity {
         Severity::Warning
@@ -33,7 +33,7 @@ impl Rule for CrossEntityPattern {
         &self,
         graph: &CompoundGraph,
         _scope: ProjectScope,
-        options: &CrossEntityPatternOptions,
+        options: &SliceFanInOptions,
         severity: Severity,
     ) -> Vec<Violation> {
         let mut entity_modules: BTreeMap<String, Vec<ModuleId>> = BTreeMap::new();
@@ -76,7 +76,7 @@ impl Rule for CrossEntityPattern {
                 .get(entity.as_str())
                 .map_or(0, BTreeSet::len);
             let fanout = u32::try_from(fanout).unwrap_or(u32::MAX);
-            if fanout <= options.max_fanout {
+            if fanout <= options.max_fan_in {
                 continue;
             }
             let representative = members
@@ -100,7 +100,7 @@ impl Rule for CrossEntityPattern {
                 severity,
                 message: format!(
                     "Entity '{entity}' is imported by {fanout} features (limit {limit})",
-                    limit = options.max_fanout
+                    limit = options.max_fan_in
                 ),
                 file: rep.path.clone(),
                 location: SourceLocation { line: 1, column: 1 },
@@ -161,6 +161,7 @@ mod tests {
             purity: Purity::new(2).unwrap(),
             visibility: VisibilityScope::Public,
             exports: stratum_core::types::Exports::default(),
+            calls: vec![],
         }
     }
 
@@ -195,10 +196,10 @@ mod tests {
             ],
             &[(1, 0), (2, 0)],
         );
-        let v = CrossEntityPattern.check(
+        let v = SliceFanIn.check(
             &g,
             ProjectScope,
-            &CrossEntityPatternOptions { max_fanout: 5 },
+            &SliceFanInOptions { max_fan_in: 5 },
             Severity::Warning,
         );
         assert!(v.is_empty());
@@ -212,10 +213,10 @@ mod tests {
         }
         let edges: Vec<(u32, u32)> = (1..=6).map(|i| (i, 0)).collect();
         let g = build(mods, &edges);
-        let v = CrossEntityPattern.check(
+        let v = SliceFanIn.check(
             &g,
             ProjectScope,
-            &CrossEntityPatternOptions { max_fanout: 5 },
+            &SliceFanInOptions { max_fan_in: 5 },
             Severity::Warning,
         );
         assert_eq!(v.len(), 1);

@@ -86,6 +86,7 @@ mod tests {
                 count: exports,
                 star_reexports: 0,
             },
+            calls: vec![],
         }
     }
 

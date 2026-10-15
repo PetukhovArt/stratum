@@ -7,6 +7,8 @@ use stratum_graph::CompoundGraph;
 pub struct ProjectScope;
 
 pub trait RuleScope: Copy + Eq + Hash + std::fmt::Debug + Send + Sync + 'static {
+    const PROJECT_WIDE: bool = false;
+
     fn enumerate(graph: &CompoundGraph) -> Vec<Self>;
 }
 
@@ -23,6 +25,8 @@ impl RuleScope for ContainerId {
 }
 
 impl RuleScope for ProjectScope {
+    const PROJECT_WIDE: bool = true;
+
     fn enumerate(_graph: &CompoundGraph) -> Vec<Self> {
         vec![ProjectScope]
     }

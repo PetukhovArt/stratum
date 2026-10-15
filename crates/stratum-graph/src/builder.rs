@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -8,14 +9,14 @@ use rustc_hash::FxHashMap;
 use walkdir::WalkDir;
 
 use stratum_core::edge::EdgeKind;
-use stratum_core::ids::{ContainerId, LayerId, ModuleId};
+use stratum_core::ids::ModuleId;
 use stratum_core::purity::Purity;
-use stratum_core::types::{Container, Exports, Layer, Module};
-use stratum_core::visibility::VisibilityScope;
+use stratum_core::structure::Structure;
+use stratum_core::types::{Exports, Layer, Module};
 use stratum_parser_ts::{LanguageExtractor, OxcTsExtractor, PathResolver};
 
 use crate::graph::CompoundGraph;
-use crate::layer_assignment::assign_layer;
+use crate::placement::place;
 
 mod incremental;
 
@@ -53,8 +54,9 @@ pub enum BuildError {
 pub struct BuildConfig {
     pub project_root: Utf8PathBuf,
     pub layers: Vec<Layer>,
+    pub structure: Structure,
+    pub tracked_calls: HashSet<String>,
     pub default_purity: Purity,
-    pub default_visibility: VisibilityScope,
 }
 
 /// Build a [`CompoundGraph`] for a given project.
@@ -126,61 +128,54 @@ impl GraphBuilder {
             return Err(BuildError::BadRoot(root.clone()));
         }
         let mut graph = CompoundGraph::empty();
-
         for l in &self.config.layers {
             graph.layers.insert(l.id, l.clone());
-            let cid = ContainerId::new(l.id.raw());
-            graph.containers.insert(
-                cid,
-                Container {
-                    id: cid,
-                    name: l.name.clone(),
-                    layer: l.id,
-                    parent: None,
-                },
-            );
         }
 
-        let mut modules: Vec<(ModuleId, LayerId, Utf8PathBuf)> = Vec::new();
-        let mut sizes: Vec<u64> = Vec::new();
-        let mut path_to_id: FxHashMap<Utf8PathBuf, ModuleId> = FxHashMap::default();
-        for (path, size) in self.walk_sources(root) {
-            if self.pick_extractor(&path).is_none() {
-                continue;
-            }
-            let Ok(rel) = path.strip_prefix(root) else {
-                continue;
-            };
-            let Some(layer) = assign_layer(&self.config.layers, rel) else {
-                continue;
-            };
-            let id = ModuleId::new(u32::try_from(modules.len()).unwrap_or(u32::MAX));
-            path_to_id.insert(path.clone(), id);
-            modules.push((id, layer, path));
-            sizes.push(size);
-        }
+        let (files, sizes): (Vec<Utf8PathBuf>, Vec<u64>) = self
+            .walk_sources(root)
+            .into_iter()
+            .filter(|(path, _)| self.pick_extractor(path).is_some())
+            .unzip();
+        let placement = place(root, &self.config.layers, &self.config.structure, &files);
+        graph.containers = placement.containers;
 
-        let scanned = self.scan_all(&modules, &sizes, &path_to_id);
+        let paths: Vec<&Utf8Path> = placement
+            .modules
+            .iter()
+            .map(|p| files[p.file].as_path())
+            .collect();
+        let sizes: Vec<u64> = placement.modules.iter().map(|p| sizes[p.file]).collect();
+        let path_to_id: FxHashMap<Utf8PathBuf, ModuleId> = paths
+            .iter()
+            .enumerate()
+            .map(|(i, p)| (p.to_path_buf(), module_id(i)))
+            .collect();
+        let facts: Vec<FileFacts> = self
+            .scan_all(&paths, &sizes, &path_to_id)
+            .into_iter()
+            .collect::<Result<_, _>>()?;
 
-        for ((id, layer, path), scan) in modules.iter().zip(&scanned) {
+        for ((i, placed), path) in placement.modules.into_iter().enumerate().zip(&paths) {
+            let id = module_id(i);
             let module = Module {
-                id: *id,
+                id,
                 path: PathBuf::from(path.as_str()),
-                container: ContainerId::new(layer.raw()),
-                layer: *layer,
-                purity: scan.purity.unwrap_or(self.config.default_purity),
-                visibility: self.config.default_visibility.clone(),
-                exports: scan.exports,
+                container: placed.container,
+                layer: placed.layer,
+                purity: facts[i].purity.unwrap_or(self.config.default_purity),
+                visibility: placed.visibility,
+                exports: facts[i].exports,
+                calls: vec![],
             };
-            let node = graph.deps.add_node(*id);
-            graph.node_index.insert(*id, node);
-            graph.modules.insert(*id, module);
+            let node = graph.deps.add_node(id);
+            graph.node_index.insert(id, node);
+            graph.modules.insert(id, module);
         }
 
-        for ((from_id, _, _), scan) in modules.iter().zip(scanned) {
-            let edges = scan.edges?;
-            let from_node = graph.node_index[from_id];
-            for (to_id, kind) in edges {
+        for (i, f) in facts.into_iter().enumerate() {
+            let from_node = graph.node_index[&module_id(i)];
+            for (to_id, kind) in f.edges {
                 let to_node = graph.node_index[&to_id];
                 graph.deps.add_edge(from_node, to_node, kind);
             }
@@ -229,16 +224,16 @@ impl GraphBuilder {
 
     fn scan_all(
         &self,
-        modules: &[(ModuleId, LayerId, Utf8PathBuf)],
+        paths: &[&Utf8Path],
         sizes: &[u64],
         path_to_id: &FxHashMap<Utf8PathBuf, ModuleId>,
     ) -> Vec<Scan> {
-        let mut largest_first: Vec<usize> = (0..modules.len()).collect();
+        let mut largest_first: Vec<usize> = (0..paths.len()).collect();
         largest_first.sort_by_key(|&i| std::cmp::Reverse(sizes[i]));
         let workers = std::thread::available_parallelism()
             .map_or(1, std::num::NonZeroUsize::get)
             .min(MAX_WORKERS)
-            .min(modules.len().max(1));
+            .min(paths.len().max(1));
         let next = AtomicUsize::new(0);
         let large_file = Mutex::new(());
         let mut indexed: Vec<(usize, Scan)> = std::thread::scope(|s| {
@@ -251,8 +246,7 @@ impl GraphBuilder {
                             else {
                                 break;
                             };
-                            let (_, _, path) = &modules[i];
-                            out.push((i, self.scan(path, path_to_id, &large_file)));
+                            out.push((i, self.scan(paths[i], path_to_id, &large_file)));
                         }
                         out
                     })
@@ -273,38 +267,20 @@ impl GraphBuilder {
         path_to_id: &FxHashMap<Utf8PathBuf, ModuleId>,
         large_file: &Mutex<()>,
     ) -> Scan {
-        let source = match fs::read_to_string(path.as_std_path()) {
-            Ok(s) => s,
-            Err(e) => {
-                return Scan {
-                    purity: None,
-                    exports: Exports::default(),
-                    edges: Err(BuildError::Io {
-                        path: path.to_path_buf(),
-                        source: e,
-                    }),
-                };
-            }
-        };
+        let source = fs::read_to_string(path.as_std_path()).map_err(|e| BuildError::Io {
+            path: path.to_path_buf(),
+            source: e,
+        })?;
         let _serial = (source.len() > LARGE_FILE_BYTES).then(|| large_file.lock());
-        let purity = stratum_parser_ts::extract_purity(&source);
-        let (exports, edges) = match self.edges_of(path, &source, path_to_id) {
-            Ok((exports, edges)) => (exports, Ok(edges)),
-            Err(e) => (Exports::default(), Err(e)),
-        };
-        Scan {
-            purity,
-            exports,
-            edges,
-        }
+        self.facts_of(path, &source, path_to_id)
     }
 
-    fn edges_of(
+    fn facts_of(
         &self,
         path: &Utf8Path,
         source: &str,
         path_to_id: &FxHashMap<Utf8PathBuf, ModuleId>,
-    ) -> Result<(Exports, Vec<(ModuleId, EdgeKind)>), BuildError> {
+    ) -> Result<FileFacts, BuildError> {
         let extractor = self
             .pick_extractor(path)
             .ok_or_else(|| BuildError::Parser {
@@ -326,15 +302,25 @@ impl GraphBuilder {
                 Some((*id, imp.kind))
             })
             .collect();
-        Ok((data.exports, edges))
+        Ok(FileFacts {
+            purity: data.purity,
+            exports: data.exports,
+            edges,
+        })
     }
+}
+
+fn module_id(index: usize) -> ModuleId {
+    ModuleId::new(u32::try_from(index).unwrap_or(u32::MAX))
 }
 
 const LARGE_FILE_BYTES: usize = 1 << 20;
 const MAX_WORKERS: usize = 8;
 
-struct Scan {
+struct FileFacts {
     purity: Option<Purity>,
     exports: Exports,
-    edges: Result<Vec<(ModuleId, EdgeKind)>, BuildError>,
+    edges: Vec<(ModuleId, EdgeKind)>,
 }
+
+type Scan = Result<FileFacts, BuildError>;

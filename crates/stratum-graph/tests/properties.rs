@@ -53,6 +53,7 @@ fn build(n: u32, edges: &[(u32, u32)]) -> CompoundGraph {
             purity: Purity::new(2).unwrap(),
             visibility: VisibilityScope::Public,
             exports: stratum_core::types::Exports::default(),
+            calls: vec![],
         };
         let node = g.deps.add_node(id);
         g.node_index.insert(id, node);

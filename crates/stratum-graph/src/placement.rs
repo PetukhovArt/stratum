@@ -1,0 +1,486 @@
+use std::collections::BTreeMap;
+use std::path::PathBuf;
+
+use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
+use indexmap::IndexMap;
+use rustc_hash::FxHashMap;
+
+use stratum_core::{
+    ids::{ContainerId, LayerId, ModuleId},
+    stage::Stage,
+    structure::Structure,
+    types::{Container, ContainerKind, Layer},
+    visibility::VisibilityScope,
+};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Placed {
+    pub file: usize,
+    pub layer: LayerId,
+    pub container: ContainerId,
+    pub visibility: VisibilityScope,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct Placement {
+    pub containers: IndexMap<ContainerId, Container>,
+    pub modules: Vec<Placed>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+enum Key {
+    Layer(usize),
+    Path(Utf8PathBuf),
+}
+
+#[derive(Debug)]
+struct Draft {
+    kind: ContainerKind,
+    layer: usize,
+    parent: Option<Key>,
+    entry: Option<usize>,
+    is_file: bool,
+    has_segment: bool,
+    has_sub_unit: bool,
+}
+
+impl Draft {
+    const fn new(
+        kind: ContainerKind,
+        layer: usize,
+        parent: Option<Key>,
+        entry: Option<usize>,
+    ) -> Self {
+        Self {
+            kind,
+            layer,
+            parent,
+            entry,
+            is_file: false,
+            has_segment: false,
+            has_sub_unit: false,
+        }
+    }
+
+    const fn stage(&self) -> Stage {
+        if self.is_file {
+            Stage::FILE
+        } else if self.has_sub_unit {
+            Stage::COMPOSED
+        } else if self.has_segment {
+            Stage::SEGMENTED
+        } else {
+            Stage::FLAT
+        }
+    }
+}
+
+struct Entry {
+    module: usize,
+    layer: usize,
+    rank: usize,
+}
+
+/// Places `files` (absolute, sorted) into layers and containers. A file outside every layer is
+/// dropped; the rest become `modules` in input order, and a module's `ModuleId` is its index there.
+#[must_use]
+pub fn place(
+    root: &Utf8Path,
+    layers: &[Layer],
+    structure: &Structure,
+    files: &[Utf8PathBuf],
+) -> Placement {
+    let roots: Vec<Utf8PathBuf> = layers.iter().map(|l| layer_root(root, l)).collect();
+    let assigned: Vec<(usize, usize)> = files
+        .iter()
+        .enumerate()
+        .filter_map(|(file, path)| Some((file, layer_of(&roots, path)?)))
+        .collect();
+    let mut walk = Walk {
+        layers,
+        structure,
+        entries: entry_dirs(structure, files, &assigned),
+        drafts: BTreeMap::new(),
+        roots,
+    };
+    for i in 0..layers.len() {
+        let entry = walk.entry_in(&walk.roots[i], i);
+        walk.drafts.insert(
+            Key::Layer(i),
+            Draft::new(ContainerKind::Layer, i, None, entry),
+        );
+    }
+    let homes: Vec<(Key, VisibilityScope)> = assigned
+        .iter()
+        .enumerate()
+        .map(|(module, &(file, layer))| walk.home_of(module, &files[file], layer))
+        .collect();
+    let (containers, ids) = walk.containers();
+
+    let modules = assigned
+        .iter()
+        .zip(homes)
+        .map(|(&(file, layer), (home, visibility))| Placed {
+            file,
+            layer: layers[layer].id,
+            container: ids[&home],
+            visibility,
+        })
+        .collect();
+
+    Placement {
+        containers,
+        modules,
+    }
+}
+
+struct Walk<'a> {
+    layers: &'a [Layer],
+    structure: &'a Structure,
+    roots: Vec<Utf8PathBuf>,
+    entries: FxHashMap<&'a Utf8Path, Entry>,
+    drafts: BTreeMap<Key, Draft>,
+}
+
+impl Walk<'_> {
+    fn entry_in(&self, dir: &Utf8Path, layer: usize) -> Option<usize> {
+        self.entries
+            .get(dir)
+            .filter(|e| e.layer == layer)
+            .map(|e| e.module)
+    }
+
+    fn home_of(&mut self, module: usize, path: &Utf8Path, layer: usize) -> (Key, VisibilityScope) {
+        let names: Vec<&str> = path
+            .strip_prefix(&self.roots[layer])
+            .map(|inner| inner.iter().collect())
+            .unwrap_or_default();
+        let dirs = names.split_last().map_or(&[][..], |(_, dirs)| dirs);
+        let sliced = self.layers[layer].slices;
+        let mut home = Key::Layer(layer);
+        let mut home_kind = ContainerKind::Layer;
+        let mut loose = false;
+        let mut private_root: Option<Utf8PathBuf> = None;
+        let mut dir = self.roots[layer].clone();
+        for (depth, name) in dirs.iter().enumerate() {
+            let parent_dir = dir.clone();
+            dir.push(name);
+            if self.structure.is_private(name) {
+                private_root = Some(parent_dir);
+                loose = true;
+                continue;
+            }
+            if self.structure.is_segment(name) {
+                if !loose {
+                    self.mark(&home, |d| d.has_segment = true);
+                }
+                loose = true;
+                continue;
+            }
+            let entry = self.entry_in(&dir, layer);
+            let kind = if depth == 0 && sliced {
+                ContainerKind::Slice
+            } else if entry.is_none() {
+                loose = true;
+                continue;
+            } else if loose || home_kind == ContainerKind::Layer {
+                ContainerKind::Nested
+            } else {
+                ContainerKind::SubUnit
+            };
+            if kind == ContainerKind::SubUnit {
+                self.mark(&home, |d| d.has_sub_unit = true);
+            }
+            let key = Key::Path(dir.clone());
+            self.drafts
+                .entry(key.clone())
+                .or_insert_with(|| Draft::new(kind, layer, Some(home.clone()), entry));
+            home = key;
+            home_kind = kind;
+            loose = false;
+        }
+        if sliced && names.len() == 1 {
+            let key = Key::Path(path.to_path_buf());
+            let mut slice = Draft::new(ContainerKind::Slice, layer, Some(home), Some(module));
+            slice.is_file = true;
+            self.drafts.insert(key.clone(), slice);
+            home = key;
+        }
+        let visibility =
+            private_root.map_or(VisibilityScope::Public, |root| VisibilityScope::Private {
+                root: PathBuf::from(root.into_string()),
+            });
+        (home, visibility)
+    }
+
+    fn mark(&mut self, key: &Key, set: impl FnOnce(&mut Draft)) {
+        if let Some(d) = self.drafts.get_mut(key) {
+            set(d);
+        }
+    }
+
+    fn containers(
+        self,
+    ) -> (
+        IndexMap<ContainerId, Container>,
+        FxHashMap<Key, ContainerId>,
+    ) {
+        let layers = self.layers;
+        let mut next = layers.iter().map(|l| l.id.raw() + 1).max().unwrap_or(0);
+        let ids: FxHashMap<Key, ContainerId> = self
+            .drafts
+            .keys()
+            .map(|key| {
+                let id = match key {
+                    Key::Layer(i) => ContainerId::new(layers[*i].id.raw()),
+                    Key::Path(_) => {
+                        next += 1;
+                        ContainerId::new(next - 1)
+                    }
+                };
+                (key.clone(), id)
+            })
+            .collect();
+        let containers = self
+            .drafts
+            .into_iter()
+            .map(|(key, d)| {
+                let id = ids[&key];
+                let (name, path) = match key {
+                    Key::Layer(i) => (layers[i].name.clone(), self.roots[i].clone()),
+                    Key::Path(p) => (p.file_name().unwrap_or_default().to_owned(), p),
+                };
+                let container = Container {
+                    id,
+                    name,
+                    path: PathBuf::from(path.into_string()),
+                    kind: d.kind,
+                    layer: layers[d.layer].id,
+                    parent: d.parent.as_ref().map(|p| ids[p]),
+                    stage: d.stage(),
+                    entry: d.entry.map(module_id),
+                };
+                (id, container)
+            })
+            .collect();
+        (containers, ids)
+    }
+}
+
+fn module_id(index: usize) -> ModuleId {
+    ModuleId::new(u32::try_from(index).unwrap_or(u32::MAX))
+}
+
+fn layer_root(root: &Utf8Path, layer: &Layer) -> Utf8PathBuf {
+    let mut out = root.to_path_buf();
+    let rel = Utf8Path::new(layer.path.to_str().unwrap_or_default());
+    for c in rel.components() {
+        if let Utf8Component::Normal(name) = c {
+            out.push(name);
+        }
+    }
+    out
+}
+
+fn layer_of(roots: &[Utf8PathBuf], path: &Utf8Path) -> Option<usize> {
+    let mut best: Option<(usize, usize)> = None;
+    for (i, r) in roots.iter().enumerate() {
+        if path.starts_with(r) {
+            let depth = r.components().count();
+            if best.is_none_or(|(d, _)| depth > d) {
+                best = Some((depth, i));
+            }
+        }
+    }
+    best.map(|(_, i)| i)
+}
+
+fn entry_dirs<'f>(
+    structure: &Structure,
+    files: &'f [Utf8PathBuf],
+    assigned: &[(usize, usize)],
+) -> FxHashMap<&'f Utf8Path, Entry> {
+    let mut out: FxHashMap<&Utf8Path, Entry> = FxHashMap::default();
+    for (module, &(file, layer)) in assigned.iter().enumerate() {
+        let path = &files[file];
+        let (Some(dir), Some(rank)) = (
+            path.parent(),
+            path.file_name().and_then(|n| structure.entry_rank(n)),
+        ) else {
+            continue;
+        };
+        if out.get(dir).is_none_or(|e| rank < e.rank) {
+            out.insert(
+                dir,
+                Entry {
+                    module,
+                    layer,
+                    rank,
+                },
+            );
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    const ROOT: &str = "/p";
+
+    fn abs(rel: &str) -> Utf8PathBuf {
+        Utf8Path::new(ROOT).join(rel)
+    }
+
+    struct Fixture {
+        placement: Placement,
+        files: Vec<Utf8PathBuf>,
+    }
+
+    impl Fixture {
+        fn new() -> Self {
+            let layer = |id: u32, path: &str, slices: bool| Layer {
+                id: LayerId::new(id),
+                name: path.rsplit('/').next().unwrap().into(),
+                path: PathBuf::from(path),
+                depends_on: vec![],
+                slices,
+            };
+            let layers = [
+                layer(0, "src/entities", true),
+                layer(1, "src/shared", false),
+            ];
+            let structure = Structure {
+                segments: vec!["model".into(), "ui".into()],
+                ..Structure::default()
+            };
+            let mut files: Vec<Utf8PathBuf> = [
+                "src/entities/order.ts",
+                "src/entities/flat/a.ts",
+                "src/entities/user/index.ts",
+                "src/entities/user/model/store.ts",
+                "src/entities/user/_shared/z.ts",
+                "src/entities/user/_shared/inner/index.ts",
+                "src/entities/user/_shared/deep/_shared/q.ts",
+                "src/entities/cart/index.ts",
+                "src/entities/cart/model/s.ts",
+                "src/entities/cart/model/deep/index.ts",
+                "src/entities/cart/parts/index.ts",
+                "src/entities/cart/parts/a.ts",
+                "src/entities/cart/helpers/x/index.ts",
+                "src/entities/_shared/k.ts",
+                "src/shared/kit/index.ts",
+                "src/shared/kit/inner/index.ts",
+                "src/shared/util.ts",
+                "outside/x.ts",
+            ]
+            .into_iter()
+            .map(abs)
+            .collect();
+            files.sort();
+            let placement = place(Utf8Path::new(ROOT), &layers, &structure, &files);
+            Self { placement, files }
+        }
+
+        fn at(&self, rel: &str) -> &Container {
+            let path = PathBuf::from(abs(rel).into_string());
+            self.placement
+                .containers
+                .values()
+                .find(|c| c.path == path)
+                .unwrap()
+        }
+
+        fn module(&self, rel: &str) -> &Placed {
+            self.placement
+                .modules
+                .iter()
+                .find(|m| self.files[m.file] == abs(rel))
+                .unwrap()
+        }
+
+        fn home(&self, rel: &str) -> &Container {
+            &self.placement.containers[&self.module(rel).container]
+        }
+
+        fn stage(&self, rel: &str) -> u8 {
+            self.at(rel).stage.rank()
+        }
+    }
+
+    #[test]
+    fn kinds_follow_slices_entries_segments_and_private_zones() {
+        use ContainerKind::{Layer, Nested, Slice, SubUnit};
+        let f = Fixture::new();
+        assert_eq!(f.at("src/entities/order.ts").kind, Slice);
+        assert_eq!(f.at("src/entities/flat").kind, Slice);
+        assert_eq!(f.at("src/entities/cart/parts").kind, SubUnit);
+        assert_eq!(f.at("src/entities/cart/helpers/x").kind, Nested);
+        assert_eq!(f.at("src/entities/cart/model/deep").kind, Nested);
+        assert_eq!(f.at("src/entities/user/_shared/inner").kind, Nested);
+        assert_eq!(f.at("src/shared/kit").kind, Nested);
+        assert_eq!(f.at("src/shared/kit/inner").kind, SubUnit);
+        assert_eq!(f.home("src/entities/_shared/k.ts").kind, Layer);
+        assert_eq!(f.home("src/entities/cart/model/s.ts").name, "cart");
+        assert_eq!(f.home("src/entities/order.ts").name, "order.ts");
+        assert!(
+            f.placement
+                .containers
+                .values()
+                .all(|c| !c.path.ends_with("model") && !c.path.ends_with("_shared"))
+        );
+        assert_eq!(f.placement.modules.len(), f.files.len() - 1);
+
+        let chain: Vec<&str> = std::iter::successors(Some(f.at("src/entities/cart/parts")), |c| {
+            c.parent.map(|id| &f.placement.containers[&id])
+        })
+        .map(|c| c.name.as_str())
+        .collect();
+        assert_eq!(chain, ["parts", "cart", "entities"]);
+
+        let entry = f.at("src/entities/user").entry.unwrap();
+        let entry_module = &f.placement.modules[usize::try_from(entry.raw()).unwrap()];
+        assert_eq!(
+            f.files[entry_module.file],
+            abs("src/entities/user/index.ts")
+        );
+        assert_eq!(f.at("src/entities/flat").entry, None);
+    }
+
+    #[test]
+    fn innermost_private_zone_sets_the_visibility_root() {
+        let f = Fixture::new();
+        let root_of = |rel: &str| match &f.module(rel).visibility {
+            VisibilityScope::Private { root } => Some(root.clone()),
+            VisibilityScope::Public => None,
+        };
+        let dir = |rel: &str| Some(PathBuf::from(abs(rel).into_string()));
+        assert_eq!(
+            root_of("src/entities/user/_shared/z.ts"),
+            dir("src/entities/user")
+        );
+        assert_eq!(
+            root_of("src/entities/user/_shared/inner/index.ts"),
+            dir("src/entities/user")
+        );
+        assert_eq!(
+            root_of("src/entities/user/_shared/deep/_shared/q.ts"),
+            dir("src/entities/user/_shared/deep")
+        );
+        assert_eq!(root_of("src/entities/_shared/k.ts"), dir("src/entities"));
+        assert_eq!(root_of("src/entities/user/index.ts"), None);
+    }
+
+    #[test]
+    fn stage_follows_the_direct_children() {
+        let f = Fixture::new();
+        assert_eq!(f.stage("src/entities/order.ts"), 1);
+        assert_eq!(f.stage("src/entities/flat"), 2);
+        assert_eq!(f.stage("src/entities/user"), 3);
+        assert_eq!(f.stage("src/entities/cart"), 4);
+        assert_eq!(f.stage("src/shared/kit"), 4);
+        assert_eq!(f.stage("src/shared"), 2);
+    }
+}

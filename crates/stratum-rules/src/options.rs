@@ -2,19 +2,38 @@ use serde::Deserialize;
 
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct CrossEntityPatternOptions {
-    #[serde(default = "default_max_fanout")]
-    pub max_fanout: u32,
+pub struct SliceFanInOptions {
+    #[serde(default = "default_max_fan_in")]
+    pub max_fan_in: u32,
 }
 
-const fn default_max_fanout() -> u32 {
+const fn default_max_fan_in() -> u32 {
     5
 }
 
-impl Default for CrossEntityPatternOptions {
+impl Default for SliceFanInOptions {
     fn default() -> Self {
         Self {
-            max_fanout: default_max_fanout(),
+            max_fan_in: default_max_fan_in(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ContainerBreadthOptions {
+    #[serde(default = "default_max_kinds")]
+    pub max_kinds: u32,
+}
+
+const fn default_max_kinds() -> u32 {
+    6
+}
+
+impl Default for ContainerBreadthOptions {
+    fn default() -> Self {
+        Self {
+            max_kinds: default_max_kinds(),
         }
     }
 }
