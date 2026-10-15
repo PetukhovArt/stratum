@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
@@ -40,7 +40,7 @@ struct Draft {
     parent: Option<Key>,
     entry: Option<usize>,
     is_file: bool,
-    has_segment: bool,
+    segment_dirs: BTreeSet<String>,
     has_sub_unit: bool,
 }
 
@@ -57,17 +57,17 @@ impl Draft {
             parent,
             entry,
             is_file: false,
-            has_segment: false,
+            segment_dirs: BTreeSet::new(),
             has_sub_unit: false,
         }
     }
 
-    const fn stage(&self) -> Stage {
+    fn stage(&self) -> Stage {
         if self.is_file {
             Stage::FILE
         } else if self.has_sub_unit {
             Stage::COMPOSED
-        } else if self.has_segment {
+        } else if !self.segment_dirs.is_empty() {
             Stage::SEGMENTED
         } else {
             Stage::FLAT
@@ -172,7 +172,9 @@ impl Walk<'_> {
             }
             if self.structure.is_segment(name) {
                 if !loose {
-                    self.mark(&home, |d| d.has_segment = true);
+                    self.mark(&home, |d| {
+                        d.segment_dirs.insert((*name).to_owned());
+                    });
                 }
                 loose = true;
                 continue;
@@ -260,6 +262,7 @@ impl Walk<'_> {
                     parent: d.parent.as_ref().map(|p| ids[p]),
                     stage: d.stage(),
                     entry: d.entry.map(module_id),
+                    segment_dirs: d.segment_dirs.into_iter().collect(),
                 };
                 (id, container)
             })
@@ -500,5 +503,14 @@ mod tests {
         assert_eq!(f.stage("src/entities/cart"), 4);
         assert_eq!(f.stage("src/shared/kit"), 4);
         assert_eq!(f.stage("src/shared"), 2);
+    }
+
+    #[test]
+    fn segment_dirs_are_the_direct_segment_children() {
+        let f = Fixture::new();
+        assert_eq!(f.at("src/entities/cart").segment_dirs, ["model"]);
+        assert_eq!(f.at("src/entities/user").segment_dirs, ["model"]);
+        assert!(f.at("src/entities/cart/parts").segment_dirs.is_empty());
+        assert!(f.at("src/entities").segment_dirs.is_empty());
     }
 }

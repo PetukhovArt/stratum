@@ -58,6 +58,8 @@ pub struct Container {
     pub parent: Option<ContainerId>,
     pub stage: Stage,
     pub entry: Option<ModuleId>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub segment_dirs: Vec<String>,
 }
 
 /// A named group of Modules with its own visibility and dependency direction.

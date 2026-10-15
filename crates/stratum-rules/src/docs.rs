@@ -79,7 +79,7 @@ pub fn builtin(slug: &str) -> Option<RuleDoc> {
             "Reports a container with both segment folders (`structure.segments`) and sub-unit folders directly inside it.",
             "Segments (stage 3) and sub-units (stage 4) are two different ways to split a container; mixing them leaves code that belongs to no sub-unit next to code that does.",
             "Pick one: move the segment folders' code into sub-units, or fold the sub-units back into segments.",
-            &["segments: segment folder names (`structure.segments`)"],
+            &[],
         ),
         "stratum/container-breadth" => (
             "Reports a container (layers are exempt) or private-zone folder with more than `max_kinds` kinds directly inside it. A kind is a child folder, or the child files sharing a stem before the first dot (`foo.ts`, `foo.test.ts` and `foo.vue` are one kind). The entry file and private zones do not count. The message names the stage to evolve to. Private-zone findings are reported at info at most, whatever severity the rule is set to.",

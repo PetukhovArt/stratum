@@ -7,7 +7,6 @@ use stratum_config::{Config, ConfigError, resolve_for_file};
 use stratum_core::{severity::Severity, violation::Violation};
 use stratum_graph::CompoundGraph;
 
-use crate::ids;
 use crate::registry::RuleRegistry;
 
 /// Run every built-in rule against `graph`, then cap each violation's severity
@@ -41,13 +40,10 @@ pub fn run_all_with_registry(
     for r in registry.rules() {
         let slug = r.slug();
         let default_sev = r.default_severity();
-        let mut base_options = config
+        let base_options = config
             .rules
             .get(slug)
             .map_or_else(|| serde_json::Value::Null, |rc| rc.options.clone());
-        if r.id() == ids::STAGE_MIXING {
-            base_options = with_segments(base_options, &config.structure.segments);
-        }
         let raw = r.run(graph, Severity::Error, &base_options);
         for mut v in raw {
             let probe = if r.project_wide() {
@@ -75,17 +71,6 @@ pub fn run_all_with_registry(
             .cmp(&(b.rule.raw(), b.modules.first().map_or(0, |m| m.raw())))
     });
     Ok(all)
-}
-
-fn with_segments(options: serde_json::Value, segments: &[String]) -> serde_json::Value {
-    let mut fields = match options {
-        serde_json::Value::Object(fields) => fields,
-        _ => serde_json::Map::new(),
-    };
-    fields
-        .entry("segments")
-        .or_insert_with(|| serde_json::json!(segments));
-    serde_json::Value::Object(fields)
 }
 
 fn to_relative_forward_slash(file: &std::path::Path, project_root: &Utf8Path) -> Utf8PathBuf {
