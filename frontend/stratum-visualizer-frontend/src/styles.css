@@ -19,6 +19,14 @@
   --err: oklch(64% 0.18 25);
   --warn: oklch(78% 0.14 70);
   --info: oklch(70% 0.10 230);
+  --err-glow: color-mix(in oklch, var(--err) 35%, transparent);
+  --warn-glow: color-mix(in oklch, var(--warn) 30%, transparent);
+  --info-glow: color-mix(in oklch, var(--info) 30%, transparent);
+
+  --stage-1: oklch(74% 0.12 220);
+  --stage-2: oklch(74% 0.12 150);
+  --stage-3: oklch(74% 0.12 95);
+  --stage-4: oklch(78% 0.14 48);
 
   --r-sm: 5px;
   --r-md: 8px;
@@ -29,10 +37,6 @@
 
   --hd-h: 92px;
 }
-[data-accent="amber"]   { --accent-h: 65; }
-[data-accent="cyan"]    { --accent-h: 210; }
-[data-accent="magenta"] { --accent-h: 330; }
-[data-accent="lime"]    { --accent-h: 130; }
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
@@ -376,7 +380,6 @@ body {
 }
 .vio-focus:hover { color: var(--tx-1); border-color: var(--accent); }
 .vio-msg { font-size: 11.5px; color: var(--tx-1); line-height: 1.4; }
-.vio-doc { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--tx-4); margin-top: 4px; }
 
 .edge-row {
   display: flex; align-items: center; gap: 8px;
@@ -400,7 +403,7 @@ body {
 .edge-row-sev.sev-error { color: var(--err); background: oklch(64% 0.18 25 / .15); }
 .edge-row-sev.sev-warning { color: var(--warn); background: oklch(78% 0.14 70 / .15); }
 
-.stage {
+.canvas-area {
   position: relative; min-height: 0; min-width: 0; overflow: hidden;
   background:
     radial-gradient(800px 500px at 50% 30%, oklch(22% 0.022 260 / .6), transparent 70%),
@@ -603,11 +606,13 @@ body {
 .tt-stage {
   font-size: 10px; padding: 1px 6px; border-radius: 4px;
   font-family: 'JetBrains Mono', monospace;
+  color: var(--stage);
+  background: color-mix(in oklch, var(--stage) 18%, transparent);
 }
-.tt-stage-1 { background: oklch(70% 0.10 220 / .18); color: oklch(82% 0.10 220); }
-.tt-stage-2 { background: oklch(70% 0.10 150 / .18); color: oklch(82% 0.10 150); }
-.tt-stage-3 { background: oklch(75% 0.14 95 / .18);  color: oklch(85% 0.14 95); }
-.tt-stage-4 { background: oklch(78% 0.16 48 / .18);  color: oklch(85% 0.16 48); }
+.tt-stage-1 { --stage: var(--stage-1); }
+.tt-stage-2 { --stage: var(--stage-2); }
+.tt-stage-3 { --stage: var(--stage-3); }
+.tt-stage-4 { --stage: var(--stage-4); }
 .tt-sev {
   font-size: 10px; padding: 1px 6px; border-radius: 4px; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.05em;
@@ -691,7 +696,7 @@ body {
 }
 .kidgrid-tag { color: oklch(80% 0.14 65); font-size: 10px; }
 .kidgrid-item.kind-shared .kidgrid-tag { color: oklch(72% 0.10 290); }
-.kidgrid-loc { font-size: 10px; color: var(--tx-4); margin-top: 2px; }
+.kidgrid-meta { font-size: 10px; color: var(--tx-4); margin-top: 2px; }
 .kidgrid-deep { font-size: 10px; color: var(--tx-3); margin-top: 3px; font-style: italic; }
 
 .hd-pill.pill-kind-c { background: oklch(78% 0.14 65 / .15); color: oklch(85% 0.14 65); }

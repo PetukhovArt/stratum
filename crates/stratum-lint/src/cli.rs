@@ -83,6 +83,8 @@ pub enum Command {
     Visualize {
         #[arg(default_value = ".")]
         root: Utf8PathBuf,
+        #[arg(long)]
+        config: Option<Utf8PathBuf>,
     },
     /// Accept the current violations into a baseline file
     Baseline {

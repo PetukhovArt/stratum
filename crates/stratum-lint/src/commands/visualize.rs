@@ -35,8 +35,8 @@ struct ApiViolation {
     suggestion: Option<String>,
 }
 
-pub fn run(root: &Utf8Path) -> miette::Result<()> {
-    let input = lint::build(root, &lint::load_config(root, None)?)?;
+pub fn run(root: &Utf8Path, config: Option<&Utf8Path>) -> miette::Result<()> {
+    let input = lint::build(root, &lint::load_config(root, config)?)?;
     let snap = snapshot_of(&input.graph);
     let snap_json = serde_json::to_string(&snap).into_diagnostic()?;
     let violations_json = serde_json::to_string(&api_violations(&input)?).into_diagnostic()?;

@@ -1,35 +1,32 @@
-import { Component, createMemo, Show } from 'solid-js'
+import { Component, Show } from 'solid-js'
+import { activeFilterCount } from '../lib/filters'
 import { DesignData, DesignModule } from '../render/design'
-import { Filters, Viewport } from '../state'
+import { zoomAround } from '../render/viewport'
+import { CanvasSize, Filters, Viewport } from '../state'
+
+const BUTTON_ZOOM_FACTOR = 1.2
 
 export const StatusBar: Component<{
   data: DesignData
   viewport: Viewport
   selected: DesignModule | null
-  leftCollapsed: boolean
+  isLeftCollapsed: boolean
   setLeftCollapsed: (v: boolean) => void
-  rightCollapsed: boolean
+  isRightCollapsed: boolean
   setRightCollapsed: (v: boolean) => void
   filters: Filters
 }> = (props) => {
-  const activeFilters = createMemo(() =>
-    props.filters.disabledLayers.size +
-    props.filters.disabledContainers.size +
-    (props.filters.onlyViolators ? 1 : 0) +
-    (props.filters.query ? 1 : 0) +
-    (props.filters.glob ? 1 : 0) +
-    (props.filters.stageFilter !== null ? 1 : 0),
-  )
+  const activeFilters = () => activeFilterCount(props.filters)
 
   return (
     <footer class="strat-status">
       <div class="status-l">
         <button
-          class={`status-btn ${props.leftCollapsed ? 'off' : ''}`}
-          onClick={() => props.setLeftCollapsed(!props.leftCollapsed)}
+          class={`status-btn ${props.isLeftCollapsed ? 'off' : ''}`}
+          onClick={() => props.setLeftCollapsed(!props.isLeftCollapsed)}
           title="Toggle outline panel (⌘[)"
         >
-          <PanelIcon side="left" collapsed={props.leftCollapsed} />
+          <PanelIcon side="left" isCollapsed={props.isLeftCollapsed} />
           <span class="status-btn-label">outline</span>
         </button>
         <span class="status-sep" />
@@ -52,19 +49,19 @@ export const StatusBar: Component<{
         <span class="status-info">zoom {Math.round(props.viewport.zoom * 100)}%</span>
         <span class="status-sep" />
         <button
-          class={`status-btn ${props.rightCollapsed ? 'off' : ''}`}
-          onClick={() => props.setRightCollapsed(!props.rightCollapsed)}
+          class={`status-btn ${props.isRightCollapsed ? 'off' : ''}`}
+          onClick={() => props.setRightCollapsed(!props.isRightCollapsed)}
           title="Toggle details panel (⌘])"
         >
           <span class="status-btn-label">details</span>
-          <PanelIcon side="right" collapsed={props.rightCollapsed} />
+          <PanelIcon side="right" isCollapsed={props.isRightCollapsed} />
         </button>
       </div>
     </footer>
   )
 }
 
-const PanelIcon: Component<{ side: 'left' | 'right'; collapsed: boolean }> = (props) => {
+const PanelIcon: Component<{ side: 'left' | 'right'; isCollapsed: boolean }> = (props) => {
   const left = () => props.side === 'left'
   return (
     <svg width="14" height="11" viewBox="0 0 14 11" class="panel-icon">
@@ -83,8 +80,8 @@ const PanelIcon: Component<{ side: 'left' | 'right'; collapsed: boolean }> = (pr
         y={0.5}
         width={4.5}
         height={10}
-        fill={props.collapsed ? 'transparent' : 'currentColor'}
-        opacity={props.collapsed ? 0 : 0.7}
+        fill={props.isCollapsed ? 'transparent' : 'currentColor'}
+        opacity={props.isCollapsed ? 0 : 0.7}
       />
     </svg>
   )
@@ -94,23 +91,18 @@ export const ZoomControls: Component<{
   viewport: Viewport
   setViewport: (v: Viewport) => void
   fit: () => void
-  stageSize: { w: number; h: number }
+  canvasSize: CanvasSize
 }> = (props) => {
-  const zoomBy = (factor: number) => {
-    const mx = props.stageSize.w / 2
-    const my = props.stageSize.h / 2
-    const v = props.viewport
-    const newZoom = Math.max(0.15, Math.min(4, v.zoom * factor))
-    const wx = (mx - v.x) / v.zoom
-    const wy = (my - v.y) / v.zoom
-    props.setViewport({ zoom: newZoom, x: mx - wx * newZoom, y: my - wy * newZoom })
-  }
+  const zoomBy = (factor: number) =>
+    props.setViewport(
+      zoomAround(props.viewport, { x: props.canvasSize.w / 2, y: props.canvasSize.h / 2 }, factor),
+    )
   return (
     <div class="zoom-ctrl">
-      <button onClick={() => zoomBy(1.2)} title="zoom in">
+      <button onClick={() => zoomBy(BUTTON_ZOOM_FACTOR)} title="zoom in">
         +
       </button>
-      <button onClick={() => zoomBy(1 / 1.2)} title="zoom out">
+      <button onClick={() => zoomBy(1 / BUTTON_ZOOM_FACTOR)} title="zoom out">
         −
       </button>
       <button onClick={() => props.fit()} title="fit">
