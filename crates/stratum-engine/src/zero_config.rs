@@ -2,6 +2,12 @@ use camino::{Utf8Path, Utf8PathBuf};
 use stratum_config::{Config, LayerConfig, ProjectConfig};
 use walkdir::WalkDir;
 
+const NEEDS_DECLARED_STRUCTURE: [&str; 3] = [
+    "stratum/public-api",
+    "stratum/sibling-isolation",
+    "stratum/container-breadth",
+];
+
 #[must_use]
 pub fn infer(root: &Utf8Path) -> Config {
     let src = root.join("src");
@@ -26,7 +32,12 @@ pub fn infer(root: &Utf8Path) -> Config {
     }
     layers.sort_by(|a, b| a.id.cmp(&b.id));
 
-    let rules = stratum_config::recommended_rules();
+    let mut rules = stratum_config::recommended_rules();
+    for slug in NEEDS_DECLARED_STRUCTURE {
+        if let Some(rule) = rules.get_mut(slug) {
+            rule.severity = stratum_core::severity::Severity::Off;
+        }
+    }
 
     Config {
         version: 1,
