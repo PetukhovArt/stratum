@@ -1,6 +1,6 @@
 # `@stratum/lint`
 
-npm wrapper for the [Stratum](https://github.com/PetukhovArt/stratum) architectural linter. On install, `install.js` downloads the platform-matching prebuilt binary from the corresponding GitHub release and places it under `binary/`. The `stratum-lint` shim in `bin/` invokes that binary with the user's arguments.
+npm wrapper for the [Stratum](https://github.com/PetukhovArt/stratum) architectural linter. On install, `install.js` downloads the platform-matching prebuilt `stratum-lint` and `stratum-lsp` binaries from the corresponding GitHub release and places them under `binary/`. The `stratum-lint` and `stratum-lsp` shims in `bin/` invoke them with the user's arguments.
 
 ## Install
 

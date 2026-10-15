@@ -1,0 +1,16 @@
+{
+  "description": "Stratum architecture gate on changed files at the end of each turn",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "stratum-lint hook",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}

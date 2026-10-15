@@ -1,0 +1,17 @@
+{
+  "name": "stratum",
+  "description": "Stratum architecture linter for TS/Vue as a Claude Code plugin",
+  "owner": {
+    "name": "PetukhovArt",
+    "url": "https://github.com/PetukhovArt"
+  },
+  "plugins": [
+    {
+      "name": "stratum",
+      "source": "./claude-plugin",
+      "description": "Architecture validation for TS/Vue: LSP diagnostics per edit, a lint gate per turn, and a layer-aware skill.",
+      "category": "code-quality",
+      "tags": ["architecture", "lint", "typescript", "vue", "lsp"]
+    }
+  ]
+}

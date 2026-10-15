@@ -1,0 +1,13 @@
+{
+  "stratum": {
+    "command": "stratum-lsp",
+    "extensionToLanguage": {
+      ".ts": "typescript",
+      ".mts": "typescript",
+      ".cts": "typescript",
+      ".tsx": "typescriptreact",
+      ".js": "javascript",
+      ".vue": "vue"
+    }
+  }
+}
