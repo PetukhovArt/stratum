@@ -6,14 +6,8 @@ This crate is the foundation: every other crate in the workspace depends on it.
 
 ## Public API
 
-The entire downstream-visible API of `stratum-core` is:
-
-- The data types — `Module`, `Container`, `Layer`, `Purity`, `Severity`,
-  `Violation`, `Edge`, `EdgeKind`, `VisibilityScope`, and the newtype IDs.
+The re-exports in [src/lib.rs](src/lib.rs).
 
 ## Stratum primitives are first-class
 
-The Stratum methodology (layers, purity ranks, visibility, containment) is built
-into the types — not layered on top via configuration. Custom rules
-(in v1: Rhai per-module rules) extend behaviour but cannot redefine the
-methodology.
+Layers, purity ranks, visibility scopes and containers are dedicated types, not configuration over generic primitives. What configuration decides is where they come from: `layers` and `structure` in `stratum.config.jsonc` say which folders are layers, slices, entries, segments and private zones. Custom rules (Rhai scripts) add checks but cannot redefine these primitives.

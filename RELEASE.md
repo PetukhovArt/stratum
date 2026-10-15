@@ -14,6 +14,7 @@ This document walks through cutting a `stratum-lint` / `stratum-lsp` release. Tr
 1. Bump versions:
    - Every `crates/*/Cargo.toml`'s `version = ...`.
    - `npm-wrapper/package.json` `version`.
+   - `claude-plugin/.claude-plugin/plugin.json` and `claude-plugin-lsp/.claude-plugin/plugin.json` `version`.
 2. Update `CHANGELOG.md` — move "Unreleased" content under the new version + date.
 3. Commit: `chore(release): vX.Y.Z`.
 4. Tag the commit: `git tag vX.Y.Z && git push origin main vX.Y.Z`.
@@ -45,10 +46,12 @@ On a clean machine (or VM):
 # Linux x64
 curl -L https://github.com/PetukhovArt/stratum/releases/download/vX.Y.Z/stratum-lint-x86_64-unknown-linux-gnu.tar.gz | tar -xz
 ./stratum-lint --help
+test -x ./stratum-lsp    # the archive bundles stratum-lsp too
 
 # npm install path
 npm i -g @stratum/lint
 stratum-lint --help
+command -v stratum-lsp
 
 # Homebrew (macOS)
 brew tap petukhovart/stratum
@@ -76,4 +79,5 @@ If a release is broken:
 - Minor releases (`0.X+1.0`): new rules, new CLI flags, snapshot version unchanged.
 - Major releases (`0.X+1` post-1.0): snapshot version bump, breaking API changes.
 
-The **Graph Snapshot** version (currently `1`) is the public contract between the linter and the visualizer / LSP / external tooling; bumping it requires a coordinated frontend release.
+The **Graph Snapshot** version (currently `2`) is the public contract between the linter (`snapshot`, `visualize`), the Visualizer and external tooling; bumping it requires a coordinated frontend release.
+The other versioned shapes are `--format json` (currently `2`), the baseline file (`1`), `rules` / `explain` JSON (`1`) and the `context` brief JSON (`2`). A breaking change to one bumps its `version` and is listed under **Breaking** in `CHANGELOG.md`.
