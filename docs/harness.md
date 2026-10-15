@@ -33,7 +33,7 @@ stratum-lint [lint] [ROOT]
     [--format terminal|json|sarif|agent]   # agent = compact, token-cheap text
     [--config PATH]
     [--max N]                              # cap printed items; rest summarised (agent default 20)
-    [--files F...]                         # report only violations touching these files
+    [--files F...]                         # report only violations touching these files (relative to cwd, else ROOT; missing = exit 2)
     [--changed[=REF]]                      # files changed vs REF (default HEAD) + untracked
     [--baseline PATH | --no-baseline]      # default: ROOT/stratum.baseline.json if it exists
     [--watch]
@@ -78,10 +78,12 @@ error stratum/no-circular-deps (1) - stratum-lint explain stratum/no-circular-de
 warning stratum/no-cross-layer-import (2) - stratum-lint explain stratum/no-cross-layer-import
   src/shared/x.ts:1 -> src/features/y.ts  Module imports from layer 'features' ...
   ...
-+2 more rules over --max 20: stratum/depth-ratio (3), ...
++1 more rules over --max 20: stratum/stage-purity (3)
+info (advisory, details in --format json): stratum/deep-module (266), stratum/miller-limit (135)
 ```
 
 - `-> file` is the import target when the violation has an edge.
+- Info-severity rules are advisory: one count line, no examples, not counted against `--max`.
 - Messages longer than 240 chars are clipped; `--format json` has the full text.
 - A zero-config run appends `| zero-config: layers inferred from src/*, ...` to the summary line.
 

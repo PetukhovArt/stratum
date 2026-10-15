@@ -34,7 +34,12 @@ impl Reporter for AgentReporter {
         let mut budget = self.max;
         let mut hinted = HashSet::new();
         let mut hidden = Vec::new();
+        let mut advisory = Vec::new();
         for ((rule, severity), hits) in groups {
+            if severity == Severity::Info {
+                advisory.push(format!("{rule} ({})", hits.len()));
+                continue;
+            }
             if budget == 0 {
                 hidden.push(format!("{rule} ({})", hits.len()));
                 continue;
@@ -64,6 +69,13 @@ impl Reporter for AgentReporter {
                 hidden.len(),
                 self.max,
                 hidden.join(", ")
+            )?;
+        }
+        if !advisory.is_empty() {
+            writeln!(
+                out,
+                "info (advisory, details in --format json): {}",
+                advisory.join(", ")
             )?;
         }
         Ok(())

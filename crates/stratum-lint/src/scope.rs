@@ -22,11 +22,15 @@ impl Scope {
         let mut set: BTreeSet<String> = files
             .iter()
             .map(|f| {
-                let abs = cwd.join(f);
-                let abs = abs.canonicalize().unwrap_or(abs);
-                relative(&abs, root_abs)
+                [cwd.join(f), root_abs.join(f).into_std_path_buf()]
+                    .into_iter()
+                    .find_map(|p| p.canonicalize().ok())
+                    .map(|abs| relative(&abs, root_abs))
+                    .ok_or_else(|| {
+                        miette::miette!("--files: {f} not found in the current directory or ROOT")
+                    })
             })
-            .collect();
+            .collect::<miette::Result<_>>()?;
         if let Some(reference) = changed {
             set.extend(git_lines(
                 root_abs,
