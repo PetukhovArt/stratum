@@ -2,6 +2,6 @@
 source: crates/stratum-lint/tests/e2e_context.rs
 expression: "stdout(&[\"context\", &file])"
 ---
-src/shared/api/new-client.ts (new file): layer shared, container shared, stage 2, visibility public
-may import: layers shared; modules at stage <= 2
+src/shared/api/new-client.ts (new file): layer shared, container shared, purity 2, visibility public
+may import: layers shared; modules at purity <= 2
 imported by: layers app, features, shared

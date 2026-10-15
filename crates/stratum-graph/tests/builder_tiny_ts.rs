@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use camino::Utf8PathBuf;
 
-use stratum_core::{ids::LayerId, stage::Stage, types::Layer, visibility::VisibilityScope};
+use stratum_core::{ids::LayerId, purity::Purity, types::Layer, visibility::VisibilityScope};
 use stratum_graph::{BuildConfig, GraphBuilder, snapshot_of};
 
 #[test]
@@ -41,7 +41,7 @@ fn tiny_ts_graph_snapshot() {
     let cfg = BuildConfig {
         project_root: root.clone(),
         layers,
-        default_stage: Stage::new(2).unwrap(),
+        default_purity: Purity::new(2).unwrap(),
         default_visibility: VisibilityScope::Public,
     };
     let graph = GraphBuilder::new(cfg).build().unwrap();

@@ -160,13 +160,13 @@ impl RuleRegistry {
             cross_entity_pattern::CrossEntityPattern, deep_module::DeepModule,
             depth_ratio::DepthRatio, import_policy::ImportPolicy, miller_limit::MillerLimit,
             no_circular_deps::NoCircularDeps, no_cross_layer_import::NoCrossLayerImport,
-            promotion_pressure::PromotionPressure, stage_purity::StagePurity,
+            promotion_pressure::PromotionPressure, purity::PurityRule,
             visibility_scope::VisibilityScope,
         };
         let mut r = Self::new();
         r.register(NoCrossLayerImport);
         r.register(NoCircularDeps);
-        r.register(StagePurity);
+        r.register(PurityRule);
         r.register(MillerLimit);
         r.register(DepthRatio);
         r.register(VisibilityScope);

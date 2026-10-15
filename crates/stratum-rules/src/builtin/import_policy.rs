@@ -217,7 +217,7 @@ mod tests {
     use stratum_core::{
         edge::EdgeKind,
         ids::{ContainerId, LayerId},
-        stage::Stage,
+        purity::Purity,
         types::Layer,
         visibility::VisibilityScope,
     };
@@ -250,7 +250,7 @@ mod tests {
                     path: PathBuf::from(format!("C:/work/web/{path}")),
                     container: ContainerId::new(0),
                     layer: LayerId::new(0),
-                    stage: Stage::new(2).unwrap(),
+                    purity: Purity::new(2).unwrap(),
                     visibility: VisibilityScope::Public,
                     exports: stratum_core::types::Exports::default(),
                 },

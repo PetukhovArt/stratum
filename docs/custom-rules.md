@@ -121,7 +121,7 @@ The script defines `fn check(m)` or `fn check(m, options)`; a script with neithe
 | `m.path` | `string` | Absolute module path with forward slashes. |
 | `m.layer` | `string` | The layer name from `stratum.config.jsonc`. |
 | `m.container` | `int` | Stable numeric container id. |
-| `m.stage` | `int` | Purity stage (1–4). |
+| `m.purity` | `int` | Purity rank (1–4). |
 | `m.dependents` | `array` of `int` | Module ids that depend on this module. |
 | `m.imports` | `array` of `map` | Imports that resolve to a module in a layer: `#{ path, layer, kind }`, `kind` is `"static"`, `"di"` or `"runtime"`. Package imports are absent. |
 | `m.metadata` | `map` | Reserved for future `@stratum-*` annotations; currently empty. |

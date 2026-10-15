@@ -8,7 +8,7 @@ This crate is the foundation: every other crate in the workspace depends on it.
 
 The entire downstream-visible API of `stratum-core` is:
 
-- The data types — `Module`, `Container`, `Layer`, `Stage`, `Severity`,
+- The data types — `Module`, `Container`, `Layer`, `Purity`, `Severity`,
   `Violation`, `Edge`, `EdgeKind`, `VisibilityScope`, and the newtype IDs.
 - The Salsa trait `ArchitectureDatabase` with three queries:
   - `compound_graph(project) -> CompoundGraphSnapshot`
@@ -21,7 +21,7 @@ without a PRD-level decision (see decisions doc D6).
 
 ## Stratum primitives are first-class
 
-The Stratum methodology (layers, stages, visibility, containment) is built
+The Stratum methodology (layers, purity ranks, visibility, containment) is built
 into the types — not layered on top via configuration. Custom rules
 (in v1: Rhai per-module rules) extend behaviour but cannot redefine the
 methodology.

@@ -1,7 +1,7 @@
 use camino::Utf8Path;
 use oxc_span::SourceType;
 
-use crate::annotations::extract_stage;
+use crate::annotations::extract_purity;
 use crate::extractor::{ExtractError, ExtractedData, LanguageExtractor};
 use crate::imports::collect;
 
@@ -49,12 +49,12 @@ impl LanguageExtractor for OxcTsExtractor {
         let source_type = Self::source_type_for(path)
             .ok_or_else(|| ExtractError::UnsupportedExtension(path.to_path_buf()))?;
         let collected = collect(source, source_type);
-        let stage = extract_stage(source);
+        let purity = extract_purity(source);
         Ok(ExtractedData {
             source_path: path.to_path_buf(),
             imports: collected.imports,
             diagnostics: Vec::new(),
-            stage,
+            purity,
             exports: collected.exports,
         })
     }

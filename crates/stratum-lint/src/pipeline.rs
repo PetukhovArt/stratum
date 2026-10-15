@@ -5,7 +5,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use stratum_config::{Config, ConfigError, IgnoreSet};
 use stratum_core::{
     ids::{LayerId, RuleId},
-    stage::Stage,
+    purity::Purity,
     types::Layer,
     violation::Violation,
     visibility::VisibilityScope,
@@ -72,7 +72,7 @@ pub fn build_with_builder(
     let build_cfg = BuildConfig {
         project_root: root_abs.clone(),
         layers,
-        default_stage: Stage::new(2).unwrap_or_else(|_| unreachable!("Stage(2) is valid")),
+        default_purity: Purity::new(2).unwrap_or_else(|_| unreachable!("Purity(2) is valid")),
         default_visibility: VisibilityScope::Public,
     };
     let ignore = IgnoreSet::new(config)?;

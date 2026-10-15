@@ -8,21 +8,21 @@ use stratum_core::{
 };
 use stratum_graph::CompoundGraph;
 
-use crate::ids::STAGE_PURITY;
+use crate::ids::PURITY;
 use crate::rule::{EmptyOptions, Rule};
 
 #[derive(Debug, Default, Clone, Copy)]
-pub struct StagePurity;
+pub struct PurityRule;
 
-impl Rule for StagePurity {
+impl Rule for PurityRule {
     type Scope = ModuleId;
     type Options = EmptyOptions;
 
     fn id(&self) -> RuleId {
-        STAGE_PURITY
+        PURITY
     }
     fn slug(&self) -> &'static str {
-        "stratum/stage-purity"
+        "stratum/purity"
     }
     fn default_severity(&self) -> Severity {
         Severity::Error
@@ -47,14 +47,14 @@ impl Rule for StagePurity {
             let Some(to_mod) = graph.modules.get(&to_id) else {
                 continue;
             };
-            if !from_mod.stage.may_depend_on(to_mod.stage) {
+            if !from_mod.purity.may_depend_on(to_mod.purity) {
                 out.push(Violation {
                     rule: self.id(),
                     severity,
                     message: format!(
-                        "Stage {} module imports from stage {}: purer code cannot depend on impurer code",
-                        from_mod.stage.rank(),
-                        to_mod.stage.rank()
+                        "Module at purity {} imports from purity {}: purer code cannot depend on impurer code",
+                        from_mod.purity.rank(),
+                        to_mod.purity.rank()
                     ),
                     file: from_mod.path.clone(),
                     location: SourceLocation { line: 1, column: 1 },
@@ -65,7 +65,7 @@ impl Rule for StagePurity {
                         kind: *edge.weight(),
                     }),
                     suggestion: Some(
-                        "Move shared logic into a module at or below the lower stage, or inject the impure dependency at composition root."
+                        "Move shared logic into a module at or below the lower purity, or inject the impure dependency at composition root."
                             .into(),
                     ),
                 });
@@ -87,18 +87,18 @@ mod tests {
     use stratum_core::{
         edge::EdgeKind,
         ids::{ContainerId, LayerId},
-        stage::Stage,
+        purity::Purity,
         types::Module,
         visibility::VisibilityScope,
     };
 
-    fn module_at_stage(id: u32, stage_rank: u8) -> Module {
+    fn module_at_purity(id: u32, purity_rank: u8) -> Module {
         Module {
             id: ModuleId::new(id),
             path: PathBuf::from(format!("src/m{id}.ts")),
             container: ContainerId::new(0),
             layer: LayerId::new(0),
-            stage: Stage::new(stage_rank).unwrap(),
+            purity: Purity::new(purity_rank).unwrap(),
             visibility: VisibilityScope::Public,
             exports: stratum_core::types::Exports::default(),
         }
@@ -128,31 +128,31 @@ mod tests {
     #[test]
     fn impurer_can_depend_on_purer() {
         let g = build(
-            vec![module_at_stage(0, 4), module_at_stage(1, 1)],
+            vec![module_at_purity(0, 4), module_at_purity(1, 1)],
             &[(0, 1)],
         );
-        let viols = StagePurity.check(&g, ModuleId::new(0), &EmptyOptions, Severity::Error);
+        let viols = PurityRule.check(&g, ModuleId::new(0), &EmptyOptions, Severity::Error);
         assert!(viols.is_empty());
     }
 
     #[test]
     fn purer_cannot_depend_on_impurer() {
         let g = build(
-            vec![module_at_stage(0, 1), module_at_stage(1, 4)],
+            vec![module_at_purity(0, 1), module_at_purity(1, 4)],
             &[(0, 1)],
         );
-        let viols = StagePurity.check(&g, ModuleId::new(0), &EmptyOptions, Severity::Error);
+        let viols = PurityRule.check(&g, ModuleId::new(0), &EmptyOptions, Severity::Error);
         assert_eq!(viols.len(), 1);
-        assert_eq!(viols[0].rule, STAGE_PURITY);
+        assert_eq!(viols[0].rule, PURITY);
     }
 
     #[test]
-    fn same_stage_dep_allowed() {
+    fn same_purity_dep_allowed() {
         let g = build(
-            vec![module_at_stage(0, 2), module_at_stage(1, 2)],
+            vec![module_at_purity(0, 2), module_at_purity(1, 2)],
             &[(0, 1)],
         );
-        let viols = StagePurity.check(&g, ModuleId::new(0), &EmptyOptions, Severity::Error);
+        let viols = PurityRule.check(&g, ModuleId::new(0), &EmptyOptions, Severity::Error);
         assert!(viols.is_empty());
     }
 }

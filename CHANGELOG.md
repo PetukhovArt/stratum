@@ -17,6 +17,7 @@ version; a bump requires a coordinated frontend release.
 
 ### Changed
 
+- **Breaking:** the purity rank is called purity everywhere. `// @stratum-stage N` is now `// @stratum-purity N`, and the old annotation is no longer recognised. The rule `stratum/stage-purity` is now `stratum/purity`, `Module.stage` is `Module.purity`, `BuildConfig.default_stage` is `default_purity`, Rhai `m.stage` is `m.purity`, and `context` prints `purity`. Baseline fingerprints keyed by the old slug go stale. The Graph Snapshot keeps the field name `stage` until v2.
 - `stratum-lsp`: `initialize` returns at once and analysis runs in the background; reads `stratum.config.jsonc`; re-analyzes when the config or a plugin script changes; handles `didSave`/`didClose` and `file:///c%3A/...` URIs; diagnostics carry `source: "stratum"`, the rule slug as `code` (plugin rules included), the suggestion, and `relatedInformation`.
 
 ## 0.1.0 — 2026-05-18

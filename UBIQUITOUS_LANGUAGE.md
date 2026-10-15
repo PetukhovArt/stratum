@@ -41,7 +41,7 @@
 | **Stratum** | The default **Methodology**. Ships as a config plus a plugin. | Stratum architecture, the methodology |
 | **Methodology Bundle** | A distributable package that defines a **Methodology**: config plus plugins. | preset, profile, ruleset |
 | **Layer** | A named group of **Modules** with its own visibility and a `depends_on: Vec<LayerId>` declaration. | tier, level, slice |
-| **Stage** | A purity rank from 1 (most pure) to 4 (impure). A **Module** at stage `s` may depend on another at stage `t` iff `t <= s` — purer code cannot reach impurer code. | phase, tier, rank |
+| **Purity** | A rank from 1 (most pure) to 4 (impure). A **Module** at purity `s` may import another at purity `t` only when `t <= s`: purer code cannot reach impurer code. Set by `@stratum-purity`. | stage, rank |
 | **Visibility Scope** | The set of **Modules** allowed to import a given **Module**. Four variants: `Container { id }`, `Layer { id }`, `Public`, `Shared`. | access scope, boundary |
 | **Cross-Entity Pattern** | A structural rule that spans more than one **Module** or **Layer**. | macro-pattern, structural rule |
 | **Deep Module** | A **Module** whose public surface (its **Exports**) is small relative to what it does internally. The `deep-module` rule caps `exports.count` at `max_exports`. | thick module, encapsulated module |

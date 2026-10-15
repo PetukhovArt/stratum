@@ -13,7 +13,7 @@ pub const NAMES: [&str; 2] = [RECOMMENDED, FSD];
 const RECOMMENDED_RULES: [(&str, Severity); 5] = [
     ("stratum/no-cross-layer-import", Severity::Warning),
     ("stratum/no-circular-deps", Severity::Error),
-    ("stratum/stage-purity", Severity::Warning),
+    ("stratum/purity", Severity::Warning),
     ("stratum/miller-limit", Severity::Info),
     ("stratum/depth-ratio", Severity::Info),
 ];

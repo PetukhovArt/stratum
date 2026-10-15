@@ -20,7 +20,7 @@ use crate::{
     pipeline, zero_config,
 };
 
-const DEFAULT_STAGE: u8 = 2;
+const DEFAULT_PURITY: u8 = 2;
 const SHOWN_PER_LIST: usize = 3;
 
 #[derive(Debug, Serialize)]
@@ -30,10 +30,10 @@ struct Brief {
     status: Status,
     layer: Option<String>,
     container: Option<String>,
-    stage: Option<u8>,
+    purity: Option<u8>,
     visibility: Option<String>,
     may_import_layers: Vec<String>,
-    max_import_stage: Option<u8>,
+    max_import_purity: Option<u8>,
     imported_by_layers: Vec<String>,
     imports: usize,
     violating_imports: Vec<ViolatingImport>,
@@ -116,10 +116,10 @@ fn brief(input: &EngineInput, root: &Utf8Path, file_abs: &Utf8Path, rel: &Utf8Pa
         status,
         layer: None,
         container: None,
-        stage: None,
+        purity: None,
         visibility: None,
         may_import_layers: vec![],
-        max_import_stage: None,
+        max_import_purity: None,
         imported_by_layers: vec![],
         imports: 0,
         violating_imports: vec![],
@@ -133,15 +133,15 @@ fn brief(input: &EngineInput, root: &Utf8Path, file_abs: &Utf8Path, rel: &Utf8Pa
     let Some(layer_id) = layer_id else {
         return brief;
     };
-    let stage = module.map_or(DEFAULT_STAGE, |m| m.stage.rank());
+    let purity = module.map_or(DEFAULT_PURITY, |m| m.purity.rank());
     brief.layer = Some(layer_name(graph, layer_id));
     brief.container = Some(
         module
             .and_then(|m| graph.containers.get(&m.container))
             .map_or_else(|| layer_name(graph, layer_id), |c| c.name.clone()),
     );
-    brief.stage = Some(stage);
-    brief.max_import_stage = Some(stage);
+    brief.purity = Some(purity);
+    brief.max_import_purity = Some(purity);
     brief.visibility = Some(module.map_or_else(
         || "public".to_string(),
         |m| visibility_name(graph, &m.visibility),
@@ -227,17 +227,17 @@ fn render_agent(b: &Brief) -> String {
     };
     let _ = writeln!(
         out,
-        "{}{note}: layer {layer}, container {}, stage {}, visibility {}",
+        "{}{note}: layer {layer}, container {}, purity {}, visibility {}",
         b.file,
         b.container.as_deref().unwrap_or("-"),
-        b.stage.unwrap_or(DEFAULT_STAGE),
+        b.purity.unwrap_or(DEFAULT_PURITY),
         b.visibility.as_deref().unwrap_or("public"),
     );
     let _ = writeln!(
         out,
-        "may import: layers {}; modules at stage <= {}",
+        "may import: layers {}; modules at purity <= {}",
         b.may_import_layers.join(", "),
-        b.max_import_stage.unwrap_or(DEFAULT_STAGE)
+        b.max_import_purity.unwrap_or(DEFAULT_PURITY)
     );
     let _ = writeln!(
         out,

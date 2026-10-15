@@ -203,7 +203,7 @@ mod tests {
         let mut findings: Vec<Finding> = (0..5)
             .map(|i| {
                 finding(
-                    "stratum/stage-purity",
+                    "stratum/purity",
                     Severity::Error,
                     &format!("src/shared/m{i}.ts"),
                 )

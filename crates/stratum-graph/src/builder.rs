@@ -9,7 +9,7 @@ use walkdir::WalkDir;
 
 use stratum_core::edge::EdgeKind;
 use stratum_core::ids::{ContainerId, LayerId, ModuleId};
-use stratum_core::stage::Stage;
+use stratum_core::purity::Purity;
 use stratum_core::types::{Container, Exports, Layer, Module};
 use stratum_core::visibility::VisibilityScope;
 use stratum_parser_ts::{LanguageExtractor, OxcTsExtractor, PathResolver};
@@ -53,7 +53,7 @@ pub enum BuildError {
 pub struct BuildConfig {
     pub project_root: Utf8PathBuf,
     pub layers: Vec<Layer>,
-    pub default_stage: Stage,
+    pub default_purity: Purity,
     pub default_visibility: VisibilityScope,
 }
 
@@ -168,7 +168,7 @@ impl GraphBuilder {
                 path: PathBuf::from(path.as_str()),
                 container: ContainerId::new(layer.raw()),
                 layer: *layer,
-                stage: scan.stage.unwrap_or(self.config.default_stage),
+                purity: scan.purity.unwrap_or(self.config.default_purity),
                 visibility: self.config.default_visibility.clone(),
                 exports: scan.exports,
             };
@@ -277,7 +277,7 @@ impl GraphBuilder {
             Ok(s) => s,
             Err(e) => {
                 return Scan {
-                    stage: None,
+                    purity: None,
                     exports: Exports::default(),
                     edges: Err(BuildError::Io {
                         path: path.to_path_buf(),
@@ -287,13 +287,13 @@ impl GraphBuilder {
             }
         };
         let _serial = (source.len() > LARGE_FILE_BYTES).then(|| large_file.lock());
-        let stage = stratum_parser_ts::extract_stage(&source);
+        let purity = stratum_parser_ts::extract_purity(&source);
         let (exports, edges) = match self.edges_of(path, &source, path_to_id) {
             Ok((exports, edges)) => (exports, Ok(edges)),
             Err(e) => (Exports::default(), Err(e)),
         };
         Scan {
-            stage,
+            purity,
             exports,
             edges,
         }
@@ -334,7 +334,7 @@ const LARGE_FILE_BYTES: usize = 1 << 20;
 const MAX_WORKERS: usize = 8;
 
 struct Scan {
-    stage: Option<Stage>,
+    purity: Option<Purity>,
     exports: Exports,
     edges: Result<Vec<(ModuleId, EdgeKind)>, BuildError>,
 }
@@ -388,7 +388,7 @@ mod tests {
         let cfg = BuildConfig {
             project_root: tiny_ts_root(),
             layers: layers_for_tiny_ts(),
-            default_stage: Stage::new(2).unwrap(),
+            default_purity: Purity::new(2).unwrap(),
             default_visibility: VisibilityScope::Public,
         };
         let g = GraphBuilder::new(cfg).build().unwrap();

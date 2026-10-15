@@ -15,7 +15,7 @@ pub struct ModuleView {
     pub path: String,
     pub layer: String,
     pub container: i64,
-    pub stage: i64,
+    pub purity: i64,
     pub dependents: Vec<i64>,
     pub imports: Array,
     pub metadata: Map,
@@ -65,7 +65,7 @@ pub fn build_view(g: &CompoundGraph, id: ModuleId) -> Option<ModuleView> {
         path: forward_slash(m),
         layer: layer_name(g, m.layer),
         container: i64::from(m.container.raw()),
-        stage: i64::from(m.stage.rank()),
+        purity: i64::from(m.purity.rank()),
         dependents,
         imports: imports(g, id),
         metadata: Map::new(),
@@ -79,7 +79,7 @@ pub fn register(engine: &mut Engine) {
         .register_get("path", |m: &mut ModuleView| m.path.clone())
         .register_get("layer", |m: &mut ModuleView| m.layer.clone())
         .register_get("container", |m: &mut ModuleView| m.container)
-        .register_get("stage", |m: &mut ModuleView| m.stage)
+        .register_get("purity", |m: &mut ModuleView| m.purity)
         .register_get("dependents", |m: &mut ModuleView| {
             m.dependents
                 .iter()
@@ -103,7 +103,7 @@ mod tests {
             path: "src/legacy/foo.ts".to_string(),
             layer: "shared".to_string(),
             container: 2,
-            stage: 3,
+            purity: 3,
             dependents: vec![1, 2],
             imports: Array::new(),
             metadata: Map::new(),

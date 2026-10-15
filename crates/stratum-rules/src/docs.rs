@@ -22,10 +22,10 @@ pub fn builtin(slug: &str) -> Option<RuleDoc> {
             "Break one edge: extract the piece both sides need into a lower module, or invert one dependency (callback, interface, event). Per-file overrides do not apply; only the project-wide severity does.",
             &[],
         ),
-        "stratum/stage-purity" => (
-            "Every module has a purity stage from 1 (pure) to 4 (side effects), default 2, set by a `// @stratum-stage N` line in the file's leading comments. A module may import only modules whose stage is <= its own.",
+        "stratum/purity" => (
+            "Every module has a purity rank from 1 (pure) to 4 (side effects), default 2, set by a `// @stratum-purity N` line in the file's leading comments. A module may import only modules whose purity is <= its own.",
             "Purer code that imports impurer code inherits its side effects and stops being testable and reusable on its own.",
-            "Move the shared logic into a module at or below the importer's stage, raise the importer's `@stratum-stage` if it really is impure, or inject the impure dependency from the composition root.",
+            "Move the shared logic into a module at or below the importer's purity, raise the importer's `@stratum-purity` if it really is impure, or inject the impure dependency from the composition root.",
             &[],
         ),
         "stratum/miller-limit" => (
