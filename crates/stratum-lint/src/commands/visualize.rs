@@ -35,7 +35,7 @@ struct ApiViolation {
     suggestion: Option<String>,
 }
 
-pub fn run(root: &Utf8Path, config: Option<&Utf8Path>) -> miette::Result<()> {
+pub fn run(root: &Utf8Path, config: Option<&Utf8Path>, open_browser: bool) -> miette::Result<()> {
     let input = lint::build(root, &lint::load_config(root, config)?)?;
     let snap = snapshot_of(&input.graph);
     let snap_json = serde_json::to_string(&snap).into_diagnostic()?;
@@ -45,7 +45,7 @@ pub fn run(root: &Utf8Path, config: Option<&Utf8Path>) -> miette::Result<()> {
         .enable_all()
         .build()
         .into_diagnostic()?;
-    rt.block_on(serve(snap_json, violations_json, 0))
+    rt.block_on(serve(snap_json, violations_json, open_browser))
 }
 
 fn api_violations(input: &EngineInput) -> miette::Result<Vec<ApiViolation>> {
@@ -94,18 +94,24 @@ pub fn build_router(snapshot: &Arc<String>, violations: &Arc<String>) -> Router 
         .fallback(get(serve_asset))
 }
 
-async fn serve(snapshot_json: String, violations_json: String, port: u16) -> miette::Result<()> {
+async fn serve(
+    snapshot_json: String,
+    violations_json: String,
+    open_browser: bool,
+) -> miette::Result<()> {
     let snapshot = Arc::new(snapshot_json);
     let violations = Arc::new(violations_json);
     let app = build_router(&snapshot, &violations);
 
-    let listener = tokio::net::TcpListener::bind(("127.0.0.1", port))
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
         .await
         .into_diagnostic()?;
     let addr = listener.local_addr().into_diagnostic()?;
     let url = format!("http://{addr}");
     eprintln!("stratum-visualizer ready at {url}");
-    let _ = open::that(&url);
+    if open_browser {
+        let _ = open::that(&url);
+    }
 
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())

@@ -85,6 +85,9 @@ pub enum Command {
         root: Utf8PathBuf,
         #[arg(long)]
         config: Option<Utf8PathBuf>,
+        /// Serve without opening the default browser (for scripted or agent runs)
+        #[arg(long)]
+        no_open: bool,
     },
     /// Accept the current violations into a baseline file
     Baseline {
