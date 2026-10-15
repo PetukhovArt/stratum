@@ -1,26 +1,12 @@
-use stratum_core::ids::{ContainerId, ModuleId};
+use stratum_core::ids::ModuleId;
 
 use crate::graph::CompoundGraph;
-use crate::topo::direct_dependents;
 
-/// Number of distinct dependents of `module` outside its own container.
-///
-/// The Miller fan-out feeds the `miller-limit` rule (Phase 3+): a high count
-/// indicates wide cross-container coupling.
+/// Distinct importers of `module` from other containers whose layer is `module`'s
+/// layer or lists it in `depends_on`. The undeclared rest is [`super::promotion_pressure`].
 #[must_use]
-pub fn miller_fanout(g: &CompoundGraph, module: ModuleId) -> usize {
-    let Some(target) = g.modules.get(&module) else {
-        return 0;
-    };
-    let own_container: ContainerId = target.container;
-    direct_dependents(g, module)
-        .into_iter()
-        .filter(|dep| {
-            g.modules
-                .get(dep)
-                .is_some_and(|m| m.container != own_container)
-        })
-        .count()
+pub fn miller_fan_in(g: &CompoundGraph, module: ModuleId) -> usize {
+    super::cross_container_importers(g, module, true)
 }
 
 #[cfg(test)]
@@ -32,6 +18,7 @@ mod tests {
     use petgraph::graph::DiGraph;
     use rustc_hash::FxHashMap;
     use std::path::PathBuf;
+    use stratum_core::ids::ContainerId;
     use stratum_core::{
         edge::EdgeKind, ids::LayerId, stage::Stage, types::Module, visibility::VisibilityScope,
     };
@@ -44,6 +31,7 @@ mod tests {
             layer: LayerId::new(0),
             stage: Stage::new(2).unwrap(),
             visibility: VisibilityScope::Public,
+            exports: stratum_core::types::Exports::default(),
         }
     }
 
@@ -69,7 +57,7 @@ mod tests {
     }
 
     #[test]
-    fn fanout_counts_only_cross_container_dependents() {
+    fn fan_in_counts_only_cross_container_dependents() {
         let g = small_graph(
             vec![
                 module_in(100, 0),
@@ -79,6 +67,6 @@ mod tests {
             ],
             &[(1, 0), (2, 0), (3, 0)],
         );
-        assert_eq!(miller_fanout(&g, ModuleId::new(0)), 2);
+        assert_eq!(miller_fan_in(&g, ModuleId::new(0)), 2);
     }
 }

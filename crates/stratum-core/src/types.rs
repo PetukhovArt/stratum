@@ -17,6 +17,16 @@ pub struct Module {
     pub layer: LayerId,
     pub stage: Stage,
     pub visibility: VisibilityScope,
+    #[serde(default)]
+    pub exports: Exports,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Exports {
+    /// Distinct exported names, plus 1 for every `export * from`.
+    pub count: u32,
+    /// How many `export * from` entries `count` holds; each hides an unknown number of names.
+    pub star_reexports: u32,
 }
 
 /// A compound node grouping Modules of one Layer.
@@ -51,6 +61,7 @@ mod tests {
             layer: LayerId::new(0),
             stage: Stage::new(3).unwrap(),
             visibility: VisibilityScope::Public,
+            exports: Exports::default(),
         };
         let json = serde_json::to_string(&m).unwrap();
         let back: Module = serde_json::from_str(&json).unwrap();

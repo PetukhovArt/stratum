@@ -1,6 +1,6 @@
 use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
-use stratum_core::{edge::EdgeKind, stage::Stage};
+use stratum_core::{edge::EdgeKind, stage::Stage, types::Exports};
 
 use crate::source_span::SourceSpan;
 
@@ -31,6 +31,8 @@ pub struct ExtractedData {
     /// `@stratum-stage N` annotation (Phase 5). `None` if absent.
     #[serde(default)]
     pub stage: Option<Stage>,
+    #[serde(default)]
+    pub exports: Exports,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

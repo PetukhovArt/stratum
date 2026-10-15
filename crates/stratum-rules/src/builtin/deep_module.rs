@@ -1,5 +1,3 @@
-use petgraph::Direction;
-
 use stratum_core::{
     ids::{ModuleId, RuleId},
     severity::Severity,
@@ -11,9 +9,6 @@ use crate::ids::DEEP_MODULE;
 use crate::options::DeepModuleOptions;
 use crate::rule::Rule;
 
-/// Phase 5 proxy for "shallow module": flag any module whose outgoing-edge
-/// surface (a stand-in for "public exports" until Phase 1's parser emits real
-/// export counts) exceeds `options.max_exports`.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct DeepModule;
 
@@ -41,19 +36,22 @@ impl Rule for DeepModule {
         let Some(m) = graph.modules.get(&scope) else {
             return vec![];
         };
-        let Some(node) = graph.node_for(scope) else {
-            return vec![];
-        };
-        let outgoing = graph.deps.edges_directed(node, Direction::Outgoing).count();
-        let surface = u32::try_from(outgoing).unwrap_or(u32::MAX);
-        if surface <= options.max_exports {
+        let exports = m.exports;
+        if exports.count <= options.max_exports {
             return vec![];
         }
+        let stars = match exports.star_reexports {
+            0 => String::new(),
+            n => {
+                format!(", {n} of them `export *` re-exports counted as 1 each that may hide more")
+            }
+        };
         vec![Violation {
             rule: self.id(),
             severity,
             message: format!(
-                "Module surface ({surface}) exceeds the deep-module limit ({limit}); split it or hide some exports",
+                "Module exports {count} names{stars} (limit {limit}); split it or hide some exports",
+                count = exports.count,
                 limit = options.max_exports
             ),
             file: m.path.clone(),
@@ -73,18 +71,15 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
-    use indexmap::IndexMap;
-    use petgraph::graph::DiGraph;
-    use rustc_hash::FxHashMap;
     use stratum_core::{
         edge::EdgeKind,
         ids::{ContainerId, LayerId},
         stage::Stage,
-        types::Module,
+        types::{Exports, Module},
         visibility::VisibilityScope,
     };
 
-    fn module(id: u32) -> Module {
+    fn module(id: u32, exports: u32) -> Module {
         Module {
             id: ModuleId::new(id),
             path: PathBuf::from(format!("m{id}.ts")),
@@ -92,52 +87,34 @@ mod tests {
             layer: LayerId::new(1),
             stage: Stage::new(2).unwrap(),
             visibility: VisibilityScope::Public,
+            exports: Exports {
+                count: exports,
+                star_reexports: 0,
+            },
         }
     }
 
-    fn build(n: u32, edges: &[(u32, u32)]) -> CompoundGraph {
-        let mut g = CompoundGraph {
-            modules: IndexMap::new(),
-            containers: IndexMap::new(),
-            layers: IndexMap::new(),
-            deps: DiGraph::new(),
-            node_index: FxHashMap::default(),
-        };
-        for i in 0..n {
-            let m = module(i);
+    #[test]
+    fn counts_exports_not_imports() {
+        let mut g = CompoundGraph::empty();
+        for m in [module(0, 0), module(1, 5), module(2, 0), module(3, 0)] {
             let node = g.deps.add_node(m.id);
             g.node_index.insert(m.id, node);
             g.modules.insert(m.id, m);
         }
-        for (a, b) in edges {
-            let na = g.node_index[&ModuleId::new(*a)];
-            let nb = g.node_index[&ModuleId::new(*b)];
-            g.deps.add_edge(na, nb, EdgeKind::Static);
+        for to in 1..=3 {
+            let from = g.node_index[&ModuleId::new(0)];
+            let to = g.node_index[&ModuleId::new(to)];
+            g.deps.add_edge(from, to, EdgeKind::Static);
         }
-        g
-    }
-
-    #[test]
-    fn surface_under_limit_no_violation() {
-        let g = build(5, &[(0, 1), (0, 2)]);
-        let v = DeepModule.check(
-            &g,
-            ModuleId::new(0),
-            &DeepModuleOptions { max_exports: 12 },
-            Severity::Info,
-        );
-        assert!(v.is_empty());
-    }
-
-    #[test]
-    fn surface_over_limit_emits_violation() {
-        let g = build(6, &[(0, 1), (0, 2), (0, 3), (0, 4), (0, 5)]);
-        let v = DeepModule.check(
-            &g,
-            ModuleId::new(0),
-            &DeepModuleOptions { max_exports: 3 },
-            Severity::Info,
-        );
-        assert_eq!(v.len(), 1);
+        let options = DeepModuleOptions { max_exports: 2 };
+        let flagged: Vec<u32> = (0..4)
+            .filter(|&i| {
+                !DeepModule
+                    .check(&g, ModuleId::new(i), &options, Severity::Info)
+                    .is_empty()
+            })
+            .collect();
+        assert_eq!(flagged, [1]);
     }
 }

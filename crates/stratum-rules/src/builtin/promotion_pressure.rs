@@ -44,7 +44,11 @@ impl Rule for PromotionPressure {
             rule: self.id(),
             severity,
             message: format!(
-                "Module is imported across containers by {pressure} dependents (threshold {limit}); consider promoting it to a lower layer",
+                "Imported by {pressure} modules from layers that do not depend on '{layer}' (threshold {limit}); consider promoting it to a lower layer",
+                layer = graph
+                    .layers
+                    .get(&m.layer)
+                    .map_or_else(|| format!("layer#{}", m.layer.raw()), |l| l.name.clone()),
                 limit = options.threshold
             ),
             file: m.path.clone(),
@@ -81,9 +85,10 @@ mod tests {
             id: ModuleId::new(id),
             path: PathBuf::from(format!("m{id}.ts")),
             container: ContainerId::new(container),
-            layer: LayerId::new(0),
+            layer: LayerId::new(container),
             stage: Stage::new(2).unwrap(),
             visibility: VisibilityScope::Public,
+            exports: stratum_core::types::Exports::default(),
         }
     }
 

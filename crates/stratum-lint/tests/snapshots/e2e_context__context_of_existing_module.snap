@@ -8,5 +8,4 @@ imported by: layers app, features
 imports: 2 modules, 1 violate:
   -> src/features/cart/cart.tsx  stratum/stage-purity (error)
 dependents: 1 modules
-violations: 2 (1 error, 1 info); not about imports 1:
-  info stratum/depth-ratio: Depth ratio 2.00 is below the configured minimum 3.00; module exposes too much relative to its container size
+violations: 1 (1 error)

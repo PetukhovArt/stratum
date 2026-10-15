@@ -5,7 +5,8 @@
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
 | **Compound DAG** | The in-memory model: a nesting tree, a dependency DAG, and visibility scopes over the same set of nodes. | compound graph, architecture graph, dep graph |
-| **Module** | One source unit (a file or an SFC) that appears as a node in the **Compound DAG**. Carries `id`, `path`, `container`, `layer`, `stage`, `visibility`. | file, component, unit |
+| **Module** | One source unit (a file or an SFC) that appears as a node in the **Compound DAG**. Carries `id`, `path`, `container`, `layer`, `stage`, `visibility`, `exports`. | file, component, unit |
+| **Exports** (new) | `stratum_core::Exports { count, star_reexports }` on a **Module**: the names it exposes to importers. `count` = distinct top-level export names (types included; overloads and merged declarations once; `export default` / `export =` as `default`) + 1 per `export * from`; `star_reexports` says how many of those opaque entries there are. CommonJS `module.exports` is not counted. For an **SFC**: the plain `<script>` exports plus the `<script setup>` macro members (see **Vue MVP Scope**). Read by `deep-module` and **Depth Ratio**. | public API, export count, surface |
 | **Import** | A directed dependency from one **Module** to another. After resolution; pre-resolution form is a **Raw Import**. | dependency, link, reference |
 | **Raw Import** (new) | A parser-emitted import edge before any `ModuleId` is assigned: literal `specifier`, byte `span`, `EdgeKind`, and a `type_only` flag. Lives in `stratum-parser-ts`; the `stratum-graph` crate (Phase 2) turns it into an **Edge**. | unresolved import, pre-edge |
 | **Edge** | A typed connection between two **Modules**. Three kinds: `static`, `DI`, `runtime`. | arrow, line, connection |
@@ -21,16 +22,16 @@
 | **Source Span** | A byte-offset half-open range `[start, end)` into source text, used by the parser to point at AST fragments. Convertible to a **Source Location** via `offset_to_line_col`. | byte range, AST span |
 | **Graph Builder** (new) | `stratum_graph::GraphBuilder` — walks a project root, picks files the **Language Extractor** handles, assigns each to its longest-matching **Layer**, then a second pass resolves **Raw Imports** through the **Path Resolver** and adds typed **Edges**. The Phase 2 entry point that materialises the **Compound DAG**. | graph constructor, dag builder |
 | **Layer Assignment** (new) | The longest-matching-prefix mapping from a module's project-relative path to a `LayerId`. Files outside any configured **Layer** are dropped from the **Compound DAG** in Phase 2 (Phase 3 will surface them as a violation). | layer mapping, layer assign |
-| **Miller Fan-out** (new) | A graph metric: the count of distinct dependents of a **Module** that live outside its own **Container**. Feeds the future `miller-limit` rule. Implemented as `stratum_graph::metrics::miller_fanout`. | cross-container fanout |
-| **Depth Ratio** (new) | A graph metric: `container_internal_count / public_exports`. Rewards encapsulation. `public_exports` is supplied externally until Phase 5 wires real export counts in. Implemented as `stratum_graph::metrics::depth_ratio`. | encapsulation ratio |
-| **Promotion Pressure** (refine) | A graph metric: the count of distinct dependents of a **Module** that live outside its own **Container**. Drives the `promotion-pressure` rule (Phase 5). Implemented as `stratum_graph::metrics::promotion_pressure`. Different from **Miller Fan-out** only in framing — Phase 6+ may differentiate by layer-distance weighting. | promotion score, promotion metric |
+| **Miller Fan-in** (refine) | A graph metric: the count of distinct importers of a **Module** from other **Containers** whose **Layer** is the module's own or lists it in `depends_on` (declared importers). Drives the `miller-limit` rule. Implemented as `stratum_graph::metrics::miller_fan_in`. Together with **Promotion Pressure** it partitions the cross-container importers, so the two rules never count the same importer. | Miller fan-out, cross-container fanout |
+| **Depth Ratio** (refine) | A graph metric: `container_internal_count / exports.count` (see **Exports**); `None` when the module exports nothing. Rewards encapsulation. Implemented as `stratum_graph::metrics::depth_ratio`, used by the `depth-ratio` rule. | encapsulation ratio |
+| **Promotion Pressure** (refine) | A graph metric: the count of distinct importers of a **Module** from other **Containers** whose **Layer** does not list the module's layer in `depends_on` (undeclared importers): the imports a move to a lower layer would make legal. Drives the `promotion-pressure` rule. Implemented as `stratum_graph::metrics::promotion_pressure`. In **Zero-Config Mode** no layer declares `depends_on`, so every cross-container importer counts here and **Miller Fan-in** is 0. | promotion score, promotion metric |
 | **`@stratum-stage` Annotation** (new) | A `// @stratum-stage N` (`N ∈ 1..=4`) directive in the leading comments of a source file. Extracted by `stratum_parser_ts::extract_stage`; `stratum-graph::GraphBuilder` reads it during build to set `Module.stage`. Falls back to `BuildConfig.default_stage` if absent. | stage directive, stage hint |
-| **Exemplar App Fixture** (new) | `tests/fixtures/exemplar-stratum-app/` — a curated FSD-shaped project with all six deliberate violation types (cycle, upward layer leak, promotion-pressure, miller-limit, depth-ratio, visibility). Drives the regression histogram gate. | exemplar fixture, reference app |
+| **Exemplar App Fixture** (new) | `tests/fixtures/exemplar-stratum-app/` — a curated FSD-shaped project with deliberate violations: cycle, upward layer leak, promotion-pressure (`entities/user/model` imported from `shared`), miller-limit (`shared/utils`), depth-ratio. Visibility does not fire yet (every module is public). Drives the regression histogram gate. | exemplar fixture, reference app |
 | **Regression Fixture Gate** (new) | `crates/stratum-rules/tests/exemplar.rs` — an integration test that asserts the per-rule violation-count histogram on the **Exemplar App Fixture** is stable. CI fails if `run_all` drifts. | regression gate |
 | **SFC** (new) | Vue Single-File Component (a `.vue` file). Contains optional `<template>`, `<script>` (and/or `<script setup>`), and `<style>` blocks. Phase 6 parses only the script blocks. | Vue SFC, .vue file |
 | **SFC Splitter** (new) | `stratum_parser_vue::sfc_splitter::split(source) -> Vec<ScriptBlock>`. Hand-rolled state-machine that finds every `<script>` / `<script setup>` block and records byte ranges. Returns `SplitError::UnclosedScript` on malformed input. | block extractor, script splitter |
 | **`VueExtractor`** (new) | `LanguageExtractor` impl for `.vue` files. Splits the SFC, runs `stratum_parser_ts::collect_imports` on each script body, then re-maps spans back to SFC-absolute offsets via `stratum_parser_vue::shift`. Honours `@stratum-stage` annotations anywhere in the file. | Vue extractor, .vue parser |
-| **Vue MVP Scope** (decision D8) | Phase 6 extracts `<script>` and `<script setup>` blocks only. No template parsing, no macro expansion (`defineProps`/`defineEmits`/`defineExpose` are *not* interpreted). Mixed `<script>` + `<script setup>` merge into one logical module per file. | Vue MVP, SFC MVP scope |
+| **Vue MVP Scope** (decision D8, refined) | Extracts `<script>` and `<script setup>` blocks only. No template parsing, no macro expansion. For **Exports** only, `<script setup>` macros are read: each `defineProps` / `defineEmits` member (type literal, local interface or object type alias, runtime object keys or array items; any other type counts 1), each `defineExpose` property, each `defineModel` call. A plain `<script>` counts its ES exports, the default export as 1. Mixed `<script>` + `<script setup>` merge into one logical module per file. | Vue MVP, SFC MVP scope |
 
 ## Methodology
 
@@ -43,7 +44,7 @@
 | **Stage** | A purity rank from 1 (most pure) to 4 (impure). A **Module** at stage `s` may depend on another at stage `t` iff `t <= s` — purer code cannot reach impurer code. | phase, tier, rank |
 | **Visibility Scope** | The set of **Modules** allowed to import a given **Module**. Four variants: `Container { id }`, `Layer { id }`, `Public`, `Shared`. | access scope, boundary |
 | **Cross-Entity Pattern** | A structural rule that spans more than one **Module** or **Layer**. | macro-pattern, structural rule |
-| **Deep Module** | A **Module** whose public surface is small relative to what it does internally. | thick module, encapsulated module |
+| **Deep Module** | A **Module** whose public surface (its **Exports**) is small relative to what it does internally. The `deep-module` rule caps `exports.count` at `max_exports`. | thick module, encapsulated module |
 | **Erosion** | The buildup of **Violations** that wear down architectural integrity. | rot, drift, decay |
 
 ## Metrics
@@ -51,9 +52,9 @@
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
 | **Metric** | A number computed over the **Compound DAG**. | indicator, stat |
-| **Depth Ratio** | A **Module**'s public surface divided by its internal complexity. | encapsulation ratio |
-| **Miller Limit** | The cap on items a single **Module** or **Layer** should expose. About 4, to match working memory. | cognitive limit, fan-out cap |
-| **Promotion Pressure** | A **Metric** that flags when a **Module** belongs in a higher **Layer**. | promotion score |
+| **Depth Ratio** | The size of a **Module**'s **Container** divided by its **Exports** count; low means the module exposes much relative to what its container hides. | encapsulation ratio |
+| **Miller Limit** | The cap (`max_children`) on a **Module**'s **Miller Fan-in**: how many declared importers from other **Containers** it may have before it counts as a change hotspot. | cognitive limit, fan-out cap |
+| **Promotion Pressure** | A **Metric** that flags when a **Module** belongs in a lower **Layer**: it counts importers whose layer does not declare the module's layer. | promotion score |
 
 ## Rules and diagnostics
 
@@ -103,8 +104,8 @@
 | **Source File** (new) | A crate-private Salsa input (`SourceFile { path: Utf8PathBuf, text: String }`) holding one file's UTF-8 source. Only `stratum-graph` and `stratum-lint` inside the workspace read or set it. | file input, source input |
 | **Extracted File** (new) | A crate-private Salsa input keyed by **Source File**, holding the parsed module data for that file. Set by the orchestration crate after translating from **Extracted Data** to avoid a `stratum-core → stratum-parser-ts` dep cycle. | parsed file, extracted input |
 | **Rule Engine** | The subsystem that registers and runs **Rules**. | rule runner |
-| **Language Extractor** (updated) | The trait `LanguageExtractor` — one impl per language. `handles(path) -> bool` plus `extract(path, source) -> Result<ExtractedData, ExtractError>`. Phase 1 ships `OxcTsExtractor` for `.ts/.tsx/.js/.jsx/.mjs/.cjs`. | parser adapter, frontend, extractor |
-| **Extracted Data** (new) | The parser-side output for one source file: `source_path`, `imports: Vec<RawImport>`, and `diagnostics: Vec<ParserDiagnostic>`. The shape **Language Extractor** implementations produce. Don't confuse with **Extracted File** (the Salsa input). | parser result, extraction output |
+| **Language Extractor** (updated) | The trait `LanguageExtractor` — one impl per language. `handles(path) -> bool` plus `extract(path, source) -> Result<ExtractedData, ExtractError>`. `OxcTsExtractor` handles `.ts/.mts/.cts/.tsx/.js/.jsx/.mjs/.cjs`; the **Path Resolver** maps a `.mjs` / `.cjs` specifier to a `.mts` / `.cts` source first. | parser adapter, frontend, extractor |
+| **Extracted Data** (new) | The parser-side output for one source file: `source_path`, `imports: Vec<RawImport>`, `diagnostics: Vec<ParserDiagnostic>`, `stage`, and `exports` (**Exports**, copied onto the **Module** by the **Graph Builder**). The shape **Language Extractor** implementations produce. Don't confuse with **Extracted File** (the Salsa input). | parser result, extraction output |
 | **OXC TS Extractor** (new) | `OxcTsExtractor` — the Phase 1 TypeScript/JavaScript **Language Extractor**, built on the OXC parser and AST visitor. | TS parser, ts extractor |
 | **Path Resolver** (new) | `PathResolver` — a project-scoped wrapper over `oxc_resolver::Resolver`. Honours `tsconfig.json` `paths` aliases and resolves a specifier from one file's directory to an absolute UTF-8 path. | module resolver, tsconfig resolver |
 | **Snapshot** | A JSON capture of the **Compound DAG** at a point in time — the on-disk artifact consumed by the **Visualizer**. Distinct from the in-memory **Compound Graph Snapshot**. | dump, export, graph file |
@@ -174,6 +175,7 @@
 - **"span"** vs **"location"** (new): a **Source Span** is a byte range `[start, end)` used inside the parser. A **Source Location** is a 1-based `line:column` pointer used inside a **Violation**. Convert with `offset_to_line_col`; do not use the words interchangeably.
 - **"extractor"** (updated): the trait is **Language Extractor**; a specific impl is named like **OXC TS Extractor**. The word "extractor" alone is ambiguous — qualify when the difference matters.
 - **"static edge"** (new): for now the parser classifies *every* `import`/`export from`/dynamic `import()` as `EdgeKind::Static`. Dynamic-`import()` reclassification (to `Runtime`) is a Phase-2-or-later decision; don't read "Static" today as "synchronous only".
+- **"fan-out"** (new): `miller-limit` used to say "fan-out" while counting importers. Importers of a module are its **fan-in** (**Miller Fan-in**); its own imports are its fan-out, which no built-in rule caps.
 - **"rule"** covered both **Built-in Rules** and **Custom Rules**. They speak the same **Plugin API**, but they differ in where they come from and how they're shipped. Qualify the term when that matters.
 - **"plugin"** covered both **WASM Plugins** and **Rhai Scripts**. Both are **Plugins**, but they have different performance and packaging stories. Be specific when discussing builds or distribution.
 - **"layer"** in the PRD sometimes meant a methodological **Layer** and sometimes a workspace crate boundary. Reserve **Layer** for the methodology concept; call crate boundaries **Crates** or **Workspace Modules**.

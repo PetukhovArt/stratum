@@ -3,7 +3,7 @@ use stratum_core::{
     severity::Severity,
     violation::{SourceLocation, Violation},
 };
-use stratum_graph::{CompoundGraph, metrics::miller_fanout};
+use stratum_graph::{CompoundGraph, metrics::miller_fan_in};
 
 use crate::ids::MILLER_LIMIT;
 use crate::options::MillerLimitOptions;
@@ -36,16 +36,15 @@ impl Rule for MillerLimit {
         let Some(m) = graph.modules.get(&scope) else {
             return vec![];
         };
-        let fanout = miller_fanout(graph, scope);
-        let fanout_u32: u32 = u32::try_from(fanout).unwrap_or(u32::MAX);
-        if fanout_u32 <= options.max_children {
+        let fan_in = miller_fan_in(graph, scope);
+        if u32::try_from(fan_in).unwrap_or(u32::MAX) <= options.max_children {
             return vec![];
         }
         vec![Violation {
             rule: self.id(),
             severity,
             message: format!(
-                "Cross-container fan-out {fanout} exceeds the configured limit {limit}",
+                "Imported by {fan_in} modules from other containers whose layers depend on this one (limit {limit}); this module is a change hotspot",
                 limit = options.max_children
             ),
             file: m.path.clone(),
@@ -84,6 +83,7 @@ mod tests {
             layer: LayerId::new(0),
             stage: Stage::new(2).unwrap(),
             visibility: VisibilityScope::Public,
+            exports: stratum_core::types::Exports::default(),
         }
     }
 

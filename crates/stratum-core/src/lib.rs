@@ -25,7 +25,7 @@ pub use crate::{
     ids::{ContainerId, LayerId, ModuleId, ProjectId, RuleId},
     severity::Severity,
     stage::{InvalidStage, Stage},
-    types::{Container, Layer, Module},
+    types::{Container, Exports, Layer, Module},
     violation::{SourceLocation, Violation},
     visibility::VisibilityScope,
 };

@@ -10,30 +10,39 @@ use oxc_ast::visit::walk;
 use oxc_parser::Parser;
 use oxc_span::SourceType;
 use stratum_core::edge::EdgeKind;
+use stratum_core::types::Exports;
 
+use crate::exports::count_exports;
 use crate::extractor::RawImport;
 use crate::source_span::SourceSpan;
 
-/// Parse `source` and collect every static `import` / `export from` and
-/// dynamic `import()` edge.
-///
-/// The returned vec preserves source order and includes type-only imports
-/// (callers may filter on `RawImport::type_only`).
+#[derive(Debug)]
+pub struct Collected {
+    /// Every static `import` / `export from`, dynamic `import()` and `require()`
+    /// edge in source order, type-only imports included.
+    pub imports: Vec<RawImport>,
+    /// Top-level ES exports only; `module.exports` / `exports.x` are not counted.
+    pub exports: Exports,
+}
+
 #[must_use]
-pub fn collect_imports(source: &str, source_type: SourceType) -> Vec<RawImport> {
+pub fn collect(source: &str, source_type: SourceType) -> Collected {
     ARENA.with_borrow_mut(|allocator| {
-        let imports = {
+        let collected = {
             let ret = Parser::new(allocator, source, source_type).parse();
             let mut visitor = ImportVisitor::default();
             visitor.visit_program(&ret.program);
-            visitor.imports
+            Collected {
+                imports: visitor.imports,
+                exports: count_exports(&ret.program),
+            }
         };
         if allocator.allocated_bytes() > ARENA_KEEP_BYTES {
             *allocator = Allocator::default();
         } else {
             allocator.reset();
         }
-        imports
+        collected
     })
 }
 
@@ -134,6 +143,10 @@ fn is_require_callee(callee: &Expression<'_>) -> bool {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    fn collect_imports(source: &str, source_type: SourceType) -> Vec<RawImport> {
+        collect(source, source_type).imports
+    }
 
     fn ts_module() -> SourceType {
         SourceType::default()

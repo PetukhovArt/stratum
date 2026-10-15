@@ -3,9 +3,9 @@ use oxc_span::SourceType;
 
 use crate::annotations::extract_stage;
 use crate::extractor::{ExtractError, ExtractedData, LanguageExtractor};
-use crate::imports::collect_imports;
+use crate::imports::collect;
 
-/// Extractor for TypeScript, JavaScript, JSX, TSX, plus `.mjs`/`.cjs`.
+/// Extractor for TypeScript, JavaScript, JSX, TSX, plus `.mts`/`.cts`/`.mjs`/`.cjs`.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct OxcTsExtractor;
 
@@ -17,7 +17,7 @@ impl OxcTsExtractor {
 
     fn source_type_for(path: &Utf8Path) -> Option<SourceType> {
         let st = match path.extension()? {
-            "ts" => SourceType::default()
+            "ts" | "mts" | "cts" => SourceType::default()
                 .with_typescript(true)
                 .with_module(true),
             "tsx" => SourceType::default()
@@ -48,13 +48,14 @@ impl LanguageExtractor for OxcTsExtractor {
     fn extract(&self, path: &Utf8Path, source: &str) -> Result<ExtractedData, ExtractError> {
         let source_type = Self::source_type_for(path)
             .ok_or_else(|| ExtractError::UnsupportedExtension(path.to_path_buf()))?;
-        let imports = collect_imports(source, source_type);
+        let collected = collect(source, source_type);
         let stage = extract_stage(source);
         Ok(ExtractedData {
             source_path: path.to_path_buf(),
-            imports,
+            imports: collected.imports,
             diagnostics: Vec::new(),
             stage,
+            exports: collected.exports,
         })
     }
 }
@@ -68,7 +69,7 @@ mod tests {
     #[test]
     fn handles_typescript_extensions() {
         let ex = OxcTsExtractor::new();
-        for ext in ["ts", "tsx", "js", "jsx", "mjs", "cjs"] {
+        for ext in ["ts", "mts", "cts", "tsx", "js", "jsx", "mjs", "cjs"] {
             let path = Utf8Path::new("foo").with_extension(ext);
             assert!(ex.handles(&path), "should handle .{ext}");
         }
