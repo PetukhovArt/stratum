@@ -5,7 +5,7 @@
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
 | **Compound DAG** | The in-memory model: a nesting tree, a dependency DAG, and visibility scopes over the same set of nodes. | compound graph, architecture graph, dep graph |
-| **Module** | One source unit (a file or an SFC) that appears as a node in the **Compound DAG**. Carries `id`, `path`, `container`, `layer`, `stage`, `visibility`, `exports`. | file, component, unit |
+| **Module** | One source unit (a file or an SFC) that appears as a node in the **Compound DAG**. Carries `id`, `path`, `container` (the innermost **Container** that encloses it), `layer`, `purity`, `visibility`, `exports`, `calls`. Not folder-structure's "module": that one is a **Container**. | file, component, unit |
 | **Exports** (new) | `stratum_core::Exports { count, star_reexports }` on a **Module**: the names it exposes to importers. `count` = distinct top-level export names (types included; overloads and merged declarations once; `export default` / `export =` as `default`) + 1 per `export * from`; `star_reexports` says how many of those opaque entries there are. CommonJS `module.exports` is not counted. For an **SFC**: the plain `<script>` exports plus the `<script setup>` macro members (see **Vue MVP Scope**). Read by `deep-module` and **Depth Ratio**. | public API, export count, surface |
 | **Import** | A directed dependency from one **Module** to another. After resolution; pre-resolution form is a **Raw Import**. | dependency, link, reference |
 | **Raw Import** (new) | A parser-emitted import edge before any `ModuleId` is assigned: literal `specifier`, byte `span`, `EdgeKind`, and a `type_only` flag. Lives in `stratum-parser-ts`; the `stratum-graph` crate (Phase 2) turns it into an **Edge**. | unresolved import, pre-edge |
@@ -15,16 +15,16 @@
 | **Runtime edge** | An **Edge** established at runtime: events, dynamic load. Not yet emitted by `stratum-parser-ts`. | event link, dynamic dep |
 | **Type-only Import** (new) | A **Raw Import** marked `type_only` (e.g. `import type { X } from '...'`). Still recorded, so visibility rules can run on it; runtime-oriented rules filter it out. | erased import, types-only |
 | **Cycle** | A strongly-connected component in the dependency DAG. Found via Tarjan SCC. | loop, recursion |
-| **Container** | A compound node in the **Visualizer** that wraps the **Modules** of one **Layer**. | group, box, cluster |
+| **Container** (redefined) | A unit of structure: a **Layer** root, a **Slice**, a **Sub-unit** or a nested container (an entry-bearing folder under a **Segment** or **Collection Folder**, or directly under a layer without slices). Has a `path`, a `kind`, a **Stage** and an optional **Entry**; its `parent` chain always ends at the layer's container. Derived from the folder tree by placement, never declared. folder-structure calls it a "module". | unit, box, group |
 | **Graph Snapshot** (new) | The versioned, deterministic JSON shape `GraphSnapshot { version, modules, containers, layers, edges }` produced by `stratum_graph::snapshot_of(&CompoundGraph)`. Consumed by the **Visualizer** and by `compound_graph` callers. `version` bumps require a coordinated frontend release. | snapshot v1, on-wire graph |
 | **Source Location** | A 1-based `line:column` pointer carried inside a **Violation**. Distinct from a **Source Span**. | position, line/col |
 | **Source Span** | A byte-offset half-open range `[start, end)` into source text, used by the parser to point at AST fragments. Convertible to a **Source Location** via `offset_to_line_col`. | byte range, AST span |
 | **Graph Builder** (new) | `stratum_graph::GraphBuilder` — walks a project root, picks files the **Language Extractor** handles, assigns each to its longest-matching **Layer**, then a second pass resolves **Raw Imports** through the **Path Resolver** and adds typed **Edges**. The Phase 2 entry point that materialises the **Compound DAG**. | graph constructor, dag builder |
 | **Layer Assignment** (new) | The longest-matching-prefix mapping from a module's project-relative path to a `LayerId`. Files outside any configured **Layer** are dropped from the **Compound DAG** in Phase 2 (Phase 3 will surface them as a violation). | layer mapping, layer assign |
-| **Miller Fan-in** (refine) | A graph metric: the count of distinct importers of a **Module** from other **Containers** whose **Layer** is the module's own or lists it in `depends_on` (declared importers). Drives the `miller-limit` rule. Implemented as `stratum_graph::metrics::miller_fan_in`. Together with **Promotion Pressure** it partitions the cross-container importers, so the two rules never count the same importer. | Miller fan-out, cross-container fanout |
+| **Miller Fan-in** (refine) | A graph metric: the count of distinct importers of a **Module** from another outer **Container** (its **Slice**, else its layer's container; so in a sliced layer it means "used by other slices", and imports between **Sub-units** of one slice do not count) whose **Layer** is the module's own or lists it in `depends_on` (declared importers). Drives the `miller-limit` rule. Implemented as `stratum_graph::metrics::miller_fan_in`. Together with **Promotion Pressure** it partitions the cross-container importers, so the two rules never count the same importer. | Miller fan-out, cross-container fanout |
 | **Depth Ratio** (refine) | A graph metric: `container_internal_count / exports.count` (see **Exports**); `None` when the module exports nothing. Rewards encapsulation. Implemented as `stratum_graph::metrics::depth_ratio`, used by the `depth-ratio` rule. | encapsulation ratio |
 | **Promotion Pressure** (refine) | A graph metric: the count of distinct importers of a **Module** from other **Containers** whose **Layer** does not list the module's layer in `depends_on` (undeclared importers): the imports a move to a lower layer would make legal. Drives the `promotion-pressure` rule. Implemented as `stratum_graph::metrics::promotion_pressure`. In **Zero-Config Mode** no layer declares `depends_on`, so every cross-container importer counts here and **Miller Fan-in** is 0. | promotion score, promotion metric |
-| **`@stratum-stage` Annotation** (new) | A `// @stratum-stage N` (`N ∈ 1..=4`) directive in the leading comments of a source file. Extracted by `stratum_parser_ts::extract_stage`; `stratum-graph::GraphBuilder` reads it during build to set `Module.stage`. Falls back to `BuildConfig.default_stage` if absent. | stage directive, stage hint |
+| **`@stratum-purity` Annotation** (renamed from `@stratum-stage`) | A `// @stratum-purity N` (`N ∈ 1..=4`) directive in the leading comments of a source file. Extracted by `stratum_parser_ts::extract_purity`; `stratum-graph::GraphBuilder` reads it during build to set `Module.purity`. Falls back to `BuildConfig.default_purity` (2) if absent. There is no annotation for **Stage**. | stage directive, purity hint |
 | **Exemplar App Fixture** (new) | `tests/fixtures/exemplar-stratum-app/` — a curated FSD-shaped project with deliberate violations: cycle, upward layer leak, promotion-pressure (`entities/user/model` imported from `shared`), miller-limit (`shared/utils`), depth-ratio. Visibility does not fire yet (every module is public). Drives the regression histogram gate. | exemplar fixture, reference app |
 | **Regression Fixture Gate** (new) | `crates/stratum-rules/tests/exemplar.rs` — an integration test that asserts the per-rule violation-count histogram on the **Exemplar App Fixture** is stable. CI fails if `run_all` drifts. | regression gate |
 | **SFC** (new) | Vue Single-File Component (a `.vue` file). Contains optional `<template>`, `<script>` (and/or `<script setup>`), and `<style>` blocks. Phase 6 parses only the script blocks. | Vue SFC, .vue file |
@@ -36,15 +36,27 @@
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Methodology** | The configurable contract the tool enforces: **Layers**, **Visibility Scopes**, **Stages**, **Cross-Entity Patterns**. | architecture style, convention, paradigm |
+| **Methodology** | The configurable contract the tool enforces: **Layers**, the folder names in `structure` (**Entries**, **Segments**, **Private Zones**), **Purity**, **Visibility Scopes** and **Rules**. Names live only in a preset or the user's config (FSD is one example: `stratum:fsd`), never in code. | architecture style, convention, paradigm |
 | **Stratum** | The default **Methodology**. Ships as a config plus a plugin. | Stratum architecture, the methodology |
 | **Methodology Bundle** | A distributable package that defines a **Methodology**: config plus plugins. | preset, profile, ruleset |
-| **Layer** | A named group of **Modules** with its own visibility and a `depends_on: Vec<LayerId>` declaration. | tier, level, slice |
+| **Layer** | A named group of **Modules** with its own visibility and a `depends_on: Vec<LayerId>` declaration, and `slices: true` when its direct children are **Slices**. | tier, level |
 | **Purity** | A rank from 1 (most pure) to 4 (impure). A **Module** at purity `s` may import another at purity `t` only when `t <= s`: purer code cannot reach impurer code. Set by `@stratum-purity`. | stage, rank |
-| **Visibility Scope** | The set of **Modules** allowed to import a given **Module**. Four variants: `Container { id }`, `Layer { id }`, `Public`, `Shared`. | access scope, boundary |
-| **Cross-Entity Pattern** | A structural rule that spans more than one **Module** or **Layer**. | macro-pattern, structural rule |
+| **Visibility Scope** | The set of **Modules** allowed to import a given **Module**. Two variants: `Public`, and `Private { root }` for a module inside a **Private Zone**, importable only from under `root` (the zone's parent folder; the innermost zone wins). | access scope, boundary |
+| **Slice Fan-in** (was Cross-Entity Pattern) | The count of distinct other **Slices** that import a **Slice**. The `slice-fan-in` rule caps it at `max_fan_in`. | cross-entity pattern, entity fan-out |
 | **Deep Module** | A **Module** whose public surface (its **Exports**) is small relative to what it does internally. The `deep-module` rule caps `exports.count` at `max_exports`. | thick module, encapsulated module |
 | **Erosion** | The buildup of **Violations** that wear down architectural integrity. | rot, drift, decay |
+
+## Structure
+
+| Term | Definition | Aliases to avoid |
+|------|-----------|-----------------|
+| **Stage** (redefined) | The folder-structure evolution stage of a **Container**: 1 a single file, 2 a flat folder, 3 a folder split into **Segments**, 4 a folder composed of **Sub-units**. Computed from the folder tree, never annotated. Not **Purity**. | phase, level |
+| **Slice** | A **Container** at the first level of a **Layer** declared `slices: true`: each direct child folder or source file. A file slice has **Stage** 1 and is its own **Entry**. In FSD, `features/cart` is a slice. | feature, package |
+| **Sub-unit** | An entry-bearing folder directly under a **Slice**, **Sub-unit** or nested **Container**. Isolated from its siblings; it makes its parent **Stage** 4. | sub-feature, submodule |
+| **Segment** | A folder named in `structure.segments` that groups a **Container**'s files by purpose (FSD: `model`, `ui`, `api`). Never a **Container**, even with an **Entry** file; it makes its parent **Stage** 3. | layer folder |
+| **Entry** | The file named in `structure.entries` (default `index.ts` and its siblings) that is a **Container**'s only import target from outside. A folder that holds one is a **Container**. | barrel, public API file |
+| **Private Zone** | A folder named in `structure.private` (default `_shared`), visible only inside its parent folder's subtree. Never a **Container**; counts toward no **Stage**. | local shared |
+| **Collection Folder** | A folder with no **Entry**. Its files belong to the enclosing **Container**. | group folder |
 
 ## Metrics
 
@@ -112,7 +124,7 @@
 | **WASM Plugin** | A compiled, sandboxed **Plugin** loaded through wasmtime. | wasm rule |
 | **Rhai Script** (refine) | A **Plugin** written in the Rhai DSL. One `fn check(m) -> Array<Map>` per script. No build step; the linter compiles the script at startup. CLI `--watch` picks up changes via the project file watcher; the LSP server watches the configured plugin scripts as analysis inputs and re-publishes diagnostics for open documents on save. | dsl rule, scripted rule |
 | **Plugin API** (refine) | Phase 9: Rhai only. The script sees a **Module View** and returns `Array<Map>` where each map is one **Violation** (`message`, optional `line`, optional `suggestion`). The engine is sandboxed (no FS, network, or process; `eval` disabled; bounded recursion + operations). | extension API, SDK |
-| **Module View** (refine) | The read-only projection of a **Module** the Rhai sandbox sees: `id` (int), `path` (forward-slash string), `layer` (string name), `container` (int), `stage` (int 1–4), `dependents` (Array of int), `metadata` (Map, reserved). Constructed by `stratum_plugins_rhai::build_view(graph, ModuleId)`. **Phase 9 limitation:** raw import specifier strings are not exposed yet. | rhai module, plugin module |
+| **Module View** (refine) | The read-only projection of a **Module** the Rhai sandbox sees: `id` (int), `path` (forward-slash string), `layer` (string name), `container` (int, the innermost **Container**), `purity` (int 1–4), `dependents` (Array of int), `imports` (Array of `{path, layer, kind}`), `metadata` (Map, reserved). Constructed by `stratum_plugins_rhai::build_view(graph, ModuleId)`. Raw import specifier strings are not exposed. | rhai module, plugin module |
 | **`stratum-plugins-rhai` Crate** (new) | The Phase 9 crate. Exposes `build_engine()` (sandboxed `rhai::Engine`), `ModuleView` + `register()`, `RhaiRule` (impls `Rule`), and `load(slug, id, path) -> Result<RhaiRule, LoadError>`. Depends on `stratum-core`, `stratum-graph`, `stratum-rules`. Wired into `stratum-lint::pipeline::build` so the CLI picks up `custom/*` rules out of the box. | rhai crate, plugins crate |
 | **Plugin Hot-Reload** (new) | The flow that re-compiles a `.rhai` script and refreshes diagnostics within milliseconds of save, without restarting the host. CLI: free — `stratum-lint --watch` already re-runs `pipeline::build` on any file event under the project root, including `.rhai` files. LSP: the plugin scripts are analysis inputs of its file watcher; a change re-runs the analysis and republishes diagnostics for every open document. Limitations: file deletion does not unregister a plugin (stays compiled until restart). | rhai reload, live plugin |
 | **Release Artifact** (new) | A per-target prebuilt archive uploaded to the GitHub Release for a given `vX.Y.Z` tag. Produced by `cargo-dist` from `dist-workspace.toml`. Names follow `stratum-lint-<target-triple>.{tar.gz,zip}` for the five supported targets (Windows x64, macOS x64/arm64, Linux x64/arm64). Each artifact bundles both `stratum-lint` and `stratum-lsp` binaries. | release archive, release tarball |
@@ -130,14 +142,17 @@
 
 ## Relationships
 
-- A **Module** belongs to exactly one **Layer**, sits in exactly one **Container**, and has exactly one **Stage** and one **Visibility Scope**.
+- A **Module** belongs to exactly one **Layer**, sits in exactly one innermost **Container**, and has exactly one **Purity** and one **Visibility Scope**.
+- A **Container** has exactly one **Stage**, at most one **Entry**, and a parent chain that ends at its **Layer**'s container. **Segments**, **Private Zones** and **Collection Folders** are never **Containers**.
+- Placement is a function of the path set: adding or removing an **Entry** file turns a **Collection Folder** into a **Container** or back.
 - An **Edge** is always typed as one **Edge Kind**: `static`, `DI`, or `runtime`.
 - A **Raw Import** is the parser-side precursor to an **Edge**: it carries a textual `specifier` and a **Source Span**, but no `ModuleId`. The **Graph Builder** in **`stratum-graph` Crate** resolves it to an **Edge** via the **Path Resolver**.
 - The **Graph Builder** materialises the **Compound DAG**. **Layer Assignment** drops files outside any configured **Layer**; the resulting graph is then serialised to a **Graph Snapshot** for the **Visualizer** and for the `compound_graph` query return value.
-- A **Stage** at `s` may depend on a **Stage** at `t` iff `t ≤ s` — purer code cannot reach impurer code.
+- A **Module** at **Purity** `s` may depend on one at **Purity** `t` iff `t ≤ s`: purer code cannot reach impurer code.
+- From outside a **Container**, only its **Entry** may be imported (`public-api`); sibling **Slices** and sibling **Sub-units** may not import each other at all (`sibling-isolation`).
 - A **Rule** reads the **Compound DAG** and emits zero or more **Violations**.
 - A **Violation** has one **Severity**, one **Source Location**, and points at one or more **Modules** (and optionally one **Edge**).
-- A **Methodology** is made of **Layers**, **Visibility Scopes**, **Stages**, **Cross-Entity Patterns**, and **Rules**.
+- A **Methodology** is made of **Layers**, `structure` names, **Purity**, **Visibility Scopes** and **Rules**.
 - **Stratum** is one **Methodology** among many. The **Rule Engine** has no opinion about which one you pick.
 - The **Linter**, the **LSP Server**, and the **Visualizer** share the same **Violation** type via the **Snapshot** contract.
 - A **Plugin**, **WASM** or **Rhai**, registers **Custom Rules** through the **Plugin API**.
@@ -161,6 +176,9 @@
 - **"extractor"** (updated): the trait is **Language Extractor**; a specific impl is named like **OXC TS Extractor**. The word "extractor" alone is ambiguous — qualify when the difference matters.
 - **"static edge"** (new): for now the parser classifies *every* `import`/`export from`/dynamic `import()` as `EdgeKind::Static`. Dynamic-`import()` reclassification (to `Runtime`) is a Phase-2-or-later decision; don't read "Static" today as "synchronous only".
 - **"fan-out"** (new): `miller-limit` used to say "fan-out" while counting importers. Importers of a module are its **fan-in** (**Miller Fan-in**); its own imports are its fan-out, which no built-in rule caps.
+- **"stage"** used to mean the purity rank (`@stratum-stage`, `Module.stage`). It now means only the folder-structure evolution **Stage** of a **Container**; the rank is **Purity**.
+- **"module"** in folder-structure is a folder-level unit: a **Container**. In Stratum a **Module** is one file. Say **Container** for folder-structure's "module".
+- **"container"** used to mean the **Visualizer**'s per-layer box. It now means any unit of structure; a layer root is one kind of **Container**.
 - **"rule"** covered both **Built-in Rules** and **Custom Rules**. They speak the same **Plugin API**, but they differ in where they come from and how they're shipped. Qualify the term when that matters.
 - **"plugin"** covered both **WASM Plugins** and **Rhai Scripts**. Both are **Plugins**, but they have different performance and packaging stories. Be specific when discussing builds or distribution.
 - **"layer"** in the PRD sometimes meant a methodological **Layer** and sometimes a workspace crate boundary. Reserve **Layer** for the methodology concept; call crate boundaries **Crates** or **Workspace Modules**.
