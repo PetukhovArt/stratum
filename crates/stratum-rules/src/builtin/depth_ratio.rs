@@ -38,8 +38,6 @@ impl Rule for DepthRatio {
         let Some(m) = graph.modules.get(&scope) else {
             return vec![];
         };
-        let container = m.container;
-        let internal = container_size(graph, container);
         let Some(node) = graph.node_for(scope) else {
             return vec![];
         };
@@ -47,6 +45,7 @@ impl Rule for DepthRatio {
         if outgoing == 0 {
             return vec![];
         }
+        let internal = container_size(graph, m.container);
         #[allow(clippy::cast_precision_loss)]
         let ratio = internal as f64 / outgoing as f64;
         if ratio >= options.min_ratio {

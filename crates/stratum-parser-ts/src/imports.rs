@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+
 use oxc_allocator::Allocator;
 use oxc_ast::Visit;
 use oxc_ast::ast::{
@@ -19,11 +21,26 @@ use crate::source_span::SourceSpan;
 /// (callers may filter on `RawImport::type_only`).
 #[must_use]
 pub fn collect_imports(source: &str, source_type: SourceType) -> Vec<RawImport> {
-    let allocator = Allocator::default();
-    let ret = Parser::new(&allocator, source, source_type).parse();
-    let mut visitor = ImportVisitor::default();
-    visitor.visit_program(&ret.program);
-    visitor.imports
+    ARENA.with_borrow_mut(|allocator| {
+        let imports = {
+            let ret = Parser::new(allocator, source, source_type).parse();
+            let mut visitor = ImportVisitor::default();
+            visitor.visit_program(&ret.program);
+            visitor.imports
+        };
+        if allocator.allocated_bytes() > ARENA_KEEP_BYTES {
+            *allocator = Allocator::default();
+        } else {
+            allocator.reset();
+        }
+        imports
+    })
+}
+
+const ARENA_KEEP_BYTES: usize = 4 << 20;
+
+thread_local! {
+    static ARENA: RefCell<Allocator> = RefCell::new(Allocator::default());
 }
 
 #[derive(Default)]

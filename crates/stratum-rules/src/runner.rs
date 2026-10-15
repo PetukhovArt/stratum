@@ -4,6 +4,9 @@
 //! per-file *severity* is. Phase 4's CLI replaces this with per-rule Salsa
 //! queries keyed on `(rule_id, module_id, config_hash)`.
 
+use std::collections::HashMap;
+use std::collections::hash_map::Entry;
+
 use camino::{Utf8Path, Utf8PathBuf};
 
 use stratum_config::{Config, ConfigError, resolve_for_file};
@@ -49,6 +52,7 @@ pub fn run_all_with_registry(
     registry: &RuleRegistry,
 ) -> Result<Vec<Violation>, ConfigError> {
     let mut all = Vec::new();
+    let mut severities_by_file: HashMap<Utf8PathBuf, HashMap<String, Severity>> = HashMap::new();
     for r in registry.rules() {
         let slug = r.slug();
         let default_sev = r.default_severity();
@@ -63,8 +67,19 @@ pub fn run_all_with_registry(
             } else {
                 to_relative_forward_slash(&v.file, project_root)
             };
-            let eff = resolve_for_file(config, &probe)?;
-            let sev = eff.rules.get(slug).map_or(default_sev, |rc| rc.severity);
+            let severities = match severities_by_file.entry(probe) {
+                Entry::Occupied(e) => e.into_mut(),
+                Entry::Vacant(e) => {
+                    let eff = resolve_for_file(config, e.key())?;
+                    e.insert(
+                        eff.rules
+                            .into_iter()
+                            .map(|(slug, rc)| (slug, rc.severity))
+                            .collect(),
+                    )
+                }
+            };
+            let sev = severities.get(slug).copied().unwrap_or(default_sev);
             if sev == Severity::Off {
                 continue;
             }
