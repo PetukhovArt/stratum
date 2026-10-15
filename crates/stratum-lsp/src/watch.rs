@@ -5,6 +5,7 @@ use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::paths::path_key;
+use crate::server::Job;
 
 #[derive(Default)]
 pub struct InputWatcher {
@@ -24,7 +25,7 @@ impl InputWatcher {
     pub fn watch(
         &mut self,
         files: &[PathBuf],
-        on_change: UnboundedSender<()>,
+        on_change: UnboundedSender<Job>,
     ) -> notify::Result<()> {
         let keys: BTreeSet<String> = files.iter().map(|f| path_key(f)).collect();
         if self.watcher.is_some() && keys == self.keys {
@@ -43,7 +44,7 @@ impl InputWatcher {
                 return;
             }
             if event.paths.iter().any(|p| matched.contains(&path_key(p))) {
-                let _ = on_change.send(());
+                let _ = on_change.send(Job::Rebuild);
             }
         })?;
         for dir in &dirs {
