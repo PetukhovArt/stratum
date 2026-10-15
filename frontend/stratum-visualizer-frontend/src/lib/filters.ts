@@ -1,4 +1,4 @@
-import { DesignModule } from '../render/design'
+import { DesignData, DesignModule } from '../render/design'
 import { DEFAULT_FILTERS, Filters } from '../state'
 import { globToRegex, normalizePath } from './glob'
 
@@ -7,6 +7,7 @@ const moduleFilterFlags = (f: Filters): boolean[] => [
   f.query !== '',
   f.glob !== '',
   f.stageFilter !== null,
+  f.purityFilter !== null,
 ]
 
 export const isModuleFilterActive = (f: Filters): boolean => moduleFilterFlags(f).some(Boolean)
@@ -20,13 +21,27 @@ export const clearFilters = (f: Filters): Filters => ({
   connectionMode: f.connectionMode,
 })
 
-export const moduleMatcher = (f: Filters): ((mod: DesignModule) => boolean) => {
+const containerStageOf = (data: DesignData): ((mod: DesignModule) => number | null) => {
+  const rootStage = new Map(data.containers.map((c) => [c.id, c.stage]))
+  return (mod) => {
+    if (mod.facet.axis === 'stage') return mod.facet.value
+    const parent = mod.parentId ? data.moduleById.get(mod.parentId) : undefined
+    if (parent?.facet.axis === 'stage') return parent.facet.value
+    return rootStage.get(mod.container) ?? null
+  }
+}
+
+export const moduleMatcher = (f: Filters, data: DesignData): ((mod: DesignModule) => boolean) => {
+  const stageOf = containerStageOf(data)
   const matchesGlob = globToRegex(f.glob)
   const query = f.query ? normalizePath(f.query.toLowerCase()) : null
   return (mod) => {
     const hasViolations = mod.violations.length > 0 || mod.descError > 0 || mod.descWarn > 0
     if (f.isViolatorsOnly && !hasViolations) return false
-    if (f.stageFilter !== null && mod.stage !== f.stageFilter) return false
+    if (f.stageFilter !== null && stageOf(mod) !== f.stageFilter) return false
+    if (f.purityFilter !== null && (mod.facet.axis !== 'purity' || mod.facet.value !== f.purityFilter)) {
+      return false
+    }
     if (query) {
       const pathLc = normalizePath(mod.path.toLowerCase())
       if (!mod.id.toLowerCase().includes(query) && !pathLc.includes(query)) return false

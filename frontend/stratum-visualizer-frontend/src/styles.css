@@ -28,6 +28,11 @@
   --stage-3: oklch(74% 0.12 95);
   --stage-4: oklch(78% 0.14 48);
 
+  --purity-1: oklch(76% 0.13 165);
+  --purity-2: oklch(76% 0.11 120);
+  --purity-3: oklch(74% 0.13 75);
+  --purity-4: oklch(68% 0.16 25);
+
   --r-sm: 5px;
   --r-md: 8px;
   --r-lg: 12px;
@@ -603,16 +608,12 @@ body {
 .tt-kind-di { color: oklch(78% 0.10 200); background: oklch(72% 0.10 200 / .18); }
 .tt-kind-runtime { color: oklch(78% 0.10 290); background: oklch(72% 0.10 290 / .18); }
 .tt-kind-static { color: var(--tx-2); }
-.tt-stage {
+.tt-rank {
   font-size: 10px; padding: 1px 6px; border-radius: 4px;
   font-family: 'JetBrains Mono', monospace;
-  color: var(--stage);
-  background: color-mix(in oklch, var(--stage) 18%, transparent);
+  color: var(--rank);
+  background: color-mix(in oklch, var(--rank) 18%, transparent);
 }
-.tt-stage-1 { --stage: var(--stage-1); }
-.tt-stage-2 { --stage: var(--stage-2); }
-.tt-stage-3 { --stage: var(--stage-3); }
-.tt-stage-4 { --stage: var(--stage-4); }
 .tt-sev {
   font-size: 10px; padding: 1px 6px; border-radius: 4px; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.05em;

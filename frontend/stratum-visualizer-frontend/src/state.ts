@@ -8,8 +8,13 @@ export interface Filters {
   query: string
   glob: string
   stageFilter: number | null
+  purityFilter: number | null
   connectionMode: 'minimal' | 'all'
 }
+
+export type ColorMode = 'layer' | 'stage' | 'purity'
+
+export const COLOR_MODES: readonly ColorMode[] = ['layer', 'stage', 'purity']
 
 export const ALL_EDGE_KINDS: readonly EdgeKindLabel[] = ['static', 'di', 'runtime']
 
@@ -21,6 +26,7 @@ export const DEFAULT_FILTERS = (): Filters => ({
   query: '',
   glob: '',
   stageFilter: null,
+  purityFilter: null,
   connectionMode: 'minimal',
 })
 

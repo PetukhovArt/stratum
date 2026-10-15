@@ -2,7 +2,8 @@ import { Component, createMemo, For, Show } from 'solid-js'
 import { activeFilterCount, clearFilters, toggled } from '../lib/filters'
 import { normalizePath } from '../lib/glob'
 import { DesignData, EdgeKindLabel } from '../render/design'
-import { ALL_EDGE_KINDS, Filters } from '../state'
+import { purityInfo, RankInfo, RANKS, stageInfo } from '../render/palette'
+import { ALL_EDGE_KINDS, COLOR_MODES, ColorMode, Filters } from '../state'
 
 const MAX_PALETTE_MATCHES = 20
 
@@ -12,10 +13,31 @@ const EDGE_KIND_TOOLTIP: Record<EdgeKindLabel, string> = {
   runtime: 'Runtime edges — lazy / dynamic imports, conditional loads.',
 }
 
+type RankFilterKey = 'stageFilter' | 'purityFilter'
+
+interface RankAxis {
+  key: RankFilterKey
+  label: string
+  scope: string
+  info: (rank: number) => RankInfo
+}
+
+const RANK_AXES: readonly RankAxis[] = [
+  { key: 'stageFilter', label: 'Stage', scope: 'containers', info: stageInfo },
+  { key: 'purityFilter', label: 'Purity', scope: 'modules', info: purityInfo },
+]
+
+const toggleRank = (f: Filters, key: RankFilterKey, rank: number): Filters => ({
+  ...f,
+  [key]: f[key] === rank ? null : rank,
+})
+
 interface HeaderProps {
   data: DesignData
   filters: Filters
   setFilters: (f: Filters) => void
+  colorMode: ColorMode
+  setColorMode: (m: ColorMode) => void
   isPaletteOpen: boolean
   setPaletteOpen: (v: boolean) => void
   onSelect: (id: string) => void
@@ -51,6 +73,8 @@ export const Header: Component<HeaderProps> = (props) => {
           setPaletteOpen={props.setPaletteOpen}
           filters={props.filters}
           setFilters={props.setFilters}
+          colorMode={props.colorMode}
+          setColorMode={props.setColorMode}
           data={props.data}
           onSelect={props.onSelect}
         />
@@ -78,7 +102,13 @@ export const Header: Component<HeaderProps> = (props) => {
         </div>
       </div>
 
-      <FacetBar filters={props.filters} setFilters={props.setFilters} data={props.data} />
+      <FacetBar
+        filters={props.filters}
+        setFilters={props.setFilters}
+        colorMode={props.colorMode}
+        setColorMode={props.setColorMode}
+        data={props.data}
+      />
     </header>
   )
 }
@@ -88,6 +118,8 @@ interface PaletteProps {
   setPaletteOpen: (v: boolean) => void
   filters: Filters
   setFilters: (f: Filters) => void
+  colorMode: ColorMode
+  setColorMode: (m: ColorMode) => void
   data: DesignData
   onSelect: (id: string) => void
 }
@@ -96,9 +128,21 @@ const CommandPalette: Component<PaletteProps> = (props) => {
   const query = () => props.filters.query
   const toggleKind = (kind: EdgeKindLabel) =>
     props.setFilters({ ...props.filters, edgeKinds: toggled(props.filters.edgeKinds, kind) })
-  const setStage = (s: number | null) => {
-    props.setFilters({ ...props.filters, stageFilter: s })
-  }
+
+  const rankCommands = (axis: RankAxis) => [
+    ...RANKS.map((rank) => ({
+      key: `${axis.key}-${rank}`,
+      label: `Filter ${axis.scope} by ${axis.label.toLowerCase()}: ${rank} (${axis.info(rank).name})`,
+      run: () => props.setFilters(toggleRank(props.filters, axis.key, rank)),
+      isActive: props.filters[axis.key] === rank,
+    })),
+    {
+      key: `${axis.key}-clear`,
+      label: `Clear ${axis.label.toLowerCase()} filter`,
+      run: () => props.setFilters({ ...props.filters, [axis.key]: null }),
+      isActive: props.filters[axis.key] === null,
+    },
+  ]
 
   const commands = createMemo(() => [
     {
@@ -120,30 +164,13 @@ const CommandPalette: Component<PaletteProps> = (props) => {
       run: () => toggleKind('runtime'),
       isActive: !props.filters.edgeKinds.has('runtime'),
     },
-    {
-      key: 'stage-1',
-      label: 'Filter by stage: 1 (file)',
-      run: () => setStage(props.filters.stageFilter === 1 ? null : 1),
-      isActive: props.filters.stageFilter === 1,
-    },
-    {
-      key: 'stage-2',
-      label: 'Filter by stage: 2 (folder)',
-      run: () => setStage(props.filters.stageFilter === 2 ? null : 2),
-      isActive: props.filters.stageFilter === 2,
-    },
-    {
-      key: 'stage-3',
-      label: 'Filter by stage: 3 (segments)',
-      run: () => setStage(props.filters.stageFilter === 3 ? null : 3),
-      isActive: props.filters.stageFilter === 3,
-    },
-    {
-      key: 'clear-stage',
-      label: 'Clear stage filter',
-      run: () => setStage(null),
-      isActive: props.filters.stageFilter === null,
-    },
+    ...RANK_AXES.flatMap(rankCommands),
+    ...COLOR_MODES.map((mode) => ({
+      key: `color-${mode}`,
+      label: `Colour by ${mode}`,
+      run: () => props.setColorMode(mode),
+      isActive: props.colorMode === mode,
+    })),
   ])
 
   const matchedModules = createMemo(() => {
@@ -245,6 +272,8 @@ const CommandPalette: Component<PaletteProps> = (props) => {
 interface FacetBarProps {
   filters: Filters
   setFilters: (f: Filters) => void
+  colorMode: ColorMode
+  setColorMode: (m: ColorMode) => void
   data: DesignData
 }
 
@@ -327,23 +356,12 @@ const FacetBar: Component<FacetBarProps> = (props) => {
             <span class="chip-name">Show all edges</span>
           </button>
         </div>
-        <Show when={props.filters.stageFilter !== null}>
-          <span class="facet-sep" />
-          <div class="facet-group">
-            <button
-              class="chip on"
-              onClick={() => props.setFilters({ ...props.filters, stageFilter: null })}
-            >
-              <span class="chip-name">stage = {props.filters.stageFilter} ✕</span>
-            </button>
-          </div>
-        </Show>
         <span class="facet-sep" />
         <div class="facet-group facet-glob">
           <span class="facet-label">Path</span>
           <input
             class="glob-input"
-            placeholder="gis , src/features/** , !**/legacy/**"
+            placeholder="auth , src/billing/** , !**/legacy/**"
             value={props.filters.glob}
             onInput={(e) => props.setFilters({ ...props.filters, glob: e.currentTarget.value })}
             title="Path filter. Bare words like `gis` match as case-insensitive substring. Globs (`*`, `**`, `?`) match path segments. Comma-separated. Prefix with `!` to exclude."
@@ -362,6 +380,50 @@ const FacetBar: Component<FacetBarProps> = (props) => {
             clear all
           </button>
         </Show>
+      </div>
+      <div class="facet-row">
+        <For each={RANK_AXES}>
+          {(axis) => (
+            <>
+              <div class="facet-group" data-testid={`facet-${axis.key}`}>
+                <span class="facet-label" title={`${axis.label} of ${axis.scope}`}>
+                  {axis.label}
+                </span>
+                <For each={RANKS}>
+                  {(rank) => (
+                    <button
+                      class={`chip chip-mode ${props.filters[axis.key] === rank ? 'on' : ''}`}
+                      onClick={() => props.setFilters(toggleRank(props.filters, axis.key, rank))}
+                      title={`${axis.info(rank).desc}\nShows ${axis.scope} at ${axis.label.toLowerCase()} ${rank}.`}
+                      aria-label={`${axis.label} ${rank} (${axis.info(rank).name})`}
+                      aria-pressed={props.filters[axis.key] === rank}
+                    >
+                      <span class="chip-dot" style={{ background: axis.info(rank).color }} />
+                      <span class="chip-name">{rank}</span>
+                    </button>
+                  )}
+                </For>
+              </div>
+              <span class="facet-sep" />
+            </>
+          )}
+        </For>
+        <div class="facet-group" data-testid="facet-color-mode">
+          <span class="facet-label">Colour</span>
+          <For each={COLOR_MODES}>
+            {(mode) => (
+              <button
+                class={`chip chip-mode ${props.colorMode === mode ? 'on' : ''}`}
+                onClick={() => props.setColorMode(mode)}
+                title={`Colour modules by ${mode}.`}
+                aria-label={`Colour by ${mode}`}
+                aria-pressed={props.colorMode === mode}
+              >
+                <span class="chip-name">{mode}</span>
+              </button>
+            )}
+          </For>
+        </div>
       </div>
     </div>
   )

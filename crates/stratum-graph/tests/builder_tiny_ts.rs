@@ -58,14 +58,18 @@ fn tiny_ts_graph_snapshot() {
     let prefix_no_ext = prefix_with_ext
         .strip_prefix(r"\\?\")
         .map_or_else(|| prefix_with_ext.clone(), str::to_string);
+    let portable = |path: &str| {
+        [&prefix_with_ext, &prefix_no_ext]
+            .into_iter()
+            .find_map(|p| path.strip_prefix(p.as_str()))
+            .map_or(path, |s| s.trim_start_matches(['/', '\\']))
+            .replace('\\', "/")
+    };
     for m in &mut snap.modules {
-        for p in [&prefix_with_ext, &prefix_no_ext] {
-            if let Some(stripped) = m.path.strip_prefix(p) {
-                m.path = stripped.trim_start_matches(['/', '\\']).to_string();
-                break;
-            }
-        }
-        m.path = m.path.replace('\\', "/");
+        m.path = portable(&m.path);
+    }
+    for c in &mut snap.containers {
+        c.path = portable(&c.path);
     }
 
     insta::assert_yaml_snapshot!("tiny_ts_graph", snap);

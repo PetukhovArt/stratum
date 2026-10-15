@@ -1,5 +1,6 @@
-import { EdgeKind, GraphSnapshot, Severity, SnapshotContainer, Violation } from '../types'
+import { ContainerKind, EdgeKind, GraphSnapshot, Severity, SnapshotContainer, Violation } from '../types'
 import {
+  ContainerKindLabel,
   DesignContainer,
   DesignData,
   DesignEdge,
@@ -7,6 +8,7 @@ import {
   DesignModule,
   DesignViolation,
   EdgeKindLabel,
+  Facet,
   ModuleKind,
   SeverityLabel,
 } from './design'
@@ -34,9 +36,18 @@ const inferKind = (label: string): ModuleKind => {
   return 'regular'
 }
 
-const SEGMENT_LIKE: ReadonlySet<string> = new Set(['model', 'api', 'ui', 'lib', 'config', 'hooks'])
-const MIN_SUB_FEATURES_FOR_COMPOSED = 2
-const MIN_SEGMENTS_FOR_SEGMENTED = 2
+const CONTAINER_KIND_LABEL: Record<ContainerKind, ContainerKindLabel> = {
+  layer: 'layer',
+  slice: 'slice',
+  sub_unit: 'sub-unit',
+  nested: 'nested',
+}
+
+const containerFacet = (c: SnapshotContainer): Facet => ({
+  axis: 'stage',
+  value: c.stage,
+  kind: CONTAINER_KIND_LABEL[c.kind],
+})
 
 const edgeKindToLabel = (k: EdgeKind): EdgeKindLabel => {
   switch (k) {
@@ -99,7 +110,7 @@ const containerRootResolver = (
 }
 
 const blankModule = (
-  fields: Pick<DesignModule, 'id' | 'container' | 'parentId' | 'label' | 'path' | 'stage'>,
+  fields: Pick<DesignModule, 'id' | 'container' | 'parentId' | 'label' | 'path' | 'facet'>,
 ): DesignModule => ({
   ...fields,
   kind: inferKind(fields.label),
@@ -138,8 +149,8 @@ const buildModuleTree = (snapshot: GraphSnapshot): ModuleTree => {
         container: containerKey(rootOf(c.id)),
         parentId: isParentRoot ? null : containerModuleKey(c.parent),
         label: c.name,
-        path: c.name,
-        stage: 1,
+        path: c.path,
+        facet: containerFacet(c),
       }),
     )
   }
@@ -154,7 +165,7 @@ const buildModuleTree = (snapshot: GraphSnapshot): ModuleTree => {
         parentId: c.parent === null ? null : containerModuleKey(m.container),
         label: basename(m.path),
         path: m.path,
-        stage: m.stage || 1,
+        facet: { axis: 'purity', value: m.purity },
       }),
     )
   }
@@ -228,44 +239,6 @@ const aggregateDescendantSeverity = (tree: ModuleTree): void => {
   for (const id of topIds(tree)) visit(id)
 }
 
-const computeStage = (tree: ModuleTree, id: string): number => {
-  const m = tree.byId.get(id)
-  if (!m) return 1
-  const kidIds = tree.childIndex[id] ?? []
-  if (kidIds.length === 0) return m.stage || 1
-  const kids = kidIds.map((k) => tree.byId.get(k)).filter((k): k is DesignModule => !!k)
-  const hasGrandkids = kids.some((k) => k.hasChildren)
-  if (!hasGrandkids) return 2
-  const hasComposer = kids.some((k) => k.kind === 'composer')
-  const subFeatures = kids.filter(
-    (k) => k.hasChildren && !SEGMENT_LIKE.has(k.label) && k.kind === 'regular',
-  )
-  if (hasComposer && subFeatures.length >= MIN_SUB_FEATURES_FOR_COMPOSED) return 4
-  return 3
-}
-
-const assignCompoundStages = (tree: ModuleTree): void => {
-  for (const m of tree.modules) {
-    if (m.hasChildren) {
-      m.stage = computeStage(tree, m.id)
-    }
-  }
-}
-
-const containerStage = (tops: DesignModule[]): number => {
-  if (tops.length === 0) return 1
-  if (tops.length === 1 && !tops[0].hasChildren) return 1
-  const hasComposer = tops.some((t) => t.kind === 'composer')
-  const segmentLike = tops.filter((t) => SEGMENT_LIKE.has(t.label))
-  const subFeatures = tops.filter(
-    (t) => t.hasChildren && !SEGMENT_LIKE.has(t.label) && t.kind === 'regular',
-  )
-  if (hasComposer && subFeatures.length >= MIN_SUB_FEATURES_FOR_COMPOSED) return 4
-  if (segmentLike.length >= MIN_SEGMENTS_FOR_SEGMENTED) return 3
-  if (tops.length === 1) return 1
-  return 2
-}
-
 const buildEdges = (
   snapshot: GraphSnapshot,
   violations: ReadonlyArray<Violation>,
@@ -307,9 +280,6 @@ const buildContainers = (snapshot: GraphSnapshot, tree: ModuleTree): DesignConta
       const id = containerKey(c.id)
       const leafIds = leafIdsByRoot.get(c.id) ?? []
       const severities = leafIds.map((mid) => tree.byId.get(mid)?.severity)
-      const tops = (tree.topByContainer[id] ?? [])
-        .map((tid) => tree.byId.get(tid))
-        .filter((m): m is DesignModule => !!m)
       return {
         id,
         layer: layerKey(c.layer),
@@ -317,7 +287,8 @@ const buildContainers = (snapshot: GraphSnapshot, tree: ModuleTree): DesignConta
         errors: severities.filter((s) => s === 'error').length,
         warnings: severities.filter((s) => s === 'warning').length,
         moduleCount: leafIds.length,
-        stage: containerStage(tops),
+        stage: c.stage,
+        kind: CONTAINER_KIND_LABEL[c.kind],
       }
     })
 }
@@ -373,7 +344,6 @@ export const adaptSnapshot = (
   const designViolations = adaptViolations(violations)
   attachViolations(tree, designViolations)
   aggregateDescendantSeverity(tree)
-  assignCompoundStages(tree)
   const containers = buildContainers(snapshot, tree)
   const layers = buildLayers(snapshot, containers)
 

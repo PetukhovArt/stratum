@@ -3,7 +3,7 @@ import { moduleMatcher } from '../../lib/filters'
 import { ancestorIds, DesignData } from '../../render/design'
 import { LaidEdge, Scene } from '../../render/layout'
 import { zoomAround } from '../../render/viewport'
-import { CanvasSize, Filters, HoveredEdge, HoveredMod, Viewport } from '../../state'
+import { CanvasSize, ColorMode, Filters, HoveredEdge, HoveredMod, Viewport } from '../../state'
 import { ContainerBox } from './container-box'
 import { EdgeDirection, EdgeLine, EdgeMarkers } from './edge-line'
 import { Lane } from './lane'
@@ -16,7 +16,7 @@ const VIOLATIONS_ONLY_BELOW_ZOOM = 0.3
 const MAX_INTERACTIVE_EDGES = 500
 
 const buildVisibility = (data: DesignData, filters: Filters): Set<string> => {
-  const matches = moduleMatcher(filters)
+  const matches = moduleMatcher(filters, data)
   const visible = new Set<string>()
   for (const mod of data.modules) {
     const layer = data.layerByContainer.get(mod.container)?.id ?? ''
@@ -33,6 +33,7 @@ interface GraphProps {
   scene: Scene
   data: DesignData
   filters: Filters
+  colorMode: ColorMode
   isHaloThick: boolean
   selectedId: string | null
   hoveredId: string | null
@@ -274,6 +275,7 @@ export const Graph: Component<GraphProps> = (props) => {
                 isHighlighted={highlight() === id}
                 isSelected={props.selectedId === id}
                 isHaloThick={props.isHaloThick}
+                colorMode={props.colorMode}
                 onSelect={props.onSelect}
                 onHover={props.onHover}
               />

@@ -19,5 +19,5 @@ fn snapshot_writes_graph_json() {
         .success();
     let text = std::fs::read_to_string(&out).unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&text).unwrap();
-    assert_eq!(parsed["version"], 1);
+    assert_eq!(parsed["version"], 2);
 }

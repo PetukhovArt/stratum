@@ -4,11 +4,12 @@ use serde::{Deserialize, Serialize};
 use stratum_core::{
     edge::EdgeKind,
     ids::{ContainerId, LayerId, ModuleId},
+    types::ContainerKind,
 };
 
 use crate::graph::CompoundGraph;
 
-pub const CURRENT_SNAPSHOT_VERSION: u32 = 1;
+pub const CURRENT_SNAPSHOT_VERSION: u32 = 2;
 
 /// On-disk / on-wire shape of the compound graph.
 /// **Versioned.** Bumps require a coordinated frontend release.
@@ -27,8 +28,6 @@ pub struct SnapshotModule {
     pub path: String,
     pub container: ContainerId,
     pub layer: LayerId,
-    // The visualizer reads `stage` until snapshot v2.
-    #[serde(rename = "stage")]
     pub purity: u8,
 }
 
@@ -36,8 +35,12 @@ pub struct SnapshotModule {
 pub struct SnapshotContainer {
     pub id: ContainerId,
     pub name: String,
+    pub path: String,
+    pub kind: ContainerKind,
     pub layer: LayerId,
     pub parent: Option<ContainerId>,
+    pub stage: u8,
+    pub entry: Option<ModuleId>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -76,8 +79,12 @@ pub fn snapshot_of(g: &CompoundGraph) -> GraphSnapshot {
         .map(|c| SnapshotContainer {
             id: c.id,
             name: c.name.clone(),
+            path: c.path.to_string_lossy().to_string(),
+            kind: c.kind,
             layer: c.layer,
             parent: c.parent,
+            stage: c.stage.rank(),
+            entry: c.entry,
         })
         .collect();
     containers.sort_by_key(|c| c.id.raw());
@@ -124,7 +131,7 @@ mod tests {
     fn empty_graph_snapshot() {
         let g = CompoundGraph::empty();
         let s = snapshot_of(&g);
-        assert_eq!(s.version, 1);
+        assert_eq!(s.version, 2);
         assert!(s.modules.is_empty());
         assert!(s.edges.is_empty());
     }

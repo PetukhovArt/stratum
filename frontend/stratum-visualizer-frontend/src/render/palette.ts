@@ -1,4 +1,4 @@
-import { SeverityLabel } from './design'
+import { Facet, SeverityLabel } from './design'
 
 export interface SeverityPalette {
   color: string
@@ -43,30 +43,67 @@ export const TONE = {
 
 export const DEFAULT_HUE = 240
 
-export const STAGE: Record<number, { name: string; desc: string; color: string }> = {
+export interface RankInfo {
+  name: string
+  desc: string
+  color: string
+}
+
+export const STAGE: Record<number, RankInfo> = {
   1: {
     name: 'file',
-    desc: 'Stage 1 — single file. ≤2 exports, ~50–400 LOC. The smallest unit.',
+    desc: 'Stage 1 — file. The container is a single file.',
     color: 'var(--stage-1)',
   },
   2: {
-    name: 'folder',
-    desc: 'Stage 2 — flat folder + index. 2–6 files of one theme. Public API via index.ts.',
+    name: 'flat folder',
+    desc: 'Stage 2 — flat folder. Files of one theme side by side, behind an entry.',
     color: 'var(--stage-2)',
   },
   3: {
-    name: 'segments',
-    desc: 'Stage 3 — segments. Folder split into model / api / ui / lib.',
+    name: 'segmented',
+    desc: 'Stage 3 — segmented. Files grouped into segment folders by purpose.',
     color: 'var(--stage-3)',
   },
   4: {
     name: 'composed',
-    desc: 'Stage 4 — composed. composer + ≥2 sub-features + _shared. Internal structure becomes fractal.',
+    desc: 'Stage 4 — composed. Built from sub-units, each behind its own entry.',
     color: 'var(--stage-4)',
   },
 }
 
-const UNKNOWN_STAGE = { name: '?', desc: '', color: '#666' }
+export const PURITY: Record<number, RankInfo> = {
+  1: {
+    name: 'pure',
+    desc: 'Purity 1 — pure. May import only purity-1 modules.',
+    color: 'var(--purity-1)',
+  },
+  2: {
+    name: 'mostly pure',
+    desc: 'Purity 2 (the default) — may import modules of purity 1–2.',
+    color: 'var(--purity-2)',
+  },
+  3: {
+    name: 'impure',
+    desc: 'Purity 3 — may import modules of purity 1–3.',
+    color: 'var(--purity-3)',
+  },
+  4: {
+    name: 'side effects',
+    desc: 'Purity 4 — side effects. May import any module.',
+    color: 'var(--purity-4)',
+  },
+}
 
-export const stageInfo = (stage: number): { name: string; desc: string; color: string } =>
-  STAGE[stage] ?? UNKNOWN_STAGE
+export const RANKS: readonly number[] = [1, 2, 3, 4]
+
+const UNKNOWN_RANK: RankInfo = { name: '?', desc: '', color: '#666' }
+
+export const stageInfo = (stage: number): RankInfo => STAGE[stage] ?? UNKNOWN_RANK
+
+export const purityInfo = (purity: number): RankInfo => PURITY[purity] ?? UNKNOWN_RANK
+
+export const facetInfo = (facet: Facet): RankInfo & { axis: string } =>
+  facet.axis === 'stage'
+    ? { axis: 'Stage', ...stageInfo(facet.value) }
+    : { axis: 'Purity', ...purityInfo(facet.value) }
