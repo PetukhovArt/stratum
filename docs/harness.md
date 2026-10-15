@@ -14,103 +14,169 @@ Integration surfaces, in order of preference:
 | `stratum-lint explain <rule>` | on demand, only when a rule is unfamiliar | judgement aid |
 | `stratum-lint hook` on `Stop` | end-of-turn gate in Claude Code (plugin `stratum`) | gate |
 
-No editor extensions are shipped: any LSP client can launch `stratum-lsp` over stdio.
+Source files: `.ts .tsx .mts .cts .js .jsx .mjs .cjs .vue`. No editor extensions are shipped: any LSP client can launch `stratum-lsp` over stdio.
 
 ## LSP contract
 
+- `stratum-lsp` takes no arguments and speaks JSON-RPC over stdio.
 - Root: first `workspaceFolders` entry, else `rootUri`, else `rootPath`, else the process cwd. `file:///c%3A/...` URIs are accepted.
-- `initialize` answers at once; the whole-project analysis runs in the background and its result is published for every open document.
-- Config: `ROOT/stratum.config.jsonc` if present, else zero-config. Editing it, a config file it `extends`, a plugin script referenced from it or `ROOT/stratum.baseline.json` re-runs the analysis; a broken config, plugin or baseline is reported via `window/showMessage` and the last good diagnostics stay.
+- `initialize` answers at once; the whole-project analysis runs in the background and its result is published for every open document. Capabilities: open/close + full-text change sync, `hover` (the diagnostic on that line), `documentLink`. No code actions.
+- Config: `ROOT/stratum.config.jsonc` if present, else zero-config. Editing it, a config file it `extends`, a plugin script referenced from it, `ROOT/tsconfig.json` or `ROOT/stratum.baseline.json` triggers a full rebuild. A broken config, plugin or baseline is reported via `window/showMessage` (once per distinct error) and the last good diagnostics stay.
 - Baseline: violations matched by `ROOT/stratum.baseline.json` are not published, as in the CLI and the hook.
-- The graph stays in memory. `didOpen` / `didChange` re-parse only that document from its buffer text, replace its outgoing edges and re-run the rules; nothing runs when its imports and purity are unchanged. `didClose` clears the file's diagnostics and reverts it to the text on disk. Diagnostics are published only for open documents whose diagnostics changed.
-- A full rebuild runs on a config, plugin, baseline or `tsconfig.json` change, on `workspace/didChangeWatchedFiles` creates or deletes (registered when the client supports dynamic registration), for a document created after the last build, and when an incremental update fails. Open buffers are re-applied after it.
-- Diagnostic: `source: "stratum"`, `code` = rule slug as in config (`stratum/no-cross-layer-import`, plugin slugs too), `message` = violation message, then the suggestion on the next line. `relatedInformation` points at the imported module of an import violation, or at up to 10 other members of a cycle; a cycle is reported on each member.
-- stdout carries JSON-RPC only; logs go to `window/logMessage` (filter with `RUST_LOG`). The process exits on `exit` (code 0 after `shutdown`, else 1).
+- Unsaved buffers count. The graph stays in memory: `didOpen` / `didChange` re-parse that document from its buffer text, replace its outgoing edges and re-run the rules; nothing re-runs when its imports, purity, exports and tracked calls are unchanged. `didClose` clears the file's diagnostics and reverts it to the text on disk. A full rebuild re-applies every open buffer.
+- A full rebuild also runs on a `workspace/didChangeWatchedFiles` create or delete (the server registers a watcher for the source extensions when the client supports dynamic registration), for a document created after the last build, and when an incremental update fails. A watched change to a closed file re-parses it from disk.
+- Diagnostics are published only for open documents whose diagnostics changed. Each has `source: "stratum"`, `code` = rule slug (`stratum/no-cross-layer-import`, plugin slugs too), `message` = violation message, then the suggestion on the next line. `relatedInformation` points at the imported module of an import violation, or at up to 10 other members of a multi-module violation such as a cycle, which is reported on each member.
+- stdout carries JSON-RPC only; logs go to `window/logMessage` (filter with `RUST_LOG`, default `warn,stratum_lsp=info`). The process exits on `exit`: code 0 after `shutdown`, else 1.
 - Claude Code routes each file extension to one LSP server, so `stratum-lsp` and a TypeScript server cannot both serve `.ts` there. Hence the separate `stratum-lsp` plugin, and the per-edit hook in the `stratum` plugin.
 
 ## CLI contract (stable, versioned)
 
 ```
-stratum-lint [lint] [ROOT]
-    [--format terminal|json|sarif|agent]   # agent = compact, token-cheap text
-    [--config PATH]
-    [--max N]                              # cap printed items; rest summarised (agent default 20)
-    [--files F...]                         # report only violations touching these files (relative to cwd, else ROOT; missing = exit 2)
-    [--changed[=REF]]                      # files changed vs REF (default HEAD) + untracked
-    [--baseline PATH | --no-baseline]      # default: ROOT/stratum.baseline.json if it exists
-    [--watch]
-stratum-lint baseline [ROOT] [--out PATH] [--prune]   # accept current violations; --prune only drops fixed ones (ratchet)
-stratum-lint explain <rule-slug> [ROOT] [--format agent|json] [--config PATH]   # slug with or without "stratum/"
-stratum-lint context <file> [--root ROOT] [--format agent|json] [--config PATH]
-stratum-lint rules [ROOT] [--format agent|json] [--config PATH]   # active rules incl. plugins with severity + one-line summary
-stratum-lint hook [--max N]                            # reads a Claude Code hook event from stdin
-stratum-lint init | snapshot | visualize               # unchanged
+stratum-lint [lint] [ROOT]                     # ROOT defaults to "."
+    [--format terminal|json|sarif|agent]       # default terminal; agent = compact, token-cheap text
+    [--config PATH]                            # default ROOT/stratum.config.jsonc, else zero-config
+    [--max N]                                  # agent format: cap printed violations, rest summarised (default 20)
+    [--files F...]                             # report only violations touching these files (cwd-relative, else ROOT-relative; missing = exit 2)
+    [--changed[=REF]]                          # files changed vs REF (default HEAD) + untracked; the "=" is required
+    [--baseline PATH | --no-baseline]          # default: ROOT/stratum.baseline.json if it exists
+    [--watch]                                  # re-lint on file changes (200 ms debounce) until interrupted
+stratum-lint baseline [ROOT] [--config PATH] [--out PATH] [--prune]
+                                               # accept current violations (default ROOT/stratum.baseline.json); --prune only drops fixed ones
+stratum-lint explain <SLUG> [ROOT] [--format agent|json] [--config PATH]   # slug with or without "stratum/"
+stratum-lint rules [ROOT] [--format agent|json] [--config PATH]           # every rule incl. plugins, effective severity, one-line summary
+stratum-lint context <FILE> [--root ROOT] [--format agent|json] [--config PATH]
+                                               # ROOT default: nearest ancestor of FILE with stratum.config.jsonc, else package.json, else cwd
+stratum-lint hook [--max N]                    # reads a Claude Code hook event from stdin; --max default 10 after an edit, 20 on Stop
+stratum-lint init [ROOT]                       # writes ROOT/stratum.config.jsonc from zero-config inference
+stratum-lint snapshot [ROOT] [--out PATH]      # Graph Snapshot JSON, default stratum.snapshot.json; reads ROOT/stratum.config.jsonc
+stratum-lint visualize [ROOT] [--config PATH] [--no-open]
+                                               # serves the Visualizer on 127.0.0.1:<random port> until Ctrl+C;
+                                               # prints "stratum-visualizer ready at <url>" to stderr; --no-open skips the browser
 ```
 
 ### Exit codes
 
-| Code | Meaning |
-|---|---|
-| 0 | no error-severity violations (after baseline and scope) |
-| 1 | at least one error-severity violation |
-| 2 | tool failure: bad config, bad args, plugin load error |
+| Command | 0 | 1 | 2 |
+|---|---|---|---|
+| `lint` (default) | no error-severity violation after baseline and scope; warnings and info may be listed | at least one error-severity violation | tool failure |
+| `lint --watch` | never: it runs until killed | | tool failure on any run |
+| `baseline` | file written | | tool failure; `--prune` without an existing baseline |
+| `explain` | printed | | tool failure; unknown slug |
+| `rules`, `context` | printed, whatever violations exist | | tool failure; `context` FILE outside ROOT |
+| `init` | config written | | tool failure; config already exists |
+| `snapshot` | snapshot written | | tool failure |
+| `visualize` | server stopped with Ctrl+C | | tool failure |
+| `hook` | decision printed, or nothing to say | tool failure (Claude Code's non-blocking error) | never |
 
-### Output rules (all agent-facing formats)
+Tool failure: bad arguments, an invalid config (see Customization), a plugin that fails to load, an unreadable baseline, a failed `git` call for `--changed`, a missing `--files` path. The message goes to stderr.
 
-- Rules are named by **slug** (`stratum/no-cross-layer-import`; plugins `custom/<name>`), never by numeric id.
+### Output rules
+
+- Rules are named by **slug** (`stratum/no-cross-layer-import`; plugins use their config key, conventionally `custom/<name>`), never by numeric id.
 - Paths are relative to ROOT with forward slashes.
-- The first line is a one-line summary; a clean run prints exactly that one line.
-- Repeated violations of one rule collapse into one group line with a count and a few examples.
-- `json` output carries `"version"`; breaking changes bump it.
+- `json` and `sarif` carry full messages; every JSON shape carries `"version"`, and a breaking change bumps it.
+
+`--format agent`:
+
+- The first line is a one-line summary; a clean run prints only that line, starting `stratum: ok, no new violations`.
+- Violations collapse into one group per rule and severity: a header with the count and an `explain` hint (once per rule), up to 3 examples, `... N more`, and the shared `fix:` line when every hit has the same suggestion.
+- `-> file` is the import target when the violation has an edge.
+- Groups are ordered by severity, then count. Past `--max` printed examples, the remaining groups collapse into one `+N more rules over --max M` line.
+- Info-severity rules are advisory: one count line, no examples, not counted against `--max`.
+- Messages longer than 240 chars are clipped, with a `(+N chars, full text in --format json)` note.
+- A zero-config run appends `| zero-config: layers inferred from src/*, run "stratum-lint init" to pin them` to the summary line. Zero-config makes every `src/*` folder a layer and applies the `stratum:recommended` severities with `stratum/public-api`, `stratum/sibling-isolation` and `stratum/container-breadth` off, since they need declared layers and structure.
 
 ### Baseline
 
 Entries are fingerprinted by `rule slug + relative file + message`, without line numbers and with every number in the message masked as `#`, so line shifts and changed metrics do not resurrect them.
-Hook output never shows the `fixed` hint: tightening the baseline is a separate change, not part of the agent's current edit.
-A run reports `N baselined` and `M fixed — run "stratum-lint baseline --prune"`; the baseline only ever shrinks unless regenerated on purpose.
-
-### Gate output
-
-`--format agent`:
-
-```
-stratum: 1 error, 2 warnings, 4 baselined, 1 fixed - run "stratum-lint baseline --prune", scope 3 files, 0.42s
-error stratum/no-circular-deps (1) - stratum-lint explain stratum/no-circular-deps
-  src/a.ts:1  Circular dependency: a.ts -> b.ts
-  fix: Break the cycle ...
-warning stratum/no-cross-layer-import (2) - stratum-lint explain stratum/no-cross-layer-import
-  src/shared/x.ts:1 -> src/features/y.ts  Module imports from layer 'features' ...
-  ...
-+1 more rules over --max 20: stratum/purity (3)
-info (advisory, details in --format json): stratum/deep-module (266), stratum/miller-limit (135)
-```
-
-- `-> file` is the import target when the violation has an edge.
-- Info-severity rules are advisory: one count line, no examples, not counted against `--max`.
-- Messages longer than 240 chars are clipped; `--format json` has the full text.
-- A zero-config run appends `| zero-config: layers inferred from src/*, ...` to the summary line.
-
-`--format json` (version 2): `{ "version": 2, "summary": { errors, warnings, infos, baselined, fixed, scope_files, zero_config, elapsed_ms }, "violations": [{ rule, severity, message, file, location: { line, column }, edge: { from, to, kind } | null, suggestion }] }`.
-`--format sarif` uses slugs as `ruleId` and ROOT-relative `uri` with `uriBaseId: "%SRCROOT%"`.
-
-Baseline file (`stratum.baseline.json`): `{ "version": 1, "violations": [{ rule, file, message, count? }] }`; `count` is omitted when 1.
+A run reports `N baselined` and `M fixed - run "stratum-lint baseline --prune"`; the baseline only ever shrinks unless regenerated on purpose.
 Matching runs on the whole project before scoping, so `fixed` is project-wide and `baselined` counts only in-scope hits. An empty scope skips the graph build, so both read 0.
+Hook output never shows the `fixed` hint: tightening the baseline is a separate change, not part of the agent's current edit.
 
-`stratum-lint hook`: on `Stop` / `SubagentStop` with `stop_hook_active: false` it runs `--changed --format agent` in the event's `cwd` and prints `{"decision":"block","reason":"<report>"}` when new error-severity violations remain.
-On `PostToolUse` of `Edit` / `Write` for a `.ts/.tsx/.mts/.cts/.js/.jsx/.mjs/.cjs/.vue` file under `cwd`, it lints with that file as scope (baseline honoured) and, when new error or warning violations touch it, prints `{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"<report>"}}` in the agent format, `--max` defaulting to 10.
-Everything else exits 0 silently. A tool failure inside the hook exits 1 (Claude Code's non-blocking error), not 2, because exit 2 would block the stop with the error text.
+Baseline file (`stratum.baseline.json`): `{ "version": 1, "violations": [{ rule, file, message, count? }] }`; `message` is stored masked, `count` is omitted when 1.
+
+### Sample output
+
+From `tests/fixtures/tiny-ts-violations`, `stratum-lint --format agent`, exit 1:
+
+```
+stratum: 3 errors, 2 warnings, 1 info, 0.00s
+error stratum/purity (2) - stratum-lint explain stratum/purity
+  src/features/cart/index.ts:1 -> src/features/cart/cart.tsx  Module at purity 2 imports from purity 3: purer code cannot depend on impurer code
+  src/shared/api/http.ts:1 -> src/features/cart/cart.tsx  Module at purity 1 imports from purity 3: purer code cannot depend on impurer code
+  fix: Move shared logic into a module at or below the lower purity, or inject the impure dependency at composition root.
+error stratum/no-circular-deps (1) - stratum-lint explain stratum/no-circular-deps
+  src/features/cart/boom.ts:1  Circular dependency: boom.ts -> circle.ts
+  fix: Break the cycle by extracting the shared piece into a lower-purity module or by inverting one of the dependencies.
+warning stratum/no-cross-layer-import (1) - stratum-lint explain stratum/no-cross-layer-import
+  src/shared/api/http.ts:1 -> src/features/cart/cart.tsx  Module imports from layer 'features' which 'shared' does not depend on
+  fix: Move the imported symbol into a layer 'shared' may reach, or add 'features' to 'shared'.depends_on if the dependency is legitimate.
+warning stratum/public-api (1) - stratum-lint explain stratum/public-api
+  src/shared/api/http.ts:1 -> src/features/cart/cart.tsx  Import of `src/features/cart/cart.tsx` reaches inside `src/features/cart`
+  fix: Import from `src/features/cart` through its entry `src/features/cart/index.ts`, exporting the name there if it is missing.
+info (advisory, details in --format json): stratum/depth-ratio (1)
+```
+
+The same fixture after `stratum-lint baseline`, breaking the cycle and adding a `shared → features` import, with `--files src/shared/api/client.ts`, exit 0 (warnings only):
+
+```
+stratum: 2 warnings, 1 info, 1 fixed - run "stratum-lint baseline --prune", scope 1 file, 0.00s
+warning stratum/no-cross-layer-import (1) - stratum-lint explain stratum/no-cross-layer-import
+  src/shared/api/client.ts:1 -> src/features/cart/boom.ts  Module imports from layer 'features' which 'shared' does not depend on
+  ...
+```
+
+`--format json` (version 2): `{ "version": 2, "summary": { errors, warnings, infos, baselined, fixed, scope_files, zero_config, elapsed_ms }, "violations": [{ rule, severity, message, file, location: { line, column }, edge: { from, to, kind } | null, suggestion }] }`. `scope_files` is `null` without `--files` / `--changed`; `kind` is `static`, `di` or `runtime`.
+
+`--format sarif` (SARIF 2.1.0) uses slugs as `ruleId` and ROOT-relative `uri` with `uriBaseId: "%SRCROOT%"`.
+
+`rules --format json`: `{ "version": 1, "rules": [{ slug, severity, default_severity, summary }] }`, every registered rule including those that are off. The agent format lists active rules only, after a `N active rules (M off: ...)` line:
+
+```
+12 active rules (3 off: stratum/slice-fan-in, stratum/restricted-calls, stratum/stage-mixing)
+error   stratum/no-cross-layer-import  A module may import only from its own layer and from the layers listed in its layer's `depends_on`.
+...
+```
+
+`explain --format json`: `{ "version": 1, "slug", "severity", "default_severity", "doc": { summary, why, fix, options } | null }`. The agent format prints `what:`, `why:`, `fix:` and `options:` lines.
+
+### Context brief
+
+`stratum-lint context` accepts a path that does not exist yet and always exits 0 on success. Agent format, for a file in a `stratum:fsd` project whose store imports a sibling slice:
+
+```
+src/features/cart/model/store.ts: layer features, purity 2, visibility public
+container src/features/cart (slice, stage 3, entry index.ts): import other containers only via their entry
+may import: layers entities, features, shared; modules at purity <= 2
+private zones visible here: src/features/cart/_shared
+may not import: other slices of src/features/, entry included; files behind another container's entry
+imported by: layers app, pages, widgets, features; 1 dependent modules
+imports: 2 modules, 2 violate:
+  -> src/features/user/api.ts  stratum/public-api (error)
+  -> src/features/user/api.ts  stratum/sibling-isolation (error)
+violations: 2 (2 error)
+```
+
+- A new file gets ` (new file)` after its path and no `imports`/`violations` lines; a file outside every layer gets one line listing the layers.
+- `container` is the innermost container; `, in slice ...` follows when that container sits inside a slice.
+- `may not import` lists only what active rules enforce: sibling slices and sibling sub-units (`stratum/sibling-isolation`), files behind another container's entry (`stratum/public-api`).
+- Lists of imports and other violations show the first 2.
+
+`--format json` (version 2): `{ version, file, status: module|new_file|not_a_source_module|outside_layers, layer, container: { path, kind: layer|slice|sub_unit|nested, stage, entry } | null, slice (same shape) | null, purity, visibility: "public" | "private to <dir>", may_import_layers, max_import_purity, private_zones, may_not_import: [{ kind: sibling_slices|sibling_sub_units, parent } | { kind: container_internals }], imported_by_layers, imports, violating_imports: [{ target, rule, severity }], dependents, violations: [{ rule, severity, message, on_import }], layers: ["<id>=<path>"] }`.
+
+### Hook
+
+`stratum-lint hook` reads one Claude Code hook event from stdin:
+
+- `Stop` / `SubagentStop` with `stop_hook_active: false`: runs `--changed --format agent` in the event's `cwd` and prints `{"decision":"block","reason":"<report>"}` when new error-severity violations remain.
+- `PostToolUse` of `Edit` / `Write` for a source file under `cwd`: lints with that file as scope (baseline honoured), drops info findings, and when error or warning violations remain prints `{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"<report>"}}`. From the fixture above, after an edit of `src/shared/api/http.ts`, the report starts with `stratum: 1 error, 2 warnings, scope 1 file, 0.00s`.
+- Everything else exits 0 silently. A tool failure exits 1, not 2, because exit 2 would block the stop with the error text.
 
 ## Customization
 
-Everything an architecture rule does is configurable without forking:
+Everything an architecture rule does is configurable without forking: layers and slices, `structure` folder names, per-rule `severity` / `options`, `overrides` by glob (severity only), `project.ignore`, `extends` (a local file or the presets `stratum:recommended`, `stratum:fsd`), the declarative `stratum/import-policy` and `stratum/restricted-calls` rules, and `.rhai` plugin rules with an optional `fn doc()` that makes them show up in `rules` / `explain` like built-ins. Configs reference `stratum.schema.json` (repo root, generated from the config types) with `"$schema"`.
 
-- `stratum.config.jsonc`: layers, per-rule `severity` / `options`, `overrides` by glob (severity only), `project.ignore` (files out of the graph; defaults skip `node_modules`, `dist`, `out`, `build`, `coverage`, `.git`, `*.d.ts`), `extends` (local file or a built-in preset: `stratum:recommended`, `stratum:fsd`).
-- `stratum/import-policy`: declarative import boundaries in config (from / deny / allow / same-slice / message), no scripting.
-- `.rhai` plugin rules with access to modules, imports and options; an optional `fn doc()` makes them show up in `rules` / `explain` like built-ins.
-- `stratum.schema.json` at the repo root, generated from the config types; configs reference it with `"$schema"`.
-- Invalid config fails loudly (exit 2 in every command, `window/showMessage` in the LSP): unknown keys, unknown rule slugs, bad options (the message names slug and key), bad `ignore` / `overrides[].files` globs, `options` or `script` in an override, extends cycles.
+Invalid config fails loudly, with exit 2 in every command that loads it (exit 1 in `hook`) and `window/showMessage` in the LSP: unknown keys (`project.root` included), unknown rule slugs, bad options (the message names slug and key), a `depends_on` naming an undeclared layer, bad `ignore` / `overrides[].files` globs, `options` or `script` in an override, an unknown preset, extends cycles.
 
 Reference: [custom-rules.md](custom-rules.md); a real-world config: [examples/private-project.stratum.config.jsonc](examples/private-project.stratum.config.jsonc).
-
-Shared seam: `stratum_rules::RuleDoc` + `Rule::doc()` / `RuleRegistry::by_slug` / `by_id`.
-Built-ins document themselves in `crates/stratum-rules/src/docs.rs`; plugin rules override `doc()`.
+Built-in rule docs (`explain`, `rules`) live in `crates/stratum-rules/src/docs.rs`.

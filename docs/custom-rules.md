@@ -1,7 +1,59 @@
-# Custom rules
+# Configuration and custom rules
 
-Three levels, from cheapest to most flexible: a preset via `extends`, the declarative `stratum/import-policy` rule, and Rhai scripts.
-Editors and agents validate `stratum.config.jsonc` against [`stratum.schema.json`](../stratum.schema.json): add `"$schema": "<path or URL>/stratum.schema.json"`.
+`stratum.config.jsonc` at the project root (ROOT) configures everything; `--config PATH` points the CLI elsewhere, while `stratum-lsp` always reads `ROOT/stratum.config.jsonc`. Without a config (zero-config), every folder under `src/` becomes a layer, with no `depends_on` and no slices, and the `stratum:recommended` severities apply, except that `stratum/public-api`, `stratum/sibling-isolation` and `stratum/container-breadth` are off: without declared layers and structure they flood the first run. `stratum/visibility-scope` stays on, since private zones are found by folder name. `stratum-lint init` writes the inferred config.
+Editors and agents validate the file against [`stratum.schema.json`](../stratum.schema.json): add `"$schema": "<path or URL>/stratum.schema.json"`.
+
+Customization goes from cheapest to most flexible: a preset via `extends`, `layers` and `structure`, rule `severity` / `options` and `overrides`, the declarative `stratum/import-policy` and `stratum/restricted-calls` rules, and Rhai scripts.
+
+## Top-level keys
+
+| Key | Meaning |
+|---|---|
+| `version` | required, `1` |
+| `project.extends` | a config file relative to this one, or a preset: `stratum:recommended`, `stratum:fsd` |
+| `project.ignore` | globs of files kept out of the graph |
+| `structure` | folder and file names that shape containers |
+| `layers` | `[{ id, path, depends_on?, slices? }]` |
+| `rules` | by slug: `{ severity, options?, script? }` |
+| `overrides` | `[{ files, rules: { <slug>: { severity } } }]` |
+
+Errors fail every command that loads the config with exit code 2 (`hook` with 1) and are reported by `stratum-lsp` via `window/showMessage`: an unknown key at any level (`project.root` included), an unknown rule slug in `rules` or `overrides`, an option the rule does not take or a wrongly typed one (the message names the slug and the key), `options` or `script` in an override, a `depends_on` naming an undeclared layer, an invalid `project.ignore` or `overrides[].files` glob, an unknown preset, an `extends` cycle.
+
+## Layers and slices
+
+```jsonc
+"layers": [
+  { "id": "app",      "path": "src/app",      "depends_on": ["features", "shared"] },
+  { "id": "features", "path": "src/features", "depends_on": ["shared"], "slices": true },
+  { "id": "shared",   "path": "src/shared" }
+]
+```
+
+- `path` is relative to ROOT. A file belongs to the layer with the longest matching path; a file outside every layer is not in the graph and nothing reports it.
+- `depends_on` lists the layers this layer may import (`stratum/no-cross-layer-import`). A layer may always import itself.
+- `slices: true` makes each direct child of the layer folder a slice, folder or source file. Slices of one layer may not import each other (`stratum/sibling-isolation`) and are reached from outside only through their entry (`stratum/public-api`).
+
+## `structure`: containers from the folder tree
+
+```jsonc
+"structure": {
+  "entries":  ["index.ts", "index.tsx", "index.js", "index.jsx", "index.vue"],  // default
+  "segments": [],                                                              // default; stratum:fsd sets model, ui, api, lib, config
+  "private":  ["_shared"]                                                      // default
+}
+```
+
+Names match whole path components, never substrings. Containers are derived from these names and the file set, never declared one by one:
+
+- Each layer is a container. An entry file directly in the layer folder is the layer's entry, never a slice.
+- In a `slices: true` layer, each direct child is a slice. A file slice is its own entry.
+- Below a slice, sub-unit or nested container, a direct child folder that holds an entry file is a **sub-unit**: isolated from its sibling sub-units, reached from outside only through its entry.
+- An entry-bearing folder deeper down (under a segment or collection folder, or directly under a layer without `slices`) is a **nested** container: reached through its entry, not isolated from its siblings.
+- A **segment** folder (`segments`) groups a container's files by purpose and is never a container. A folder without an entry file is a **collection** folder: its files belong to the enclosing container.
+- A **private zone** (`private`) is never a container. A module under `D/<zone>/...` may be imported only from under `D` (`stratum/visibility-scope`); when zones nest, the innermost wins.
+- Each container has a stage: 1 for a file slice, 4 when it has a sub-unit child, 3 when it has a segment folder child, 2 otherwise. Private zones count toward neither.
+
+Placement depends only on the set of file paths: adding an `index.ts` turns a collection folder into a container. `stratum-lint context <file>` prints the container, stage and entry a file gets.
 
 ## `extends`: presets and shared configs
 
@@ -9,22 +61,59 @@ Editors and agents validate `stratum.config.jsonc` against [`stratum.schema.json
 { "version": 1, "project": { "extends": "stratum:fsd" } }
 ```
 
-`extends` takes a file path relative to the extending config, or a built-in preset:
-
-- `stratum:recommended`: the rules zero-config mode turns on.
-- `stratum:fsd`: extends `stratum:recommended` and adds the Feature-Sliced Design layers `app → pages → widgets → features → entities → shared` under `src/<layer>`; each layer may import every layer below it.
+- `stratum:recommended`: severities for 12 built-ins (table below). `deep-module`, `promotion-pressure` and `import-policy` are not listed and run at their default severity unless set to `"off"`.
+- `stratum:fsd`: extends `stratum:recommended`; adds the Feature-Sliced Design layers `app → pages → widgets → features → entities → shared` under `src/<layer>`, each depending on every layer below it, with `slices: true` on pages, widgets, features and entities; sets `structure.segments` to `model, ui, api, lib, config`; tightens the severities in the fsd column.
 
 A parent may extend further; a cycle is an error. Merge, child over parent:
 
 | Key | Merge |
 |---|---|
-| `layers` | by `id`; a child entry overrides only the fields it sets, new ids are appended |
+| `layers` | by `id`; a child entry overrides only the fields it sets (`path`, `depends_on`, `slices`), new ids are appended |
 | `rules` | by slug; a child entry overrides only the fields it sets (`{ "severity": "off" }` keeps the parent's `options`) |
 | `overrides` | parent blocks first, then the child's |
-| `project.ignore` | parent globs first, then the child's |
+| `project` | field by field; `ignore` appends: parent globs first, then the child's |
+| `structure` | field by field; a child list replaces the parent's list |
 | anything else | the child's value |
 
-Errors fail the run with exit code 2: an unknown key, an unknown rule slug, an option the rule does not take or a wrongly typed one (the message names the slug and the key), a `depends_on` naming an undeclared layer, an invalid `project.ignore` glob.
+## Rules, severities and options
+
+`rules` is keyed by slug. `severity` is `error`, `warning`, `info` or `off`; a built-in absent from the merged config runs at its default severity. Only `error` makes `lint` exit 1.
+
+| Slug | Default | recommended | fsd | Options (default) |
+|---|---|---|---|---|
+| `stratum/no-cross-layer-import` | error | warning | warning | none |
+| `stratum/no-circular-deps` | error | error | error | none |
+| `stratum/purity` | error | warning | warning | none |
+| `stratum/visibility-scope` | error | error | error | none |
+| `stratum/public-api` | warning | warning | error | none |
+| `stratum/sibling-isolation` | warning | warning | error | none |
+| `stratum/import-policy` | error | | | list of policies, below |
+| `stratum/restricted-calls` | off | off | off | list of policies, below |
+| `stratum/stage-mixing` | off | off | error | none |
+| `stratum/container-breadth` | info | info | warning | `max_kinds` (6) |
+| `stratum/slice-fan-in` | off | off | warning | `max_fan_in` (5) |
+| `stratum/miller-limit` | warning | info | info | `max_children` (7) |
+| `stratum/promotion-pressure` | info | | | `threshold` (5) |
+| `stratum/deep-module` | info | | | `max_exports` (12) |
+| `stratum/depth-ratio` | info | info | info | `min_ratio` (3.0) |
+
+`stratum-lint explain <slug>` prints what a rule checks, why, how to fix a hit, and its options; `stratum-lint rules` lists the effective severity of every rule.
+`// @stratum-purity N` (1 pure to 4 side effects, default 2) in a file's leading comments sets its purity for `stratum/purity`.
+
+The configured severity is a cap: a rule may report a finding at a lower severity, never a higher one. `container-breadth` reports private-zone folders at `info` at most.
+
+## `overrides`: severity by glob
+
+```jsonc
+"overrides": [
+  { "files": ["src/legacy/**", "**/*.stories.ts"], "rules": { "stratum/no-cross-layer-import": { "severity": "off" } } }
+]
+```
+
+- `files` are globs matched against forward-slash paths relative to ROOT.
+- An override sets `severity` only; `options` and `script` come from the `rules` entry. Every slug must exist.
+- Blocks apply in order; for each rule the last matching block wins. The file is the violation's file; `stratum/no-circular-deps` reports whole cycles, so only its project-wide severity applies.
+- Overridden files stay in the graph and still make cycles and importers. Use `project.ignore` for code that is not part of the architecture.
 
 ## `project.ignore`: files outside the graph
 
@@ -32,14 +121,13 @@ Errors fail the run with exit code 2: an unknown key, an unknown rule slug, an o
 "project": { "ignore": ["src/public/**", "**/__tests__/**", "**/*.test.ts", "!**/build"] }
 ```
 
-Globs relative to the project root. An ignored file is not walked, parsed or put in the graph, and an import of it makes no edge, like an import of a package. A matching directory is skipped whole, so nothing under it can be un-ignored.
+Globs relative to ROOT. An ignored file is not walked, parsed or put in the graph, and an import of it makes no edge, like an import of a package. A matching directory is skipped whole, so nothing under it can be un-ignored.
 Built-in defaults come first in every config, zero-config included: `**/node_modules`, `**/dist`, `**/out`, `**/build`, `**/coverage`, `**/.git`, `**/*.d.ts`. The last matching glob wins; `!glob` un-ignores.
-`overrides` only change severity: the files stay in the graph and still make cycles and importers. Use `ignore` for code that is not part of the architecture (vendored bundles, tests).
 
 ## `stratum/import-policy`: import boundaries without scripting
 
 `options` is a list of policies. An import is reported once, with the message of the first policy that denies it.
-Globs are matched against paths relative to the project root; `*` stays within one path segment, `**` crosses segments.
+Globs are matched against paths relative to ROOT; `*` stays within one path segment, `**` crosses segments.
 
 | Key | Meaning |
 |---|---|
@@ -47,85 +135,90 @@ Globs are matched against paths relative to the project root; `*` stays within o
 | `except_from` | importing files the policy skips |
 | `deny` | imported files (required) |
 | `allow` | imported files exempt from `deny`, e.g. a slice's `index.ts` |
-| `slice` | glob of slice directories; imports inside one slice are allowed |
+| `slice` | glob of directories; an import between two files under the same matching directory is allowed |
 | `message` | violation text; the imported path is appended |
 
 ```jsonc
 "stratum/import-policy": {
   "severity": "error",
   "options": [
-    {
-      "from": ["src/features/**"],
-      "deny": ["src/features/**"],
-      "allow": ["src/features/*/index.ts"],
-      "slice": "src/features/*",
-      "message": "A feature imports another feature only through its index"
-    }
+    { "from": ["src/shared/**"], "deny": ["src/shared/legacy/**"], "message": "legacy is frozen" }
   ]
 }
 ```
 
 Only imports that resolve to files inside a layer are in the graph: bare package imports (`vue`) cannot be denied, and type-only imports count as imports.
-A full translation of an eslint-plugin-boundaries setup: [`examples/private-project.stratum.config.jsonc`](examples/private-project.stratum.config.jsonc).
+Slice isolation and entry-only access need no policy: declare `slices: true` and use `stratum/sibling-isolation` and `stratum/public-api`. A full translation of an eslint-plugin-boundaries setup: [`examples/private-project.stratum.config.jsonc`](examples/private-project.stratum.config.jsonc).
+
+## `stratum/restricted-calls`: calls allowed only in chosen files
+
+`options` is a list of policies. A call is reported, at its line, by the first policy that lists its name and does not allow the calling file.
+
+| Key | Meaning |
+|---|---|
+| `calls` | function names (required) |
+| `allow` | globs of files where these calls are allowed, relative to ROOT |
+| `message` | violation text; the called name is appended |
+
+```jsonc
+"stratum/restricted-calls": {
+  "severity": "error",
+  "options": [
+    { "calls": ["inject", "provide"], "allow": ["**/_shared/*-scope.ts"], "message": "Use useXxxScope()/provideXxxScope()" }
+  ]
+}
+```
+
+A plain identifier callee matches, and so does a local alias of an imported listed name (`import { inject as i }`, then `i()`). Member calls such as `x.inject()` do not. The parser collects calls only when the `rules` entry has options and the rule is on there or in some override.
 
 ## Rhai rules
 
-Stratum lets you write project-specific rules in [Rhai](https://rhai.rs/) — a small embedded scripting DSL — without touching Rust or rebuilding the linter. A Rhai rule is a `.rhai` script that runs once per module and returns a list of violations.
+A Rhai rule is a `.rhai` script, in the small embedded [Rhai](https://rhai.rs/) language, that runs once per module and returns a list of violations. No Rust and no rebuild of the linter.
 
-## Quickstart (< 30 min)
-
-1. Create `<your-rule>.rhai` somewhere inside your project, next to `stratum.config.jsonc` is conventional:
+1. Write the script, conventionally next to `stratum.config.jsonc`:
 
    ```rhai
    // no_legacy_imports.rhai
    fn check(m) {
-       if m.path.contains("/legacy/") {
-           return [
-               #{
-                   message: "Module is under src/legacy/ — phase out per migration plan.",
-                   line: 1,
-                   suggestion: "Move to the corresponding stable layer.",
-               }
-           ];
+       let out = [];
+       for i in m.imports {
+           if i.path.contains("/legacy/") {
+               out.push(#{ message: "imports legacy module " + i.path, suggestion: "Use the replacement in shared/." });
+           }
        }
-       return [];
+       out
    }
    ```
 
-2. Register the rule in `stratum.config.jsonc` under the conventional `custom/<slug>` namespace:
+2. Register it under a slug, conventionally `custom/<name>`:
 
    ```jsonc
-   {
-     "version": 1,
-     "layers": [ /* ... */ ],
-     "rules": {
-       "custom/no-legacy-imports": {
-         "severity": "error",
-         "script": "./no_legacy_imports.rhai"
-       }
-     }
+   "rules": {
+     "custom/no-legacy-imports": { "severity": "error", "script": "./no_legacy_imports.rhai" }
    }
    ```
 
-3. Run `stratum-lint .` — the violation will appear alongside built-in rule output.
+   The `script` path is relative to ROOT, also when it comes from an extended config.
 
-## The `ModuleView` shape
+3. Run `stratum-lint`: the violation appears next to the built-in ones, named by the slug.
 
-The script defines `fn check(m)` or `fn check(m, options)`; a script with neither fails to load.
-`m` is a `ModuleView` proxy with these fields.
+### `check` and the `ModuleView`
+
+The script defines `fn check(m)` or `fn check(m, options)`; a script with neither fails to load (exit 2).
+`options` is the rule's `options` value from the config as a Rhai value (`()` when unset). Stratum does not validate it: check the keys you read.
+
+`m` is a read-only `ModuleView`:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `m.id` | `int` | Stable numeric module id. |
+| `m.id` | `int` | Module id. |
 | `m.path` | `string` | Absolute module path with forward slashes. |
-| `m.layer` | `string` | The layer name from `stratum.config.jsonc`. |
-| `m.container` | `int` | Stable numeric container id. |
-| `m.purity` | `int` | Purity rank (1–4). |
-| `m.dependents` | `array` of `int` | Module ids that depend on this module. |
-| `m.imports` | `array` of `map` | Imports that resolve to a module in a layer: `#{ path, layer, kind }`, `kind` is `"static"`, `"di"` or `"runtime"`. Package imports are absent. |
-| `m.metadata` | `map` | Reserved for future `@stratum-*` annotations; currently empty. |
-
-`options` is the rule's `options` value from the config as a Rhai value (`()` when unset). Stratum does not validate it: check the keys you read.
+| `m.layer` | `string` | The layer `id` from the config. |
+| `m.container` | `int` | Id of the innermost container. Deterministic for a given file set, not stable when files are added or removed. |
+| `m.purity` | `int` | Purity rank, 1–4. |
+| `m.dependents` | `array` of `int` | Ids of the modules that import this one. |
+| `m.imports` | `array` of `map` | Imports that resolve to a module in a layer: `#{ path, layer, kind }`, with `path` absolute and `kind` one of `"static"`, `"di"`, `"runtime"`. Package imports and raw specifiers are absent. |
+| `m.metadata` | `map` | Reserved; empty. |
 
 ```rhai
 fn check(m, options) {
@@ -139,7 +232,19 @@ fn check(m, options) {
 }
 ```
 
-## Documenting the rule
+### The return shape
+
+Return an `Array` of `Map` entries, one per violation; `[]` means none. Entries that are not maps are skipped.
+
+| Key | Type | Required | Description |
+|-----|------|----------|-------------|
+| `message` | `string` | yes | The diagnostic message. |
+| `line` | `int` | no (defaults to 1) | 1-based line of the source location. |
+| `suggestion` | `string` | no | Advice text, never an auto-applied fix. |
+
+The severity comes from the config; the script never sets it. A `check` call that fails at runtime logs `[rhai-rule <slug>] call_fn failed: ...` to stderr and reports nothing for that module.
+
+### `doc()`
 
 An optional `fn doc()` returning a map makes `stratum-lint rules` and `explain` show the rule like a built-in. It runs once at load; a wrong shape fails the load.
 
@@ -154,39 +259,9 @@ fn doc() {
 }
 ```
 
-## The return shape
+### Sandbox, loading, ids
 
-Return an `Array` of `Map` entries. Each map represents one violation:
-
-| Key | Type | Required | Description |
-|-----|------|----------|-------------|
-| `message` | `string` | yes | The human-readable diagnostic message. |
-| `line` | `int` | no (defaults to 1) | 1-based line number for the source location. |
-| `suggestion` | `string` | no | Advice text — never an auto-applied fix (PRD decision #10). |
-
-Return `[]` to mean "no violation". The `severity` is taken from `stratum.config.jsonc`; the script never sets it.
-
-## Sandboxing
-
-Stratum's Rhai engine is constructed with the Rhai standard package plus these explicit limits:
-
-- `eval` is disabled.
-- `max_expr_depths(64, 32)`, `max_call_levels(32)`.
-- `max_operations(100_000)` — caps total instruction count per `check`.
-- `max_string_size(8_192)`, `max_array_size(4_096)`.
-
-Filesystem, network, and process access are **not** available — the standard Rhai package omits them by construction. If your rule needs project-wide data it does not see in `ModuleView`, file a feature request; we will not add `read_file` / `system` / `http` to the sandbox.
-
-## Performance
-
-Rhai scripts run once per `ModuleId`. As of Phase 9, no precompilation per-module is performed — each call re-pushes the `ModuleView` into a fresh scope. The PRD target of "Rhai overhead < 30% vs equivalent built-in" is not yet empirically gated; that benchmark is filed as a Phase 10 follow-up.
-
-## Reloading
-
-Today, the runtime loads each script once at `stratum-lint` startup. The Phase 4 `--watch` mode rebuilds the pipeline on file changes; a `.rhai` script change will be picked up on the next file event. Dedicated hot-reload (a `.rhai` save invalidating only the affected rule without rebuilding the graph) is a Phase 10 follow-up.
-
-## Multiple custom rules
-
-Each registered `custom/...` slug consumes one `RuleId` starting from `1000` (see `stratum_plugins_rhai::PLUGIN_ID_FLOOR`). The order in `stratum.config.jsonc` determines the id assignment. Built-in rule ids stay below `1000`; the gap reserved for built-ins prevents collisions.
-
-A `script` path is relative to the project root, also when it comes from an extended config.
+- The engine is Rhai's standard package with `eval` disabled, `max_expr_depths(64, 32)`, `max_call_levels(32)`, `max_operations(100_000)` per call, `max_string_size(8_192)` and `max_array_size(4_096)`. Filesystem, network and process access are not available. `print` and `debug` go to stderr.
+- The CLI loads each script at startup; `--watch` reloads it on the next file event. `stratum-lsp` watches every script referenced from the config and rebuilds when one changes.
+- Scripts run once per module. No benchmark gates their overhead yet.
+- Plugin rules get internal ids from `1000` up, in alphabetical slug order; outputs only ever show slugs.

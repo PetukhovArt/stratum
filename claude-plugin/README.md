@@ -2,9 +2,9 @@
 
 Wires Stratum into Claude Code. The contract it builds on is [docs/harness.md](../docs/harness.md).
 
-- After each `Edit` / `Write` of a `.ts/.tsx/.mts/.cts/.js/.vue` file, `stratum-lint hook` lints that file and adds its new error and warning violations to the model's context (capped at 10). A clean file adds nothing.
-- On Stop, the same command gates the changed files and blocks the stop while error-severity violations remain.
-- The `stratum` skill.
+- After each `Edit` / `Write` of a `.ts/.tsx/.mts/.cts/.js/.jsx/.mjs/.cjs/.vue` file under the project, `stratum-lint hook` lints that file and adds its new error and warning violations to the model's context (capped at 10 examples). A clean file adds nothing.
+- On Stop, the same command gates the changed files and blocks the stop while new error-severity violations remain.
+- The `stratum` skill: run `stratum-lint context` before placing a file, read reports by rule group, and propose a config change when a rule or the layer/slice map is wrong.
 
 LSP diagnostics live in the separate `stratum-lsp` plugin ([claude-plugin-lsp](../claude-plugin-lsp/README.md)), because Claude Code gives each extension to one language server and `typescript-lsp` usually holds `.ts`.
 

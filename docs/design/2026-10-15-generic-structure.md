@@ -1,6 +1,15 @@
 # Generic structure: containers, stage, purity
 
-Status: proposal, 2026-10-15, base `main` f003638 (`project.ignore` merged). It assumes that the export-counting branch and the incremental-LSP branch merge first. Sources: folder-structure `fsd-spec.md` section "Linting" (~836-949) and `folder-structure-architecture/*.html`.
+Status: implemented, 2026-10-15, in slices S0–S5 (8dded36 to c7cb60a). Written as a proposal against base `main` f003638 (`project.ignore` merged); the line references below point at that base and have since moved. Sources: folder-structure `fsd-spec.md` section "Linting" (~836-949) and `folder-structure-architecture/*.html`.
+
+Deviations from this proposal:
+- `stage-mixing` reads `Container.segment_dirs`, recorded by placement, instead of segment names injected into its options by the runner; the rule takes no options (3d92cdd).
+- The runner caps severity instead of overwriting it: rules run at `error` and each finding is clamped to the configured severity, so a rule may downgrade its own findings. `container-breadth` reports private-zone folders at `info` at most.
+- An entry file directly in a sliced layer's root is the layer's entry, never a file slice (b21fbe6).
+- `slice-fan-in` is scoped per slice (`Scope = ContainerId` over `Slice` containers), not per module.
+- Snapshot v2 containers carry `kind` and `entry` as well as `path` and `stage`.
+- The `context` brief also names the enclosing slice and adds a `may not import` line built from the active `sibling-isolation` and `public-api` rules.
+- Zero-config applies `stratum:recommended` with `public-api`, `sibling-isolation` and `container-breadth` off, because without declared layers and structure they flood the first run (c7cb60a).
 
 ## 0. Current code
 
@@ -137,31 +146,31 @@ Rule details:
 
 ## 6. Rename checklist (stage to purity)
 
-- [ ] `crates/stratum-core/src/stage.rs` becomes `purity.rs`: `Stage` -> `Purity`, `InvalidStage` -> `InvalidPurity`. Also update `lib.rs:17,27`, `tests/properties.rs:4-26`, and `Module.stage` -> `Module.purity` (`types.rs:18`).
-- [ ] `// @stratum-stage N` becomes `// @stratum-purity N`:
+- [x] `crates/stratum-core/src/stage.rs` becomes `purity.rs`: `Stage` -> `Purity`, `InvalidStage` -> `InvalidPurity`. Also update `lib.rs:17,27`, `tests/properties.rs:4-26`, and `Module.stage` -> `Module.purity` (`types.rs:18`).
+- [x] `// @stratum-stage N` becomes `// @stratum-purity N`:
   - `extract_stage` -> `extract_purity` (`annotations.rs:6,14`, `crates/stratum-parser-ts/src/lib.rs:12`, `oxc_ts.rs:4,52,57`);
   - `ExtractedData.stage` -> `purity` (`extractor.rs:31-33`);
   - the Vue extractor (`crates/stratum-parser-vue/src/script_extractor.rs:5,54`);
   - the fixtures `tests/fixtures/tiny-ts-violations/src/shared/api/http.ts:1` and `.../features/cart/cart.tsx:1`.
-- [ ] `BuildConfig.default_stage` -> `default_purity` (`builder.rs:54,169,286,378`, `pipeline.rs:66`, the three benches, every `Stage::new(2)` in tests). Also the incremental `update_module`.
-- [ ] `stratum/stage-purity` -> `stratum/purity`:
+- [x] `BuildConfig.default_stage` -> `default_purity` (`builder.rs:54,169,286,378`, `pipeline.rs:66`, the three benches, every `Stage::new(2)` in tests). Also the incremental `update_module`.
+- [x] `stratum/stage-purity` -> `stratum/purity`:
   - `stage_purity.rs` -> `purity.rs`;
   - `STAGE_PURITY` -> `PURITY` (`crates/stratum-rules/src/ids.rs:5,19,36`);
   - `registry.rs:163,169`, `docs.rs:25-28`, `presets.rs:16`, `reporters/agent.rs:206`;
   - the three fixture configs and the snapshots: rerun `cargo insta`.
-- [ ] `context.rs`: `DEFAULT_STAGE` (`:23`) and the brief fields (`:33-36,136-144,230-240`), with snapshots.
-- [ ] Rhai `ModuleView.stage` -> `purity` (`crates/stratum-plugins-rhai/src/module_view.rs:18,68,82,106`) and `docs/custom-rules.md:113`.
-- [ ] Snapshot v2 (`crates/stratum-graph/src/snapshot.rs:11,30,66`):
+- [x] `context.rs`: `DEFAULT_STAGE` (`:23`) and the brief fields (`:33-36,136-144,230-240`), with snapshots.
+- [x] Rhai `ModuleView.stage` -> `purity` (`crates/stratum-plugins-rhai/src/module_view.rs:18,68,82,106`) and `docs/custom-rules.md:113`.
+- [x] Snapshot v2 (`crates/stratum-graph/src/snapshot.rs:11,30,66`):
   - `module.stage` -> `module.purity`;
   - `container` gains `path` and `stage`.
-- [ ] Frontend (`frontend/stratum-visualizer-frontend/src/`):
+- [x] Frontend (`frontend/stratum-visualizer-frontend/src/`):
   - in `types.ts:14-27,66`, the snapshot types change and the version becomes 2;
   - in `adapt.ts`, `:150` becomes `purity`, `:122` takes `c.stage`, and `computeStage`/`containerStage` (`:223-275`) are deleted;
   - `state.ts:27` `colorMode` becomes `'layer'|'stage'|'purity'`, with stage for containers and purity for modules;
   - `Header.tsx:126-172` becomes a purity filter with purity labels;
-  - `Panels.tsx:73-86` keeps its folder-structure labels for containers only.
-- [ ] Docs: `docs/visualizer.md:47,71,85`, the `UBIQUITOUS_LANGUAGE.md` rows (section 8), and a new CHANGELOG entry. Historical plans under `docs/superpowers/` stay unchanged.
-- [ ] Baseline fingerprints keyed by the old slug go stale. That is accepted, because there are no users yet.
+  - `Panels.tsx:73-86` keeps its folder-structure labels for containers only. (Panels.tsx was later split; the details panel shows the stage as a facet chip.)
+- [x] Docs: `docs/visualizer.md:47,71,85`, the `UBIQUITOUS_LANGUAGE.md` rows (section 8), and a new CHANGELOG entry. The historical plans under `docs/superpowers/` were deleted afterwards; git keeps them.
+- [x] Baseline fingerprints keyed by the old slug go stale. That is accepted, because there are no users yet.
 
 ## 7. Work split (after the export and incremental branches merge)
 
