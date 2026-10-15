@@ -28,7 +28,7 @@ impl GraphBuilder {
             .values()
             .filter_map(|m| Some((Utf8PathBuf::from_path_buf(m.path.clone()).ok()?, m.id)))
             .collect();
-        let edges = self.edges_of(path, source, &path_to_id)?;
+        let (exports, edges) = self.edges_of(path, source, &path_to_id)?;
         let stage = stratum_parser_ts::extract_stage(source).unwrap_or(self.config.default_stage);
 
         let old: Vec<(ModuleId, EdgeKind)> = graph
@@ -38,7 +38,7 @@ impl GraphBuilder {
             .filter(|e| e.source() == node)
             .map(|e| (graph.deps[e.target()], e.weight))
             .collect();
-        if old == edges && module.stage == stage {
+        if old == edges && module.stage == stage && module.exports == exports {
             return Ok(false);
         }
 
@@ -71,6 +71,7 @@ impl GraphBuilder {
         graph.deps = deps;
         if let Some(m) = graph.modules.get_mut(&id) {
             m.stage = stage;
+            m.exports = exports;
         }
         Ok(true)
     }
