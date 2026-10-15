@@ -1,11 +1,14 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use camino::{Utf8Path, Utf8PathBuf};
 use rustc_hash::FxHashMap;
 use walkdir::WalkDir;
 
-use stratum_core::ids::{ContainerId, ModuleId};
+use stratum_core::edge::EdgeKind;
+use stratum_core::ids::{ContainerId, LayerId, ModuleId};
 use stratum_core::stage::Stage;
 use stratum_core::types::{Container, Layer, Module};
 use stratum_core::visibility::VisibilityScope;
@@ -122,93 +125,183 @@ impl GraphBuilder {
             );
         }
 
-        let mut next_module_id: u32 = 0;
+        let mut modules: Vec<(ModuleId, LayerId, Utf8PathBuf)> = Vec::new();
+        let mut sizes: Vec<u64> = Vec::new();
         let mut path_to_id: FxHashMap<Utf8PathBuf, ModuleId> = FxHashMap::default();
-        let mut id_to_path: Vec<(ModuleId, Utf8PathBuf)> = Vec::new();
-
-        let mut entries: Vec<_> = WalkDir::new(root.as_std_path())
-            .into_iter()
-            .filter_map(Result::ok)
-            .filter(|e| e.file_type().is_file())
-            .collect();
-        entries.sort_by_key(|e| e.path().to_path_buf());
-
-        for entry in entries {
-            let Some(raw) = Utf8PathBuf::from_path_buf(entry.path().to_path_buf()).ok() else {
+        for (path, size) in self.walk_sources(root) {
+            if self.pick_extractor(&path).is_none() {
                 continue;
-            };
-            let path = strip_windows_extended_prefix(&raw);
-            let Some(extractor) = self.pick_extractor(path.as_ref()) else {
-                continue;
-            };
-            let _ = extractor;
-            let stripped_root = strip_windows_extended_prefix(root);
-            let Ok(rel) = path.strip_prefix(&stripped_root) else {
+            }
+            let Ok(rel) = path.strip_prefix(root) else {
                 continue;
             };
             let Some(layer) = assign_layer(&self.config.layers, rel) else {
                 continue;
             };
-
-            let id = ModuleId::new(next_module_id);
-            next_module_id = next_module_id.wrapping_add(1);
-
-            let annotated_stage = std::fs::read_to_string(path.as_std_path())
-                .ok()
-                .and_then(|s| stratum_parser_ts::extract_stage(&s));
-
-            let module = Module {
-                id,
-                path: PathBuf::from(path.as_str()),
-                container: ContainerId::new(layer.raw()),
-                layer,
-                stage: annotated_stage.unwrap_or(self.config.default_stage),
-                visibility: self.config.default_visibility.clone(),
-            };
-            let node = graph.deps.add_node(id);
-            graph.node_index.insert(id, node);
-            graph.modules.insert(id, module);
+            let id = ModuleId::new(u32::try_from(modules.len()).unwrap_or(u32::MAX));
             path_to_id.insert(path.clone(), id);
-            id_to_path.push((id, path));
+            modules.push((id, layer, path));
+            sizes.push(size);
         }
 
-        for (from_id, from_path) in &id_to_path {
-            let source =
-                fs::read_to_string(from_path.as_std_path()).map_err(|e| BuildError::Io {
-                    path: from_path.clone(),
-                    source: e,
-                })?;
-            let extractor =
-                self.pick_extractor(from_path.as_ref())
-                    .ok_or_else(|| BuildError::Parser {
-                        path: from_path.clone(),
-                        source: stratum_parser_ts::ExtractError::UnsupportedExtension(
-                            from_path.clone(),
-                        ),
-                    })?;
-            let data = extractor
-                .extract(from_path.as_ref(), &source)
-                .map_err(|e| BuildError::Parser {
-                    path: from_path.clone(),
-                    source: e,
-                })?;
-            for imp in &data.imports {
-                let Ok(target_raw) = self.resolver.resolve(from_path.as_ref(), &imp.specifier)
-                else {
-                    continue;
-                };
-                let target_path = strip_windows_extended_prefix(&target_raw);
-                let Some(to_id) = path_to_id.get(&target_path).copied() else {
-                    continue;
-                };
-                let from_node = graph.node_index[from_id];
+        let scanned = self.scan_all(&modules, &sizes, &path_to_id);
+
+        for ((id, layer, path), scan) in modules.iter().zip(&scanned) {
+            let module = Module {
+                id: *id,
+                path: PathBuf::from(path.as_str()),
+                container: ContainerId::new(layer.raw()),
+                layer: *layer,
+                stage: scan.stage.unwrap_or(self.config.default_stage),
+                visibility: self.config.default_visibility.clone(),
+            };
+            let node = graph.deps.add_node(*id);
+            graph.node_index.insert(*id, node);
+            graph.modules.insert(*id, module);
+        }
+
+        for ((from_id, _, _), scan) in modules.iter().zip(scanned) {
+            let edges = scan.edges?;
+            let from_node = graph.node_index[from_id];
+            for (to_id, kind) in edges {
                 let to_node = graph.node_index[&to_id];
-                graph.deps.add_edge(from_node, to_node, imp.kind);
+                graph.deps.add_edge(from_node, to_node, kind);
             }
         }
 
         Ok(graph)
     }
+
+    fn walk_sources(&self, root: &Utf8Path) -> Vec<(Utf8PathBuf, u64)> {
+        let root_std = root.as_std_path();
+        let layer_paths: Vec<&Path> = self
+            .config
+            .layers
+            .iter()
+            .map(|l| l.path.as_path())
+            .collect();
+        let reachable = |dir: &Path| {
+            dir.strip_prefix(root_std).map_or(true, |rel| {
+                layer_paths
+                    .iter()
+                    .any(|lp| rel.starts_with(lp) || lp.starts_with(rel))
+            })
+        };
+        let mut paths: Vec<(Utf8PathBuf, u64)> = WalkDir::new(root_std)
+            .into_iter()
+            .filter_entry(|e| !e.file_type().is_dir() || reachable(e.path()))
+            .filter_map(Result::ok)
+            .filter(|e| e.file_type().is_file())
+            .filter_map(|e| {
+                let size = e.metadata().map_or(0, |m| m.len());
+                let path = Utf8PathBuf::from_path_buf(e.into_path()).ok()?;
+                Some((strip_windows_extended_prefix(&path), size))
+            })
+            .collect();
+        paths.sort_unstable();
+        paths
+    }
+
+    fn scan_all(
+        &self,
+        modules: &[(ModuleId, LayerId, Utf8PathBuf)],
+        sizes: &[u64],
+        path_to_id: &FxHashMap<Utf8PathBuf, ModuleId>,
+    ) -> Vec<Scan> {
+        let mut largest_first: Vec<usize> = (0..modules.len()).collect();
+        largest_first.sort_by_key(|&i| std::cmp::Reverse(sizes[i]));
+        let workers = std::thread::available_parallelism()
+            .map_or(1, std::num::NonZeroUsize::get)
+            .min(MAX_WORKERS)
+            .min(modules.len().max(1));
+        let next = AtomicUsize::new(0);
+        let large_file = Mutex::new(());
+        let mut indexed: Vec<(usize, Scan)> = std::thread::scope(|s| {
+            let handles: Vec<_> = (0..workers)
+                .map(|_| {
+                    s.spawn(|| {
+                        let mut out = Vec::new();
+                        loop {
+                            let Some(&i) = largest_first.get(next.fetch_add(1, Ordering::Relaxed))
+                            else {
+                                break;
+                            };
+                            let (_, _, path) = &modules[i];
+                            out.push((i, self.scan(path, path_to_id, &large_file)));
+                        }
+                        out
+                    })
+                })
+                .collect();
+            handles
+                .into_iter()
+                .flat_map(|h| h.join().unwrap_or_default())
+                .collect()
+        });
+        indexed.sort_unstable_by_key(|(i, _)| *i);
+        indexed.into_iter().map(|(_, scan)| scan).collect()
+    }
+
+    fn scan(
+        &self,
+        path: &Utf8Path,
+        path_to_id: &FxHashMap<Utf8PathBuf, ModuleId>,
+        large_file: &Mutex<()>,
+    ) -> Scan {
+        let source = match fs::read_to_string(path.as_std_path()) {
+            Ok(s) => s,
+            Err(e) => {
+                return Scan {
+                    stage: None,
+                    edges: Err(BuildError::Io {
+                        path: path.to_path_buf(),
+                        source: e,
+                    }),
+                };
+            }
+        };
+        let _serial = (source.len() > LARGE_FILE_BYTES).then(|| large_file.lock());
+        let stage = stratum_parser_ts::extract_stage(&source);
+        let edges = self.edges_of(path, &source, path_to_id);
+        Scan { stage, edges }
+    }
+
+    fn edges_of(
+        &self,
+        path: &Utf8Path,
+        source: &str,
+        path_to_id: &FxHashMap<Utf8PathBuf, ModuleId>,
+    ) -> Result<Vec<(ModuleId, EdgeKind)>, BuildError> {
+        let extractor = self
+            .pick_extractor(path)
+            .ok_or_else(|| BuildError::Parser {
+                path: path.to_path_buf(),
+                source: stratum_parser_ts::ExtractError::UnsupportedExtension(path.to_path_buf()),
+            })?;
+        let data = extractor
+            .extract(path, source)
+            .map_err(|e| BuildError::Parser {
+                path: path.to_path_buf(),
+                source: e,
+            })?;
+        Ok(data
+            .imports
+            .iter()
+            .filter_map(|imp| {
+                let target = self.resolver.resolve(path, &imp.specifier).ok()?;
+                let id = path_to_id.get(&strip_windows_extended_prefix(&target))?;
+                Some((*id, imp.kind))
+            })
+            .collect())
+    }
+}
+
+const LARGE_FILE_BYTES: usize = 1 << 20;
+const MAX_WORKERS: usize = 8;
+
+struct Scan {
+    stage: Option<Stage>,
+    edges: Result<Vec<(ModuleId, EdgeKind)>, BuildError>,
 }
 
 #[cfg(test)]

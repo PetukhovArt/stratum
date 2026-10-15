@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use stratum_core::{
     ids::{ModuleId, RuleId},
@@ -37,35 +37,45 @@ impl Rule for CrossEntityPattern {
         severity: Severity,
     ) -> Vec<Violation> {
         let mut entity_modules: BTreeMap<String, Vec<ModuleId>> = BTreeMap::new();
+        let mut entity_of: HashMap<ModuleId, String> = HashMap::new();
         for (mid, m) in &graph.modules {
             if let Some(name) = entity_name(&m.path.to_string_lossy()) {
-                entity_modules.entry(name).or_default().push(*mid);
+                entity_modules.entry(name.clone()).or_default().push(*mid);
+                entity_of.insert(*mid, name);
+            }
+        }
+
+        let mut feature_importers: HashMap<&str, BTreeSet<String>> = HashMap::new();
+        for (importer_id, importer) in &graph.modules {
+            let Some(feat) = feature_name(&importer.path.to_string_lossy()) else {
+                continue;
+            };
+            let Some(node) = graph.node_for(*importer_id) else {
+                continue;
+            };
+            let own_entity = entity_of.get(importer_id);
+            for e in graph
+                .deps
+                .edges_directed(node, petgraph::Direction::Outgoing)
+            {
+                let Some(entity) = entity_of.get(&graph.deps[e.target()]) else {
+                    continue;
+                };
+                if own_entity != Some(entity) {
+                    feature_importers
+                        .entry(entity.as_str())
+                        .or_default()
+                        .insert(feat.clone());
+                }
             }
         }
 
         let mut out = Vec::new();
         for (entity, members) in &entity_modules {
-            let member_set: BTreeSet<ModuleId> = members.iter().copied().collect();
-            let mut feature_importers: BTreeSet<String> = BTreeSet::new();
-            for (importer_id, importer) in &graph.modules {
-                if member_set.contains(importer_id) {
-                    continue;
-                }
-                let Some(feat) = feature_name(&importer.path.to_string_lossy()) else {
-                    continue;
-                };
-                let Some(node) = graph.node_for(*importer_id) else {
-                    continue;
-                };
-                let imports_entity = graph
-                    .deps
-                    .edges_directed(node, petgraph::Direction::Outgoing)
-                    .any(|e| member_set.contains(&graph.deps[e.target()]));
-                if imports_entity {
-                    feature_importers.insert(feat);
-                }
-            }
-            let fanout = u32::try_from(feature_importers.len()).unwrap_or(u32::MAX);
+            let fanout = feature_importers
+                .get(entity.as_str())
+                .map_or(0, BTreeSet::len);
+            let fanout = u32::try_from(fanout).unwrap_or(u32::MAX);
             if fanout <= options.max_fanout {
                 continue;
             }
