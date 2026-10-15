@@ -25,7 +25,7 @@ proptest! {
             .map(|(i, s)| format!(r#"import x{i} from "{s}";"#))
             .collect::<Vec<_>>()
             .join("\n");
-        let e = OxcTsExtractor::new();
+        let e = OxcTsExtractor::default();
         let a = e.extract(Utf8Path::new("x.ts"), &src).unwrap();
         prop_assert_eq!(a.imports.len(), specs.len());
         for (i, s) in specs.iter().enumerate() {

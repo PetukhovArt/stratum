@@ -22,7 +22,7 @@ export function App() {
 "#;
 
 fn bench_extract(c: &mut Criterion) {
-    let e = OxcTsExtractor::new();
+    let e = OxcTsExtractor::default();
     c.bench_function("oxc_extract_small_tsx", |b| {
         b.iter(|| {
             let data = e

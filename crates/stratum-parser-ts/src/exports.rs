@@ -83,6 +83,7 @@ mod tests {
             SourceType::default()
                 .with_typescript(true)
                 .with_module(true),
+            &std::collections::HashSet::new(),
         )
         .exports
     }

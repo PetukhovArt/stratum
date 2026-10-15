@@ -12,8 +12,9 @@ use stratum_core::edge::EdgeKind;
 use stratum_core::ids::ModuleId;
 use stratum_core::purity::Purity;
 use stratum_core::structure::Structure;
-use stratum_core::types::{Exports, Layer, Module};
-use stratum_parser_ts::{LanguageExtractor, OxcTsExtractor, PathResolver};
+use stratum_core::types::{Call, Exports, Layer, Module};
+use stratum_core::violation::SourceLocation;
+use stratum_parser_ts::{LanguageExtractor, OxcTsExtractor, PathResolver, offset_to_line_col};
 
 use crate::graph::CompoundGraph;
 use crate::placement::place;
@@ -83,9 +84,10 @@ impl GraphBuilder {
     pub fn new(mut config: BuildConfig) -> Self {
         config.project_root = strip_windows_extended_prefix(&config.project_root);
         let resolver = PathResolver::new(&config.project_root);
+        let ts = OxcTsExtractor::new(config.tracked_calls.clone());
         Self {
             config,
-            extractors: vec![Box::new(OxcTsExtractor::new())],
+            extractors: vec![Box::new(ts)],
             resolver,
             ignore: Box::new(|_| false),
         }
@@ -151,7 +153,7 @@ impl GraphBuilder {
             .enumerate()
             .map(|(i, p)| (p.to_path_buf(), module_id(i)))
             .collect();
-        let facts: Vec<FileFacts> = self
+        let mut facts: Vec<FileFacts> = self
             .scan_all(&paths, &sizes, &path_to_id)
             .into_iter()
             .collect::<Result<_, _>>()?;
@@ -166,7 +168,7 @@ impl GraphBuilder {
                 purity: facts[i].purity.unwrap_or(self.config.default_purity),
                 visibility: placed.visibility,
                 exports: facts[i].exports,
-                calls: vec![],
+                calls: std::mem::take(&mut facts[i].calls),
             };
             let node = graph.deps.add_node(id);
             graph.node_index.insert(id, node);
@@ -302,10 +304,22 @@ impl GraphBuilder {
                 Some((*id, imp.kind))
             })
             .collect();
+        let calls = data
+            .calls
+            .into_iter()
+            .map(|call| {
+                let (line, column) = offset_to_line_col(source, call.span.start);
+                Call {
+                    name: call.name,
+                    location: SourceLocation { line, column },
+                }
+            })
+            .collect();
         Ok(FileFacts {
             purity: data.purity,
             exports: data.exports,
             edges,
+            calls,
         })
     }
 }
@@ -321,6 +335,7 @@ struct FileFacts {
     purity: Option<Purity>,
     exports: Exports,
     edges: Vec<(ModuleId, EdgeKind)>,
+    calls: Vec<Call>,
 }
 
 type Scan = Result<FileFacts, BuildError>;

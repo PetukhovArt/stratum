@@ -1,10 +1,12 @@
 use std::cell::RefCell;
+use std::collections::HashSet;
+use std::hash::BuildHasher;
 
 use oxc_allocator::Allocator;
 use oxc_ast::Visit;
 use oxc_ast::ast::{
     Argument, CallExpression, ExportAllDeclaration, ExportNamedDeclaration, Expression,
-    ImportDeclaration, ImportExpression,
+    ImportDeclaration, ImportDeclarationSpecifier, ImportExpression,
 };
 use oxc_ast::visit::walk;
 use oxc_parser::Parser;
@@ -13,7 +15,7 @@ use stratum_core::edge::EdgeKind;
 use stratum_core::types::Exports;
 
 use crate::exports::count_exports;
-use crate::extractor::RawImport;
+use crate::extractor::{RawCall, RawImport};
 use crate::source_span::SourceSpan;
 
 #[derive(Debug)]
@@ -23,18 +25,24 @@ pub struct Collected {
     pub imports: Vec<RawImport>,
     /// Top-level ES exports only; `module.exports` / `exports.x` are not counted.
     pub exports: Exports,
+    pub calls: Vec<RawCall>,
 }
 
 #[must_use]
-pub fn collect(source: &str, source_type: SourceType) -> Collected {
+pub fn collect<S: BuildHasher>(
+    source: &str,
+    source_type: SourceType,
+    tracked: &HashSet<String, S>,
+) -> Collected {
     ARENA.with_borrow_mut(|allocator| {
         let collected = {
             let ret = Parser::new(allocator, source, source_type).parse();
-            let mut visitor = ImportVisitor::default();
+            let mut visitor = ImportVisitor::new(tracked);
             visitor.visit_program(&ret.program);
             Collected {
                 imports: visitor.imports,
                 exports: count_exports(&ret.program),
+                calls: visitor.calls,
             }
         };
         if allocator.allocated_bytes() > ARENA_KEEP_BYTES {
@@ -52,12 +60,63 @@ thread_local! {
     static ARENA: RefCell<Allocator> = RefCell::new(Allocator::default());
 }
 
-#[derive(Default)]
-struct ImportVisitor {
+struct ImportVisitor<'t, S> {
+    tracked: &'t HashSet<String, S>,
+    aliases: Vec<(String, String)>,
     imports: Vec<RawImport>,
+    calls: Vec<RawCall>,
 }
 
-impl ImportVisitor {
+impl<'t, S: BuildHasher> ImportVisitor<'t, S> {
+    const fn new(tracked: &'t HashSet<String, S>) -> Self {
+        Self {
+            tracked,
+            aliases: Vec::new(),
+            imports: Vec::new(),
+            calls: Vec::new(),
+        }
+    }
+
+    fn record_aliases(&mut self, decl: &ImportDeclaration<'_>) {
+        if self.tracked.is_empty() {
+            return;
+        }
+        for spec in decl.specifiers.iter().flatten() {
+            let ImportDeclarationSpecifier::ImportSpecifier(spec) = spec else {
+                continue;
+            };
+            let imported = spec.imported.name();
+            if spec.local.name != imported && self.tracked.contains(imported.as_str()) {
+                self.aliases
+                    .push((spec.local.name.to_string(), imported.to_string()));
+            }
+        }
+    }
+
+    fn record_call(&mut self, call: &CallExpression<'_>) {
+        if self.tracked.is_empty() {
+            return;
+        }
+        let Expression::Identifier(callee) = &call.callee else {
+            return;
+        };
+        let local = callee.name.as_str();
+        let name = if self.tracked.contains(local) {
+            Some(local.to_owned())
+        } else {
+            self.aliases
+                .iter()
+                .find(|(alias, _)| alias == local)
+                .map(|(_, imported)| imported.clone())
+        };
+        if let Some(name) = name {
+            self.calls.push(RawCall {
+                name,
+                span: SourceSpan::new(call.span.start, call.span.end),
+            });
+        }
+    }
+
     fn push(&mut self, specifier: &str, start: u32, end: u32, kind: EdgeKind, type_only: bool) {
         self.imports.push(RawImport {
             specifier: specifier.to_owned(),
@@ -68,8 +127,9 @@ impl ImportVisitor {
     }
 }
 
-impl<'a> Visit<'a> for ImportVisitor {
+impl<'a, S: BuildHasher> Visit<'a> for ImportVisitor<'_, S> {
     fn visit_import_declaration(&mut self, decl: &ImportDeclaration<'a>) {
+        self.record_aliases(decl);
         let src = &decl.source;
         self.push(
             src.value.as_str(),
@@ -120,6 +180,7 @@ impl<'a> Visit<'a> for ImportVisitor {
     }
 
     fn visit_call_expression(&mut self, call: &CallExpression<'a>) {
+        self.record_call(call);
         if is_require_callee(&call.callee) && call.arguments.len() == 1 {
             if let Some(Argument::StringLiteral(lit)) = call.arguments.first() {
                 self.push(
@@ -145,7 +206,25 @@ mod tests {
     use super::*;
 
     fn collect_imports(source: &str, source_type: SourceType) -> Vec<RawImport> {
-        collect(source, source_type).imports
+        collect(source, source_type, &HashSet::new()).imports
+    }
+
+    fn call_names(source: &str, tracked: &[&str]) -> Vec<String> {
+        let tracked: HashSet<String> = tracked.iter().map(|s| (*s).to_owned()).collect();
+        collect(source, ts_module(), &tracked)
+            .calls
+            .into_iter()
+            .map(|c| c.name)
+            .collect()
+    }
+
+    #[test]
+    fn local_alias_of_a_tracked_import_is_reported_under_the_imported_name() {
+        let names = call_names(
+            "import { inject as i, provide } from 'vue';\nconst a = i('k');\nprovide('k', a);\nobj.inject('k');\nother();",
+            &["inject", "provide"],
+        );
+        assert_eq!(names, ["inject", "provide"]);
     }
 
     fn ts_module() -> SourceType {

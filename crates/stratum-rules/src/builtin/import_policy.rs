@@ -79,7 +79,7 @@ fn glob(pattern: &str) -> Result<globset::Glob, String> {
         .map_err(|e| format!("invalid glob {pattern:?}: {e}"))
 }
 
-fn glob_set(patterns: &[String]) -> Result<GlobSet, String> {
+pub(crate) fn glob_set(patterns: &[String]) -> Result<GlobSet, String> {
     let mut builder = GlobSetBuilder::new();
     for p in patterns {
         builder.add(glob(p)?);

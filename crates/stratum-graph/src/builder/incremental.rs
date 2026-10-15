@@ -29,7 +29,7 @@ impl GraphBuilder {
             .filter_map(|m| Some((Utf8PathBuf::from_path_buf(m.path.clone()).ok()?, m.id)))
             .collect();
         let facts = self.facts_of(path, source, &path_to_id)?;
-        let (exports, edges) = (facts.exports, facts.edges);
+        let (exports, edges, calls) = (facts.exports, facts.edges, facts.calls);
         let purity = facts.purity.unwrap_or(self.config.default_purity);
 
         let old: Vec<(ModuleId, EdgeKind)> = graph
@@ -39,7 +39,11 @@ impl GraphBuilder {
             .filter(|e| e.source() == node)
             .map(|e| (graph.deps[e.target()], e.weight))
             .collect();
-        if old == edges && module.purity == purity && module.exports == exports {
+        if old == edges
+            && module.purity == purity
+            && module.exports == exports
+            && module.calls == calls
+        {
             return Ok(false);
         }
 
@@ -73,7 +77,58 @@ impl GraphBuilder {
         if let Some(m) = graph.modules.get_mut(&id) {
             m.purity = purity;
             m.exports = exports;
+            m.calls = calls;
         }
         Ok(true)
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use std::path::PathBuf;
+
+    use stratum_core::{ids::LayerId, purity::Purity, types::Layer};
+
+    use super::*;
+    use crate::BuildConfig;
+
+    #[test]
+    fn an_edit_that_only_adds_a_tracked_call_updates_module_calls() {
+        let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/tiny-ts")
+            .canonicalize_utf8()
+            .unwrap();
+        let builder = GraphBuilder::new(BuildConfig {
+            project_root: root,
+            layers: vec![Layer {
+                id: LayerId::new(0),
+                name: "shared".into(),
+                path: PathBuf::from("src/shared"),
+                depends_on: vec![],
+                slices: false,
+            }],
+            structure: stratum_core::structure::Structure::default(),
+            tracked_calls: ["inject".to_owned()].into(),
+            default_purity: Purity::new(2).unwrap(),
+        });
+        let mut graph = builder.build().unwrap();
+        let id = graph
+            .modules
+            .values()
+            .find(|m| m.path.ends_with("format.ts"))
+            .unwrap()
+            .id;
+        assert!(graph.modules[&id].calls.is_empty());
+
+        let source = "export const formatId = (id: string) => `[${id}]`;\nconst x = inject('k');\n";
+        assert!(builder.update_module(&mut graph, id, source).unwrap());
+
+        let calls = &graph.modules[&id].calls;
+        assert_eq!(calls.len(), 1);
+        assert_eq!(
+            (calls[0].name.as_str(), calls[0].location.line),
+            ("inject", 2)
+        );
     }
 }

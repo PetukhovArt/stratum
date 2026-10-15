@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use camino::Utf8Path;
 use oxc_span::SourceType;
 
@@ -6,13 +8,15 @@ use crate::extractor::{ExtractError, ExtractedData, LanguageExtractor};
 use crate::imports::collect;
 
 /// Extractor for TypeScript, JavaScript, JSX, TSX, plus `.mts`/`.cts`/`.mjs`/`.cjs`.
-#[derive(Debug, Default, Clone, Copy)]
-pub struct OxcTsExtractor;
+#[derive(Debug, Default, Clone)]
+pub struct OxcTsExtractor {
+    tracked_calls: HashSet<String>,
+}
 
 impl OxcTsExtractor {
     #[must_use]
-    pub const fn new() -> Self {
-        Self
+    pub const fn new(tracked_calls: HashSet<String>) -> Self {
+        Self { tracked_calls }
     }
 
     fn source_type_for(path: &Utf8Path) -> Option<SourceType> {
@@ -48,12 +52,13 @@ impl LanguageExtractor for OxcTsExtractor {
     fn extract(&self, path: &Utf8Path, source: &str) -> Result<ExtractedData, ExtractError> {
         let source_type = Self::source_type_for(path)
             .ok_or_else(|| ExtractError::UnsupportedExtension(path.to_path_buf()))?;
-        let collected = collect(source, source_type);
+        let collected = collect(source, source_type, &self.tracked_calls);
         let purity = extract_purity(source);
         Ok(ExtractedData {
             imports: collected.imports,
             purity,
             exports: collected.exports,
+            calls: collected.calls,
         })
     }
 }
@@ -66,7 +71,7 @@ mod tests {
 
     #[test]
     fn handles_typescript_extensions() {
-        let ex = OxcTsExtractor::new();
+        let ex = OxcTsExtractor::default();
         for ext in ["ts", "mts", "cts", "tsx", "js", "jsx", "mjs", "cjs"] {
             let path = Utf8Path::new("foo").with_extension(ext);
             assert!(ex.handles(&path), "should handle .{ext}");
@@ -77,7 +82,7 @@ mod tests {
 
     #[test]
     fn extracts_imports_from_tsx() {
-        let ex = OxcTsExtractor::new();
+        let ex = OxcTsExtractor::default();
         let source = r#"
             import React from "react";
             import type { Props } from "./types";
@@ -99,7 +104,7 @@ mod tests {
 
     #[test]
     fn rejects_unknown_extension() {
-        let ex = OxcTsExtractor::new();
+        let ex = OxcTsExtractor::default();
         let err = ex.extract(Utf8Path::new("foo.rs"), "").unwrap_err();
         assert!(matches!(err, ExtractError::UnsupportedExtension(_)));
     }
