@@ -47,6 +47,24 @@ fn run(cli: cli::Cli) -> miette::Result<u8> {
             prune,
         }) => commands::baseline::run(&root, config.as_deref(), out.as_deref(), prune).map(|()| 0),
         Some(cli::Command::Hook) => Ok(hook()),
+        Some(cli::Command::Explain {
+            slug,
+            root,
+            format,
+            config,
+        }) => commands::rules::explain(&slug, &root, format, config.as_deref()).map(exit_code),
+        Some(cli::Command::Rules {
+            root,
+            format,
+            config,
+        }) => commands::rules::list(&root, format, config.as_deref()).map(exit_code),
+        Some(cli::Command::Context {
+            file,
+            root,
+            format,
+            config,
+        }) => commands::context::run(&file, root.as_deref(), format, config.as_deref())
+            .map(exit_code),
         Some(cli::Command::Lint { root, args }) => lint(&root, &args),
         None => lint(&cli.root, &cli.lint),
     }
@@ -57,5 +75,9 @@ fn lint(root: &camino::Utf8Path, args: &cli::LintArgs) -> miette::Result<u8> {
         watch::run(root, || commands::lint::run(root, args))?;
         return Ok(0);
     }
-    commands::lint::run(root, args).map(|code| u8::from(code != 0))
+    commands::lint::run(root, args).map(exit_code)
+}
+
+fn exit_code(code: i32) -> u8 {
+    u8::try_from(code).unwrap_or(TOOL_FAILURE)
 }

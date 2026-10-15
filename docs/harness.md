@@ -27,9 +27,9 @@ stratum-lint [lint] [ROOT]
     [--baseline PATH | --no-baseline]      # default: ROOT/stratum.baseline.json if it exists
     [--watch]
 stratum-lint baseline [ROOT] [--out PATH] [--prune]   # accept current violations; --prune only drops fixed ones (ratchet)
-stratum-lint explain <rule-slug> [--format agent|json]
-stratum-lint context <file> [--format agent|json]
-stratum-lint rules [--format agent|json]              # list rules incl. plugins with severity + one-line summary
+stratum-lint explain <rule-slug> [ROOT] [--format agent|json] [--config PATH]   # slug with or without "stratum/"
+stratum-lint context <file> [--root ROOT] [--format agent|json] [--config PATH]
+stratum-lint rules [ROOT] [--format agent|json] [--config PATH]   # active rules incl. plugins with severity + one-line summary
 stratum-lint hook                                      # reads a Claude Code hook event from stdin
 stratum-lint init | snapshot | diff | visualize        # unchanged
 ```
@@ -44,7 +44,7 @@ stratum-lint init | snapshot | diff | visualize        # unchanged
 
 ### Output rules (all agent-facing formats)
 
-- Rules are named by **slug** (`no-cross-layer-import`), never by numeric id.
+- Rules are named by **slug** (`stratum/no-cross-layer-import`; plugins `custom/<name>`), never by numeric id.
 - Paths are relative to ROOT with forward slashes.
 - The first line is a one-line summary; a clean run prints exactly that one line.
 - Repeated violations of one rule collapse into one group line with a count and a few examples.

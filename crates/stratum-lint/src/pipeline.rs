@@ -81,6 +81,12 @@ pub fn build(root: &Utf8Path, config: &Config) -> Result<EngineInput, PipelineEr
     })
 }
 
+pub fn registry(root: &Utf8Path, config: &Config) -> Result<RuleRegistry, PipelineError> {
+    let mut registry = RuleRegistry::with_builtins();
+    register_plugins(&mut registry, root, config)?;
+    Ok(registry)
+}
+
 fn register_plugins(
     registry: &mut RuleRegistry,
     root: &Utf8Path,
