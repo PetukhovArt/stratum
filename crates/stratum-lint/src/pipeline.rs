@@ -72,6 +72,7 @@ pub fn build(root: &Utf8Path, config: &Config) -> Result<EngineInput, PipelineEr
 
     let mut registry = RuleRegistry::with_builtins();
     register_plugins(&mut registry, &root_abs, config)?;
+    registry.validate(config)?;
 
     Ok(EngineInput {
         graph: Arc::new(graph),

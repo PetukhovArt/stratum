@@ -19,6 +19,7 @@ rhai = { version = "1", features = ["serde", "sync"] }
 notify = "6"
 serde.workspace = true
 serde_json.workspace = true
+petgraph.workspace = true
 camino.workspace = true
 thiserror.workspace = true
 
@@ -26,5 +27,4 @@ thiserror.workspace = true
 tempfile = "3"
 stratum-config = { path = "../stratum-config" }
 indexmap.workspace = true
-petgraph.workspace = true
 rustc-hash.workspace = true

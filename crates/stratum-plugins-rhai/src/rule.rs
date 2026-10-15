@@ -9,7 +9,7 @@ use stratum_core::{
     violation::{SourceLocation, Violation},
 };
 use stratum_graph::CompoundGraph;
-use stratum_rules::rule::{EmptyOptions, Rule};
+use stratum_rules::{RuleDoc, rule::Rule};
 
 #[derive(Debug)]
 pub struct RhaiRule {
@@ -17,29 +17,44 @@ pub struct RhaiRule {
     pub slug: &'static str,
     pub ast: AST,
     pub engine: Arc<Engine>,
+    pub takes_options: bool,
+    pub doc: Option<RuleDoc>,
 }
 
 impl RhaiRule {
-    fn invoke(&self, view: &crate::module_view::ModuleView) -> Option<Array> {
+    fn invoke(
+        &self,
+        view: &crate::module_view::ModuleView,
+        options: &serde_json::Value,
+    ) -> Option<Array> {
         let mut scope = Scope::new();
-        let result: rhai::Dynamic =
-            match self
-                .engine
+        let call = if self.takes_options {
+            rhai::serde::to_dynamic(options).and_then(|options| {
+                self.engine
+                    .call_fn(&mut scope, &self.ast, "check", (view.clone(), options))
+            })
+        } else {
+            self.engine
                 .call_fn(&mut scope, &self.ast, "check", (view.clone(),))
-            {
-                Ok(d) => d,
-                Err(e) => {
-                    eprintln!("[rhai-rule {}] call_fn failed: {e}", self.slug);
-                    return None;
-                }
-            };
+        };
+        let result: rhai::Dynamic = match call {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("[rhai-rule {}] call_fn failed: {e}", self.slug);
+                return None;
+            }
+        };
         result.into_array().ok()
     }
 }
 
 impl Rule for RhaiRule {
     type Scope = ModuleId;
-    type Options = EmptyOptions;
+    type Options = serde_json::Value;
+
+    fn doc(&self) -> Option<RuleDoc> {
+        self.doc.clone()
+    }
 
     fn id(&self) -> RuleId {
         self.id
@@ -57,13 +72,13 @@ impl Rule for RhaiRule {
         &self,
         graph: &CompoundGraph,
         scope: ModuleId,
-        _options: &EmptyOptions,
+        options: &serde_json::Value,
         severity: Severity,
     ) -> Vec<Violation> {
         let Some(view) = crate::module_view::build_view(graph, scope) else {
             return Vec::new();
         };
-        let Some(arr) = self.invoke(&view) else {
+        let Some(arr) = self.invoke(&view, options) else {
             return Vec::new();
         };
         let mut out = Vec::new();

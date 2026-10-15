@@ -27,5 +27,15 @@ pub trait Rule: Send + Sync {
 }
 
 /// Rules with no options.
-#[derive(Debug, Default, Clone, Copy, serde::Deserialize)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct EmptyOptions;
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NoFields {}
+
+impl<'de> serde::Deserialize<'de> for EmptyOptions {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Option::<NoFields>::deserialize(deserializer).map(|_| Self)
+    }
+}

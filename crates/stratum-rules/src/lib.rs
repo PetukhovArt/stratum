@@ -15,6 +15,7 @@ pub mod scope;
 pub use builtin::cross_entity_pattern::CrossEntityPattern;
 pub use builtin::deep_module::DeepModule;
 pub use builtin::depth_ratio::DepthRatio;
+pub use builtin::import_policy::{ImportPolicy, ImportPolicyOptions};
 pub use builtin::miller_limit::MillerLimit;
 pub use builtin::no_circular_deps::NoCircularDeps;
 pub use builtin::no_cross_layer_import::NoCrossLayerImport;
@@ -32,7 +33,7 @@ pub use registry::{DynRule, DynRuleAdapter, RuleRegistry};
 pub use runner::{run_all, run_all_with_registry};
 
 pub use ids::{
-    CROSS_ENTITY_PATTERN, DEEP_MODULE, DEPTH_RATIO, MILLER_LIMIT, NO_CIRCULAR_DEPS,
+    CROSS_ENTITY_PATTERN, DEEP_MODULE, DEPTH_RATIO, IMPORT_POLICY, MILLER_LIMIT, NO_CIRCULAR_DEPS,
     NO_CROSS_LAYER_IMPORT, PROMOTION_PRESSURE, STAGE_PURITY, VISIBILITY_SCOPE, id_for, slug_for,
 };
 pub use rule::{EmptyOptions, Rule};

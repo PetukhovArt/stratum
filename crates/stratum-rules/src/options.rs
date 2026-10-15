@@ -1,6 +1,7 @@
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CrossEntityPatternOptions {
     #[serde(default = "default_max_fanout")]
     pub max_fanout: u32,
@@ -19,6 +20,7 @@ impl Default for CrossEntityPatternOptions {
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DeepModuleOptions {
     #[serde(default = "default_max_exports")]
     pub max_exports: u32,
@@ -37,6 +39,7 @@ impl Default for DeepModuleOptions {
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PromotionPressureOptions {
     #[serde(default = "default_threshold")]
     pub threshold: u32,
@@ -55,6 +58,7 @@ impl Default for PromotionPressureOptions {
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MillerLimitOptions {
     #[serde(default = "default_max_children")]
     pub max_children: u32,
@@ -73,6 +77,7 @@ impl Default for MillerLimitOptions {
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DepthRatioOptions {
     #[serde(default = "default_min_ratio")]
     pub min_ratio: f64,

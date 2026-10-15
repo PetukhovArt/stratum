@@ -59,11 +59,13 @@ A run reports `N baselined` and `M fixed — run "stratum-lint baseline --prune"
 
 Everything an architecture rule does is configurable without forking:
 
-- `stratum.config.jsonc`: layers, per-rule `severity` / `options`, `overrides` by glob, `extends` (local file or a built-in preset).
-- Declarative rules in config for common import policies (no scripting).
-- `.rhai` plugin rules with access to modules, imports and options; they show up in `rules` / `explain` like built-ins.
-- A JSON schema for the config, so agents can author it with validation.
-- Invalid options fail loudly (exit 2) instead of silently falling back to defaults.
+- `stratum.config.jsonc`: layers, per-rule `severity` / `options`, `overrides` by glob, `extends` (local file or a built-in preset: `stratum:recommended`, `stratum:fsd`).
+- `stratum/import-policy`: declarative import boundaries in config (from / deny / allow / same-slice / message), no scripting.
+- `.rhai` plugin rules with access to modules, imports and options; an optional `fn doc()` makes them show up in `rules` / `explain` like built-ins.
+- `stratum.schema.json` at the repo root, generated from the config types; configs reference it with `"$schema"`.
+- Invalid config fails loudly (exit 2): unknown keys, unknown rule slugs, bad options (the message names slug and key), extends cycles.
+
+Reference: [custom-rules.md](custom-rules.md); a real-world config: [examples/private-project.stratum.config.jsonc](examples/private-project.stratum.config.jsonc).
 
 Shared seam: `stratum_rules::RuleDoc` + `Rule::doc()` / `RuleRegistry::by_slug` / `by_id`.
 Built-ins document themselves in `crates/stratum-rules/src/docs.rs`; plugin rules override `doc()`.
