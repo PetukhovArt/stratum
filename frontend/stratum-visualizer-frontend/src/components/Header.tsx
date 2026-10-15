@@ -1,9 +1,12 @@
-import { Component, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
-import { DesignData } from '../render/design'
-import { Filters } from '../state'
-import { normalizePath } from './Graph'
+import { Component, createMemo, For, Show } from 'solid-js'
+import { activeFilterCount, clearFilters, toggled } from '../lib/filters'
+import { normalizePath } from '../lib/glob'
+import { DesignData, EdgeKindLabel } from '../render/design'
+import { ALL_EDGE_KINDS, Filters } from '../state'
 
-const EDGE_KIND_TOOLTIP: Record<string, string> = {
+const MAX_PALETTE_MATCHES = 20
+
+const EDGE_KIND_TOOLTIP: Record<EdgeKindLabel, string> = {
   static: 'Static imports — resolved at build time (import / export).',
   di: 'DI edges — injected at runtime through your container/provider.',
   runtime: 'Runtime edges — lazy / dynamic imports, conditional loads.',
@@ -13,11 +16,11 @@ interface HeaderProps {
   data: DesignData
   filters: Filters
   setFilters: (f: Filters) => void
-  paletteOpen: boolean
+  isPaletteOpen: boolean
   setPaletteOpen: (v: boolean) => void
   onSelect: (id: string) => void
   onResetView: () => void
-  onTweaksToggle: () => void
+  onHaloToggle: () => void
 }
 
 export const Header: Component<HeaderProps> = (props) => {
@@ -44,7 +47,7 @@ export const Header: Component<HeaderProps> = (props) => {
 
       <div class="hd-c">
         <CommandPalette
-          paletteOpen={props.paletteOpen}
+          isPaletteOpen={props.isPaletteOpen}
           setPaletteOpen={props.setPaletteOpen}
           filters={props.filters}
           setFilters={props.setFilters}
@@ -69,7 +72,7 @@ export const Header: Component<HeaderProps> = (props) => {
           <button class="hd-btn" onClick={props.onResetView} title="Fit to bounds (Esc)">
             ⤢ fit
           </button>
-          <button class="hd-btn" onClick={props.onTweaksToggle} title="Open tweaks">
+          <button class="hd-btn" onClick={props.onHaloToggle} title="Toggle compound halos">
             ⚙
           </button>
         </div>
@@ -81,7 +84,7 @@ export const Header: Component<HeaderProps> = (props) => {
 }
 
 interface PaletteProps {
-  paletteOpen: boolean
+  isPaletteOpen: boolean
   setPaletteOpen: (v: boolean) => void
   filters: Filters
   setFilters: (f: Filters) => void
@@ -90,37 +93,9 @@ interface PaletteProps {
 }
 
 const CommandPalette: Component<PaletteProps> = (props) => {
-  const [q, setQ] = createSignal('')
-  let inputRef!: HTMLInputElement
-
-  onMount(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && (e.key === 'p' || e.key === 'k')) {
-        e.preventDefault()
-        props.setPaletteOpen(true)
-      } else if (e.key === 'Escape') {
-        props.setPaletteOpen(false)
-      } else if (
-        e.key === '/' &&
-        document.activeElement?.tagName !== 'INPUT' &&
-        document.activeElement?.tagName !== 'TEXTAREA'
-      ) {
-        e.preventDefault()
-        props.setPaletteOpen(true)
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    onCleanup(() => window.removeEventListener('keydown', onKey))
-  })
-
-  const focusInputSoon = () => setTimeout(() => inputRef?.focus(), 30)
-
-  const toggleKind = (kind: 'static' | 'di' | 'runtime') => {
-    const next = new Set(props.filters.edgeKinds)
-    if (next.has(kind)) next.delete(kind)
-    else next.add(kind)
-    props.setFilters({ ...props.filters, edgeKinds: next })
-  }
+  const query = () => props.filters.query
+  const toggleKind = (kind: EdgeKindLabel) =>
+    props.setFilters({ ...props.filters, edgeKinds: toggled(props.filters.edgeKinds, kind) })
   const setStage = (s: number | null) => {
     props.setFilters({ ...props.filters, stageFilter: s })
   }
@@ -130,49 +105,49 @@ const CommandPalette: Component<PaletteProps> = (props) => {
       key: 'only-violators',
       label: 'Show only violators',
       run: () =>
-        props.setFilters({ ...props.filters, onlyViolators: !props.filters.onlyViolators }),
-      active: props.filters.onlyViolators,
+        props.setFilters({ ...props.filters, isViolatorsOnly: !props.filters.isViolatorsOnly }),
+      isActive: props.filters.isViolatorsOnly,
     },
     {
       key: 'hide-di',
       label: 'Hide DI edges',
       run: () => toggleKind('di'),
-      active: !props.filters.edgeKinds.has('di'),
+      isActive: !props.filters.edgeKinds.has('di'),
     },
     {
       key: 'hide-runtime',
       label: 'Hide runtime edges',
       run: () => toggleKind('runtime'),
-      active: !props.filters.edgeKinds.has('runtime'),
+      isActive: !props.filters.edgeKinds.has('runtime'),
     },
     {
       key: 'stage-1',
       label: 'Filter by stage: 1 (file)',
       run: () => setStage(props.filters.stageFilter === 1 ? null : 1),
-      active: props.filters.stageFilter === 1,
+      isActive: props.filters.stageFilter === 1,
     },
     {
       key: 'stage-2',
       label: 'Filter by stage: 2 (folder)',
       run: () => setStage(props.filters.stageFilter === 2 ? null : 2),
-      active: props.filters.stageFilter === 2,
+      isActive: props.filters.stageFilter === 2,
     },
     {
       key: 'stage-3',
       label: 'Filter by stage: 3 (segments)',
       run: () => setStage(props.filters.stageFilter === 3 ? null : 3),
-      active: props.filters.stageFilter === 3,
+      isActive: props.filters.stageFilter === 3,
     },
     {
       key: 'clear-stage',
       label: 'Clear stage filter',
       run: () => setStage(null),
-      active: props.filters.stageFilter === null,
+      isActive: props.filters.stageFilter === null,
     },
   ])
 
   const matchedModules = createMemo(() => {
-    const text = normalizePath(q().trim().toLowerCase())
+    const text = normalizePath(query().trim().toLowerCase())
     if (!text) return []
     return props.data.modules
       .filter(
@@ -180,54 +155,48 @@ const CommandPalette: Component<PaletteProps> = (props) => {
           m.id.toLowerCase().includes(text) ||
           normalizePath(m.path.toLowerCase()).includes(text),
       )
-      .slice(0, 20)
+      .slice(0, MAX_PALETTE_MATCHES)
   })
 
   return (
     <>
-      <button class="palette-btn" onClick={() => { props.setPaletteOpen(true); focusInputSoon() }}>
+      <button class="palette-btn" onClick={() => props.setPaletteOpen(true)}>
         <span class="palette-ico">⌕</span>
         <span class="palette-prompt">Search modules, run commands…</span>
         <span class="palette-kbd">⌘P</span>
       </button>
-      <Show when={props.paletteOpen}>
+      <Show when={props.isPaletteOpen}>
         <div class="palette-scrim" onClick={() => props.setPaletteOpen(false)}>
           <div class="palette-dialog" onClick={(e) => e.stopPropagation()}>
             <div class="palette-input-row">
               <span class="palette-ico">⌕</span>
               <input
-                ref={(el) => {
-                  inputRef = el
-                  focusInputSoon()
-                }}
+                ref={(el) => queueMicrotask(() => el.focus())}
                 class="palette-input"
                 placeholder="Type path, label, or > for commands…"
-                value={q()}
-                onInput={(e) => {
-                  setQ(e.currentTarget.value)
-                  props.setFilters({ ...props.filters, query: e.currentTarget.value })
-                }}
+                value={query()}
+                onInput={(e) => props.setFilters({ ...props.filters, query: e.currentTarget.value })}
               />
               <span class="palette-kbd palette-kbd-r">esc</span>
             </div>
             <div class="palette-results">
-              <Show when={q().trim() === ''}>
+              <Show when={query().trim() === ''}>
                 <For each={commands()}>
                   {(c) => (
                     <div
-                      class={`palette-row palette-row-cmd ${c.active ? 'on' : ''}`}
+                      class={`palette-row palette-row-cmd ${c.isActive ? 'on' : ''}`}
                       onClick={() => c.run()}
                     >
                       <span class="palette-row-bullet">›</span>
                       <span class="palette-row-label">{c.label}</span>
-                      <Show when={c.active}>
+                      <Show when={c.isActive}>
                         <span class="palette-row-tag">on</span>
                       </Show>
                     </div>
                   )}
                 </For>
               </Show>
-              <Show when={q().trim() !== '' && matchedModules().length === 0}>
+              <Show when={query().trim() !== '' && matchedModules().length === 0}>
                 <div class="palette-empty">No matches.</div>
               </Show>
               <For each={matchedModules()}>
@@ -280,39 +249,12 @@ interface FacetBarProps {
 }
 
 const FacetBar: Component<FacetBarProps> = (props) => {
-  const toggleLayer = (id: string) => {
-    const next = new Set(props.filters.disabledLayers)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
-    props.setFilters({ ...props.filters, disabledLayers: next })
-  }
-  const toggleKind = (k: 'static' | 'di' | 'runtime') => {
-    const next = new Set(props.filters.edgeKinds)
-    if (next.has(k)) next.delete(k)
-    else next.add(k)
-    props.setFilters({ ...props.filters, edgeKinds: next })
-  }
-
-  const hasActiveFilters = createMemo(
-    () =>
-      props.filters.disabledLayers.size > 0 ||
-      props.filters.disabledContainers.size > 0 ||
-      props.filters.onlyViolators ||
-      props.filters.query !== '' ||
-      props.filters.glob !== '' ||
-      props.filters.stageFilter !== null,
-  )
-
-  const clearAll = () =>
-    props.setFilters({
-      ...props.filters,
-      disabledLayers: new Set(),
-      disabledContainers: new Set(),
-      onlyViolators: false,
-      query: '',
-      glob: '',
-      stageFilter: null,
-    })
+  const toggleLayer = (id: string) =>
+    props.setFilters({ ...props.filters, disabledLayers: toggled(props.filters.disabledLayers, id) })
+  const toggleKind = (k: EdgeKindLabel) =>
+    props.setFilters({ ...props.filters, edgeKinds: toggled(props.filters.edgeKinds, k) })
+  const hasActiveFilters = () => activeFilterCount(props.filters) > 0
+  const clearAll = () => props.setFilters(clearFilters(props.filters))
 
   return (
     <div class="facet-bar">
@@ -343,7 +285,7 @@ const FacetBar: Component<FacetBarProps> = (props) => {
         <span class="facet-sep" />
         <div class="facet-group">
           <span class="facet-label">Edges</span>
-          <For each={['static', 'di', 'runtime'] as const}>
+          <For each={ALL_EDGE_KINDS}>
             {(k) => {
               const off = () => !props.filters.edgeKinds.has(k)
               return (
@@ -362,9 +304,9 @@ const FacetBar: Component<FacetBarProps> = (props) => {
         <span class="facet-sep" />
         <div class="facet-group">
           <button
-            class={`chip chip-mode ${props.filters.onlyViolators ? 'on' : ''}`}
+            class={`chip chip-mode ${props.filters.isViolatorsOnly ? 'on' : ''}`}
             onClick={() =>
-              props.setFilters({ ...props.filters, onlyViolators: !props.filters.onlyViolators })
+              props.setFilters({ ...props.filters, isViolatorsOnly: !props.filters.isViolatorsOnly })
             }
             title="Show only modules that have violations (or descendants with violations)."
           >

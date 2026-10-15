@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { globToRegex, normalizePath } from './Graph'
+import { globToRegex, normalizePath } from './glob'
 
 const match = (glob: string, path: string): boolean => {
   const fn = globToRegex(glob)

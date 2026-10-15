@@ -6,7 +6,6 @@ export interface DesignLayer {
   label: string
   order: number
   hue: number
-  desc: string
   modules: number
   errors: number
   warnings: number
@@ -27,7 +26,8 @@ export interface DesignViolation {
   rule: string
   severity: SeverityLabel
   message: string
-  ruleDoc: string
+  modules: string[]
+  isCycle: boolean
 }
 
 export interface DesignModule {
@@ -36,7 +36,6 @@ export interface DesignModule {
   parentId: string | null
   label: string
   path: string
-  loc: number
   stage: number
   kind: ModuleKind
   depth: number
@@ -55,12 +54,13 @@ export interface DesignEdge {
   target: string
   kind: EdgeKindLabel
   violation: string | null
+  severity: SeverityLabel | null
 }
 
 export interface DesignData {
   meta: {
     project: string
-    generatedAt: string
+    loadedAt: string
     snapshotVersion: number
   }
   layers: DesignLayer[]
@@ -70,4 +70,28 @@ export interface DesignData {
   topByContainer: Record<string, string[]>
   edges: DesignEdge[]
   violations: DesignViolation[]
+  moduleById: ReadonlyMap<string, DesignModule>
+  violationById: ReadonlyMap<string, DesignViolation>
+  layerByContainer: ReadonlyMap<string, DesignLayer>
+}
+
+export const layerOfModule = (data: DesignData, mod: DesignModule): DesignLayer | null =>
+  data.layerByContainer.get(mod.container) ?? null
+
+export const violationsOf = (data: DesignData, mod: DesignModule): DesignViolation[] =>
+  mod.violations
+    .map((vid) => data.violationById.get(vid))
+    .filter((v): v is DesignViolation => v !== undefined)
+
+export const ancestorIds = (
+  moduleById: ReadonlyMap<string, DesignModule>,
+  id: string,
+): string[] => {
+  const out: string[] = []
+  let cur = moduleById.get(id)?.parentId ?? null
+  while (cur) {
+    out.push(cur)
+    cur = moduleById.get(cur)?.parentId ?? null
+  }
+  return out
 }

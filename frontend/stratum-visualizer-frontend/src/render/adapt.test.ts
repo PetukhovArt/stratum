@@ -45,8 +45,8 @@ describe('adaptSnapshot', () => {
   it('rewrites edges with module-key endpoints and edge-kind labels', () => {
     const d = adaptSnapshot(snap)
     expect(d.edges).toEqual([
-      { source: 'm-1', target: 'm-3', kind: 'static', violation: null },
-      { source: 'm-2', target: 'm-3', kind: 'di', violation: null },
+      { source: 'm-1', target: 'm-3', kind: 'static', violation: null, severity: null },
+      { source: 'm-2', target: 'm-3', kind: 'di', violation: null, severity: null },
     ])
   })
 

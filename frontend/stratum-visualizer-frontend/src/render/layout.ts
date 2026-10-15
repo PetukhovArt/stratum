@@ -1,35 +1,19 @@
-import { DesignData, DesignModule } from './design'
+import { DesignContainer, DesignData, DesignLayer, DesignModule, EdgeKindLabel, SeverityLabel } from './design'
 
 export type Density = 'compact' | 'cozy' | 'roomy'
 
 export interface LayoutOptions {
   density?: Density
-  laneMaxWidth?: number
-  direction?: 'TB' | 'LR'
 }
 
-export interface LaneInfo {
-  id: string
-  label: string
-  order: number
-  hue: number
-  modules: number
-  errors: number
-  warnings: number
+export interface LaneInfo extends DesignLayer {
   x: number
   y: number
   width: number
   height: number
 }
 
-export interface ContainerInfo {
-  id: string
-  layer: string
-  label: string
-  errors: number
-  warnings: number
-  moduleCount: number
-  stage: number
+export interface ContainerInfo extends DesignContainer {
   width: number
   height: number
   labelH: number
@@ -45,7 +29,7 @@ export interface ModulePos {
   cx: number
   cy: number
   mod: DesignModule
-  leaf: boolean
+  isLeaf: boolean
   depth: number
   childIds: string[]
 }
@@ -54,8 +38,9 @@ export interface LaidEdge {
   i: number
   source: string
   target: string
-  kind: 'static' | 'di' | 'runtime'
+  kind: EdgeKindLabel
   violation: string | null
+  severity: SeverityLabel | null
   x1: number
   y1: number
   x2: number
@@ -84,7 +69,7 @@ interface DensityTokens {
   containerGap: number
   laneGapY: number
   lanePadX: number
-  laneLabelWidth: number
+  lanePadY: number
 }
 
 const DENSITY: Record<Density, DensityTokens> = {
@@ -101,7 +86,7 @@ const DENSITY: Record<Density, DensityTokens> = {
     containerGap: 14,
     laneGapY: 28,
     lanePadX: 22,
-    laneLabelWidth: 100,
+    lanePadY: 22,
   },
   cozy: {
     leafSize: 18,
@@ -116,7 +101,7 @@ const DENSITY: Record<Density, DensityTokens> = {
     containerGap: 20,
     laneGapY: 40,
     lanePadX: 28,
-    laneLabelWidth: 100,
+    lanePadY: 28,
   },
   roomy: {
     leafSize: 24,
@@ -131,17 +116,25 @@ const DENSITY: Record<Density, DensityTokens> = {
     containerGap: 28,
     laneGapY: 48,
     lanePadX: 36,
-    laneLabelWidth: 100,
+    lanePadY: 36,
   },
 }
+
+const LAYOUT = {
+  minCompoundWidth: 70,
+  minContainerWidth: 110,
+  topLevelRowAspect: 4,
+  laneLabelWidth: 100,
+  laneLabelGap: 8,
+  sceneMargin: 16,
+} as const
 
 interface SizedItem {
   id: string
   mod: DesignModule
   w: number
   h: number
-  leaf: boolean
-  depth: number
+  isLeaf: boolean
   placedKids: PlacedItem[]
 }
 
@@ -156,34 +149,31 @@ interface Packed {
   items: PlacedItem[]
 }
 
-const sizeModule = (
-  modId: string,
-  data: DesignData,
-  tokens: DensityTokens,
-  byId: Map<string, DesignModule>,
-  depth: number,
-): SizedItem => {
-  const mod = byId.get(modId)
+interface LayoutContext {
+  data: DesignData
+  tokens: DensityTokens
+}
+
+const sizeModule = (ctx: LayoutContext, modId: string, depth: number): SizedItem => {
+  const mod = ctx.data.moduleById.get(modId)
   if (!mod) throw new Error(`unknown module ${modId}`)
-  const kidIds = data.childIndex[modId] ?? []
+  const kidIds = ctx.data.childIndex[modId] ?? []
   if (kidIds.length === 0) {
-    const base = tokens.leafSize
-    const scale = Math.min(1.5, 0.7 + 0.5 * Math.sqrt(Math.min(mod.loc, 240) / 240 || 0.4))
-    const side = Math.round(base * scale)
-    return { id: modId, mod, w: side, h: side, leaf: true, depth, placedKids: [] }
+    const side = ctx.tokens.leafSize
+    return { id: modId, mod, w: side, h: side, isLeaf: true, placedKids: [] }
   }
-  const sized = kidIds.map((cid) => sizeModule(cid, data, tokens, byId, depth + 1))
-  const packed = packGrid(sized, tokens, depth + 1)
-  const w = Math.max(packed.width + tokens.modulePadH * 2, 70)
-  const h = packed.height + tokens.moduleHeader + tokens.modulePadV
-  return { id: modId, mod, w, h, leaf: false, depth, placedKids: packed.items }
+  const sized = kidIds.map((cid) => sizeModule(ctx, cid, depth + 1))
+  const packed = packGrid(sized, ctx.tokens, depth + 1)
+  const w = Math.max(packed.width + ctx.tokens.modulePadH * 2, LAYOUT.minCompoundWidth)
+  const h = packed.height + ctx.tokens.moduleHeader + ctx.tokens.modulePadV
+  return { id: modId, mod, w, h, isLeaf: false, placedKids: packed.items }
 }
 
 const packGrid = (items: SizedItem[], tokens: DensityTokens, depth: number): Packed => {
   if (items.length === 0) return { width: 0, height: 0, items: [] }
   const perRow =
     depth === 0
-      ? Math.max(tokens.modulesPerRow, Math.ceil(Math.sqrt(items.length * 4)))
+      ? Math.max(tokens.modulesPerRow, Math.ceil(Math.sqrt(items.length * LAYOUT.topLevelRowAspect)))
       : tokens.childrenPerRow
   const gap = tokens.leafGap
   const placed: PlacedItem[] = []
@@ -193,32 +183,26 @@ const packGrid = (items: SizedItem[], tokens: DensityTokens, depth: number): Pac
   let col = 0
   let maxRowW = 0
 
+  const breakRow = (): void => {
+    maxRowW = Math.max(maxRowW, x)
+    x = 0
+    y += rowH + gap
+    rowH = 0
+    col = 0
+  }
+
   for (const it of items) {
-    const isWide = !it.leaf
-    if (isWide && col > 0) {
-      maxRowW = Math.max(maxRowW, x)
-      x = 0
-      y += rowH + gap
-      rowH = 0
-      col = 0
-    }
-    if (!isWide && col >= perRow) {
-      maxRowW = Math.max(maxRowW, x)
-      x = 0
-      y += rowH + gap
-      rowH = 0
-      col = 0
+    const isWide = !it.isLeaf
+    const isRowFull = isWide ? col > 0 : col >= perRow
+    if (isRowFull) {
+      breakRow()
     }
     placed.push({ ...it, x, y })
     x += it.w + gap
     rowH = Math.max(rowH, it.h)
-    col += isWide ? perRow : 1
+    col += 1
     if (isWide) {
-      maxRowW = Math.max(maxRowW, x)
-      x = 0
-      y += rowH + gap
-      rowH = 0
-      col = 0
+      breakRow()
     }
   }
   maxRowW = Math.max(maxRowW, x)
@@ -226,178 +210,121 @@ const packGrid = (items: SizedItem[], tokens: DensityTokens, depth: number): Pac
 }
 
 interface SizedContainer {
-  id: string
-  width: number
-  height: number
-  labelH: number
   packed: Packed
-  data: ContainerInfo
+  info: ContainerInfo
 }
 
-interface LanePlacement {
-  id: string
-  x: number
-  y: number
-  w: number
-  h: number
+const sizeContainer = (ctx: LayoutContext, c: DesignContainer): SizedContainer => {
+  const { tokens } = ctx
+  const tops = ctx.data.topByContainer[c.id] ?? []
+  const packed = packGrid(
+    tops.map((id) => sizeModule(ctx, id, 0)),
+    tokens,
+    0,
+  )
+  const labelH = tokens.containerLabelHeight
+  const width = Math.max(
+    packed.width + tokens.containerPadding.l + tokens.containerPadding.r,
+    LAYOUT.minContainerWidth,
+  )
+  const height = packed.height + labelH + tokens.containerPadding.b
+  return { packed, info: { ...c, width, height, labelH, absX: 0, absY: 0 } }
 }
 
-const packLane = (
-  containers: SizedContainer[],
-  maxWidth: number,
+const placeLanes = (
+  data: DesignData,
+  sized: SizedContainer[],
   tokens: DensityTokens,
-): { width: number; height: number; placements: LanePlacement[] } => {
-  const placements: LanePlacement[] = []
-  let x = 0
+): LaneInfo[] => {
+  const x = LAYOUT.laneLabelWidth + LAYOUT.laneLabelGap
   let y = 0
-  let rowH = 0
-  let maxRowW = 0
-  for (const c of containers) {
-    if (x > 0 && x + c.width > maxWidth) {
-      maxRowW = Math.max(maxRowW, x)
-      x = 0
-      y += rowH + tokens.containerGap
-      rowH = 0
+  return data.layers.map((layer) => {
+    let rowX = 0
+    let rowH = 0
+    for (const c of sized.filter((s) => s.info.layer === layer.id)) {
+      c.info.absX = x + tokens.lanePadX + rowX
+      c.info.absY = y + tokens.lanePadY
+      rowX += c.info.width + tokens.containerGap
+      rowH = Math.max(rowH, c.info.height)
     }
-    placements.push({ id: c.id, x, y, w: c.width, h: c.height })
-    x += c.width + tokens.containerGap
-    rowH = Math.max(rowH, c.height)
-  }
-  maxRowW = Math.max(maxRowW, x)
-  return { width: maxRowW, height: y + rowH, placements }
+    const lane = { ...layer, x, y, width: rowX + 2 * tokens.lanePadX, height: rowH + 2 * tokens.lanePadY }
+    y += lane.height + tokens.laneGapY
+    return lane
+  })
+}
+
+interface EmitTarget {
+  out: Record<string, ModulePos>
+  tokens: DensityTokens
 }
 
 const emitPositions = (
+  target: EmitTarget,
   item: PlacedItem,
-  ox: number,
-  oy: number,
-  out: Record<string, ModulePos>,
+  origin: { x: number; y: number },
   depth: number,
-  tokens: DensityTokens,
 ): void => {
-  const ax = ox + item.x
-  const ay = oy + item.y
-  const cx = ax + item.w / 2
-  const cy = ay + item.h / 2
-  out[item.id] = {
-    x: ax,
-    y: ay,
+  const x = origin.x + item.x
+  const y = origin.y + item.y
+  target.out[item.id] = {
+    x,
+    y,
     w: item.w,
     h: item.h,
-    cx,
-    cy,
+    cx: x + item.w / 2,
+    cy: y + item.h / 2,
     mod: item.mod,
-    leaf: item.leaf,
+    isLeaf: item.isLeaf,
     depth,
     childIds: item.placedKids.map((k) => k.id),
   }
-  if (item.placedKids.length) {
-    const innerX = ax + tokens.modulePadH
-    const innerY = ay + tokens.moduleHeader
-    for (const kid of item.placedKids) emitPositions(kid, innerX, innerY, out, depth + 1, tokens)
-  }
+  const inner = { x: x + target.tokens.modulePadH, y: y + target.tokens.moduleHeader }
+  for (const kid of item.placedKids) emitPositions(target, kid, inner, depth + 1)
 }
 
-export const computeLayout = (data: DesignData, options: LayoutOptions = {}): Scene => {
-  const tokens = DENSITY[options.density ?? 'cozy']
-  const laneMaxWidth = options.laneMaxWidth ?? Number.POSITIVE_INFINITY
-  const byId = new Map(data.modules.map((m) => [m.id, m]))
-
-  const sizedContainers: SizedContainer[] = data.containers.map((c) => {
-    const tops = data.topByContainer[c.id] ?? []
-    const sized = tops.map((id) => sizeModule(id, data, tokens, byId, 0))
-    const packed = packGrid(sized, tokens, 0)
-    const labelH = tokens.containerLabelHeight
-    const w = Math.max(
-      packed.width + tokens.containerPadding.l + tokens.containerPadding.r,
-      110,
-    )
-    const h = packed.height + labelH + tokens.containerPadding.b
-    return {
-      id: c.id,
-      width: w,
-      height: h,
-      labelH,
-      packed,
-      data: { ...c, width: w, height: h, labelH, absX: 0, absY: 0 },
-    }
-  })
-
-  const lanes: LaneInfo[] = data.layers.map((layer) => {
-    const inLane = sizedContainers.filter((c) => c.data.layer === layer.id)
-    const packed = packLane(inLane, laneMaxWidth - 2 * tokens.lanePadX, tokens)
-    return {
-      ...layer,
-      width: packed.width + 2 * tokens.lanePadX,
-      height: packed.height + 2 * tokens.lanePadX,
-      x: 0,
-      y: 0,
-      _placements: packed.placements,
-    } as LaneInfo & { _placements: LanePlacement[] }
-  })
-
-  const laneOriginX = tokens.laneLabelWidth + 8
-  let cursor = 0
-  for (const lane of lanes) {
-    lane.x = laneOriginX
-    lane.y = cursor
-    cursor += lane.height + tokens.laneGapY
+const positionModules = (
+  sized: SizedContainer[],
+  tokens: DensityTokens,
+): Record<string, ModulePos> => {
+  const target: EmitTarget = { out: {}, tokens }
+  for (const { packed, info } of sized) {
+    const inner = { x: info.absX + tokens.containerPadding.l, y: info.absY + info.labelH }
+    for (const item of packed.items) emitPositions(target, item, inner, 0)
   }
+  return target.out
+}
 
-  const modulePos: Record<string, ModulePos> = {}
-  for (const sized of sizedContainers) {
-    const lane = lanes.find((l) => l.id === sized.data.layer) as LaneInfo & {
-      _placements: LanePlacement[]
-    }
-    if (!lane) continue
-    const placement = lane._placements.find((p) => p.id === sized.id)
-    if (!placement) continue
-    sized.data.absX = lane.x + tokens.lanePadX + placement.x
-    sized.data.absY = lane.y + tokens.lanePadX + placement.y
-    const innerX = sized.data.absX + tokens.containerPadding.l
-    const innerY = sized.data.absY + sized.labelH
-    for (const item of sized.packed.items) {
-      emitPositions(item, innerX, innerY, modulePos, 0, tokens)
-    }
-  }
-
+const layEdges = (data: DesignData, modulePos: Record<string, ModulePos>): LaidEdge[] => {
   const edges: LaidEdge[] = []
   data.edges.forEach((e, i) => {
     const a = modulePos[e.source]
     const b = modulePos[e.target]
     if (!a || !b) return
-    edges.push({
-      i,
-      source: e.source,
-      target: e.target,
-      kind: e.kind,
-      violation: e.violation,
-      x1: a.cx,
-      y1: a.cy,
-      x2: b.cx,
-      y2: b.cy,
-    })
+    edges.push({ ...e, i, x1: a.cx, y1: a.cy, x2: b.cx, y2: b.cy })
   })
+  return edges
+}
 
-  const sceneW =
-    lanes.length === 0 ? 0 : Math.max(...lanes.map((l) => l.x + l.width)) + 16
-  const lastLane = lanes[lanes.length - 1]
-  const sceneH = lastLane ? lastLane.y + lastLane.height + 16 : 0
-
-  const cleanLanes: LaneInfo[] = lanes.map(({ x, y, width, height, ...rest }) => ({
-    ...(rest as Omit<LaneInfo, 'x' | 'y' | 'width' | 'height'>),
-    x,
-    y,
-    width,
-    height,
-  }))
-
+const sceneSize = (lanes: LaneInfo[]): { width: number; height: number } => {
+  const last = lanes[lanes.length - 1]
+  if (!last) return { width: 0, height: 0 }
   return {
-    lanes: cleanLanes,
-    containers: sizedContainers.map((c) => c.data),
+    width: Math.max(...lanes.map((l) => l.x + l.width)) + LAYOUT.sceneMargin,
+    height: last.y + last.height + LAYOUT.sceneMargin,
+  }
+}
+
+export const computeLayout = (data: DesignData, options: LayoutOptions = {}): Scene => {
+  const tokens = DENSITY[options.density ?? 'cozy']
+  const ctx: LayoutContext = { data, tokens }
+  const sized = data.containers.map((c) => sizeContainer(ctx, c))
+  const lanes = placeLanes(data, sized, tokens)
+  const modulePos = positionModules(sized, tokens)
+  return {
+    lanes,
+    containers: sized.map((c) => c.info),
     modulePos,
-    edges,
-    width: sceneW,
-    height: sceneH,
+    edges: layEdges(data, modulePos),
+    ...sceneSize(lanes),
   }
 }

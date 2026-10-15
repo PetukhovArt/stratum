@@ -1,6 +1,5 @@
 import {
   Component,
-  createEffect,
   createMemo,
   createResource,
   createSignal,
@@ -10,198 +9,158 @@ import {
 } from 'solid-js'
 import './styles.css'
 
-import { Graph } from './components/Graph'
+import { DetailsPanel } from './components/details'
+import { Graph } from './components/graph/graph'
 import { Header } from './components/Header'
-import { DetailsPanel, HoverTooltip, Minimap, OutlinePanel } from './components/Panels'
+import { HoverTooltip } from './components/hover-tooltip'
+import { Minimap } from './components/minimap'
+import { OutlinePanel } from './components/outline/outline-panel'
 import { Legend, StatusBar, ZoomControls } from './components/StatusBar'
+import { bindKeymap } from './lib/keymap'
 import { loadSnapshot, SnapshotVersionMismatchError } from './lib/snapshot'
 import { loadViolations } from './lib/violations'
 import { adaptSnapshot } from './render/adapt'
 import { DesignData } from './render/design'
 import { computeLayout } from './render/layout'
-import {
-  DEFAULT_FILTERS,
-  DEFAULT_TWEAKS,
-  Filters,
-  HoveredEdge,
-  HoveredMod,
-  Viewport,
-} from './state'
-import { GraphSnapshot, Violation } from './types'
+import { centerOn, DEFAULT_VIEWPORT, fitViewport } from './render/viewport'
+import { CanvasSize, DEFAULT_FILTERS, Filters, HoveredEdge, HoveredMod, Viewport } from './state'
+
+const PANEL = {
+  leftWidth: 264,
+  rightWidth: 340,
+  minWidth: 200,
+  maxWidth: 560,
+  handleWidth: '5px',
+} as const
+
+const sameSize = (a: CanvasSize, b: CanvasSize): boolean => a.w === b.w && a.h === b.h
 
 const App: Component = () => {
-  const [snapshot] = createResource<GraphSnapshot>(() => loadSnapshot('/api/snapshot'))
-  const [violations] = createResource<Violation[]>(() =>
-    loadViolations('/api/violations').catch(() => [] as Violation[]),
-  )
+  const [snapshot] = createResource(() => loadSnapshot('/api/snapshot'))
+  const [violations] = createResource(() => loadViolations('/api/violations'))
+  const isViolationsUnavailable = () => violations.state === 'errored'
 
   const data = createMemo<DesignData | null>(() => {
-    const s = snapshot()
-    if (!s) return null
-    return adaptSnapshot(s, violations() ?? [], { project: deriveProjectName(s) })
+    const s = snapshot.state === 'ready' ? snapshot() : undefined
+    const v = isViolationsUnavailable() ? [] : violations.state === 'ready' ? violations() : undefined
+    if (!s || !v) return null
+    return adaptSnapshot(s, v)
+  })
+  const scene = createMemo(() => {
+    const d = data()
+    return d ? computeLayout(d) : null
   })
 
   const [filters, setFilters] = createSignal<Filters>(DEFAULT_FILTERS())
-  const [tweaks, setTweaks] = createSignal(DEFAULT_TWEAKS)
+  const [isHaloThick, setHaloThick] = createSignal(true)
   const [selected, setSelected] = createSignal<string | null>(null)
   const [hovered, setHovered] = createSignal<HoveredMod | null>(null)
   const [hoveredEdge, setHoveredEdge] = createSignal<HoveredEdge | null>(null)
-  const [paletteOpen, setPaletteOpen] = createSignal(false)
+  const [isPaletteOpen, setPaletteOpen] = createSignal(false)
   const [focusedCycle, setFocusedCycle] = createSignal<string | null>(null)
-  const [leftCollapsed, setLeftCollapsed] = createSignal(false)
-  const [rightCollapsed, setRightCollapsed] = createSignal(false)
-  const [leftWidth, setLeftWidth] = createSignal(264)
-  const [rightWidth, setRightWidth] = createSignal(340)
-  const [viewport, setViewport] = createSignal<Viewport>({ x: 0, y: 0, zoom: 0.5 })
-  const [stageSize, setStageSize] = createSignal({ w: 1000, h: 700 })
-  const [stageRect, setStageRect] = createSignal<DOMRect | null>(null)
-  const [hasFitted, setHasFitted] = createSignal(false)
+  const [isLeftCollapsed, setLeftCollapsed] = createSignal(false)
+  const [isRightCollapsed, setRightCollapsed] = createSignal(false)
+  const [leftWidth, setLeftWidth] = createSignal<number>(PANEL.leftWidth)
+  const [rightWidth, setRightWidth] = createSignal<number>(PANEL.rightWidth)
+  const [canvasRect, setCanvasRect] = createSignal<DOMRect | null>(null)
+  const [userViewport, setUserViewport] = createSignal<Viewport | null>(null)
 
-  const scene = createMemo(() => {
-    const d = data()
-    if (!d) return null
-    return computeLayout(d, { density: tweaks().density, direction: tweaks().direction })
+  const canvasSize = createMemo<CanvasSize>(
+    () => {
+      const r = canvasRect()
+      return r ? { w: r.width, h: r.height } : { w: 0, h: 0 }
+    },
+    { w: 0, h: 0 },
+    { equals: sameSize },
+  )
+
+  const viewport = createMemo<Viewport>(() => {
+    const user = userViewport()
+    if (user) return user
+    const sc = scene()
+    return sc ? fitViewport(sc, canvasSize()) : DEFAULT_VIEWPORT
   })
 
-  let stageRef!: HTMLDivElement
-
-  const measureStage = () => {
-    if (!stageRef) return
-    const r = stageRef.getBoundingClientRect()
-    setStageSize({ w: r.width, h: r.height })
-    setStageRect(r)
-  }
-
-  onMount(() => {
-    measureStage()
-    const ro = new ResizeObserver(() => measureStage())
-    ro.observe(stageRef)
+  const observeCanvas = (el: HTMLDivElement) => {
+    const ro = new ResizeObserver(() => setCanvasRect(el.getBoundingClientRect()))
+    ro.observe(el)
     onCleanup(() => ro.disconnect())
-  })
-
-  createEffect(() => {
-    leftCollapsed()
-    rightCollapsed()
-    queueMicrotask(measureStage)
-  })
-
-  const fitToBounds = () => {
-    const sc = scene()
-    const ss = stageSize()
-    if (!sc || !ss.w || !sc.width) return
-    const padding = 40
-    const fx = (ss.w - padding * 2) / sc.width
-    const fy = (ss.h - padding * 2) / sc.height
-    const z = Math.max(0.15, Math.min(2, Math.min(fx, fy)))
-    setViewport({
-      zoom: z,
-      x: (ss.w - sc.width * z) / 2,
-      y: (ss.h - sc.height * z) / 2,
-    })
   }
 
-  createEffect(() => {
-    void scene()
-    setHasFitted(false)
-  })
-  createEffect(() => {
-    const sc = scene()
-    const ss = stageSize()
-    if (!sc || !ss.w || hasFitted()) return
-    fitToBounds()
-    setHasFitted(true)
-  })
-
-  const centerOn = (id: string) => {
-    const sc = scene()
-    if (!sc) return
-    const pos = sc.modulePos[id]
-    if (!pos) return
-    const v = viewport()
-    const z = Math.max(v.zoom, 0.85)
-    setViewport({
-      zoom: z,
-      x: stageSize().w / 2 - pos.cx * z,
-      y: stageSize().h / 2 - pos.cy * z,
-    })
-  }
+  const fit = () => setUserViewport(null)
 
   const handleSelect = (id: string) => {
     setSelected(id)
-    if (id) centerOn(id)
+    const pos = scene()?.modulePos[id]
+    if (pos) {
+      setUserViewport(centerOn(viewport(), { x: pos.cx, y: pos.cy }, canvasSize()))
+    }
+  }
+
+  const dismiss = () => {
+    if (focusedCycle()) {
+      setFocusedCycle(null)
+      return
+    }
+    if (selected()) {
+      setSelected(null)
+      return
+    }
+    fit()
   }
 
   onMount(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null
-      const inInput =
-        target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable
-      if (e.key === 'Escape') {
-        if (paletteOpen()) return
-        if (focusedCycle()) {
-          setFocusedCycle(null)
-          return
-        }
-        if (selected()) {
-          setSelected(null)
-          return
-        }
-        fitToBounds()
-      }
-      if (e.key === 'f' && !e.metaKey && !e.ctrlKey && !inInput) {
-        fitToBounds()
-      }
-      if (e.key === '[' && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault()
-        setLeftCollapsed(!leftCollapsed())
-      }
-      if (e.key === ']' && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault()
-        setRightCollapsed(!rightCollapsed())
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    onCleanup(() => window.removeEventListener('keydown', onKey))
+    const unbind = bindKeymap({
+      isPaletteOpen,
+      setPaletteOpen,
+      dismiss,
+      fit,
+      toggleLeftPanel: () => setLeftCollapsed(!isLeftCollapsed()),
+      toggleRightPanel: () => setRightCollapsed(!isRightCollapsed()),
+    })
+    onCleanup(unbind)
   })
 
-  const bodyStyle = createMemo(() => {
-    const leftCol = leftCollapsed() ? '0' : leftWidth() + 'px'
-    const rightCol = rightCollapsed() ? '0' : rightWidth() + 'px'
-    const leftHandle = leftCollapsed() ? '0' : '5px'
-    const rightHandle = rightCollapsed() ? '0' : '5px'
+  const bodyStyle = () => {
+    const column = (isCollapsed: boolean, width: number) => (isCollapsed ? '0' : `${width}px`)
+    const handle = (isCollapsed: boolean) => (isCollapsed ? '0' : PANEL.handleWidth)
     return {
-      'grid-template-columns': `${leftCol} ${leftHandle} 1fr ${rightHandle} ${rightCol}`,
-    } as Record<string, string>
-  })
+      'grid-template-columns': [
+        column(isLeftCollapsed(), leftWidth()),
+        handle(isLeftCollapsed()),
+        '1fr',
+        handle(isRightCollapsed()),
+        column(isRightCollapsed(), rightWidth()),
+      ].join(' '),
+    }
+  }
 
-  const selectedMod = () =>
-    selected() ? data()?.modules.find((m) => m.id === selected()) ?? null : null
+  const selectedMod = () => {
+    const id = selected()
+    return id ? data()?.moduleById.get(id) ?? null : null
+  }
 
   return (
     <Show when={!snapshot.error} fallback={<ErrorView err={snapshot.error as Error} />}>
       <Show
         when={data()}
-        fallback={
-          <div style={{ padding: '24px', color: 'var(--tx-3)' }}>Loading snapshot…</div>
-        }
+        fallback={<div style={{ padding: '24px', color: 'var(--tx-3)' }}>Loading snapshot…</div>}
       >
         {(d) => (
-          <div class="strat-app" data-accent={tweaks().accent}>
+          <div class="strat-app">
             <Header
               data={d()}
               filters={filters()}
               setFilters={setFilters}
-              paletteOpen={paletteOpen()}
+              isPaletteOpen={isPaletteOpen()}
               setPaletteOpen={setPaletteOpen}
               onSelect={handleSelect}
-              onResetView={fitToBounds}
-              onTweaksToggle={() =>
-                setTweaks({ ...tweaks(), haloThick: !tweaks().haloThick })
-              }
+              onResetView={fit}
+              onHaloToggle={() => setHaloThick(!isHaloThick())}
             />
             <div class="strat-body" style={bodyStyle()}>
-              <div class={`panel-slot ${leftCollapsed() ? 'collapsed' : ''}`}>
-                <Show when={!leftCollapsed()}>
+              <div class={`panel-slot ${isLeftCollapsed() ? 'collapsed' : ''}`}>
+                <Show when={!isLeftCollapsed()}>
                   <OutlinePanel
                     data={d()}
                     filters={filters()}
@@ -212,11 +171,11 @@ const App: Component = () => {
                 </Show>
               </div>
 
-              <Show when={!leftCollapsed()} fallback={<div />}>
+              <Show when={!isLeftCollapsed()} fallback={<div />}>
                 <ResizeHandle side="left" width={leftWidth} setWidth={setLeftWidth} />
               </Show>
 
-              <div class="stage" ref={stageRef}>
+              <div class="canvas-area" ref={observeCanvas}>
                 <Show when={scene()}>
                   {(sc) => (
                     <>
@@ -224,7 +183,7 @@ const App: Component = () => {
                         scene={sc()}
                         data={d()}
                         filters={filters()}
-                        tweaks={tweaks()}
+                        isHaloThick={isHaloThick()}
                         selectedId={selected()}
                         hoveredId={hovered()?.id ?? null}
                         focusedCycle={focusedCycle()}
@@ -233,7 +192,8 @@ const App: Component = () => {
                         onHoverEdge={setHoveredEdge}
                         hoveredEdge={hoveredEdge()}
                         viewport={viewport()}
-                        onViewportChange={setViewport}
+                        canvasSize={canvasSize()}
+                        onViewportChange={setUserViewport}
                       />
                       <Legend />
                       <Show when={focusedCycle()}>
@@ -241,56 +201,49 @@ const App: Component = () => {
                           <div class="cycle-banner">
                             <span class="cycle-dot" />
                             <span>Focused on cycle</span>
-                            <code>
-                              {d().violations.find((v) => v.id === fc())?.message ?? ''}
-                            </code>
+                            <code>{d().violationById.get(fc())?.message ?? ''}</code>
                             <button onClick={() => setFocusedCycle(null)}>exit ↩</button>
                           </div>
                         )}
                       </Show>
-                      <Show when={tweaks().showMinimap}>
-                        <Minimap
-                          scene={sc()}
-                          viewport={viewport()}
-                          onViewportChange={setViewport}
-                          containerSize={stageSize()}
-                        />
-                      </Show>
+                      <Minimap
+                        scene={sc()}
+                        viewport={viewport()}
+                        onViewportChange={setUserViewport}
+                        canvasSize={canvasSize()}
+                      />
                       <ZoomControls
                         viewport={viewport()}
-                        setViewport={setViewport}
-                        fit={fitToBounds}
-                        stageSize={stageSize()}
+                        setViewport={setUserViewport}
+                        fit={fit}
+                        canvasSize={canvasSize()}
                       />
-                      <Show when={tweaks().showTooltip}>
-                        <HoverTooltip
-                          data={d()}
-                          hoveredModule={hovered()}
-                          hoveredEdge={hoveredEdge()}
-                          stageRect={stageRect()}
-                        />
-                      </Show>
+                      <HoverTooltip
+                        data={d()}
+                        hoveredModule={hovered()}
+                        hoveredEdge={hoveredEdge()}
+                        canvasRect={canvasRect()}
+                      />
                     </>
                   )}
                 </Show>
               </div>
 
-              <Show when={!rightCollapsed()} fallback={<div />}>
+              <Show when={!isRightCollapsed()} fallback={<div />}>
                 <ResizeHandle side="right" width={rightWidth} setWidth={setRightWidth} />
               </Show>
 
-              <div class={`panel-slot ${rightCollapsed() ? 'collapsed' : ''}`}>
-                <Show when={!rightCollapsed()}>
+              <div class={`panel-slot ${isRightCollapsed() ? 'collapsed' : ''}`}>
+                <Show when={!isRightCollapsed()}>
                   <DetailsPanel
                     data={d()}
                     selectedId={selected()}
                     hoveredId={hovered()?.id ?? null}
                     onClose={() => setSelected(null)}
-                    onFocusCycle={(vid) =>
-                      setFocusedCycle(focusedCycle() === vid ? null : vid)
-                    }
+                    onFocusCycle={(vid) => setFocusedCycle(focusedCycle() === vid ? null : vid)}
                     focusedCycle={focusedCycle()}
                     onSelect={handleSelect}
+                    isViolationsUnavailable={isViolationsUnavailable()}
                   />
                 </Show>
               </div>
@@ -299,9 +252,9 @@ const App: Component = () => {
               data={d()}
               viewport={viewport()}
               selected={selectedMod()}
-              leftCollapsed={leftCollapsed()}
+              isLeftCollapsed={isLeftCollapsed()}
               setLeftCollapsed={setLeftCollapsed}
-              rightCollapsed={rightCollapsed()}
+              isRightCollapsed={isRightCollapsed()}
               setRightCollapsed={setRightCollapsed}
               filters={filters()}
             />
@@ -317,6 +270,9 @@ const ResizeHandle: Component<{
   width: () => number
   setWidth: (n: number) => void
 }> = (props) => {
+  let stopDrag: (() => void) | null = null
+  onCleanup(() => stopDrag?.())
+
   const onMouseDown = (e: MouseEvent) => {
     e.preventDefault()
     const startX = e.clientX
@@ -325,15 +281,17 @@ const ResizeHandle: Component<{
     document.body.style.userSelect = 'none'
     const onMove = (ev: MouseEvent) => {
       const dx = ev.clientX - startX
-      const newW = props.side === 'left' ? startW + dx : startW - dx
-      props.setWidth(Math.max(200, Math.min(560, newW)))
+      const next = props.side === 'left' ? startW + dx : startW - dx
+      props.setWidth(Math.max(PANEL.minWidth, Math.min(PANEL.maxWidth, next)))
     }
     const onUp = () => {
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
+      stopDrag = null
     }
+    stopDrag = onUp
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
   }
@@ -352,17 +310,6 @@ const ErrorView: Component<{ err: Error }> = (props) => {
       <p>{props.err.message}</p>
     </div>
   )
-}
-
-const deriveProjectName = (snap: GraphSnapshot): string => {
-  const first = snap.modules[0]?.path ?? ''
-  if (!first) return 'project'
-  const parts = first.split(/[/\\]/)
-  for (let i = parts.length - 2; i >= 0; i--) {
-    const p = parts[i]
-    if (p && p !== 'src' && !p.endsWith(':') && p !== '') return p
-  }
-  return 'project'
 }
 
 export default App
