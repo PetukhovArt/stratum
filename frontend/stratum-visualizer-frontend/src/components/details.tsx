@@ -1,6 +1,7 @@
 import { Component, createMemo, For, JSX, Show } from 'solid-js'
 import {
   ancestorIds,
+  containerKindOf,
   DesignData,
   DesignModule,
   DesignViolation,
@@ -8,7 +9,7 @@ import {
   layerOfModule,
   violationsOf,
 } from '../render/design'
-import { layerColor, stageInfo, TONE } from '../render/palette'
+import { facetInfo, layerColor, TONE } from '../render/palette'
 
 interface CycleFocus {
   focusedCycle: string | null
@@ -106,6 +107,8 @@ const DetailsForModule: Component<{
 }> = (props) => {
   const containerLabel = () => props.data.containers.find((c) => c.id === props.mod.container)?.label
   const layer = () => layerOfModule(props.data, props.mod)
+  const facet = () => facetInfo(props.mod.facet)
+  const containerKind = () => containerKindOf(props.mod)
   const incoming = createMemo(() => props.data.edges.filter((e) => e.target === props.mod.id))
   const outgoing = createMemo(() => props.data.edges.filter((e) => e.source === props.mod.id))
   const vios = createMemo(() => violationsOf(props.data, props.mod))
@@ -144,6 +147,13 @@ const DetailsForModule: Component<{
           <Show when={props.mod.kind === 'shared'}>
             <span class="hd-pill pill-kind-s">_shared</span>
           </Show>
+          <Show when={containerKind()}>
+            {(k) => (
+              <span class="hd-pill" data-testid="details-container-kind">
+                {k()}
+              </span>
+            )}
+          </Show>
           <span class="panel-title-mono">{props.mod.label}</span>
         </span>
         <Show when={props.isPinned}>
@@ -172,7 +182,11 @@ const DetailsForModule: Component<{
         </div>
         <div class="det-path">{props.mod.path}</div>
         <div class="det-stats">
-          <Stat label="Stage" value={props.mod.stage} title={stageInfo(props.mod.stage).desc} />
+          <Stat
+            label={`${facet().axis} · ${facet().name}`}
+            value={props.mod.facet.value}
+            title={facet().desc}
+          />
           <Stat label="In" value={incoming().length} title="Incoming dependencies." />
           <Stat label="Out" value={outgoing().length} title="Outgoing dependencies." />
         </div>
@@ -194,7 +208,9 @@ const DetailsForModule: Component<{
                         </Show>
                         {k.label}
                       </div>
-                      <div class="kidgrid-meta">stage {k.stage}</div>
+                      <div class="kidgrid-meta">
+                        {facetInfo(k.facet).axis.toLowerCase()} {k.facet.value}
+                      </div>
                       <Show when={grandkids() > 0}>
                         <div class="kidgrid-deep">+{grandkids()} nested</div>
                       </Show>

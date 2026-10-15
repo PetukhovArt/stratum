@@ -8,15 +8,15 @@ import { EdgeKind, GraphSnapshot } from '../../types'
 import { Graph } from './graph'
 
 const snap: GraphSnapshot = {
-  version: 1,
+  version: 2,
   modules: [
-    { id: 1, path: 'src/a.ts', container: 10, layer: 0, stage: 1 },
-    { id: 2, path: 'src/b.ts', container: 10, layer: 0, stage: 1 },
-    { id: 3, path: 'src/c.ts', container: 11, layer: 1, stage: 1 },
+    { id: 1, path: 'src/a.ts', container: 10, layer: 0, purity: 1 },
+    { id: 2, path: 'src/b.ts', container: 10, layer: 0, purity: 1 },
+    { id: 3, path: 'src/c.ts', container: 11, layer: 1, purity: 1 },
   ],
   containers: [
-    { id: 10, name: 'features', layer: 0, parent: null },
-    { id: 11, name: 'shared', layer: 1, parent: null },
+    { id: 10, name: 'features', path: 'src/features', kind: 'layer', layer: 0, parent: null, stage: 2, entry: null },
+    { id: 11, name: 'shared', path: 'src/shared', kind: 'layer', layer: 1, parent: null, stage: 2, entry: null },
   ],
   layers: [
     { id: 0, name: 'features', depends_on: [1] },
@@ -37,6 +37,7 @@ describe('Graph', () => {
           scene,
           data,
           filters: DEFAULT_FILTERS(),
+          colorMode: 'layer',
           isHaloThick: true,
           selectedId: null,
           hoveredId: null,

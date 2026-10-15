@@ -1,6 +1,6 @@
 import { Component, createMemo, For, Match, Show, Switch } from 'solid-js'
-import { DesignData, DesignModule, layerOfModule, violationsOf } from '../render/design'
-import { layerColor, stageInfo, TONE } from '../render/palette'
+import { containerKindOf, DesignData, DesignModule, layerOfModule, violationsOf } from '../render/design'
+import { facetInfo, layerColor, TONE } from '../render/palette'
 import { HoveredEdge, HoveredMod } from '../state'
 
 const CURSOR_OFFSET_PX = 14
@@ -40,7 +40,8 @@ const ModuleTooltip: Component<{ mod: DesignModule; data: DesignData }> = (props
   const m = () => props.mod
   const layer = () => layerOfModule(props.data, m())
   const vios = createMemo(() => violationsOf(props.data, m()))
-  const stage = () => stageInfo(m().stage)
+  const facet = () => facetInfo(m().facet)
+  const containerKind = () => containerKindOf(m())
   const kidsCount = () => props.data.childIndex[m().id]?.length ?? 0
   const inCount = createMemo(() => props.data.edges.filter((e) => e.target === m().id).length)
   const outCount = createMemo(() => props.data.edges.filter((e) => e.source === m().id).length)
@@ -61,8 +62,9 @@ const ModuleTooltip: Component<{ mod: DesignModule; data: DesignData }> = (props
             </span>
           )}
         </Show>
-        <span class={`tt-stage tt-stage-${m().stage}`} title={stage().desc}>
-          ◔ {stage().name}
+        <Show when={containerKind()}>{(k) => <span class="tt-kind">{k()}</span>}</Show>
+        <span class="tt-rank" style={{ '--rank': facet().color }} title={facet().desc}>
+          ◔ {facet().name}
         </span>
         <Show when={m().kind === 'composer'}>
           <span class="tt-kind tt-kind-composer">◇ composer</span>
@@ -77,8 +79,8 @@ const ModuleTooltip: Component<{ mod: DesignModule; data: DesignData }> = (props
       <div class="tt-name">{m().label}</div>
       <div class="tt-path">{m().path}</div>
       <div class="tt-stats">
-        <span title={stage().desc}>
-          stage {m().stage} · {stage().name}
+        <span title={facet().desc}>
+          {facet().axis.toLowerCase()} {m().facet.value} · {facet().name}
         </span>
         <span>in {inCount()}</span>
         <span>out {outCount()}</span>

@@ -3,15 +3,15 @@ import { EdgeKind, GraphSnapshot, Severity, Violation } from '../types'
 import { adaptSnapshot } from './adapt'
 
 const snap: GraphSnapshot = {
-  version: 1,
+  version: 2,
   modules: [
-    { id: 1, path: 'src/features/auth/index.ts', container: 10, layer: 0, stage: 2 },
-    { id: 2, path: 'src/features/auth/_shared.ts', container: 10, layer: 0, stage: 1 },
-    { id: 3, path: 'src/shared/lib/result.ts', container: 11, layer: 1, stage: 1 },
+    { id: 1, path: 'src/features/auth/index.ts', container: 10, layer: 0, purity: 2 },
+    { id: 2, path: 'src/features/auth/_shared.ts', container: 10, layer: 0, purity: 1 },
+    { id: 3, path: 'src/shared/lib/result.ts', container: 11, layer: 1, purity: 1 },
   ],
   containers: [
-    { id: 10, name: 'features/auth', layer: 0, parent: null },
-    { id: 11, name: 'shared/lib', layer: 1, parent: null },
+    { id: 10, name: 'features/auth', path: 'src/features/auth', kind: 'layer', layer: 0, parent: null, stage: 2, entry: null },
+    { id: 11, name: 'shared/lib', path: 'src/shared/lib', kind: 'layer', layer: 1, parent: null, stage: 2, entry: null },
   ],
   layers: [
     { id: 0, name: 'features', depends_on: [1] },
@@ -85,10 +85,10 @@ describe('adaptSnapshot', () => {
     const nested: GraphSnapshot = {
       ...snap,
       containers: [
-        { id: 20, name: 'features', layer: 0, parent: null },
-        { id: 21, name: 'auth', layer: 0, parent: 20 },
+        { id: 20, name: 'features', path: 'src/features', kind: 'layer', layer: 0, parent: null, stage: 2, entry: null },
+        { id: 21, name: 'auth', path: 'src/auth', kind: 'slice', layer: 0, parent: 20, stage: 2, entry: null },
       ],
-      modules: [{ id: 1, path: 'src/features/auth/x.ts', container: 21, layer: 0, stage: 1 }],
+      modules: [{ id: 1, path: 'src/features/auth/x.ts', container: 21, layer: 0, purity: 1 }],
       edges: [],
     }
     const d = adaptSnapshot(nested)
@@ -98,5 +98,21 @@ describe('adaptSnapshot', () => {
     expect(compound.container).toBe('c-20')
     expect(d.topByContainer['c-20']).toContain('cn-21')
     expect(d.childIndex['cn-21']).toContain('m-1')
+  })
+
+  it('shows purity on files and the backend stage on containers, never mixing the axes', () => {
+    const composed: GraphSnapshot = {
+      ...snap,
+      containers: [
+        { id: 20, name: 'root', path: 'src/root', kind: 'layer', layer: 0, parent: null, stage: 2, entry: null },
+        { id: 21, name: 'unit', path: 'src/root/unit', kind: 'sub_unit', layer: 0, parent: 20, stage: 4, entry: 1 },
+      ],
+      modules: [{ id: 1, path: 'src/root/unit/x.ts', container: 21, layer: 0, purity: 2 }],
+      edges: [],
+    }
+    const d = adaptSnapshot(composed)
+    expect(d.moduleById.get('m-1')!.facet).toEqual({ axis: 'purity', value: 2 })
+    expect(d.moduleById.get('cn-21')!.facet).toEqual({ axis: 'stage', value: 4, kind: 'sub-unit' })
+    expect(d.containers[0].stage).toBe(2)
   })
 })

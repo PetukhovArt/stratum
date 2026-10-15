@@ -11,7 +11,7 @@ import { createTip, TreeTooltip } from './tree-tooltip'
 
 const visibleOutlineModules = (data: DesignData, f: Filters): Set<string> | null => {
   if (!isModuleFilterActive(f)) return null
-  const matches = moduleMatcher(f)
+  const matches = moduleMatcher(f, data)
   const direct = data.modules.filter(matches).map((m) => m.id)
   const visible = new Set<string>(direct)
   for (const id of direct) {

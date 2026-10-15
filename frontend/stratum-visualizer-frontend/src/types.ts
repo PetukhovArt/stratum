@@ -16,14 +16,21 @@ export interface SnapshotModule {
   path: string
   container: number
   layer: number
-  stage: number
+  purity: number
 }
+
+export const CONTAINER_KINDS = ['layer', 'slice', 'sub_unit', 'nested'] as const
+export type ContainerKind = (typeof CONTAINER_KINDS)[number]
 
 export interface SnapshotContainer {
   id: number
   name: string
+  path: string
+  kind: ContainerKind
   layer: number
   parent: number | null
+  stage: number
+  entry: number | null
 }
 
 export interface SnapshotLayer {
@@ -63,4 +70,4 @@ export interface Violation {
   suggestion: string | null
 }
 
-export const SUPPORTED_SNAPSHOT_VERSION = 1
+export const SUPPORTED_SNAPSHOT_VERSION = 2

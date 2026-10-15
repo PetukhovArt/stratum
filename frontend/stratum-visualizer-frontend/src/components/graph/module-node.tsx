@@ -1,7 +1,7 @@
 import { Component, Show } from 'solid-js'
 import { ModulePos } from '../../render/layout'
-import { DEFAULT_HUE, layerColor, SEVERITY, stageInfo, TONE } from '../../render/palette'
-import { HoveredMod } from '../../state'
+import { DEFAULT_HUE, facetInfo, layerColor, SEVERITY, TONE } from '../../render/palette'
+import { ColorMode, HoveredMod } from '../../state'
 import { CountBadge } from './count-badge'
 import { DIMMED_OPACITY } from './dimming'
 
@@ -17,6 +17,7 @@ export const ModuleNode: Component<{
   isHighlighted: boolean
   isSelected: boolean
   isHaloThick: boolean
+  colorMode: ColorMode
   onSelect: (id: string) => void
   onHover: (h: HoveredMod | null) => void
 }> = (props) => {
@@ -43,7 +44,12 @@ export const ModuleNode: Component<{
     if (severity()) return 1.5
     return isComposer() ? 1.4 : 0.7
   }
+  const facet = () => facetInfo(mod().facet)
+  const isFacetColored = () => props.colorMode === mod().facet.axis
   const fill = () => {
+    if (isFacetColored()) {
+      return `color-mix(in oklch, ${facet().color} ${isCompound() ? 22 : 55}%, var(--bg-0))`
+    }
     if (isCompound()) return layerColor(hue(), TONE.compoundFill)
     if (isShared()) return 'url(#shared-hatch)'
     return layerColor(hue(), TONE.leafFill)
@@ -95,8 +101,7 @@ export const ModuleNode: Component<{
         width={props.pos.w}
         height={props.pos.h}
         rx={rounding()}
-        fill={fill()}
-        style={{ stroke: stroke() }}
+        style={{ fill: fill(), stroke: stroke() }}
         stroke-width={strokeWidth()}
         stroke-dasharray={isComposer() ? '3 2' : undefined}
       />
@@ -132,7 +137,7 @@ export const ModuleNode: Component<{
             cx={props.pos.w - 3}
             cy={props.pos.h - 3}
             r={1.4}
-            style={{ fill: stageInfo(mod().stage).color }}
+            style={{ fill: facet().color }}
           />
         }
       >

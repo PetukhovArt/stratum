@@ -23,7 +23,7 @@ import { adaptSnapshot } from './render/adapt'
 import { DesignData } from './render/design'
 import { computeLayout } from './render/layout'
 import { centerOn, DEFAULT_VIEWPORT, fitViewport } from './render/viewport'
-import { CanvasSize, DEFAULT_FILTERS, Filters, HoveredEdge, HoveredMod, Viewport } from './state'
+import { CanvasSize, ColorMode, DEFAULT_FILTERS, Filters, HoveredEdge, HoveredMod, Viewport } from './state'
 
 const PANEL = {
   leftWidth: 264,
@@ -52,6 +52,7 @@ const App: Component = () => {
   })
 
   const [filters, setFilters] = createSignal<Filters>(DEFAULT_FILTERS())
+  const [colorMode, setColorMode] = createSignal<ColorMode>('layer')
   const [isHaloThick, setHaloThick] = createSignal(true)
   const [selected, setSelected] = createSignal<string | null>(null)
   const [hovered, setHovered] = createSignal<HoveredMod | null>(null)
@@ -152,6 +153,8 @@ const App: Component = () => {
               data={d()}
               filters={filters()}
               setFilters={setFilters}
+              colorMode={colorMode()}
+              setColorMode={setColorMode}
               isPaletteOpen={isPaletteOpen()}
               setPaletteOpen={setPaletteOpen}
               onSelect={handleSelect}
@@ -183,6 +186,7 @@ const App: Component = () => {
                         scene={sc()}
                         data={d()}
                         filters={filters()}
+                        colorMode={colorMode()}
                         isHaloThick={isHaloThick()}
                         selectedId={selected()}
                         hoveredId={hovered()?.id ?? null}

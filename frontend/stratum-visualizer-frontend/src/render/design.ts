@@ -1,5 +1,10 @@
 export type ModuleKind = 'regular' | 'composer' | 'shared'
 export type SeverityLabel = 'error' | 'warning' | 'info'
+export type ContainerKindLabel = 'layer' | 'slice' | 'sub-unit' | 'nested'
+
+export type Facet =
+  | { axis: 'purity'; value: number }
+  | { axis: 'stage'; value: number; kind: ContainerKindLabel }
 
 export interface DesignLayer {
   id: string
@@ -19,6 +24,7 @@ export interface DesignContainer {
   warnings: number
   moduleCount: number
   stage: number
+  kind: ContainerKindLabel
 }
 
 export interface DesignViolation {
@@ -36,7 +42,7 @@ export interface DesignModule {
   parentId: string | null
   label: string
   path: string
-  stage: number
+  facet: Facet
   kind: ModuleKind
   depth: number
   hasChildren: boolean
@@ -78,7 +84,10 @@ export interface DesignData {
 export const layerOfModule = (data: DesignData, mod: DesignModule): DesignLayer | null =>
   data.layerByContainer.get(mod.container) ?? null
 
-export const violationsOf = (data: DesignData, mod: DesignModule): DesignViolation[] =>
+export const containerKindOf = (mod: DesignModule): ContainerKindLabel | null =>
+  mod.facet.axis === 'stage' ? mod.facet.kind : null
+
+export const violationsOf =(data: DesignData, mod: DesignModule): DesignViolation[] =>
   mod.violations
     .map((vid) => data.violationById.get(vid))
     .filter((v): v is DesignViolation => v !== undefined)
