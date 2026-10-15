@@ -27,7 +27,9 @@ pub struct SnapshotModule {
     pub path: String,
     pub container: ContainerId,
     pub layer: LayerId,
-    pub stage: u8,
+    // The visualizer reads `stage` until snapshot v2.
+    #[serde(rename = "stage")]
+    pub purity: u8,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -63,7 +65,7 @@ pub fn snapshot_of(g: &CompoundGraph) -> GraphSnapshot {
             path: m.path.to_string_lossy().to_string(),
             container: m.container,
             layer: m.layer,
-            stage: m.stage.rank(),
+            purity: m.purity.rank(),
         })
         .collect();
     modules.sort_by_key(|m| m.id.raw());

@@ -30,7 +30,7 @@ mod tests {
     use std::path::PathBuf;
     use stratum_core::{
         ids::LayerId,
-        stage::Stage,
+        purity::Purity,
         types::{Exports, Module},
         visibility::VisibilityScope,
     };
@@ -41,7 +41,7 @@ mod tests {
             path: PathBuf::from(format!("m{id}.ts")),
             container: ContainerId::new(container),
             layer: LayerId::new(0),
-            stage: Stage::new(2).unwrap(),
+            purity: Purity::new(2).unwrap(),
             visibility: VisibilityScope::Public,
             exports: Exports {
                 count: exports,

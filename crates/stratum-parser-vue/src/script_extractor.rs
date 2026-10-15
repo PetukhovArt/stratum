@@ -2,7 +2,7 @@ use camino::Utf8Path;
 
 use stratum_core::types::Exports;
 use stratum_parser_ts::{
-    ExtractError, ExtractedData, LanguageExtractor, RawImport, SourceType, collect, extract_stage,
+    ExtractError, ExtractedData, LanguageExtractor, RawImport, SourceType, collect, extract_purity,
 };
 
 use crate::setup_macros;
@@ -63,7 +63,7 @@ impl LanguageExtractor for VueExtractor {
             source_path: path.to_path_buf(),
             imports: all_imports,
             diagnostics: vec![],
-            stage: extract_stage(source),
+            purity: extract_purity(source),
             exports,
         })
     }

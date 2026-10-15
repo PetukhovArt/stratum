@@ -1,6 +1,5 @@
 ---
 source: crates/stratum-config/tests/parse_snapshot.rs
-assertion_line: 9
 expression: cfg
 ---
 version: 1
@@ -46,7 +45,7 @@ rules:
     severity: error
     options: ~
     script: ~
-  stratum/stage-purity:
+  stratum/purity:
     severity: error
     options: ~
     script: ~

@@ -1,10 +1,10 @@
 #![allow(clippy::unwrap_used)]
 
 use proptest::prelude::*;
-use stratum_core::{ModuleId, Severity, Stage};
+use stratum_core::{ModuleId, Severity, Purity};
 
-fn arb_stage() -> impl Strategy<Value = Stage> {
-    (1u8..=4).prop_map(|r| Stage::new(r).unwrap())
+fn arb_purity() -> impl Strategy<Value = Purity> {
+    (1u8..=4).prop_map(|r| Purity::new(r).unwrap())
 }
 
 fn arb_severity() -> impl Strategy<Value = Severity> {
@@ -18,12 +18,12 @@ fn arb_severity() -> impl Strategy<Value = Severity> {
 
 proptest! {
     #[test]
-    fn stage_dep_reflexive(s in arb_stage()) {
+    fn purity_dep_reflexive(s in arb_purity()) {
         prop_assert!(s.may_depend_on(s));
     }
 
     #[test]
-    fn stage_dep_monotone(a in arb_stage(), b in arb_stage()) {
+    fn purity_dep_monotone(a in arb_purity(), b in arb_purity()) {
         let dep = a.may_depend_on(b);
         if a.rank() >= b.rank() {
             prop_assert!(dep);

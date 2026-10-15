@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use camino::Utf8PathBuf;
 use criterion::{Criterion, criterion_group, criterion_main};
 
-use stratum_core::{ids::LayerId, stage::Stage, types::Layer, visibility::VisibilityScope};
+use stratum_core::{ids::LayerId, purity::Purity, types::Layer, visibility::VisibilityScope};
 use stratum_graph::{BuildConfig, GraphBuilder};
 
 #[allow(clippy::unwrap_used)]
@@ -43,7 +43,7 @@ fn bench_build_tiny_ts(c: &mut Criterion) {
                 depends_on: vec![],
             },
         ],
-        default_stage: Stage::new(2).unwrap(),
+        default_purity: Purity::new(2).unwrap(),
         default_visibility: VisibilityScope::Public,
     };
     c.bench_function("build_tiny_ts_cold", |b| {

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use camino::Utf8PathBuf;
 
-use stratum_core::{ids::LayerId, stage::Stage, types::Layer, visibility::VisibilityScope};
+use stratum_core::{ids::LayerId, purity::Purity, types::Layer, visibility::VisibilityScope};
 use stratum_graph::{BuildConfig, GraphBuilder};
 
 #[test]
@@ -42,7 +42,7 @@ fn runner_emits_expected_violations() {
     let cfg = BuildConfig {
         project_root: root.clone(),
         layers,
-        default_stage: Stage::new(2).unwrap(),
+        default_purity: Purity::new(2).unwrap(),
         default_visibility: VisibilityScope::Public,
     };
     let graph = GraphBuilder::new(cfg).build().unwrap();
@@ -69,11 +69,11 @@ fn runner_emits_expected_violations() {
     );
     assert!(
         by_rule
-            .get(&stratum_rules::STAGE_PURITY.raw())
+            .get(&stratum_rules::PURITY.raw())
             .copied()
             .unwrap_or(0)
             >= 1,
-        "expected at least one stage-purity violation from the @stratum-stage annotations; got {by_rule:?}"
+        "expected at least one purity violation from the @stratum-purity annotations; got {by_rule:?}"
     );
 
     let xlayer = violations

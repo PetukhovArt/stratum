@@ -21,7 +21,7 @@ No editor extensions are shipped: any LSP client can launch `stratum-lsp` over s
 - Root: first `workspaceFolders` entry, else `rootUri`, else `rootPath`, else the process cwd. `file:///c%3A/...` URIs are accepted.
 - `initialize` answers at once; the whole-project analysis runs in the background and its result is published for every open document.
 - Config: `ROOT/stratum.config.jsonc` if present, else zero-config. Editing it or a plugin script referenced from it re-runs the analysis; a broken config or plugin is reported via `window/showMessage` and the last good diagnostics stay.
-- The graph stays in memory. `didOpen` / `didChange` re-parse only that document from its buffer text, replace its outgoing edges and re-run the rules; nothing runs when its imports and stage are unchanged. `didClose` clears the file's diagnostics and reverts it to the text on disk. Diagnostics are published only for open documents whose diagnostics changed.
+- The graph stays in memory. `didOpen` / `didChange` re-parse only that document from its buffer text, replace its outgoing edges and re-run the rules; nothing runs when its imports and purity are unchanged. `didClose` clears the file's diagnostics and reverts it to the text on disk. Diagnostics are published only for open documents whose diagnostics changed.
 - A full rebuild runs on a config, plugin or `tsconfig.json` change, on `workspace/didChangeWatchedFiles` creates or deletes (registered when the client supports dynamic registration), for a document created after the last build, and when an incremental update fails. Open buffers are re-applied after it.
 - Diagnostic: `source: "stratum"`, `code` = rule slug as in config (`stratum/no-cross-layer-import`, plugin slugs too), `message` = violation message, then the suggestion on the next line. `relatedInformation` points at the imported module of an import violation, or at up to 10 other members of a cycle; a cycle is reported on each member.
 - stdout carries JSON-RPC only; logs go to `window/logMessage` (filter with `RUST_LOG`). The process exits on `exit` (code 0 after `shutdown`, else 1).
@@ -80,7 +80,7 @@ error stratum/no-circular-deps (1) - stratum-lint explain stratum/no-circular-de
 warning stratum/no-cross-layer-import (2) - stratum-lint explain stratum/no-cross-layer-import
   src/shared/x.ts:1 -> src/features/y.ts  Module imports from layer 'features' ...
   ...
-+1 more rules over --max 20: stratum/stage-purity (3)
++1 more rules over --max 20: stratum/purity (3)
 info (advisory, details in --format json): stratum/deep-module (266), stratum/miller-limit (135)
 ```
 

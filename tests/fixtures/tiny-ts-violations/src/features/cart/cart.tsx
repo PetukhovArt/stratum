@@ -1,4 +1,4 @@
-// @stratum-stage 3
+// @stratum-purity 3
 export function Cart() {
   return null;
 }

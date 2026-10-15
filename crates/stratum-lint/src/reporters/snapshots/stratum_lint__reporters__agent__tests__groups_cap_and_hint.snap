@@ -3,10 +3,10 @@ source: crates/stratum-lint/src/reporters/agent.rs
 expression: "render(findings, summary, 4)"
 ---
 stratum: 5 errors, 1 warning, 1 info, 2 fixed - run "stratum-lint baseline --prune", 1.23s
-error stratum/stage-purity (5) - stratum-lint explain stratum/stage-purity
-  src/shared/m0.ts:4 -> src/app/main.ts  stratum/stage-purity in src/shared/m0.ts
-  src/shared/m1.ts:4 -> src/app/main.ts  stratum/stage-purity in src/shared/m1.ts
-  src/shared/m2.ts:4 -> src/app/main.ts  stratum/stage-purity in src/shared/m2.ts
+error stratum/purity (5) - stratum-lint explain stratum/purity
+  src/shared/m0.ts:4 -> src/app/main.ts  stratum/purity in src/shared/m0.ts
+  src/shared/m1.ts:4 -> src/app/main.ts  stratum/purity in src/shared/m1.ts
+  src/shared/m2.ts:4 -> src/app/main.ts  stratum/purity in src/shared/m2.ts
   ... 2 more
   fix: move it
 warning stratum/no-cross-layer-import (1) - stratum-lint explain stratum/no-cross-layer-import

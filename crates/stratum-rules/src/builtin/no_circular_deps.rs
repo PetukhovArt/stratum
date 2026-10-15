@@ -66,7 +66,7 @@ impl Rule for NoCircularDeps {
                 modules: cycle.modules.clone(),
                 edge: None,
                 suggestion: Some(
-                    "Break the cycle by extracting the shared piece into a lower-stage module or by inverting one of the dependencies."
+                    "Break the cycle by extracting the shared piece into a lower-purity module or by inverting one of the dependencies."
                         .into(),
                 ),
             });
@@ -87,7 +87,7 @@ mod tests {
     use stratum_core::{
         edge::EdgeKind,
         ids::{ContainerId, LayerId, ModuleId},
-        stage::Stage,
+        purity::Purity,
         types::Module,
         visibility::VisibilityScope,
     };
@@ -107,7 +107,7 @@ mod tests {
                 path: PathBuf::from(format!("src/m{i}.ts")),
                 container: ContainerId::new(0),
                 layer: LayerId::new(0),
-                stage: Stage::new(2).unwrap(),
+                purity: Purity::new(2).unwrap(),
                 visibility: VisibilityScope::Public,
                 exports: stratum_core::types::Exports::default(),
             };
