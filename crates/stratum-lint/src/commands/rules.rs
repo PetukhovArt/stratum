@@ -125,8 +125,16 @@ fn severity_of(config: &Config, rule: &dyn DynRule) -> Severity {
 }
 
 fn summary_of(rule: &dyn DynRule) -> String {
-    rule.doc()
-        .map_or_else(|| "(no documentation)".to_string(), |d| d.summary)
+    rule.doc().map_or_else(
+        || "(no documentation)".to_string(),
+        |d| first_sentence(&d.summary).to_string(),
+    )
+}
+
+fn first_sentence(text: &str) -> &str {
+    text.match_indices(". ")
+        .find(|(i, _)| text[i + 2..].starts_with(|c: char| c.is_uppercase()))
+        .map_or(text, |(i, _)| &text[..=i])
 }
 
 fn print_json(value: &serde_json::Value) -> miette::Result<()> {

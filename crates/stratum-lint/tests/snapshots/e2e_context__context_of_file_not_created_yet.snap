@@ -2,6 +2,8 @@
 source: crates/stratum-lint/tests/e2e_context.rs
 expression: "stdout(&[\"context\", &file])"
 ---
-src/shared/api/new-client.ts (new file): layer shared, container shared, purity 2, visibility public
+src/shared/api/new-client.ts (new file): layer shared, purity 2, visibility public
+container src/shared (layer, stage 2, no entry): import other containers only via their entry
 may import: layers shared; modules at purity <= 2
+may not import: files behind another container's entry
 imported by: layers app, features, shared

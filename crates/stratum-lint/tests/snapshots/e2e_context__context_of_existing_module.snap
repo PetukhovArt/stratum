@@ -2,10 +2,11 @@
 source: crates/stratum-lint/tests/e2e_context.rs
 expression: "stdout(&[\"context\", &file])"
 ---
-src/features/cart/index.ts: layer features, container cart, purity 2, visibility public
+src/features/cart/index.ts: layer features, purity 2, visibility public
+container src/features/cart (nested, stage 2, entry index.ts): import other containers only via their entry
 may import: layers features, shared; modules at purity <= 2
-imported by: layers app, features
+may not import: files behind another container's entry
+imported by: layers app, features; 1 dependent modules
 imports: 2 modules, 1 violate:
   -> src/features/cart/cart.tsx  stratum/purity (error)
-dependents: 1 modules
 violations: 1 (1 error)

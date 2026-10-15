@@ -4,19 +4,21 @@ use std::path::Path;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use serde::Serialize;
+use stratum_config::resolve_for_file;
 use stratum_core::{
-    ids::LayerId,
+    ids::{LayerId, RuleId},
     severity::Severity,
-    types::{Layer, Module},
+    types::{Container, ContainerKind, Layer, Module},
     visibility::VisibilityScope,
 };
 use stratum_engine::{CONFIG_FILE, EngineInput, paths};
 use stratum_graph::{CompoundGraph, direct_dependencies, direct_dependents};
+use stratum_rules::{PUBLIC_API, SIBLING_ISOLATION};
 
 use crate::{cli::BriefFormat, commands::lint};
 
 const DEFAULT_PURITY: u8 = 2;
-const SHOWN_PER_LIST: usize = 3;
+const SHOWN_PER_LIST: usize = 2;
 
 #[derive(Debug, Serialize)]
 struct Brief {
@@ -24,11 +26,14 @@ struct Brief {
     file: String,
     status: Status,
     layer: Option<String>,
-    container: Option<String>,
+    container: Option<ContainerBrief>,
+    slice: Option<ContainerBrief>,
     purity: Option<u8>,
     visibility: Option<String>,
     may_import_layers: Vec<String>,
     max_import_purity: Option<u8>,
+    private_zones: Vec<String>,
+    may_not_import: Vec<Forbidden>,
     imported_by_layers: Vec<String>,
     imports: usize,
     violating_imports: Vec<ViolatingImport>,
@@ -44,6 +49,22 @@ enum Status {
     NewFile,
     NotASourceModule,
     OutsideLayers,
+}
+
+#[derive(Debug, Serialize)]
+struct ContainerBrief {
+    path: String,
+    kind: ContainerKind,
+    stage: u8,
+    entry: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum Forbidden {
+    SiblingSlices { parent: String },
+    SiblingSubUnits { parent: String },
+    ContainerInternals,
 }
 
 #[derive(Debug, Serialize)]
@@ -106,15 +127,18 @@ fn brief(input: &EngineInput, file_abs: &Utf8Path, rel: &Utf8Path) -> miette::Re
         (None, Some(_)) => Status::NewFile,
     };
     let mut brief = Brief {
-        version: 1,
+        version: 2,
         file: rel.to_string(),
         status,
         layer: None,
         container: None,
+        slice: None,
         purity: None,
         visibility: None,
         may_import_layers: vec![],
         max_import_purity: None,
+        private_zones: vec![],
+        may_not_import: vec![],
         imported_by_layers: vec![],
         imports: 0,
         violating_imports: vec![],
@@ -130,12 +154,27 @@ fn brief(input: &EngineInput, file_abs: &Utf8Path, rel: &Utf8Path) -> miette::Re
     };
     let purity = module.map_or(DEFAULT_PURITY, |m| m.purity.rank());
     brief.layer = Some(layer_name(graph, layer_id));
-    brief.container =
-        Some(container.map_or_else(|| layer_name(graph, layer_id), |c| c.name.clone()));
+    let chain: Vec<&Container> = std::iter::successors(container, |c| {
+        c.parent.and_then(|p| graph.containers.get(&p))
+    })
+    .collect();
+    brief.container = chain.first().map(|c| container_brief(input, c));
+    brief.slice = chain
+        .iter()
+        .skip(1)
+        .find(|c| c.kind == ContainerKind::Slice)
+        .map(|c| container_brief(input, c));
+    brief.may_not_import = forbidden(input, rel, &chain)?;
+    brief.private_zones = graph
+        .private_zones()
+        .into_iter()
+        .filter(|z| Path::new(file_abs.as_str()).starts_with(&z.root))
+        .map(|z| input.relative(&z.path))
+        .collect();
     brief.purity = Some(purity);
     brief.max_import_purity = Some(purity);
     brief.visibility = Some(module.map_or_else(
-        || "public".to_string(),
+        || visibility_name(input, &visibility_at(input, file_abs)),
         |m| visibility_name(input, &m.visibility),
     ));
     brief.may_import_layers = std::iter::once(layer_id)
@@ -159,6 +198,55 @@ fn brief(input: &EngineInput, file_abs: &Utf8Path, rel: &Utf8Path) -> miette::Re
         fill_from_graph(&mut brief, input, m)?;
     }
     Ok(brief)
+}
+
+fn container_brief(input: &EngineInput, c: &Container) -> ContainerBrief {
+    ContainerBrief {
+        path: input.relative(&c.path),
+        kind: c.kind,
+        stage: c.stage.rank(),
+        entry: c
+            .entry
+            .and_then(|id| input.graph.modules.get(&id))
+            .map(|m| input.relative(&m.path)),
+    }
+}
+
+fn forbidden(
+    input: &EngineInput,
+    rel: &Utf8Path,
+    chain: &[&Container],
+) -> miette::Result<Vec<Forbidden>> {
+    let severities = resolve_for_file(&input.config, rel)
+        .map_err(|e| miette::miette!("{e}"))?
+        .severities;
+    let active = |id: RuleId| {
+        input.registry.by_id(id).is_some_and(|r| {
+            severities
+                .get(r.slug())
+                .copied()
+                .unwrap_or_else(|| r.default_severity())
+                != Severity::Off
+        })
+    };
+    let mut out = Vec::new();
+    if active(SIBLING_ISOLATION) {
+        for c in chain {
+            let Some(parent) = c.parent.and_then(|p| input.graph.containers.get(&p)) else {
+                continue;
+            };
+            let parent = input.relative(&parent.path);
+            match c.kind {
+                ContainerKind::Slice => out.push(Forbidden::SiblingSlices { parent }),
+                ContainerKind::SubUnit => out.push(Forbidden::SiblingSubUnits { parent }),
+                ContainerKind::Layer | ContainerKind::Nested => {}
+            }
+        }
+    }
+    if active(PUBLIC_API) {
+        out.push(Forbidden::ContainerInternals);
+    }
+    Ok(out)
 }
 
 fn fill_from_graph(brief: &mut Brief, input: &EngineInput, m: &Module) -> miette::Result<()> {
@@ -214,32 +302,56 @@ fn render_agent(b: &Brief) -> String {
     };
     let _ = writeln!(
         out,
-        "{}{note}: layer {layer}, container {}, purity {}, visibility {}",
+        "{}{note}: layer {layer}, purity {}, visibility {}",
         b.file,
-        b.container.as_deref().unwrap_or("-"),
         b.purity.unwrap_or(DEFAULT_PURITY),
         b.visibility.as_deref().unwrap_or("public"),
     );
+    if let Some(c) = &b.container {
+        let _ = write!(out, "container {}", describe(c));
+        if let Some(s) = &b.slice {
+            let _ = write!(out, ", in slice {}", describe(s));
+        }
+        if b.may_not_import
+            .iter()
+            .any(|f| matches!(f, Forbidden::ContainerInternals))
+        {
+            out.push_str(": import other containers only via their entry");
+        }
+        out.push('\n');
+    }
     let _ = writeln!(
         out,
         "may import: layers {}; modules at purity <= {}",
         b.may_import_layers.join(", "),
         b.max_import_purity.unwrap_or(DEFAULT_PURITY)
     );
-    let _ = writeln!(
+    if !b.private_zones.is_empty() {
+        let _ = writeln!(
+            out,
+            "private zones visible here: {}",
+            capped(&b.private_zones)
+        );
+    }
+    if !b.may_not_import.is_empty() {
+        let parts: Vec<String> = b.may_not_import.iter().map(forbidden_text).collect();
+        let _ = writeln!(out, "may not import: {}", parts.join("; "));
+    }
+    let _ = write!(
         out,
         "imported by: layers {}",
         b.imported_by_layers.join(", ")
     );
     if b.status != Status::Module {
+        out.push('\n');
         return out;
     }
+    let _ = writeln!(out, "; {} dependent modules", b.dependents);
     let _ = write!(out, "imports: {} modules", b.imports);
     write_count_header(&mut out, b.violating_imports.len(), "violate");
     for i in b.violating_imports.iter().take(SHOWN_PER_LIST) {
         let _ = writeln!(out, "  -> {}  {} ({})", i.target, i.rule, i.severity);
     }
-    let _ = writeln!(out, "dependents: {} modules", b.dependents);
     let others: Vec<&FileViolation> = b.violations.iter().filter(|v| !v.on_import).collect();
     let _ = write!(out, "violations: {}", b.violations.len());
     if !b.violations.is_empty() {
@@ -255,6 +367,44 @@ fn render_agent(b: &Brief) -> String {
         let _ = writeln!(out, "  {} {}: {}", v.severity, v.rule, v.message);
     }
     out
+}
+
+fn describe(c: &ContainerBrief) -> String {
+    let kind = match c.kind {
+        ContainerKind::Layer => "layer",
+        ContainerKind::Slice => "slice",
+        ContainerKind::SubUnit => "sub-unit",
+        ContainerKind::Nested => "nested",
+    };
+    let entry = c.entry.as_deref().map_or_else(
+        || "no entry".to_string(),
+        |e| {
+            let name = e
+                .strip_prefix(c.path.as_str())
+                .and_then(|r| r.strip_prefix('/'))
+                .unwrap_or_else(|| e.rsplit('/').next().unwrap_or(e));
+            format!("entry {name}")
+        },
+    );
+    format!("{} ({kind}, stage {}, {entry})", c.path, c.stage)
+}
+
+fn forbidden_text(f: &Forbidden) -> String {
+    match f {
+        Forbidden::SiblingSlices { parent } => format!("other slices of {parent}/, entry included"),
+        Forbidden::SiblingSubUnits { parent } => {
+            format!("other sub-units of {parent}/, entry included")
+        }
+        Forbidden::ContainerInternals => "files behind another container's entry".into(),
+    }
+}
+
+fn capped(items: &[String]) -> String {
+    let shown = items[..items.len().min(SHOWN_PER_LIST)].join(", ");
+    match items.len().saturating_sub(SHOWN_PER_LIST) {
+        0 => shown,
+        more => format!("{shown} (+{more} more)"),
+    }
 }
 
 fn write_count_header(out: &mut String, n: usize, verb: &str) {
@@ -300,6 +450,21 @@ fn visibility_name(input: &EngineInput, v: &VisibilityScope) -> String {
         VisibilityScope::Public => "public".into(),
         VisibilityScope::Private { root } => format!("private to {}", input.relative(root)),
     }
+}
+
+fn visibility_at(input: &EngineInput, file_abs: &Utf8Path) -> VisibilityScope {
+    file_abs
+        .ancestors()
+        .skip(1)
+        .take_while(|d| *d != input.project_root)
+        .find(|d| {
+            d.file_name()
+                .is_some_and(|n| input.config.structure.is_private(n))
+        })
+        .and_then(Utf8Path::parent)
+        .map_or(VisibilityScope::Public, |root| VisibilityScope::Private {
+            root: root.as_std_path().to_path_buf(),
+        })
 }
 
 fn absolutize(path: &Utf8Path) -> miette::Result<Utf8PathBuf> {
