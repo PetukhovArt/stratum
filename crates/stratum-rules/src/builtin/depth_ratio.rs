@@ -1,11 +1,9 @@
-use petgraph::Direction;
-
 use stratum_core::{
-    ids::{ContainerId, ModuleId, RuleId},
+    ids::{ModuleId, RuleId},
     severity::Severity,
     violation::{SourceLocation, Violation},
 };
-use stratum_graph::CompoundGraph;
+use stratum_graph::{CompoundGraph, metrics::depth_ratio};
 
 use crate::ids::DEPTH_RATIO;
 use crate::options::DepthRatioOptions;
@@ -38,16 +36,9 @@ impl Rule for DepthRatio {
         let Some(m) = graph.modules.get(&scope) else {
             return vec![];
         };
-        let Some(node) = graph.node_for(scope) else {
+        let Some(ratio) = depth_ratio(graph, scope) else {
             return vec![];
         };
-        let outgoing = graph.deps.edges_directed(node, Direction::Outgoing).count();
-        if outgoing == 0 {
-            return vec![];
-        }
-        let internal = container_size(graph, m.container);
-        #[allow(clippy::cast_precision_loss)]
-        let ratio = internal as f64 / outgoing as f64;
         if ratio >= options.min_ratio {
             return vec![];
         }
@@ -55,7 +46,8 @@ impl Rule for DepthRatio {
             rule: self.id(),
             severity,
             message: format!(
-                "Depth ratio {ratio:.2} is below the configured minimum {min:.2}; module exposes too much relative to its container size",
+                "Depth ratio {ratio:.2} (modules in its container / its {exports} exports) is below the configured minimum {min:.2}; module exposes too much relative to its container size",
+                exports = m.exports.count,
                 min = options.min_ratio
             ),
             file: m.path.clone(),
@@ -69,99 +61,50 @@ impl Rule for DepthRatio {
     }
 }
 
-fn container_size(g: &CompoundGraph, c: ContainerId) -> usize {
-    g.modules.values().filter(|m| m.container == c).count()
-}
-
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use std::path::PathBuf;
 
-    use indexmap::IndexMap;
-    use petgraph::graph::DiGraph;
-    use rustc_hash::FxHashMap;
     use stratum_core::{
-        edge::EdgeKind,
         ids::{ContainerId, LayerId},
         stage::Stage,
-        types::Module,
+        types::{Exports, Module},
         visibility::VisibilityScope,
     };
 
-    fn module(id: u32, container: u32) -> Module {
+    fn module(id: u32, exports: u32) -> Module {
         Module {
             id: ModuleId::new(id),
             path: PathBuf::from(format!("src/m{id}.ts")),
-            container: ContainerId::new(container),
+            container: ContainerId::new(1),
             layer: LayerId::new(0),
             stage: Stage::new(2).unwrap(),
             visibility: VisibilityScope::Public,
+            exports: Exports {
+                count: exports,
+                star_reexports: 0,
+            },
         }
     }
 
-    fn build(mods: Vec<Module>, edges: &[(u32, u32)]) -> CompoundGraph {
-        let mut g = CompoundGraph {
-            modules: IndexMap::new(),
-            containers: IndexMap::new(),
-            layers: IndexMap::new(),
-            deps: DiGraph::new(),
-            node_index: FxHashMap::default(),
-        };
-        for m in mods {
+    #[test]
+    fn flags_modules_whose_exports_outweigh_their_container() {
+        let mut g = CompoundGraph::empty();
+        for m in [module(0, 0), module(1, 1), module(2, 2), module(3, 0)] {
             let node = g.deps.add_node(m.id);
             g.node_index.insert(m.id, node);
             g.modules.insert(m.id, m);
         }
-        for (a, b) in edges {
-            let na = g.node_index[&ModuleId::new(*a)];
-            let nb = g.node_index[&ModuleId::new(*b)];
-            g.deps.add_edge(na, nb, EdgeKind::Static);
-        }
-        g
-    }
-
-    #[test]
-    fn no_outgoing_no_violation() {
-        let g = build(vec![module(0, 1)], &[]);
-        let viols = DepthRatio.check(
-            &g,
-            ModuleId::new(0),
-            &DepthRatioOptions { min_ratio: 3.0 },
-            Severity::Info,
-        );
-        assert!(viols.is_empty());
-    }
-
-    #[test]
-    fn high_ratio_no_violation() {
-        let g = build(
-            vec![module(0, 1), module(1, 1), module(2, 1), module(3, 1)],
-            &[(0, 1)],
-        );
-        let viols = DepthRatio.check(
-            &g,
-            ModuleId::new(0),
-            &DepthRatioOptions { min_ratio: 3.0 },
-            Severity::Info,
-        );
-        assert!(viols.is_empty());
-    }
-
-    #[test]
-    fn low_ratio_emits_violation() {
-        let g = build(
-            vec![module(0, 1), module(1, 1), module(2, 2), module(3, 2)],
-            &[(0, 2), (0, 3)],
-        );
-        let viols = DepthRatio.check(
-            &g,
-            ModuleId::new(0),
-            &DepthRatioOptions { min_ratio: 3.0 },
-            Severity::Info,
-        );
-        assert_eq!(viols.len(), 1);
-        assert_eq!(viols[0].rule, DEPTH_RATIO);
+        let options = DepthRatioOptions { min_ratio: 3.0 };
+        let flagged: Vec<u32> = (0..4)
+            .filter(|&i| {
+                !DepthRatio
+                    .check(&g, ModuleId::new(i), &options, Severity::Info)
+                    .is_empty()
+            })
+            .collect();
+        assert_eq!(flagged, [2]);
     }
 }

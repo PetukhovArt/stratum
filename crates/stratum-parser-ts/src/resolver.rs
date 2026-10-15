@@ -30,10 +30,16 @@ impl PathResolver {
             extensions: vec![
                 ".ts".into(),
                 ".tsx".into(),
+                ".mts".into(),
+                ".cts".into(),
                 ".js".into(),
                 ".jsx".into(),
                 ".mjs".into(),
                 ".cjs".into(),
+            ],
+            extension_alias: vec![
+                (".mjs".into(), vec![".mts".into(), ".mjs".into()]),
+                (".cjs".into(), vec![".cts".into(), ".cjs".into()]),
             ],
             condition_names: vec!["import".into(), "node".into(), "default".into()],
             main_files: vec!["index".into()],
@@ -133,6 +139,20 @@ mod tests {
             ends_with_portable(&got, "src/features/cart/cart.tsx"),
             "got: {got}"
         );
+    }
+
+    #[test]
+    fn esm_and_cjs_specifiers_resolve_to_mts_and_cts_sources() {
+        let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/tiny-mts")
+            .canonicalize_utf8()
+            .unwrap();
+        let r = PathResolver::new(&root);
+        let from = root.join("src/a.mts");
+        let mts = r.resolve(&from, "./b.mjs").unwrap();
+        let cts = r.resolve(&from, "./c.cjs").unwrap();
+        assert!(ends_with_portable(&mts, "src/b.mts"), "got: {mts}");
+        assert!(ends_with_portable(&cts, "src/c.cts"), "got: {cts}");
     }
 
     #[test]

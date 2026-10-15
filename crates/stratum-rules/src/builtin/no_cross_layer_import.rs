@@ -119,6 +119,7 @@ mod tests {
             layer: LayerId::new(layer_raw),
             stage: Stage::new(2).unwrap(),
             visibility: VisibilityScope::Public,
+            exports: stratum_core::types::Exports::default(),
         }
     }
 

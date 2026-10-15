@@ -100,6 +100,7 @@ mod tests {
             layer: LayerId::new(0),
             stage: Stage::new(stage_rank).unwrap(),
             visibility: VisibilityScope::Public,
+            exports: stratum_core::types::Exports::default(),
         }
     }
 

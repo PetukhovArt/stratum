@@ -1,10 +1,11 @@
 use camino::Utf8Path;
 
+use stratum_core::types::Exports;
 use stratum_parser_ts::{
-    ExtractError, ExtractedData, LanguageExtractor, RawImport, SourceType, collect_imports,
-    extract_stage,
+    ExtractError, ExtractedData, LanguageExtractor, RawImport, SourceType, collect, extract_stage,
 };
 
+use crate::setup_macros;
 use crate::sfc_splitter::split;
 use crate::span_remap::shift;
 
@@ -29,6 +30,7 @@ impl LanguageExtractor for VueExtractor {
             message: e.to_string(),
         })?;
         let mut all_imports: Vec<RawImport> = Vec::new();
+        let mut exports = Exports::default();
         for block in blocks {
             let st = if block.is_typescript {
                 SourceType::default()
@@ -39,8 +41,18 @@ impl LanguageExtractor for VueExtractor {
                     .with_javascript(true)
                     .with_module(true)
             };
-            let imports = collect_imports(&block.body, st);
-            for mut imp in imports {
+            let collected = collect(&block.body, st);
+            let macros = if block.setup {
+                setup_macros::surface(&block.body, st)
+            } else {
+                0
+            };
+            exports.count = exports
+                .count
+                .saturating_add(collected.exports.count)
+                .saturating_add(macros);
+            exports.star_reexports += collected.exports.star_reexports;
+            for mut imp in collected.imports {
                 imp.span = shift(imp.span, block.content_range.start);
                 all_imports.push(imp);
             }
@@ -52,6 +64,7 @@ impl LanguageExtractor for VueExtractor {
             imports: all_imports,
             diagnostics: vec![],
             stage: extract_stage(source),
+            exports,
         })
     }
 }
@@ -87,6 +100,15 @@ mod tests {
             .extract(Utf8Path::new("Mixed.vue"), src)
             .unwrap();
         assert_eq!(data.imports.len(), 2);
+    }
+
+    #[test]
+    fn exports_sum_plain_script_exports_and_setup_macros() {
+        let src = "<script lang=\"ts\">\nexport default { inheritAttrs: false };\nexport type Size = 's' | 'm';\n</script>\n<script setup lang=\"ts\">\ndefineProps<{ size: Size; label: string }>();\n</script>";
+        let data = VueExtractor::new()
+            .extract(Utf8Path::new("Btn.vue"), src)
+            .unwrap();
+        assert_eq!(data.exports.count, 4);
     }
 
     #[test]

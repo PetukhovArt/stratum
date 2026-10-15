@@ -76,7 +76,7 @@ fn exemplar_violation_histogram_is_stable() {
             .copied()
             .unwrap_or(0)
             >= 1,
-        "expected the shared util to fire promotion-pressure; got {by_rule:?}"
+        "expected entities/user/model, imported from shared, to fire promotion-pressure; got {by_rule:?}"
     );
 
     insta::assert_yaml_snapshot!("exemplar_violation_histogram", by_rule);

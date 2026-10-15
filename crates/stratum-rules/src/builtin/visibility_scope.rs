@@ -112,6 +112,7 @@ mod tests {
             layer: LayerId::new(layer),
             stage: Stage::new(2).unwrap(),
             visibility,
+            exports: stratum_core::types::Exports::default(),
         }
     }
 

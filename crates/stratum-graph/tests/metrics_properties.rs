@@ -16,7 +16,7 @@ use stratum_core::{
 };
 use stratum_graph::{
     CompoundGraph,
-    metrics::{miller_fanout, promotion_pressure},
+    metrics::{miller_fan_in, promotion_pressure},
     topo::direct_dependents,
 };
 
@@ -55,6 +55,7 @@ fn build(n: u32, edges: &[(u32, u32)]) -> CompoundGraph {
             layer: LayerId::new(0),
             stage: Stage::new(2).unwrap(),
             visibility: VisibilityScope::Public,
+            exports: stratum_core::types::Exports::default(),
         };
         let node = g.deps.add_node(m.id);
         g.node_index.insert(m.id, node);
@@ -70,13 +71,13 @@ fn build(n: u32, edges: &[(u32, u32)]) -> CompoundGraph {
 
 proptest! {
     #[test]
-    fn miller_fanout_le_direct_dependents(edges in arb_edges(6)) {
+    fn miller_fan_in_le_direct_dependents(edges in arb_edges(6)) {
         let g = build(6, &edges);
         for i in 0..6 {
             let m = ModuleId::new(i);
             let dep_count = direct_dependents(&g, m).len();
-            let fanout = miller_fanout(&g, m);
-            prop_assert!(fanout <= dep_count);
+            let fan_in = miller_fan_in(&g, m);
+            prop_assert!(fan_in <= dep_count);
         }
     }
 

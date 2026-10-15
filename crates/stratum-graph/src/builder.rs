@@ -10,7 +10,7 @@ use walkdir::WalkDir;
 use stratum_core::edge::EdgeKind;
 use stratum_core::ids::{ContainerId, LayerId, ModuleId};
 use stratum_core::stage::Stage;
-use stratum_core::types::{Container, Layer, Module};
+use stratum_core::types::{Container, Exports, Layer, Module};
 use stratum_core::visibility::VisibilityScope;
 use stratum_parser_ts::{LanguageExtractor, OxcTsExtractor, PathResolver};
 
@@ -170,6 +170,7 @@ impl GraphBuilder {
                 layer: *layer,
                 stage: scan.stage.unwrap_or(self.config.default_stage),
                 visibility: self.config.default_visibility.clone(),
+                exports: scan.exports,
             };
             let node = graph.deps.add_node(*id);
             graph.node_index.insert(*id, node);
@@ -277,6 +278,7 @@ impl GraphBuilder {
             Err(e) => {
                 return Scan {
                     stage: None,
+                    exports: Exports::default(),
                     edges: Err(BuildError::Io {
                         path: path.to_path_buf(),
                         source: e,
@@ -286,8 +288,15 @@ impl GraphBuilder {
         };
         let _serial = (source.len() > LARGE_FILE_BYTES).then(|| large_file.lock());
         let stage = stratum_parser_ts::extract_stage(&source);
-        let edges = self.edges_of(path, &source, path_to_id);
-        Scan { stage, edges }
+        let (exports, edges) = match self.edges_of(path, &source, path_to_id) {
+            Ok((exports, edges)) => (exports, Ok(edges)),
+            Err(e) => (Exports::default(), Err(e)),
+        };
+        Scan {
+            stage,
+            exports,
+            edges,
+        }
     }
 
     fn edges_of(
@@ -295,7 +304,7 @@ impl GraphBuilder {
         path: &Utf8Path,
         source: &str,
         path_to_id: &FxHashMap<Utf8PathBuf, ModuleId>,
-    ) -> Result<Vec<(ModuleId, EdgeKind)>, BuildError> {
+    ) -> Result<(Exports, Vec<(ModuleId, EdgeKind)>), BuildError> {
         let extractor = self
             .pick_extractor(path)
             .ok_or_else(|| BuildError::Parser {
@@ -308,7 +317,7 @@ impl GraphBuilder {
                 path: path.to_path_buf(),
                 source: e,
             })?;
-        Ok(data
+        let edges = data
             .imports
             .iter()
             .filter_map(|imp| {
@@ -316,7 +325,8 @@ impl GraphBuilder {
                 let id = path_to_id.get(&strip_windows_extended_prefix(&target))?;
                 Some((*id, imp.kind))
             })
-            .collect())
+            .collect();
+        Ok((data.exports, edges))
     }
 }
 
@@ -325,6 +335,7 @@ const MAX_WORKERS: usize = 8;
 
 struct Scan {
     stage: Option<Stage>,
+    exports: Exports,
     edges: Result<Vec<(ModuleId, EdgeKind)>, BuildError>,
 }
 

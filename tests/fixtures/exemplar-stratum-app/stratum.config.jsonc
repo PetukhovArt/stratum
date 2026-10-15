@@ -11,11 +11,11 @@
     "stratum/no-cross-layer-import":  { "severity": "error" },
     "stratum/no-circular-deps":       { "severity": "error" },
     "stratum/stage-purity":           { "severity": "warning" },
-    "stratum/miller-limit":           { "severity": "warning", "options": { "max_children": 3 } },
+    "stratum/miller-limit":           { "severity": "warning", "options": { "max_children": 2 } },
     "stratum/depth-ratio":            { "severity": "info" },
     "stratum/visibility-scope":       { "severity": "error" },
     "stratum/cross-entity-pattern":   { "severity": "warning", "options": { "max_fanout": 2 } },
     "stratum/deep-module":            { "severity": "info", "options": { "max_exports": 5 } },
-    "stratum/promotion-pressure":     { "severity": "info", "options": { "threshold": 3 } }
+    "stratum/promotion-pressure":     { "severity": "info", "options": { "threshold": 1 } }
   }
 }

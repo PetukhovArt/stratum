@@ -32,6 +32,7 @@ fn module(id: u32, layer_raw: u32, path: &str) -> Module {
         layer: LayerId::new(layer_raw),
         stage: Stage::new(2).unwrap(),
         visibility: VisibilityScope::Public,
+        exports: stratum_core::types::Exports::default(),
     }
 }
 
