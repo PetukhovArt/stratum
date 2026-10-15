@@ -39,6 +39,12 @@ fn edit_of_violating_file_adds_context() {
 }
 
 #[test]
+fn edit_of_a_cycle_member_other_than_the_reported_file_shows_the_cycle() {
+    let stdout = post_tool_use("Edit", "src/features/cart/circle.ts");
+    assert!(stdout.contains("stratum/no-circular-deps"), "{stdout}");
+}
+
+#[test]
 fn edit_of_file_with_only_info_findings_is_silent() {
     assert_eq!(post_tool_use("Write", "src/app/main.ts"), "");
 }

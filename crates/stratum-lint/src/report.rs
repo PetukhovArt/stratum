@@ -27,6 +27,8 @@ pub struct Finding {
     pub location: Location,
     pub edge: Option<EdgeRef>,
     pub suggestion: Option<String>,
+    #[serde(skip)]
+    pub members: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]

@@ -165,6 +165,7 @@ mod tests {
             location: Location { line, column: 1 },
             edge: None,
             suggestion: None,
+            members: Vec::new(),
         }
     }
 

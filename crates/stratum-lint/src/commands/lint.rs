@@ -143,6 +143,7 @@ pub fn findings(input: &EngineInput) -> miette::Result<Vec<Finding>> {
                 to: module_path(e.to),
                 kind: e.kind,
             }),
+            members: v.modules.iter().map(|&id| module_path(id)).collect(),
             message: v.message,
             suggestion: v.suggestion,
         })

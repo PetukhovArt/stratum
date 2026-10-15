@@ -60,6 +60,7 @@ impl Scope {
             || f.edge
                 .as_ref()
                 .is_some_and(|e| self.0.contains(&e.from) || self.0.contains(&e.to))
+            || f.members.iter().any(|m| self.0.contains(m))
     }
 }
 

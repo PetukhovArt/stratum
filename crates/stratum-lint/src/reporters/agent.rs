@@ -174,6 +174,7 @@ mod tests {
                 kind: EdgeKind::Static,
             }),
             suggestion: Some("move it".into()),
+            members: Vec::new(),
         }
     }
 
