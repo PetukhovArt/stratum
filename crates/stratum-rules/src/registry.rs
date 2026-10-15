@@ -180,9 +180,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn builtins_registry_has_ten_rules() {
+    fn every_rule_id_is_registered_under_its_slug() {
         let r = RuleRegistry::with_builtins();
-        assert_eq!(r.rules().len(), 10);
+        let ids: Vec<RuleId> = (0..=255)
+            .map(RuleId::new)
+            .filter(|id| crate::ids::slug_for(*id).is_some())
+            .collect();
+        assert!(!ids.is_empty());
+        for id in ids {
+            assert_eq!(r.by_id(id).map(DynRule::slug), crate::ids::slug_for(id));
+        }
     }
 
     fn validate(rules: &serde_json::Value) -> Result<(), ConfigError> {

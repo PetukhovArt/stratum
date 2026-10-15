@@ -22,5 +22,4 @@ jsonc-parser.workspace = true
 globset.workspace = true
 
 [dev-dependencies]
-insta.workspace = true
 tempfile = "3"

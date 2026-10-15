@@ -27,5 +27,7 @@ fn init_refuses_to_overwrite() {
         .unwrap()
         .args(["init", dir.path().to_str().unwrap()])
         .assert()
-        .failure();
+        .code(2)
+        .stderr(predicates::str::contains("already"));
+    assert_eq!(std::fs::read_to_string(&cfg).unwrap(), "{}");
 }

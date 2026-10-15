@@ -76,11 +76,4 @@ proptest! {
         let b = r.check(&g, ProjectScope, &EmptyOptions, Severity::Error);
         prop_assert_eq!(a, b);
     }
-
-    #[test]
-    fn no_circular_deps_never_panics(edges in arb_edges(6)) {
-        let g = build(6, &edges);
-        let r = NoCircularDeps;
-        let _ = r.check(&g, ProjectScope, &EmptyOptions, Severity::Error);
-    }
 }

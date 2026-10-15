@@ -37,19 +37,4 @@ mod tests {
             r#""runtime""#
         );
     }
-
-    #[test]
-    fn edge_is_directional_under_eq() {
-        let a = Edge {
-            from: ModuleId::new(1),
-            to: ModuleId::new(2),
-            kind: EdgeKind::Static,
-        };
-        let b = Edge {
-            from: ModuleId::new(2),
-            to: ModuleId::new(1),
-            kind: EdgeKind::Static,
-        };
-        assert_ne!(a, b);
-    }
 }

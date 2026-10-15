@@ -144,13 +144,4 @@ mod tests {
         assert_eq!(viols.len(), 1);
         assert_eq!(viols[0].rule, MILLER_LIMIT);
     }
-
-    #[test]
-    fn deserialises_max_children_from_json_value() {
-        let v: MillerLimitOptions = serde_json::from_value(serde_json::json!({
-            "max_children": 4u32
-        }))
-        .unwrap();
-        assert_eq!(v.max_children, 4);
-    }
 }

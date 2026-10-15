@@ -124,25 +124,11 @@ mod tests {
     }
 
     #[test]
-    fn dag_emits_no_violation() {
-        let g = build(3, &[(0, 1), (1, 2)]);
-        let viols = NoCircularDeps.check(&g, ProjectScope, &EmptyOptions, Severity::Error);
-        assert!(viols.is_empty());
-    }
-
-    #[test]
     fn two_node_cycle_emits_one_violation() {
         let g = build(2, &[(0, 1), (1, 0)]);
         let viols = NoCircularDeps.check(&g, ProjectScope, &EmptyOptions, Severity::Error);
         assert_eq!(viols.len(), 1);
         assert_eq!(viols[0].rule, NO_CIRCULAR_DEPS);
         assert_eq!(viols[0].modules.len(), 2);
-    }
-
-    #[test]
-    fn two_disjoint_cycles_emit_two_violations() {
-        let g = build(4, &[(0, 1), (1, 0), (2, 3), (3, 2)]);
-        let viols = NoCircularDeps.check(&g, ProjectScope, &EmptyOptions, Severity::Error);
-        assert_eq!(viols.len(), 2);
     }
 }

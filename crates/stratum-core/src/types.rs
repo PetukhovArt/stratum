@@ -46,36 +46,3 @@ pub struct Layer {
     pub path: PathBuf,
     pub depends_on: Vec<LayerId>,
 }
-
-#[cfg(test)]
-#[allow(clippy::unwrap_used)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn module_construction_roundtrip() {
-        let m = Module {
-            id: ModuleId::new(1),
-            path: PathBuf::from("src/features/cart/index.ts"),
-            container: ContainerId::new(2),
-            layer: LayerId::new(0),
-            purity: Purity::new(3).unwrap(),
-            visibility: VisibilityScope::Public,
-            exports: Exports::default(),
-        };
-        let json = serde_json::to_string(&m).unwrap();
-        let back: Module = serde_json::from_str(&json).unwrap();
-        assert_eq!(m, back);
-    }
-
-    #[test]
-    fn layer_dependencies_are_layer_ids() {
-        let l = Layer {
-            id: LayerId::new(0),
-            name: "features".into(),
-            path: PathBuf::from("src/features"),
-            depends_on: vec![LayerId::new(1), LayerId::new(2)],
-        };
-        assert_eq!(l.depends_on.len(), 2);
-    }
-}

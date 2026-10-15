@@ -1,9 +1,0 @@
----
-source: crates/stratum-rules/tests/exemplar.rs
-expression: by_rule
----
-1: 1
-2: 1
-4: 1
-5: 4
-9: 1

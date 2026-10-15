@@ -22,7 +22,6 @@ serde_json.workspace = true
 globset.workspace = true
 
 [dev-dependencies]
-insta.workspace = true
 proptest.workspace = true
 criterion.workspace = true
 indexmap.workspace = true

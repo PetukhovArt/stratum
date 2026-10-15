@@ -1,0 +1,9 @@
+---
+source: crates/stratum-lint/tests/e2e_fixtures.rs
+expression: by_rule
+---
+stratum/depth-ratio: 4
+stratum/miller-limit: 1
+stratum/no-circular-deps: 1
+stratum/no-cross-layer-import: 1
+stratum/promotion-pressure: 1

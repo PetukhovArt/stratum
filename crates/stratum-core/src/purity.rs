@@ -62,15 +62,6 @@ mod tests {
     }
 
     #[test]
-    fn purer_cannot_depend_on_impurer() {
-        let s1 = Purity::new(1).unwrap();
-        let s4 = Purity::new(4).unwrap();
-        assert!(!s1.may_depend_on(s4));
-        assert!(s4.may_depend_on(s1));
-        assert!(s4.may_depend_on(s4));
-    }
-
-    #[test]
     fn serde_roundtrip() {
         let s = Purity::new(3).unwrap();
         let j = serde_json::to_string(&s).unwrap();

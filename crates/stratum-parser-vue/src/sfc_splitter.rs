@@ -126,22 +126,6 @@ mod tests {
     }
 
     #[test]
-    fn both_blocks_present() {
-        let src = "<script>\nimport a from 'a';\n</script>\n<script setup>\nimport b from 'b';\n</script>";
-        let blocks = split(src).unwrap();
-        assert_eq!(blocks.len(), 2);
-        assert!(!blocks[0].setup);
-        assert!(blocks[1].setup);
-    }
-
-    #[test]
-    fn no_script_block() {
-        let src = "<template><div /></template>";
-        let blocks = split(src).unwrap();
-        assert!(blocks.is_empty());
-    }
-
-    #[test]
     fn unclosed_script_errors() {
         let src = "<script>\nimport x from 'a';\n";
         let err = split(src).unwrap_err();

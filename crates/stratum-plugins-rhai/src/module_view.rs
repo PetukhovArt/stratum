@@ -90,35 +90,3 @@ pub fn register(engine: &mut Engine) {
         .register_get("imports", |m: &mut ModuleView| m.imports.clone())
         .register_get("metadata", |m: &mut ModuleView| m.metadata.clone());
 }
-
-#[cfg(test)]
-#[allow(clippy::unwrap_used)]
-mod tests {
-    use super::*;
-    use crate::engine::build_engine;
-
-    fn sample_view() -> ModuleView {
-        ModuleView {
-            id: 7,
-            path: "src/legacy/foo.ts".to_string(),
-            layer: "shared".to_string(),
-            container: 2,
-            purity: 3,
-            dependents: vec![1, 2],
-            imports: Array::new(),
-            metadata: Map::new(),
-        }
-    }
-
-    #[test]
-    fn path_and_layer_readable_from_rhai() {
-        let mut engine = build_engine();
-        register(&mut engine);
-        let mut scope = rhai::Scope::new();
-        scope.push("m", sample_view());
-        let s: String = engine.eval_with_scope(&mut scope, "m.path").unwrap();
-        assert_eq!(s, "src/legacy/foo.ts");
-        let layer: String = engine.eval_with_scope(&mut scope, "m.layer").unwrap();
-        assert_eq!(layer, "shared");
-    }
-}

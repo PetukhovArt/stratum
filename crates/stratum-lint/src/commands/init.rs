@@ -52,24 +52,16 @@ fn render_jsonc(cfg: &stratum_config::Config) -> String {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use std::collections::BTreeMap;
 
     #[test]
     fn rendered_jsonc_round_trips_through_parser() {
-        let cfg = stratum_config::Config {
-            version: 1,
-            project: stratum_config::ProjectConfig {
-                root: "./src".into(),
-                extends: None,
-                ignore: vec![],
-            },
-            layers: vec![],
-            rules: BTreeMap::new(),
-            overrides: vec![],
-        };
+        let root = camino::Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/tiny-ts")
+            .canonicalize_utf8()
+            .unwrap();
+        let cfg = zero_config::infer(&root);
         let txt = render_jsonc(&cfg);
-        let path = camino::Utf8PathBuf::from("inline");
-        let parsed = stratum_config::parse_str(&path, &txt).unwrap();
-        assert_eq!(parsed.version, 1);
+        let parsed = stratum_config::parse_str(Utf8Path::new("inline"), &txt).unwrap();
+        assert_eq!(parsed, cfg);
     }
 }

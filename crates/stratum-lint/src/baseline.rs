@@ -212,6 +212,41 @@ mod tests {
         assert_eq!(m.fixed, 0);
     }
 
+    fn temp_baseline_path(dir: &tempfile::TempDir) -> camino::Utf8PathBuf {
+        camino::Utf8PathBuf::from_path_buf(dir.path().join(FILE_NAME)).unwrap()
+    }
+
+    #[test]
+    fn a_baseline_file_with_raw_numbers_still_matches_after_load() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = temp_baseline_path(&dir);
+        let entry = serde_json::json!({
+            "version": 1,
+            "violations": [{
+                "rule": "stratum/no-circular-deps",
+                "file": "a.ts",
+                "message": "Depth ratio 0.33 below 3.0 (limit 5).",
+            }],
+        });
+        std::fs::write(&path, entry.to_string()).unwrap();
+        let m = Baseline::load(&path).unwrap().matches(&[Finding {
+            message: "Depth ratio 0.25 below 3.0 (limit 5).".into(),
+            ..finding("a.ts", 1)
+        }]);
+        assert_eq!(m.baselined, vec![true]);
+        assert_eq!(m.fixed, 0);
+    }
+
+    #[test]
+    fn save_then_load_keeps_single_and_repeated_entries() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = temp_baseline_path(&dir);
+        let base =
+            Baseline::from_findings(&[finding("a.ts", 1), finding("a.ts", 2), finding("b.ts", 1)]);
+        base.save(&path).unwrap();
+        assert_eq!(Baseline::load(&path).unwrap(), base);
+    }
+
     #[test]
     fn prune_never_grows_the_baseline() {
         let base = Baseline::from_findings(&[finding("a.ts", 1), finding("b.ts", 1)]);

@@ -50,10 +50,12 @@ describe('adaptSnapshot', () => {
     ])
   })
 
-  it('lists layers in snapshot order with deterministic hues', () => {
+  it('lists layers in snapshot order with stable, distinct hues', () => {
     const d = adaptSnapshot(snap)
     expect(d.layers.map((l) => l.label)).toEqual(['features', 'shared'])
-    expect(d.layers.every((l) => typeof l.hue === 'number')).toBe(true)
+    const hues = d.layers.map((l) => l.hue)
+    expect(adaptSnapshot(snap).layers.map((l) => l.hue)).toEqual(hues)
+    expect(new Set(hues).size).toBe(hues.length)
   })
 
   it('attaches violations to involved modules and propagates severity', () => {

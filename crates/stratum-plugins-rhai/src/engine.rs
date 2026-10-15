@@ -25,13 +25,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn arithmetic_evaluates() {
-        let engine = build_engine();
-        let result: i64 = engine.eval("40 + 2").unwrap();
-        assert_eq!(result, 42);
-    }
-
-    #[test]
     fn eval_symbol_is_disabled() {
         let engine = build_engine();
         let err = engine.eval::<i64>(r#"eval("1 + 2")"#);

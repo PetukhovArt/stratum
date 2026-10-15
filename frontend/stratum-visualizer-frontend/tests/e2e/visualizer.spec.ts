@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const SNAPSHOT_PATH = resolve(__dirname, '../fixtures/tiny-ts-snapshot.json')
+const SNAPSHOT_PATH = fileURLToPath(new URL('../fixtures/tiny-ts-snapshot.json', import.meta.url))
 
 const stubRoutes = async (page: import('@playwright/test').Page) => {
   const snapshot = readFileSync(SNAPSHOT_PATH, 'utf-8')
@@ -31,6 +31,7 @@ test('status bar surfaces module + edge counts', async ({ page }) => {
   await stubRoutes(page)
   await page.goto('/')
   await expect(page.locator('.strat-status')).toBeVisible({ timeout: 15_000 })
-  await expect(page.locator('.strat-status')).toContainText(/\d+ modules/)
-  await expect(page.locator('.strat-status')).toContainText(/\d+ edges/)
+  await expect(page.locator('.strat-status .status-l .status-info')).toHaveText(
+    /^9 modules · 5 containers · 8 edges$/,
+  )
 })

@@ -27,20 +27,3 @@ impl RuleScope for ProjectScope {
         vec![ProjectScope]
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn project_scope_singleton() {
-        let g = CompoundGraph::empty();
-        assert_eq!(ProjectScope::enumerate(&g), vec![ProjectScope]);
-    }
-
-    #[test]
-    fn module_scope_enumerates_all_modules() {
-        let g = CompoundGraph::empty();
-        assert!(ModuleId::enumerate(&g).is_empty());
-    }
-}

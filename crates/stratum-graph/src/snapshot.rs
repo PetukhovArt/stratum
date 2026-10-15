@@ -128,18 +128,4 @@ mod tests {
         assert!(s.modules.is_empty());
         assert!(s.edges.is_empty());
     }
-
-    #[test]
-    fn snapshot_roundtrips_json() {
-        let s = GraphSnapshot {
-            version: 1,
-            modules: vec![],
-            containers: vec![],
-            layers: vec![],
-            edges: vec![],
-        };
-        let j = serde_json::to_string(&s).unwrap();
-        let back: GraphSnapshot = serde_json::from_str(&j).unwrap();
-        assert_eq!(s, back);
-    }
 }

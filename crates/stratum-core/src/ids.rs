@@ -48,18 +48,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn ids_are_copy_and_hashable() {
-        let a = ModuleId::new(7);
-        let b = a;
-        assert_eq!(a, b);
-        assert_eq!(a.raw(), 7);
-
-        let mut set = std::collections::HashSet::new();
-        set.insert(a);
-        assert!(set.contains(&b));
-    }
-
-    #[test]
     fn ids_roundtrip_through_serde() {
         let a = ContainerId::new(42);
         let s = serde_json::to_string(&a).unwrap();

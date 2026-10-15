@@ -76,3 +76,46 @@ fn sarif_format_has_required_fields() {
         .unwrap();
     assert!(uri.starts_with("src/"), "uri is ROOT-relative: {uri}");
 }
+
+fn cycle_count_with_ignore(ignore: &[&str]) -> usize {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    std::fs::create_dir_all(root.join("src/app")).unwrap();
+    std::fs::create_dir_all(root.join("src/generated")).unwrap();
+    std::fs::write(
+        root.join("src/app/x.ts"),
+        "import { y } from '../generated/y';\nexport const x = y;\n",
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("src/generated/y.ts"),
+        "import { x } from '../app/x';\nexport const y = x;\n",
+    )
+    .unwrap();
+    let config = serde_json::json!({
+        "version": 1,
+        "project": { "root": "./src", "ignore": ignore },
+        "layers": [{ "id": "app", "path": "src", "depends_on": [] }],
+        "rules": { "stratum/no-circular-deps": { "severity": "error" } },
+    });
+    std::fs::write(root.join("stratum.config.jsonc"), config.to_string()).unwrap();
+    let out = Command::cargo_bin("stratum-lint")
+        .unwrap()
+        .args(["--format", "json", "--no-baseline"])
+        .arg(root)
+        .output()
+        .unwrap();
+    let report: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    report["violations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|v| v["rule"] == "stratum/no-circular-deps")
+        .count()
+}
+
+#[test]
+fn a_cycle_through_an_ignored_file_is_not_reported() {
+    assert_eq!(cycle_count_with_ignore(&[]), 1);
+    assert_eq!(cycle_count_with_ignore(&["src/generated"]), 0);
+}
