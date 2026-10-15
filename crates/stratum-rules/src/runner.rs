@@ -195,6 +195,7 @@ mod tests {
             project: ProjectConfig {
                 root: "./src".into(),
                 extends: None,
+                ignore: vec![],
             },
             layers: vec![LayerConfig {
                 id: "shared".into(),

@@ -30,6 +30,12 @@ pub struct ProjectConfig {
     /// A config file path relative to this file, or a built-in preset: `stratum:recommended`, `stratum:fsd`.
     #[serde(default)]
     pub extends: Option<String>,
+    /// Globs relative to the project root, on top of the built-in defaults (`node_modules`,
+    /// `dist`, `out`, `build`, `coverage`, `.git`, `*.d.ts`). Matching files and directories are
+    /// never walked or parsed; imports of them make no edge. `!glob` un-ignores; the last matching
+    /// glob wins. Appended after the `extends` parent's list.
+    #[serde(default)]
+    pub ignore: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

@@ -60,7 +60,10 @@ pub struct GraphBuilder {
     config: BuildConfig,
     extractors: Vec<Box<dyn LanguageExtractor>>,
     resolver: PathResolver,
+    ignore: IgnorePredicate,
 }
+
+type IgnorePredicate = Box<dyn Fn(&Utf8Path) -> bool + Send + Sync>;
 
 impl std::fmt::Debug for GraphBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -80,7 +83,18 @@ impl GraphBuilder {
             config,
             extractors: vec![Box::new(OxcTsExtractor::new())],
             resolver,
+            ignore: Box::new(|_| false),
         }
+    }
+
+    /// `ignored` gets paths relative to the project root; a matching directory is not descended.
+    #[must_use]
+    pub fn with_ignore(
+        mut self,
+        ignored: impl Fn(&Utf8Path) -> bool + Send + Sync + 'static,
+    ) -> Self {
+        self.ignore = Box::new(ignored);
+        self
     }
 
     /// Register an additional language extractor. The first registered
@@ -189,7 +203,15 @@ impl GraphBuilder {
         };
         let mut paths: Vec<(Utf8PathBuf, u64)> = WalkDir::new(root_std)
             .into_iter()
-            .filter_entry(|e| !e.file_type().is_dir() || reachable(e.path()))
+            .filter_entry(|e| {
+                let ignored = e
+                    .path()
+                    .strip_prefix(root_std)
+                    .ok()
+                    .and_then(Utf8Path::from_path)
+                    .is_some_and(|rel| (self.ignore)(rel));
+                !ignored && (!e.file_type().is_dir() || reachable(e.path()))
+            })
             .filter_map(Result::ok)
             .filter(|e| e.file_type().is_file())
             .filter_map(|e| {
