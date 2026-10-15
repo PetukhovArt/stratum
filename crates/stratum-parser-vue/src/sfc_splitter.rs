@@ -31,7 +31,7 @@ pub fn split(source: &str) -> Result<Vec<ScriptBlock>, SplitError> {
         };
         let open_abs = i + open_rel;
         let tag_end_rel =
-            find_byte(&bytes[open_abs..], b'>').ok_or(SplitError::UnclosedScript(open_abs))?;
+            find_tag_end(&bytes[open_abs..]).ok_or(SplitError::UnclosedScript(open_abs))?;
         let tag_end_abs = open_abs + tag_end_rel;
         let attrs = &source[open_abs + "<script".len()..tag_end_abs];
         let content_start = tag_end_abs + 1;
@@ -80,8 +80,17 @@ fn find_close(s: &str) -> Option<usize> {
     None
 }
 
-fn find_byte(bytes: &[u8], target: u8) -> Option<usize> {
-    bytes.iter().position(|&b| b == target)
+fn find_tag_end(bytes: &[u8]) -> Option<usize> {
+    let mut quote = None;
+    for (i, &b) in bytes.iter().enumerate() {
+        match (quote, b) {
+            (None, b'"' | b'\'') => quote = Some(b),
+            (Some(q), _) if b == q => quote = None,
+            (None, b'>') => return Some(i),
+            _ => {}
+        }
+    }
+    None
 }
 
 fn contains_attr(attrs: &str, name: &str) -> bool {
@@ -123,6 +132,16 @@ mod tests {
         let blocks = split(src).unwrap();
         assert_eq!(blocks.len(), 1);
         assert!(blocks[0].is_typescript);
+    }
+
+    #[test]
+    fn generic_attribute_with_angle_brackets_keeps_the_body() {
+        let src = "<script setup lang=\"ts\" generic=\"T extends Record<string, unknown>\">\nimport x from 'a';\n</script>";
+        let blocks = split(src).unwrap();
+        assert_eq!(blocks.len(), 1);
+        assert!(blocks[0].setup);
+        assert!(blocks[0].is_typescript);
+        assert_eq!(blocks[0].body.trim(), "import x from 'a';");
     }
 
     #[test]
