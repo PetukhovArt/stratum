@@ -2,7 +2,7 @@
   "name": "stratum",
   "displayName": "Stratum",
   "version": "0.1.0",
-  "description": "Architecture validation for TS/Vue: stratum-lsp diagnostics on every edit, a stratum-lint gate at the end of each turn, and a skill for layer-aware edits.",
+  "description": "Architecture validation for TS/Vue: a stratum-lint check of every edited file, a stratum-lint gate at the end of each turn, and a skill for layer-aware edits.",
   "author": {
     "name": "PetukhovArt",
     "url": "https://github.com/PetukhovArt"
@@ -10,5 +10,5 @@
   "homepage": "https://github.com/PetukhovArt/stratum",
   "repository": "https://github.com/PetukhovArt/stratum",
   "license": "MIT OR Apache-2.0",
-  "keywords": ["architecture", "lint", "layers", "typescript", "vue", "lsp"]
+  "keywords": ["architecture", "lint", "layers", "typescript", "vue"]
 }

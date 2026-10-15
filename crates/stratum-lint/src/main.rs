@@ -18,8 +18,8 @@ fn main() -> ExitCode {
     }
 }
 
-fn hook() -> u8 {
-    match commands::hook::run() {
+fn hook(max: Option<usize>) -> u8 {
+    match commands::hook::run(max) {
         Ok(Some(decision)) => {
             println!("{decision}");
             0
@@ -46,7 +46,7 @@ fn run(cli: cli::Cli) -> miette::Result<u8> {
             out,
             prune,
         }) => commands::baseline::run(&root, config.as_deref(), out.as_deref(), prune).map(|()| 0),
-        Some(cli::Command::Hook) => Ok(hook()),
+        Some(cli::Command::Hook { max }) => Ok(hook(max)),
         Some(cli::Command::Explain {
             slug,
             root,

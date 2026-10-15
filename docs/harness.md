@@ -7,11 +7,12 @@ Integration surfaces, in order of preference:
 
 | Surface | Use | Loop |
 |---|---|---|
-| `stratum-lsp` | per-edit diagnostics in any LSP-capable harness (Claude Code plugin `lspServers`, Cursor, Codex…) | warm, incremental |
+| `stratum-lint hook` on `PostToolUse` | per-edit check of the edited file in Claude Code (plugin `stratum`), as model context | cold, one-file scope |
+| `stratum-lsp` | per-edit diagnostics in any LSP-capable harness (Cursor, Codex…; Claude Code plugin `stratum-lsp` only without `typescript-lsp`) | warm, incremental |
 | `stratum-lint --changed --format agent` | end-of-turn / pre-commit / CI gate | cold, scoped report |
 | `stratum-lint context <file>` | before editing: where the file sits and what it may import | preventive |
 | `stratum-lint explain <rule>` | on demand, only when a rule is unfamiliar | judgement aid |
-| `stratum-lint hook` | thin adapter for Claude Code hook events (stdin JSON) | gate |
+| `stratum-lint hook` on `Stop` | end-of-turn gate in Claude Code (plugin `stratum`) | gate |
 
 No editor extensions are shipped: any LSP client can launch `stratum-lsp` over stdio.
 
@@ -23,7 +24,7 @@ No editor extensions are shipped: any LSP client can launch `stratum-lsp` over s
 - `didOpen` / `didChange` / `didSave` re-run the analysis when the file on disk is newer than the last analysis (the graph is read from disk, so unsaved buffer text is ignored). `didClose` clears the file's diagnostics.
 - Diagnostic: `source: "stratum"`, `code` = rule slug as in config (`stratum/no-cross-layer-import`, plugin slugs too), `message` = violation message, then the suggestion on the next line. `relatedInformation` points at the imported module of an import violation, or at up to 10 other members of a cycle; a cycle is reported on each member.
 - stdout carries JSON-RPC only; logs go to `window/logMessage` (filter with `RUST_LOG`). The process exits on `exit` (code 0 after `shutdown`, else 1).
-- Claude Code routes each file extension to one LSP server, so `stratum-lsp` and a TypeScript server cannot both serve `.ts` there.
+- Claude Code routes each file extension to one LSP server, so `stratum-lsp` and a TypeScript server cannot both serve `.ts` there. Hence the separate `stratum-lsp` plugin, and the per-edit hook in the `stratum` plugin.
 
 ## CLI contract (stable, versioned)
 
@@ -40,7 +41,7 @@ stratum-lint baseline [ROOT] [--out PATH] [--prune]   # accept current violation
 stratum-lint explain <rule-slug> [ROOT] [--format agent|json] [--config PATH]   # slug with or without "stratum/"
 stratum-lint context <file> [--root ROOT] [--format agent|json] [--config PATH]
 stratum-lint rules [ROOT] [--format agent|json] [--config PATH]   # active rules incl. plugins with severity + one-line summary
-stratum-lint hook                                      # reads a Claude Code hook event from stdin
+stratum-lint hook [--max N]                            # reads a Claude Code hook event from stdin
 stratum-lint init | snapshot | diff | visualize        # unchanged
 ```
 
@@ -91,6 +92,7 @@ Baseline file (`stratum.baseline.json`): `{ "version": 1, "violations": [{ rule,
 Matching runs on the whole project before scoping, so `fixed` is project-wide and `baselined` counts only in-scope hits. An empty scope skips the graph build, so both read 0.
 
 `stratum-lint hook`: on `Stop` / `SubagentStop` with `stop_hook_active: false` it runs `--changed --format agent` in the event's `cwd` and prints `{"decision":"block","reason":"<report>"}` when new error-severity violations remain.
+On `PostToolUse` of `Edit` / `Write` for a `.ts/.tsx/.mts/.cts/.js/.vue` file under `cwd`, it lints with that file as scope (baseline honoured) and, when new error or warning violations touch it, prints `{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"<report>"}}` in the agent format, `--max` defaulting to 10.
 Everything else exits 0 silently. A tool failure inside the hook exits 1 (Claude Code's non-blocking error), not 2, because exit 2 would block the stop with the error text.
 
 ## Customization

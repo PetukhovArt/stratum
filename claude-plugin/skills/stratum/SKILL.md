@@ -1,6 +1,6 @@
 ---
 name: stratum
-description: Layer-aware edits in TS/Vue projects checked by Stratum (stratum-lint, stratum-lsp). Use before creating, moving or renaming a source file or adding an import across layers or slices; when a Stratum diagnostic or Stop-hook report names a rule slug; when a Stratum rule looks wrong for the project.
+description: Layer-aware edits in TS/Vue projects checked by Stratum (stratum-lint, stratum-lsp). Use before creating, moving or renaming a source file or adding an import across layers or slices; when a Stratum diagnostic or hook report names a rule slug; when a Stratum rule looks wrong for the project.
 ---
 
 # Stratum
@@ -13,7 +13,7 @@ Run `stratum-lint context <file> --format agent` before you create, move or rena
 
 ## Reading a report
 
-`stratum-lint [ROOT] --changed --format agent` is the gate the Stop hook runs; the LSP gives the same rules per edit.
+`stratum-lint [ROOT] --changed --format agent` is the gate the Stop hook runs. After each edit, the same report for the edited file, errors and warnings only, arrives as hook context: fix it before moving on.
 
 - Line 1 is the summary. A clean run is that one line: done.
 - Each group is one rule slug with a count and a few example `file:line` sites. Fix by group: the examples show the pattern, then find every site of it.

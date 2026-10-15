@@ -102,7 +102,11 @@ pub enum Command {
         prune: bool,
     },
     /// Claude Code hook adapter: reads the hook event JSON from stdin
-    Hook,
+    Hook {
+        /// Cap reported violations (default 10 after an edit, 20 on stop)
+        #[arg(long)]
+        max: Option<usize>,
+    },
     /// Explain one rule: what it guards, why, how to fix a hit, its options
     Explain {
         slug: String,

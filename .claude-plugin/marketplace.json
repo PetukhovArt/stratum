@@ -9,7 +9,14 @@
     {
       "name": "stratum",
       "source": "./claude-plugin",
-      "description": "Architecture validation for TS/Vue: LSP diagnostics per edit, a lint gate per turn, and a layer-aware skill.",
+      "description": "Architecture validation for TS/Vue: a lint check per edit, a lint gate per turn, and a layer-aware skill.",
+      "category": "code-quality",
+      "tags": ["architecture", "lint", "typescript", "vue"]
+    },
+    {
+      "name": "stratum-lsp",
+      "source": "./claude-plugin-lsp",
+      "description": "stratum-lsp diagnostics for TS/Vue. Only for projects without the typescript-lsp plugin.",
       "category": "code-quality",
       "tags": ["architecture", "lint", "typescript", "vue", "lsp"]
     }

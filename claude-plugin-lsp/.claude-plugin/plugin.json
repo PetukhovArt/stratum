@@ -1,0 +1,14 @@
+{
+  "name": "stratum-lsp",
+  "displayName": "Stratum LSP",
+  "version": "0.1.0",
+  "description": "stratum-lsp as the Claude Code language server for .ts/.tsx/.mts/.cts/.js/.vue. Only for projects without the typescript-lsp plugin: Claude Code gives each extension to one server.",
+  "author": {
+    "name": "PetukhovArt",
+    "url": "https://github.com/PetukhovArt"
+  },
+  "homepage": "https://github.com/PetukhovArt/stratum",
+  "repository": "https://github.com/PetukhovArt/stratum",
+  "license": "MIT OR Apache-2.0",
+  "keywords": ["architecture", "lint", "typescript", "vue", "lsp"]
+}
