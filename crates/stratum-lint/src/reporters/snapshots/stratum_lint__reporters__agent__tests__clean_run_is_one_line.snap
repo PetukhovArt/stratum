@@ -1,0 +1,5 @@
+---
+source: crates/stratum-lint/src/reporters/agent.rs
+expression: "render(Vec::new(), summary, 20)"
+---
+stratum: ok, no new violations, 3 baselined, scope 2 files, 0.42s | zero-config: layers inferred from src/*, run "stratum-lint init" to pin them

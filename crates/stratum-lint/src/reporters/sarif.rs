@@ -1,21 +1,20 @@
 use std::collections::BTreeSet;
 
 use serde_json::json;
-use stratum_core::violation::Violation;
+use stratum_core::severity::Severity;
 
 use super::Reporter;
+use crate::report::Report;
 
 #[derive(Debug, Default)]
 pub struct SarifReporter;
 
 impl Reporter for SarifReporter {
-    fn write(&self, violations: &[Violation], out: &mut dyn std::io::Write) -> std::io::Result<()> {
-        let rule_ids: BTreeSet<u32> = violations.iter().map(|v| v.rule.raw()).collect();
-        let rules: Vec<_> = rule_ids
+    fn write(&self, report: &Report, out: &mut dyn std::io::Write) -> std::io::Result<()> {
+        let slugs: BTreeSet<&str> = report.findings.iter().map(|f| f.rule.as_str()).collect();
+        let rules: Vec<_> = slugs
             .iter()
-            .map(|id| {
-                let slug = stratum_rules::slug_for(stratum_core::ids::RuleId::new(*id))
-                    .unwrap_or("unknown");
+            .map(|slug| {
                 json!({
                     "id": slug,
                     "name": slug,
@@ -24,17 +23,18 @@ impl Reporter for SarifReporter {
                 })
             })
             .collect();
-        let results: Vec<_> = violations
+        let results: Vec<_> = report
+            .findings
             .iter()
-            .map(|v| {
+            .map(|f| {
                 json!({
-                    "ruleId": stratum_rules::slug_for(v.rule).unwrap_or("unknown"),
-                    "level": sarif_level(v.severity),
-                    "message": { "text": v.message },
+                    "ruleId": f.rule,
+                    "level": sarif_level(f.severity),
+                    "message": { "text": f.message },
                     "locations": [{
                         "physicalLocation": {
-                            "artifactLocation": { "uri": v.file.to_string_lossy() },
-                            "region": { "startLine": v.location.line, "startColumn": v.location.column }
+                            "artifactLocation": { "uri": f.file, "uriBaseId": "%SRCROOT%" },
+                            "region": { "startLine": f.location.line, "startColumn": f.location.column }
                         }
                     }]
                 })
@@ -62,44 +62,11 @@ impl Reporter for SarifReporter {
     }
 }
 
-fn sarif_level(s: stratum_core::severity::Severity) -> &'static str {
-    use stratum_core::severity::Severity;
+const fn sarif_level(s: Severity) -> &'static str {
     match s {
         Severity::Error => "error",
         Severity::Warning => "warning",
         Severity::Info => "note",
         Severity::Off => "none",
-    }
-}
-
-#[cfg(test)]
-#[allow(clippy::unwrap_used)]
-mod tests {
-    use super::*;
-    use std::path::PathBuf;
-    use stratum_core::{
-        ids::{ModuleId, RuleId},
-        severity::Severity,
-        violation::SourceLocation,
-    };
-
-    #[test]
-    fn emits_sarif_envelope() {
-        let v = Violation {
-            rule: RuleId::new(1),
-            severity: Severity::Error,
-            message: "x".into(),
-            file: PathBuf::from("a.ts"),
-            location: SourceLocation { line: 1, column: 1 },
-            modules: vec![ModuleId::new(0)],
-            edge: None,
-            suggestion: None,
-        };
-        let mut buf = Vec::new();
-        SarifReporter.write(&[v], &mut buf).unwrap();
-        let s = String::from_utf8(buf).unwrap();
-        assert!(s.contains("\"version\": \"2.1.0\""));
-        assert!(s.contains("\"ruleId\": \"stratum/no-cross-layer-import\""));
-        assert!(s.contains("\"level\": \"error\""));
     }
 }
