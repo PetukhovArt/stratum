@@ -1,14 +1,12 @@
-use petgraph::Direction;
-use petgraph::visit::EdgeRef;
-
 use stratum_core::{
     ids::{ModuleId, RuleId},
     severity::Severity,
-    violation::{SourceLocation, Violation},
+    violation::Violation,
     visibility::VisibilityScope as VS,
 };
 use stratum_graph::CompoundGraph;
 
+use crate::builtin::public_api::{Finding, edge_violations, rel_path};
 use crate::ids::VISIBILITY_SCOPE;
 use crate::rule::{EmptyOptions, Rule};
 
@@ -39,49 +37,25 @@ impl Rule for VisibilityScope {
         let Some(from) = graph.modules.get(&scope) else {
             return vec![];
         };
-        let Some(node) = graph.node_for(scope) else {
-            return vec![];
-        };
-        let mut out = Vec::new();
-        for edge in graph.deps.edges_directed(node, Direction::Outgoing) {
-            let to_id = graph.deps[edge.target()];
-            let Some(to_mod) = graph.modules.get(&to_id) else {
-                continue;
+        edge_violations(graph, scope, self.id(), severity, |to| {
+            let target = graph.modules.get(&to)?;
+            let VS::Private { root } = &target.visibility else {
+                return None;
             };
-            if !is_allowed(from, to_mod) {
-                out.push(Violation {
-                    rule: self.id(),
-                    severity,
-                    message: format!(
-                        "Module is not allowed to import a module whose visibility excludes it ({:?})",
-                        to_mod.visibility
-                    ),
-                    file: from.path.clone(),
-                    location: SourceLocation { line: 1, column: 1 },
-                    modules: vec![scope, to_id],
-                    edge: Some(stratum_core::edge::Edge {
-                        from: scope,
-                        to: to_id,
-                        kind: *edge.weight(),
-                    }),
-                    suggestion: Some(
-                        "Either move the target module to a more permissive visibility, or move the importer into the allowed scope.".into(),
-                    ),
-                });
+            if from.path.starts_with(root) {
+                return None;
             }
-        }
-        out.sort_by(|a, b| {
-            let am = a.modules.get(1).map_or(0, |m| m.raw());
-            let bm = b.modules.get(1).map_or(0, |m| m.raw());
-            am.cmp(&bm)
-        });
-        out
-    }
-}
-
-fn is_allowed(_from: &stratum_core::types::Module, to: &stratum_core::types::Module) -> bool {
-    match &to.visibility {
-        VS::Public | VS::Private { .. } => true,
+            let root = rel_path(graph, target.layer, root);
+            let target = rel_path(graph, target.layer, &target.path);
+            Some(Finding {
+                message: format!(
+                    "`{target}` is in a private zone of `{root}`; only modules under `{root}` may import it"
+                ),
+                suggestion: format!(
+                    "Import it through the entry of the container that owns `{root}`, move the importer under `{root}`, or move the code out of the private zone if it is meant to be shared."
+                ),
+            })
+        })
     }
 }
 
@@ -89,62 +63,55 @@ fn is_allowed(_from: &stratum_core::types::Module, to: &stratum_core::types::Mod
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
+    use crate::builtin::public_api::fixture::Fixture;
+    use stratum_core::types::ContainerKind;
 
-    use indexmap::IndexMap;
-    use petgraph::graph::DiGraph;
-    use rustc_hash::FxHashMap;
-    use stratum_core::{
-        edge::EdgeKind,
-        ids::{ContainerId, LayerId},
-        purity::Purity,
-        types::Module,
-    };
-
-    fn module(id: u32, layer: u32, container: u32, path: &str, visibility: VS) -> Module {
-        Module {
-            id: ModuleId::new(id),
-            path: PathBuf::from(path),
-            container: ContainerId::new(container),
-            layer: LayerId::new(layer),
-            purity: Purity::new(2).unwrap(),
-            visibility,
-            exports: stratum_core::types::Exports::default(),
-            calls: vec![],
-        }
+    fn check(f: &Fixture, from: ModuleId) -> Vec<Violation> {
+        VisibilityScope.check(&f.g, from, &EmptyOptions, Severity::Error)
     }
 
-    fn build(mods: Vec<Module>, edges: &[(u32, u32)]) -> CompoundGraph {
-        let mut g = CompoundGraph {
-            modules: IndexMap::new(),
-            containers: IndexMap::new(),
-            layers: IndexMap::new(),
-            deps: DiGraph::new(),
-            node_index: FxHashMap::default(),
-        };
-        for m in mods {
-            let node = g.deps.add_node(m.id);
-            g.node_index.insert(m.id, node);
-            g.modules.insert(m.id, m);
-        }
-        for (a, b) in edges {
-            let na = g.node_index[&ModuleId::new(*a)];
-            let nb = g.node_index[&ModuleId::new(*b)];
-            g.deps.add_edge(na, nb, EdgeKind::Static);
-        }
-        g
+    fn zone() -> (Fixture, ModuleId) {
+        let mut f = Fixture::default();
+        let layer = f.layer(0, "src/entities");
+        f.unit("src/entities/user", ContainerKind::Slice, layer);
+        f.unit("src/entities/user2", ContainerKind::Slice, layer);
+        let helper = f.module(
+            "src/entities/user/_shared/helper.ts",
+            Some("src/entities/user"),
+        );
+        (f, helper)
+    }
+
+    #[test]
+    fn private_zone_is_visible_to_its_root_subtree() {
+        let (mut f, helper) = zone();
+        let a = f.module("src/entities/user/profile/ui/card.vue", None);
+        f.edge(a, helper);
+        assert!(check(&f, a).is_empty());
+    }
+
+    #[test]
+    fn cousin_path_sharing_the_folder_name_prefix_is_rejected() {
+        let (mut f, helper) = zone();
+        let a = f.module(
+            "src/entities/user2/_shared/helper.ts",
+            Some("src/entities/user2"),
+        );
+        f.edge(a, helper);
+        let v = check(&f, a);
+        assert_eq!(v.len(), 1);
+        assert_eq!(
+            v[0].message,
+            "`src/entities/user/_shared/helper.ts` is in a private zone of `src/entities/user`; only modules under `src/entities/user` may import it"
+        );
     }
 
     #[test]
     fn public_target_is_allowed() {
-        let g = build(
-            vec![
-                module(0, 1, 1, "src/a.ts", VS::Public),
-                module(1, 2, 2, "src/b.ts", VS::Public),
-            ],
-            &[(0, 1)],
-        );
-        let v = VisibilityScope.check(&g, ModuleId::new(0), &EmptyOptions, Severity::Error);
-        assert!(v.is_empty());
+        let (mut f, _) = zone();
+        let a = f.module("src/entities/user2/a.ts", None);
+        let b = f.module("src/entities/user/b.ts", None);
+        f.edge(a, b);
+        assert!(check(&f, a).is_empty());
     }
 }
