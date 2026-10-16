@@ -35,6 +35,7 @@ fn tiny_ts_config() -> Config {
         project: ProjectConfig {
             extends: None,
             ignore: vec![],
+            entry_points: vec![],
         },
         layers: vec![
             LayerConfig {

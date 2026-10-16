@@ -153,6 +153,7 @@ mod tests {
             project: ProjectConfig {
                 extends: None,
                 ignore: vec![],
+                entry_points: vec![],
             },
             layers: vec![LayerConfig {
                 id: "shared".into(),
