@@ -1,4 +1,5 @@
 import { ViewId } from '../shell/nav'
+import { dsmView } from './dsm/dsm'
 import { overviewView } from './overview/overview'
 import { placeholderView } from './placeholder'
 import { ViewDef } from './view-def'
@@ -7,7 +8,7 @@ export type { ViewDef, ViewProps } from './view-def'
 
 export const VIEWS: readonly ViewDef[] = [
   placeholderView('focus', '1', 'view.focus'),
-  placeholderView('dsm', '2', 'view.dsm'),
+  dsmView,
   placeholderView('mr', '3', 'view.mr'),
   overviewView,
 ]
