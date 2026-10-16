@@ -12,6 +12,7 @@ Customization goes from cheapest to most flexible: a preset via `extends`, `laye
 | `version` | required, `1` |
 | `project.extends` | a config file relative to this one, or a preset: `stratum:recommended`, `stratum:fsd` |
 | `project.ignore` | globs of files kept out of the graph |
+| `project.entry_points` | globs of the files the program starts from; required by `stratum/unused-exports` and `stratum/unreachable-modules` |
 | `structure` | folder and file names that shape containers |
 | `layers` | `[{ id, path, depends_on?, slices? }]` |
 | `rules` | by slug: `{ severity, options?, script? }` |
@@ -39,7 +40,7 @@ Errors fail every command that loads the config with exit code 2 and are reporte
 "structure": {
   "entries":  ["index.ts", "index.tsx", "index.js", "index.jsx", "index.vue"],  // default
   "segments": [],                                                              // default; stratum:fsd sets model, ui, api, lib, config
-  "private":  ["_shared"]                                                      // default
+  "private":  []                                                               // default; stratum:recommended sets _shared
 }
 ```
 
@@ -61,7 +62,7 @@ Placement depends only on the set of file paths: adding an `index.ts` turns a co
 { "version": 1, "project": { "extends": "stratum:fsd" } }
 ```
 
-- `stratum:recommended`: severities for 12 built-ins (table below). `deep-module`, `promotion-pressure` and `import-policy` are not listed and run at their default severity unless set to `"off"`.
+- `stratum:recommended`: sets `structure.private` to `_shared` and the severities in the table below. `deep-module`, `promotion-pressure` and `import-policy` are not listed and run at their default severity unless set to `"off"`.
 - `stratum:fsd`: extends `stratum:recommended`; adds the Feature-Sliced Design layers `app → pages → widgets → features → entities → shared` under `src/<layer>`, each depending on every layer below it, with `slices: true` on pages, widgets, features and entities; sets `structure.segments` to `model, ui, api, lib, config`; tightens the severities in the fsd column.
 
 A parent may extend further; a cycle is an error. Merge, child over parent:
@@ -90,12 +91,23 @@ A parent may extend further; a cycle is an error. Merge, child over parent:
 | `stratum/import-policy` | error | | | list of policies, below |
 | `stratum/restricted-calls` | off | off | off | list of policies, below |
 | `stratum/stage-mixing` | off | off | error | none |
-| `stratum/container-breadth` | info | info | warning | `max_kinds` (6) |
+| `stratum/container-breadth` | info | info | warning | `max_kinds` (6), `max_items` (20), `max_root_files` (4) |
+| `stratum/zone-breadth` | warning | warning | error | `max_kinds` (6) |
+| `stratum/missing-entry` | warning | warning | error | none |
+| `stratum/no-barrel` | warning | warning | error | `layers` ([]) |
+| `stratum/composer-scope` | warning | warning | warning | `scope_file` (unset) |
+| `stratum/naming` | warning | off | warning | `folder_case` (unset), `reserved` ([]), `duplicate_slices` (false) |
+| `stratum/module-docs` | warning | warning | warning | `nav_file` (unset), `requires_key` ("requires") |
+| `stratum/unused-exports` | off | off | off | none |
+| `stratum/unreachable-modules` | off | off | off | none |
+| `stratum/suppression` | error | error | error | none |
 | `stratum/slice-fan-in` | off | off | warning | `max_fan_in` (5) |
-| `stratum/miller-limit` | warning | info | info | `max_children` (7) |
+| `stratum/miller-limit` | warning | info | info | `max_children` (20) |
 | `stratum/promotion-pressure` | info | | | `threshold` (5) |
-| `stratum/deep-module` | info | | | `max_exports` (12) |
-| `stratum/depth-ratio` | info | info | info | `min_ratio` (3.0) |
+| `stratum/deep-module` | info | | | `max_exports` (20) |
+| `stratum/depth-ratio` | info | info | info | `min_ratio` (1.0) |
+
+The metric rules' limits are calibrated on a real project, see [calibration.md](calibration.md); none of them is ever `error`. The fsd preset also sets `no-barrel` `layers: ["shared"]`, `composer-scope` `scope_file: "*-scope.*"`, and `naming` `folder_case: "kebab"`, `reserved: ["hooks", "helpers", "types", "utils", "components"]`, `duplicate_slices: true`. `unused-exports` and `unreachable-modules` are off in both presets; set `project.entry_points` and turn them on at `warning`. Turning either on without entry points is a config error.
 
 `stratum-lint explain <slug>` prints what a rule checks, why, how to fix a hit, and its options; `stratum-lint rules` lists the effective severity of every rule.
 `// @stratum-purity N` (1 pure to 4 side effects, default 2) in a file's leading comments sets its purity for `stratum/purity`.

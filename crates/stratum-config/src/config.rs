@@ -38,6 +38,12 @@ pub struct ProjectConfig {
     /// glob wins. Appended after the `extends` parent's list.
     #[serde(default)]
     pub ignore: Vec<String>,
+    /// Globs relative to the project root of the files the program starts from: the roots of
+    /// reachability for `stratum/unused-exports` and `stratum/unreachable-modules`. Required when
+    /// either rule is on; each glob must match a module. A child list replaces the `extends`
+    /// parent's list.
+    #[serde(default)]
+    pub entry_points: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

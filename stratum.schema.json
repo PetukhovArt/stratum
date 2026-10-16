@@ -71,6 +71,14 @@
     "ProjectConfig": {
       "additionalProperties": false,
       "properties": {
+        "entry_points": {
+          "default": [],
+          "description": "Globs relative to the project root of the files the program starts from: the roots of reachability for `stratum/unused-exports` and `stratum/unreachable-modules`. Required when either rule is on; each glob must match a module. A child list replaces the `extends` parent's list.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "extends": {
           "default": null,
           "description": "A config file path relative to this file, or a built-in preset: `stratum:recommended`, `stratum:fsd`.",
@@ -142,9 +150,7 @@
           "type": "array"
         },
         "private": {
-          "default": [
-            "_shared"
-          ],
+          "default": [],
           "description": "Private-zone folder names: visible only inside their parent folder's subtree.",
           "items": {
             "type": "string"
@@ -191,6 +197,7 @@
         }
       ],
       "default": {
+        "entry_points": [],
         "extends": null,
         "ignore": []
       }
@@ -217,9 +224,7 @@
           "index.jsx",
           "index.vue"
         ],
-        "private": [
-          "_shared"
-        ],
+        "private": [],
         "segments": []
       },
       "description": "Merged with the `extends` parent field by field; a child list replaces the parent's list."

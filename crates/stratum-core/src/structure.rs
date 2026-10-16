@@ -26,7 +26,7 @@ impl Default for Structure {
             .map(String::from)
             .to_vec(),
             segments: vec![],
-            private: vec!["_shared".into()],
+            private: vec![],
         }
     }
 }

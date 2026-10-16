@@ -3,6 +3,7 @@ use std::fs;
 use camino::Utf8Path;
 use jsonc_parser::{ParseOptions, parse_to_serde_value};
 use serde_json::Value;
+use stratum_core::severity::Severity;
 
 use crate::{Config, ConfigError, IgnoreSet, extends, overrides};
 
@@ -27,6 +28,7 @@ pub fn parse_str(path: &Utf8Path, text: &str) -> Result<Config, ConfigError> {
         message: e.to_string(),
     })?;
     check_layer_refs(path, &config)?;
+    check_entry_points(path, &config)?;
     IgnoreSet::new(&config)?;
     overrides::validate(&config)?;
     Ok(config)
@@ -59,6 +61,29 @@ fn parse_jsonc(path: &Utf8Path, text: &str) -> Result<Value, ConfigError> {
             path: path.to_path_buf(),
             message: "empty document".into(),
         })
+}
+
+const NEEDS_ENTRY_POINTS: [&str; 2] = ["stratum/unused-exports", "stratum/unreachable-modules"];
+
+fn check_entry_points(path: &Utf8Path, config: &Config) -> Result<(), ConfigError> {
+    if !config.project.entry_points.is_empty() {
+        return Ok(());
+    }
+    let enabled = NEEDS_ENTRY_POINTS.into_iter().find(|slug| {
+        config
+            .rules
+            .get(*slug)
+            .is_some_and(|r| r.severity != Severity::Off)
+    });
+    match enabled {
+        Some(slug) => Err(ConfigError::Validation {
+            path: path.to_path_buf(),
+            message: format!(
+                "{slug} needs `project.entry_points`: the files the program starts from"
+            ),
+        }),
+        None => Ok(()),
+    }
 }
 
 fn check_layer_refs(path: &Utf8Path, config: &Config) -> Result<(), ConfigError> {
@@ -133,6 +158,38 @@ mod tests {
         assert_eq!(
             cfg.rules["stratum/public-api"].severity,
             stratum_core::severity::Severity::Error
+        );
+    }
+
+    #[test]
+    fn reachability_rules_without_entry_points_are_a_config_error() {
+        let path = Utf8PathBuf::from("inline");
+        let rules = r#""rules": { "stratum/unused-exports": { "severity": "warning" } }"#;
+        let without = format!(r#"{{ "version": 1, {rules} }}"#);
+        let err = parse_str(&path, &without).unwrap_err();
+        assert!(err.to_string().contains("entry_points"), "{err}");
+        let with = format!(
+            r#"{{ "version": 1, "project": {{ "entry_points": ["src/main.ts"] }}, {rules} }}"#
+        );
+        assert!(parse_str(&path, &with).is_ok());
+    }
+
+    #[test]
+    fn presets_make_shared_a_private_zone_and_a_bare_config_does_not() {
+        let path = Utf8PathBuf::from("inline");
+        for extends in ["stratum:recommended", "stratum:fsd"] {
+            let text = format!(r#"{{ "version": 1, "project": {{ "extends": "{extends}" }} }}"#);
+            assert_eq!(
+                parse_str(&path, &text).unwrap().structure.private,
+                ["_shared"]
+            );
+        }
+        assert!(
+            parse_str(&path, r#"{ "version": 1 }"#)
+                .unwrap()
+                .structure
+                .private
+                .is_empty()
         );
     }
 

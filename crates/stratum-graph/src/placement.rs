@@ -1,10 +1,11 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
 use indexmap::IndexMap;
 use rustc_hash::FxHashMap;
 
+use crate::index::DirRole;
 use stratum_core::{
     ids::{ContainerId, LayerId, ModuleId},
     stage::Stage,
@@ -25,12 +26,21 @@ pub struct Placed {
 pub struct Placement {
     pub containers: IndexMap<ContainerId, Container>,
     pub modules: Vec<Placed>,
+    pub dir_roles: BTreeMap<PathBuf, DirRole>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum Key {
     Layer(usize),
     Path(Utf8PathBuf),
+}
+
+#[derive(Debug)]
+enum RoleDraft {
+    Container(Key),
+    Segment,
+    PrivateZone,
+    Collection,
 }
 
 #[derive(Debug)]
@@ -103,6 +113,7 @@ pub fn place(
         structure,
         entries: entry_dirs(structure, files, &assigned),
         drafts: FxHashMap::default(),
+        roles: FxHashMap::default(),
         roots,
     };
     for i in 0..layers.len() {
@@ -117,7 +128,7 @@ pub fn place(
         .enumerate()
         .map(|(module, &(file, layer))| walk.home_of(module, &files[file], layer))
         .collect();
-    let (containers, ids) = walk.containers();
+    let (containers, ids, dir_roles) = walk.containers();
 
     let modules = assigned
         .iter()
@@ -133,6 +144,7 @@ pub fn place(
     Placement {
         containers,
         modules,
+        dir_roles,
     }
 }
 
@@ -142,6 +154,7 @@ struct Walk<'a> {
     roots: Vec<Utf8PathBuf>,
     entries: FxHashMap<&'a Utf8Path, Entry>,
     drafts: FxHashMap<Key, Draft>,
+    roles: FxHashMap<Utf8PathBuf, RoleDraft>,
 }
 
 impl Walk<'_> {
@@ -168,11 +181,15 @@ impl Walk<'_> {
             let parent_dir = dir.clone();
             dir.push(name);
             if self.structure.is_private(name) {
+                self.roles
+                    .entry(dir.clone())
+                    .or_insert(RoleDraft::PrivateZone);
                 private_root = Some(parent_dir);
                 loose = true;
                 continue;
             }
             if self.structure.is_segment(name) {
+                self.roles.entry(dir.clone()).or_insert(RoleDraft::Segment);
                 if !loose {
                     self.mark(&home, |d| {
                         d.segment_dirs.insert((*name).to_owned());
@@ -185,6 +202,9 @@ impl Walk<'_> {
             let kind = if depth == 0 && sliced {
                 ContainerKind::Slice
             } else if entry.is_none() {
+                self.roles
+                    .entry(dir.clone())
+                    .or_insert(RoleDraft::Collection);
                 loose = true;
                 continue;
             } else if loose || home_kind == ContainerKind::Layer {
@@ -196,6 +216,9 @@ impl Walk<'_> {
                 self.mark(&home, |d| d.has_sub_unit = true);
             }
             let key = Key::Path(dir.clone());
+            self.roles
+                .entry(dir.clone())
+                .or_insert_with(|| RoleDraft::Container(key.clone()));
             self.drafts
                 .entry(key.clone())
                 .or_insert_with(|| Draft::new(kind, layer, Some(home.clone()), entry));
@@ -229,6 +252,7 @@ impl Walk<'_> {
     ) -> (
         IndexMap<ContainerId, Container>,
         FxHashMap<Key, ContainerId>,
+        BTreeMap<PathBuf, DirRole>,
     ) {
         let layers = self.layers;
         let mut next = layers.iter().map(|l| l.id.raw() + 1).max().unwrap_or(0);
@@ -269,7 +293,23 @@ impl Walk<'_> {
                 (id, container)
             })
             .collect();
-        (containers, ids)
+        let mut dir_roles: BTreeMap<PathBuf, DirRole> = self
+            .roles
+            .into_iter()
+            .map(|(dir, role)| {
+                let role = match role {
+                    RoleDraft::Container(key) => DirRole::Container(ids[&key]),
+                    RoleDraft::Segment => DirRole::Segment,
+                    RoleDraft::PrivateZone => DirRole::PrivateZone,
+                    RoleDraft::Collection => DirRole::Collection,
+                };
+                (PathBuf::from(dir.into_string()), role)
+            })
+            .collect();
+        for root in &self.roots {
+            dir_roles.insert(PathBuf::from(root.as_str()), DirRole::LayerRoot);
+        }
+        (containers, ids, dir_roles)
     }
 }
 
@@ -361,6 +401,7 @@ mod tests {
             ];
             let structure = Structure {
                 segments: vec!["model".into(), "ui".into()],
+                private: vec!["_shared".into()],
                 ..Structure::default()
             };
             let mut files: Vec<Utf8PathBuf> = [
@@ -495,6 +536,32 @@ mod tests {
         );
         assert_eq!(root_of("src/entities/_shared/k.ts"), dir("src/entities"));
         assert_eq!(root_of("src/entities/user/index.ts"), None);
+    }
+
+    #[test]
+    fn every_folder_inside_a_layer_gets_one_role_from_structure_and_entries() {
+        let f = Fixture::new();
+        let role = |rel: &str| f.placement.dir_roles[&PathBuf::from(abs(rel).into_string())];
+        let container = |rel: &str| DirRole::Container(f.at(rel).id);
+        assert_eq!(role("src/entities"), DirRole::LayerRoot);
+        assert_eq!(role("src/shared"), DirRole::LayerRoot);
+        assert_eq!(role("src/entities/user"), container("src/entities/user"));
+        assert_eq!(
+            role("src/entities/cart/parts"),
+            container("src/entities/cart/parts")
+        );
+        assert_eq!(role("src/entities/user/model"), DirRole::Segment);
+        assert_eq!(role("src/entities/user/_shared"), DirRole::PrivateZone);
+        assert_eq!(
+            role("src/entities/user/_shared/deep/_shared"),
+            DirRole::PrivateZone
+        );
+        assert_eq!(role("src/entities/user/_shared/deep"), DirRole::Collection);
+        assert_eq!(role("src/entities/cart/helpers"), DirRole::Collection);
+        assert_eq!(
+            role("src/entities/cart/model/deep"),
+            container("src/entities/cart/model/deep")
+        );
     }
 
     #[test]

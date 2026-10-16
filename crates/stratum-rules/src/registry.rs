@@ -174,12 +174,16 @@ impl RuleRegistry {
     #[must_use]
     pub fn with_builtins() -> Self {
         use crate::builtin::{
-            container_breadth::ContainerBreadth, deep_module::DeepModule, depth_ratio::DepthRatio,
-            import_policy::ImportPolicy, miller_limit::MillerLimit,
-            no_circular_deps::NoCircularDeps, no_cross_layer_import::NoCrossLayerImport,
-            promotion_pressure::PromotionPressure, public_api::PublicApi, purity::PurityRule,
-            restricted_calls::RestrictedCalls, sibling_isolation::SiblingIsolation,
-            slice_fan_in::SliceFanIn, stage_mixing::StageMixing, visibility_scope::VisibilityScope,
+            composer_scope::ComposerScope, container_breadth::ContainerBreadth,
+            deep_module::DeepModule, depth_ratio::DepthRatio, import_policy::ImportPolicy,
+            miller_limit::MillerLimit, missing_entry::MissingEntry, module_docs::ModuleDocs,
+            naming::Naming, no_barrel::NoBarrel, no_circular_deps::NoCircularDeps,
+            no_cross_layer_import::NoCrossLayerImport, promotion_pressure::PromotionPressure,
+            public_api::PublicApi, purity::PurityRule, restricted_calls::RestrictedCalls,
+            sibling_isolation::SiblingIsolation, slice_fan_in::SliceFanIn,
+            stage_mixing::StageMixing, suppression::Suppression,
+            unreachable_modules::UnreachableModules, unused_exports::UnusedExports,
+            visibility_scope::VisibilityScope, zone_breadth::ZoneBreadth,
         };
         let mut r = Self::new();
         r.register(NoCrossLayerImport);
@@ -197,6 +201,15 @@ impl RuleRegistry {
         r.register(RestrictedCalls);
         r.register(StageMixing);
         r.register(ContainerBreadth);
+        r.register(ZoneBreadth);
+        r.register(MissingEntry);
+        r.register(NoBarrel);
+        r.register(ComposerScope);
+        r.register(Naming);
+        r.register(ModuleDocs);
+        r.register(UnusedExports);
+        r.register(UnreachableModules);
+        r.register(Suppression);
         r
     }
 }

@@ -14,7 +14,7 @@ pub mod topo;
 pub use builder::{BuildConfig, BuildError, GraphBuilder};
 pub use cycles::{Cycle, find_cycles};
 pub use graph::{CompoundGraph, PrivateZone};
-pub use index::DirEntries;
+pub use index::{DirEntries, DirRole};
 pub use snapshot::{
     GraphSnapshot, SnapshotContainer, SnapshotEdge, SnapshotLayer, SnapshotModule, SnapshotZone,
     snapshot_of,
