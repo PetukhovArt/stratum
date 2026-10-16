@@ -21,12 +21,17 @@ package version; a bump requires a coordinated frontend release.
 - Config validation is strict: an unknown key, an unknown rule slug, an option the rule does not take or a wrongly typed one, a `depends_on` naming an undeclared layer, a bad `project.ignore` or `overrides[].files` glob, an unknown preset or an `extends` cycle fails with exit 2, naming the slug and key. `lint`, `baseline`, `context`, `rules`, `explain`, `snapshot` and `visualize` exit 2 on it, as on any other tool failure; `hook` exits 1, Claude Code's non-blocking error.
 - `overrides` set `severity` only; `options` or `script` in an override is a config error.
 - Editor extensions are removed (`editor-extensions/` for VS Code, Zed, WebStorm). `stratum-lsp` stays and targets AI harnesses: see `docs/harness.md`.
-- The `diff` subcommand is removed; it was a stub that always failed.
+- `stratum-lint diff` is rewritten: it was a stub that always failed, and now takes `--base REF` (required) and prints a drift report.
 
 ### Added
 
 - `stratum-lint hook`: the Claude Code hook adapter. On `PostToolUse` of `Edit` / `Write` it lints the edited source file and returns its new error and warning violations as context; on `Stop` / `SubagentStop` it gates the changed files and blocks the stop on new errors.
 - Gate options: `--format agent` (compact text for a model's context), `--max`, `--files`, `--changed[=REF]`, `--baseline` / `--no-baseline`. `stratum-lint baseline [--prune]` writes `stratum.baseline.json`, fingerprinted by slug, file and message with numbers masked.
+- CI integration, see `docs/ci.md`:
+  - `--format gitlab` (Code Quality JSON with line-shift-stable fingerprints) and `--format github` (annotations capped at 10 per severity, then the agent text). Their paths are relative to the git work-tree root.
+  - `stratum-lint baseline --check[=REF]`: exit 1 when a baseline entry count grew since REF; reads no config, builds no graph.
+  - `stratum-lint diff --base REF`: architecture drift of the working tree vs REF as capped markdown, first line `<!-- stratum:drift -->`; exit 1 on drift, meant as advisory.
+  - CI Templates `ci/gitlab/templates/stratum.yml` (`include: project:`) and `ci/github` (composite action): gate, ratchet (skipped with the label `stratum:accept-debt`) and a drift note / comment, with no outbound internet.
 - `stratum-lint context <file>`: where a file, existing or planned, sits and what it may import: layer, purity, container with kind, stage and entry, the enclosing slice, visible private zones, and a `may not import` line (sibling slices, sibling sub-units, files behind another container's entry).
 - `stratum-lint explain <slug>` and `stratum-lint rules`, with built-in docs for every rule.
 - Configurable structure: `layers[].slices` and a `structure` key (`entries`, `segments`, `private`). Containers (layer, slice, sub-unit, nested), their evolution stage and private zones are derived from the folder tree.

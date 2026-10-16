@@ -13,6 +13,7 @@ Integration surfaces, in order of preference:
 | `stratum-lint context <file>` | before editing: where the file sits and what it may import | preventive |
 | `stratum-lint explain <rule>` | on demand, only when a rule is unfamiliar | judgement aid |
 | `stratum-lint hook` on `Stop` | end-of-turn gate in Claude Code (plugin `stratum`) | gate |
+| CI Template (GitLab, GitHub) | MR/PR gate with `--format gitlab` / `github`, `baseline --check` ratchet, advisory `diff --base` report; wiring in [ci.md](ci.md) | cold, whole project |
 
 Source files: `.ts .tsx .mts .cts .js .jsx .mjs .cjs .vue`. No editor extensions are shipped: any LSP client can launch `stratum-lsp` over stdio.
 
@@ -33,7 +34,9 @@ Source files: `.ts .tsx .mts .cts .js .jsx .mjs .cjs .vue`. No editor extensions
 
 ```
 stratum-lint [lint] [ROOT]                     # ROOT defaults to "."
-    [--format terminal|json|sarif|agent]       # default terminal; agent = compact, token-cheap text
+    [--format terminal|json|sarif|agent|gitlab|github]
+                                               # default terminal; agent = compact, token-cheap text;
+                                               # gitlab = Code Quality JSON; github = annotations, then agent text
     [--config PATH]                            # default ROOT/stratum.config.jsonc, else zero-config
     [--max N]                                  # agent format: cap printed violations, rest summarised (default 20)
     [--files F...]                             # report only violations touching these files (cwd-relative, else ROOT-relative; missing = exit 2)
@@ -42,6 +45,11 @@ stratum-lint [lint] [ROOT]                     # ROOT defaults to "."
     [--watch]                                  # re-lint on file changes (200 ms debounce) until interrupted
 stratum-lint baseline [ROOT] [--config PATH] [--out PATH] [--prune]
                                                # accept current violations (default ROOT/stratum.baseline.json); --prune only drops fixed ones
+stratum-lint baseline [ROOT] [--out PATH] --check[=REF]
+                                               # fail on Baseline Growth vs the same file at REF (default HEAD); the "=" is required;
+                                               # conflicts with --prune and --config
+stratum-lint diff [ROOT] --base REF [--config PATH]
+                                               # Drift of the working tree vs REF, as markdown on stdout
 stratum-lint explain <SLUG> [ROOT] [--format agent|json] [--config PATH]   # slug with or without "stratum/"
 stratum-lint rules [ROOT] [--format agent|json] [--config PATH]           # every rule incl. plugins, effective severity, one-line summary
 stratum-lint context <FILE> [--root ROOT] [--format agent|json] [--config PATH]
@@ -58,9 +66,11 @@ stratum-lint visualize [ROOT] [--config PATH] [--no-open]
 
 | Command | 0 | 1 | 2 |
 |---|---|---|---|
-| `lint` (default) | no error-severity violation after baseline and scope; warnings and info may be listed | at least one error-severity violation | tool failure |
+| `lint` (default), every `--format` | no error-severity violation after baseline and scope; warnings and info may be listed | at least one error-severity violation | tool failure |
 | `lint --watch` | never: it runs until killed | | tool failure on any run |
 | `baseline` | file written | | tool failure; `--prune` without an existing baseline |
+| `baseline --check` | no entry count grew: equal, shrunk, introduced (absent at REF), or no baseline in the working tree | some entry count grew | tool failure; unknown REF; invalid baseline on either side; `--out` outside ROOT |
+| `diff` | no drift | drift (advisory: CI Templates let it pass) | tool failure; unknown REF; a graph fails to build on either side |
 | `explain` | printed | | tool failure; unknown slug |
 | `rules`, `context` | printed, whatever violations exist | | tool failure; `context` FILE outside ROOT |
 | `init` | config written | | tool failure; config already exists |
@@ -68,12 +78,13 @@ stratum-lint visualize [ROOT] [--config PATH] [--no-open]
 | `visualize` | server stopped with Ctrl+C | | tool failure |
 | `hook` | decision printed, or nothing to say | tool failure (Claude Code's non-blocking error) | never |
 
-Tool failure: bad arguments, an invalid config (see Customization), a plugin that fails to load, an unreadable baseline, a failed `git` call for `--changed`, a missing `--files` path. The message goes to stderr.
+Tool failure: bad arguments, an invalid config (see Customization), a plugin that fails to load, an unreadable baseline, a failed `git` call for `--changed`, `--check` or `diff`, a missing `--files` path. The message goes to stderr.
+An unknown REF carries the hint `git fetch --depth=1 origin <REF>`: a shallow CI clone lacks the base commit until it is fetched.
 
 ### Output rules
 
 - Rules are named by **slug** (`stratum/no-cross-layer-import`; plugins use their config key, conventionally `custom/<name>`), never by numeric id.
-- Paths are relative to ROOT with forward slashes.
+- Paths are relative to ROOT with forward slashes, except in `gitlab` and `github`: there they are relative to the git work-tree root (ROOT's path inside the repository prepended), where the CI resolves them. Outside a repository both are the same.
 - `json` and `sarif` carry full messages; every JSON shape carries `"version"`, and a breaking change bumps it.
 
 `--format agent`:
@@ -86,6 +97,13 @@ Tool failure: bad arguments, an invalid config (see Customization), a plugin tha
 - Messages longer than 240 chars are clipped, with a `(+N chars, full text in --format json)` note.
 - A zero-config run appends `| zero-config: layers inferred from src/*, run "stratum-lint init" to pin them` to the summary line. Zero-config makes every `src/*` folder a layer and applies the `stratum:recommended` severities with `stratum/public-api`, `stratum/sibling-isolation` and `stratum/container-breadth` off, since they need declared layers and structure.
 
+### CI formats
+
+Both print only the violations left after baseline and scope.
+
+- `--format gitlab`: a GitLab Code Quality JSON array of `{ description, check_name, fingerprint, severity, location: { path, lines: { begin } } }`. `check_name` is the slug; `error` -> `major`, `warning` -> `minor`, `info` -> `info`. `fingerprint` is 32 hex chars from the baseline fingerprint plus the occurrence index among identical ones in line order: stable across line shifts and releases, so the MR widget can diff it against the target branch.
+- `--format github`: `::error file=…,line=…,col=…,title=<slug>::<message>` and `::warning …` workflow commands, at most 10 per severity, picked round-robin across rules (most hits first) so one noisy rule cannot hide the rest; info is not annotated. Then the full `--format agent` text.
+
 ### Baseline
 
 Entries are fingerprinted by `rule slug + relative file + message`, without line numbers and with every number in the message masked as `#`, so line shifts and changed metrics do not resurrect them.
@@ -94,6 +112,18 @@ Matching runs on the whole project before scoping, so `fixed` is project-wide an
 Hook output never shows the `fixed` hint: tightening the baseline is a separate change, not part of the agent's current edit.
 
 Baseline file (`stratum.baseline.json`): `{ "version": 1, "violations": [{ rule, file, message, count? }] }`; `message` is stored masked, `count` is omitted when 1.
+
+`baseline --check[=REF]` is the ratchet: it compares the working-tree baseline (`--out`, else `ROOT/stratum.baseline.json`) with the same ROOT-relative path at REF, reads no config and builds no graph. **Baseline Growth** is any fingerprint whose count rose. A fixed entry does not pay for a new one, so a swap at the same total grows, and so does a file move (the file is part of the fingerprint). On growth it prints `Baseline <file> grew by N since <REF>:`, then `+N <slug> <file> <message>` per grown fingerprint, the first 20, then `... N more`. Otherwise it prints one line: not grown, introduced (absent at REF, so adopting a baseline passes), or nothing to check.
+
+### Drift report
+
+`stratum-lint diff --base REF` compares the architecture of the working tree with REF's commit. Both sides are built as graphs with the working tree's config (`--config`, else `ROOT/stratum.config.jsonc`, else zero-config): no rules, plugins or baseline. REF is read from git; nothing is written into the work tree or `.git`.
+
+- Line 1 is the marker `<!-- stratum:drift -->`, or `<!-- stratum:drift <prefix> -->` when ROOT is the subdirectory `<prefix>` of the repository. CI Templates key their single MR note / PR comment per project root on this exact line.
+- Line 2 is `### Stratum: architecture drift vs <short sha>`; line 3 a one-line summary, `No architecture drift.` when there is none.
+- Then one `#### <kind> (<count>)` section per non-empty kind: layer edges, new slice edges, cycles, container stage changes, slice fan-in growth. A section lists 10 items, then `- ... N more`.
+- The report stops at 8 KiB with a last line telling to run `stratum-lint diff --base <REF>` locally for the full report.
+- Drift is advisory: CI Templates treat exit 1 as a warning, never as a failed gate.
 
 ### Sample output
 

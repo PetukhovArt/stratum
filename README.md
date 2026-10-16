@@ -18,6 +18,7 @@ Binaries: `stratum-lint` (CLI, hook adapter, visualizer server) and `stratum-lsp
 - **Claude Code**: the `stratum` plugin lints each edited file after `Edit` / `Write` and gates the changed files at the end of each turn; its skill tells the agent to run `stratum-lint context` before placing a file. The optional `stratum-lsp` plugin adds warm LSP diagnostics, for projects without `typescript-lsp` only. See [claude-plugin](claude-plugin/README.md) and [claude-plugin-lsp](claude-plugin-lsp/README.md).
 - **Codex, Cursor, other harnesses**: paste [docs/agents-snippet.md](docs/agents-snippet.md) into `AGENTS.md`, and launch `stratum-lsp` over stdio if the harness takes an LSP server.
 - The CLI and LSP contract, exit codes and output shapes: [docs/harness.md](docs/harness.md).
+- **CI** (GitLab, GitHub, offline): [docs/ci.md](docs/ci.md).
 
 ```
 stratum-lint context src/features/cart/model/store.ts   # where a file sits, what it may import
