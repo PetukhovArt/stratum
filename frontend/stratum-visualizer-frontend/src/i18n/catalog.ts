@@ -4,11 +4,12 @@ import { en as dsmEn, ru as dsmRu } from '../views/dsm/messages'
 import { en as viewsEn, ru as viewsRu } from '../views/messages'
 import { en as focusEn, ru as focusRu } from '../views/focus/messages'
 import { en as mrEn, ru as mrRu } from '../views/mr/messages'
+import { en as setEn, ru as setRu } from '../views/set/messages'
 import type { MessagesOf } from './types'
 
-export const en = { ...shellEn, ...viewsEn, ...dsmEn, ...focusEn, ...mrEn, ...benchEn } as const
+export const en = { ...shellEn, ...viewsEn, ...dsmEn, ...focusEn, ...mrEn, ...setEn, ...benchEn } as const
 
 export type MessageKey = keyof typeof en
 export type Messages = MessagesOf<typeof en>
 
-export const ru: Messages = { ...shellRu, ...viewsRu, ...dsmRu, ...focusRu, ...mrRu, ...benchRu }
+export const ru: Messages = { ...shellRu, ...viewsRu, ...dsmRu, ...focusRu, ...mrRu, ...setRu, ...benchRu }

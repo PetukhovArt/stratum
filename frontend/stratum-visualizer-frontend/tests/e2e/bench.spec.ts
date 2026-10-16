@@ -80,6 +80,7 @@ test('the bench answers every phase-1 question and meets every gate', async ({ p
   if (!BENCH_URL) expect(isMrShown).toBe(true)
   expect(ran.map((t) => t.id).sort()).toEqual(
     [
+      'cycle-cut',
       'importers-in-layer',
       'layer-pairs-against',
       'may-import',

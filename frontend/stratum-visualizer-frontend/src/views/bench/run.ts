@@ -4,6 +4,7 @@ import { NavHooks, NavPatch } from '../../shell/nav'
 import { layoutBands } from '../focus/bands'
 import { layoutColumns } from '../focus/columns'
 import { driftReport } from '../mr/drift'
+import { analyzeSet, moduleCycles, pairKey, SET_LIMIT } from '../set/analysis'
 import {
   auditChannel,
   boundsSize,
@@ -27,7 +28,7 @@ const STAGE_REGION = '.stage-region'
 const PANELS = '.panel-slot'
 
 export interface RenderRun {
-  view: 'focus' | 'dsm' | 'mr'
+  view: 'focus' | 'dsm' | 'mr' | 'set'
   variant: string
   scenario: string
   renderMs: number
@@ -136,6 +137,44 @@ const focusScenarios = (m: Model, s: Subjects): Scenario[] =>
       },
     ]
   })
+
+const SET_VARIANTS = ['ring', 'arc', 'matrix'] as const
+const SPREAD_SIZE = 6
+
+const spreadSet = (m: Model, s: Subjects): number[] => {
+  const cycle = m.unitSccs[0]
+  if (!cycle) return s.list.map((x) => x.id)
+  const degree = (id: number) => m.out(id).length + m.inn(id).length
+  return m.units
+    .filter((u) => cycle.includes(u.id) && u.modules.length)
+    .sort((a, b) => b.modules.length - a.modules.length || a.id - b.id)
+    .slice(0, SPREAD_SIZE)
+    .map((u) => u.modules.reduce((best, id) => (degree(id) > degree(best) ? id : best)))
+}
+
+const setScenarios = (m: Model, s: Subjects): Scenario[] => {
+  const cycle = moduleCycles(m).find((c) => c.length <= SET_LIMIT)
+  const spread = spreadSet(m, s)
+  const sets = [
+    ...(cycle ? [{ label: `module cycle of ${cycle.length}`, ids: [...cycle] }] : []),
+    { label: `${spread.length} modules across the largest unit cycle`, ids: spread },
+  ]
+  return sets.flatMap(({ label, ids }) =>
+    SET_VARIANTS.map(
+      (variant): Scenario => ({
+        view: 'set',
+        variant,
+        scenario: label,
+        patch: { view: 'set', set: ids, setVariant: variant },
+        drawn: {
+          scene: `set:${variant}:${label}`,
+          pairs: () =>
+            drawnPairsOf(analyzeSet(m, ids).edges.map((e) => ({ key: pairKey(e.from, e.to), pairs: [[e.from, e.to]] }))),
+        },
+      }),
+    ),
+  )
+}
 
 const DSM_SCENARIOS: readonly Scenario[] = [
   { view: 'dsm', variant: 'partitioned', scenario: 'layer level', patch: { view: 'dsm', dsmLevel: 'layer' } },
@@ -260,7 +299,9 @@ export const runBench = (): BenchResult => {
   const tally = new TerritoryTally(m.violations)
   const tasks = runTasks(hooks, m, subjects)
   const mrScenarios = driftReport() ? MR_SCENARIOS : []
-  const runs = [...focusScenarios(m, subjects), ...DSM_SCENARIOS, ...mrScenarios].map((sc) => measureRun(hooks, sc, colours, tally))
+  const runs = [...focusScenarios(m, subjects), ...DSM_SCENARIOS, ...mrScenarios, ...setScenarios(m, subjects)].map((sc) =>
+    measureRun(hooks, sc, colours, tally),
+  )
   const territory = tally.result()
   const targets = judge(runs, tasks, territory)
   const result: BenchResult = {

@@ -1,6 +1,6 @@
 import { createSignal } from 'solid-js'
 
-export const VIEW_IDS = ['focus', 'dsm', 'mr', 'overview', 'bench'] as const
+export const VIEW_IDS = ['focus', 'dsm', 'mr', 'set', 'overview', 'bench'] as const
 export type ViewId = (typeof VIEW_IDS)[number]
 
 export type Selection =
@@ -18,6 +18,8 @@ export interface NavState {
   focusVariant: 'columns' | 'bands'
   dsmLevel: 'layer' | 'unit'
   mrVariant: 'region' | 'card'
+  setVariant: 'ring' | 'arc' | 'matrix'
+  set: readonly number[]
   sel: Selection | null
 }
 
@@ -34,6 +36,8 @@ const DEFAULT_STATE: NavState = {
   focusVariant: 'columns',
   dsmLevel: 'layer',
   mrVariant: 'region',
+  setVariant: 'ring',
+  set: [],
   sel: null,
 }
 
@@ -56,6 +60,8 @@ const restore = (): NavState => {
     focusVariant: oneOf(raw.focusVariant, ['columns', 'bands'] as const, d.focusVariant),
     dsmLevel: oneOf(raw.dsmLevel, ['layer', 'unit'] as const, d.dsmLevel),
     mrVariant: oneOf(raw.mrVariant, ['region', 'card'] as const, d.mrVariant),
+    setVariant: oneOf(raw.setVariant, ['ring', 'arc', 'matrix'] as const, d.setVariant),
+    set: Array.isArray(raw.set) ? raw.set.filter((id): id is number => typeof id === 'number') : d.set,
     sel: null,
   }
 }

@@ -2,6 +2,7 @@ import { Model, sccs } from '../../render/model'
 import { NavPatch } from '../../shell/nav'
 import { SnapshotLayer } from '../../types'
 import { DriftReport, driftReport } from '../mr/drift'
+import { analyzeSet, bestCut, moduleCycles, pairKey, SET_LIMIT } from '../set/analysis'
 import { Subjects } from './subjects'
 
 const CROSS_LAYER_RULE = 'stratum/no-cross-layer-import'
@@ -248,17 +249,45 @@ const mrTasks: TaskBlock = (m) => {
   return [drift ? mrBreaksTask(m, drift) : { ...MR_BREAKS, skip: 'no /api/drift: run visualize --base REF' }]
 }
 
-export const TASK_BLOCKS: readonly TaskBlock[] = [focusTasks, mrTasks, dsmTasks]
-
-export const PENDING_TASKS: readonly PendingTask[] = [
-  {
+const cycleCutTask = (m: Model): TaskDef => {
+  const cycle = moduleCycles(m).find((c) => c.length <= SET_LIMIT)
+  const base = {
     order: 3,
     id: 'cycle-cut',
-    question: 'Which import breaks the largest module cycle?',
-    who: 'reviewer',
+    question: `Which import breaks the largest module cycle of at most ${SET_LIMIT} modules?`,
+    who: 'reviewer' as const,
     view: 'set',
-    reason: 'phase 2',
-  },
+  }
+  const open: Step = { label: 'open Module set', patch: { view: 'set', setVariant: 'ring' } }
+  if (!cycle) {
+    return {
+      ...base,
+      answer: 'no module cycles',
+      steps: [open],
+      isAnswerShown: () => document.querySelector('[data-testid="set-no-cycles"]') !== null,
+    }
+  }
+  const cut = bestCut(analyzeSet(m, cycle))
+  const key = cut ? pairKey(cut.from, cut.to) : null
+  const pick: Step = { label: `pick the ${cycle.length}-module cycle`, patch: { view: 'set', set: [...cycle] } }
+  return {
+    ...base,
+    answer: cut ? `${m.label(cut.from)} → ${m.label(cut.to)} frees ${cut.freed}/${cycle.length}` : 'no single import frees a member',
+    steps: [open, pick],
+    isAnswerShown: () => {
+      const stageCut = document.querySelector(`.stage-region [data-testid="set-cut"]`)?.getAttribute('data-edge') ?? null
+      const top = document.querySelector('[data-testid="set-cut-row"]')
+      const isTopListed = !cut || (top?.getAttribute('data-edge') === key && top.getAttribute('data-freed') === String(cut.freed))
+      return stageCut === key && isTopListed
+    },
+  }
+}
+
+const setTasks: TaskBlock = (m) => [cycleCutTask(m)]
+
+export const TASK_BLOCKS: readonly TaskBlock[] = [focusTasks, mrTasks, dsmTasks, setTasks]
+
+export const PENDING_TASKS: readonly PendingTask[] = [
   {
     order: 6,
     id: 'fan-in-hotspot',
