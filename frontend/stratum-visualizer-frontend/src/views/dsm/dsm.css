@@ -1,0 +1,60 @@
+.dsm-stage { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.dsm-canvas { position: relative; flex: 1; min-height: 0; }
+.dsm-drift {
+  flex: none; display: flex; gap: 10px; align-items: center; padding: 6px 12px;
+  border-bottom: 1px solid var(--bd-1); font-size: 12px; color: var(--tx-2); font-variant-numeric: tabular-nums;
+}
+.dsm-drift .lbl { font-size: 10px; color: var(--tx-4); text-transform: uppercase; letter-spacing: .07em; }
+
+.dsm-above { fill: oklch(64% 0.18 25 / .045); }
+.dsm-diag { stroke: oklch(60% 0.012 260 / .5); stroke-dasharray: 2 3; }
+.dsm-frame { fill: none; stroke: oklch(45% 0.012 260 / .8); }
+.dsm-cross { fill: oklch(80% 0.01 260 / .07); pointer-events: none; }
+.dsm-cells rect { cursor: pointer; }
+.dsm-count { text-anchor: middle; fill: oklch(12% 0.01 260); pointer-events: none; }
+.dsm-count.on-mark { fill: oklch(98% 0 0); }
+.dsm-block { fill: none; stroke: oklch(92% 0.01 260); stroke-width: 1.2; stroke-dasharray: 3 2; pointer-events: none; }
+.dsm-pair { fill: none; stroke: var(--accent); stroke-width: 1; pointer-events: none; }
+.dsm-sel { fill: none; stroke: oklch(97% 0 0); stroke-width: 1.5; pointer-events: none; }
+.dsm-labels text { fill: oklch(70% 0.01 260); pointer-events: none; }
+
+.dsm-tip {
+  position: absolute; z-index: 4; pointer-events: none; max-width: 360px;
+  background: oklch(20% 0.012 260 / .95); border: 1px solid var(--bd-2); border-radius: 6px;
+  padding: 6px 9px; font-size: 11px; color: var(--tx-2); display: flex; flex-direction: column; gap: 2px;
+}
+.dsm-tip .mono { font-size: 11px; color: var(--tx-1); }
+.dsm-tip .dim, .dsm-rules { color: var(--tx-4); }
+
+.dsm-lg { display: inline-block; width: 26px; text-align: center; }
+.dsm-lg-above, .dsm-lg-mark, .dsm-lg-block { height: 10px; width: 14px; margin: 0 6px; }
+.dsm-lg-above { background: oklch(64% 0.18 25 / .2); }
+.dsm-lg-mark { background: var(--err); }
+.dsm-lg-block { border: 1px dashed oklch(92% 0.01 260); }
+
+.dsm-note { font-size: 11.5px; color: var(--tx-3); line-height: 1.45; margin: 0 0 12px; }
+.dsm-rules { font-size: 11px; margin-bottom: 10px; word-break: break-all; }
+.dsm-rows { display: flex; flex-direction: column; gap: 1px; margin-bottom: 12px; }
+.dsm-row {
+  appearance: none; border: 0; background: transparent; text-align: left; display: flex; align-items: center; gap: 8px;
+  padding: 4px 6px; border-radius: 4px; font-size: 11.5px; color: var(--tx-2); cursor: pointer;
+}
+div.dsm-row { cursor: default; }
+.dsm-row:hover { background: var(--bg-2); color: var(--tx-1); }
+.dsm-row .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsm-row .n { font-size: 10.5px; color: var(--tx-4); font-variant-numeric: tabular-nums; }
+.dsm-row .n.c-err { color: var(--err); }
+.dsm-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.dsm-dot.sev-error { background: var(--err); }
+.dsm-dot.sev-warning { background: var(--warn); }
+.dsm-dot.sev-info { background: var(--info); }
+.dsm-btn {
+  appearance: none; border: 1px solid var(--bd-2); background: var(--bg-2); color: var(--tx-1); border-radius: 6px;
+  padding: 5px 10px; font-size: 12px; cursor: pointer; margin-bottom: 12px;
+}
+.dsm-btn:hover { background: var(--bg-3); }
+
+.dsm-ol-row { display: flex; align-items: center; gap: 8px; padding: 3px 14px; font-size: 11.5px; color: var(--tx-2); }
+.dsm-ol-row .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsm-sw { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+.dsm-ol-note { padding: 10px 14px; }

@@ -7,6 +7,7 @@ export type Selection =
   | { kind: 'module'; id: number }
   | { kind: 'container'; id: number }
   | { kind: 'edge'; from: number; to: number }
+  | { kind: 'cell'; level: 'layer' | 'unit'; from: number; to: number }
 
 export interface NavState {
   view: ViewId
