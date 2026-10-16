@@ -38,20 +38,23 @@ pub fn check(root: &Utf8Path, out: Option<&Utf8Path>, reference: &str) -> miette
         Some(out) => (out.to_path_buf(), slash_path_under(root, out)?),
         None => (lint::default_baseline_path(root), BASELINE_FILE.to_owned()),
     };
+    let origin = Utf8PathBuf::from(format!("{reference}:{rel}"));
+    let base = git::show(root, reference, &rel)?
+        .map(|text| Baseline::parse(&text, &origin))
+        .transpose()
+        .map_err(|e| miette::miette!("{e}"))?;
     let Some(head) = Baseline::load_if_exists(&head_path).map_err(|e| miette::miette!("{e}"))?
     else {
         println!("No baseline at {head_path}; nothing to check");
         return Ok(0);
     };
-    let Some(text) = git::show(root, reference, &rel)? else {
+    let Some(base) = base else {
         println!(
             "Baseline {rel} is introduced: absent at {reference}, {} accepted violations",
             head.len()
         );
         return Ok(0);
     };
-    let origin = Utf8PathBuf::from(format!("{reference}:{rel}"));
-    let base = Baseline::parse(&text, &origin).map_err(|e| miette::miette!("{e}"))?;
 
     let grown = head.grown_since(&base);
     if grown.is_empty() {

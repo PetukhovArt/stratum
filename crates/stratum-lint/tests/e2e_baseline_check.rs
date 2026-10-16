@@ -110,7 +110,7 @@ fn a_baseline_absent_at_the_ref_is_introduced() {
 }
 
 #[test]
-fn no_baseline_anywhere_passes() {
+fn no_baseline_anywhere_passes_but_an_unknown_ref_still_fails() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path().to_path_buf();
     copy_dir(&fixture("tiny-ts-violations"), &root);
@@ -121,6 +121,10 @@ fn no_baseline_anywhere_passes() {
 
     assert_eq!(code, Some(0), "{stdout}{stderr}");
     assert!(stdout.contains("nothing to check"), "{stdout}");
+
+    let (code, _, stderr) = check(&root, "no-such-ref");
+
+    assert_eq!(code, Some(2), "{stderr}");
 }
 
 #[test]
