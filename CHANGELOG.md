@@ -13,7 +13,6 @@ package version; a bump requires a coordinated frontend release.
 
 ### Breaking
 
-- The `stratum-lint hook` command and the `stratum` plugin's Claude Code hooks (`PostToolUse` per-edit check, `Stop` gate), shipped in 0.2.0-rc.1, are removed: Stratum is the CLI plus the optional `stratum-lsp`. Run `stratum-lint --changed --format agent` from your harness, pre-commit or CI.
 - `--format json` is version 2: `{ "version": 2, "summary": {...}, "violations": [...] }`. Rules are named by slug (`stratum/no-circular-deps`, `custom/<name>`), never by numeric id, and paths are relative to ROOT.
 - Graph Snapshot v3. Over v2 (`module.stage` → `module.purity`; containers with `path`, `kind` (`layer`, `slice`, `sub_unit`, `nested`), `stage` (the evolution stage, 1–4) and `entry`) it adds `project` (the root folder name), `zones [{ id, path, root }]` (private zones), `territories` (what a module may import, each distinct one once) and per module `zone` (absent outside a zone) and `territory` (an index). Every path is ROOT-relative with `/`: no absolute machine path is left in the snapshot. The Visualizer accepts only v3.
 - Stage is renamed to purity for the 1–4 rank: `// @stratum-stage N` is now `// @stratum-purity N` and the old annotation is no longer recognised; `stratum/stage-purity` is now `stratum/purity`; Rhai `m.stage` is `m.purity`; `context` prints `purity`. "Stage" now means only a container's evolution stage. Baseline entries keyed by the old slug go stale.
