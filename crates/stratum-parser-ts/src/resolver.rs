@@ -1,5 +1,13 @@
+use std::collections::{HashMap, HashSet};
+use std::io;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
 use camino::{Utf8Path, Utf8PathBuf};
-use oxc_resolver::{ResolveOptions, Resolver, TsconfigOptions, TsconfigReferences};
+use oxc_resolver::{
+    FileMetadata, FileSystem, FileSystemOs, FsCache, ResolveOptions, ResolverGeneric,
+    TsconfigOptions, TsconfigReferences,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ResolveError {
@@ -13,10 +21,103 @@ pub enum ResolveError {
     Internal(String),
 }
 
+/// Files that differ from the disk, by absolute path: `Some` text replaces or adds the file,
+/// `None` hides it. Paths not in the overlay read through to the disk.
+#[derive(Debug, Default)]
+pub struct Overlay {
+    files: HashMap<PathBuf, Option<String>>,
+    dirs: HashSet<PathBuf>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Overlaid<'a> {
+    Disk,
+    Absent,
+    Text(&'a str),
+}
+
+impl Overlay {
+    #[must_use]
+    pub fn new(files: impl IntoIterator<Item = (PathBuf, Option<String>)>) -> Self {
+        let files: HashMap<PathBuf, Option<String>> = files.into_iter().collect();
+        let dirs = files
+            .iter()
+            .filter(|(_, text)| text.is_some())
+            .flat_map(|(path, _)| path.ancestors().skip(1).map(Path::to_path_buf))
+            .collect();
+        Self { files, dirs }
+    }
+
+    #[must_use]
+    pub fn get(&self, path: &Path) -> Overlaid<'_> {
+        match self.files.get(path) {
+            None => Overlaid::Disk,
+            Some(None) => Overlaid::Absent,
+            Some(Some(text)) => Overlaid::Text(text),
+        }
+    }
+
+    pub fn present(&self) -> impl Iterator<Item = (&Path, &str)> {
+        self.files
+            .iter()
+            .filter_map(|(path, text)| Some((path.as_path(), text.as_deref()?)))
+    }
+
+    fn exists(&self, path: &Path) -> bool {
+        match self.get(path) {
+            Overlaid::Disk => path.exists(),
+            Overlaid::Absent => false,
+            Overlaid::Text(_) => true,
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+struct OverlayFs(Arc<Overlay>);
+
+impl OverlayFs {
+    fn metadata_with(
+        &self,
+        path: &Path,
+        disk: impl FnOnce(&Path) -> io::Result<FileMetadata>,
+    ) -> io::Result<FileMetadata> {
+        match self.0.get(path) {
+            Overlaid::Text(_) => Ok(FileMetadata::new(true, false, false)),
+            Overlaid::Absent => Err(io::ErrorKind::NotFound.into()),
+            Overlaid::Disk if self.0.dirs.contains(path) => {
+                Ok(FileMetadata::new(false, true, false))
+            }
+            Overlaid::Disk => disk(path),
+        }
+    }
+}
+
+impl FileSystem for OverlayFs {
+    fn read_to_string(&self, path: &Path) -> io::Result<String> {
+        match self.0.get(path) {
+            Overlaid::Text(text) => Ok(text.to_owned()),
+            Overlaid::Absent => Err(io::ErrorKind::NotFound.into()),
+            Overlaid::Disk => FileSystemOs::read_to_string(path),
+        }
+    }
+
+    fn metadata(&self, path: &Path) -> io::Result<FileMetadata> {
+        self.metadata_with(path, FileSystemOs::metadata)
+    }
+
+    fn symlink_metadata(&self, path: &Path) -> io::Result<FileMetadata> {
+        self.metadata_with(path, FileSystemOs::symlink_metadata)
+    }
+
+    fn read_link(&self, path: &Path) -> io::Result<PathBuf> {
+        FileSystemOs::read_link(path)
+    }
+}
+
 /// Project-scoped path alias / module resolver.
 #[derive(Debug)]
 pub struct PathResolver {
-    inner: Resolver,
+    inner: ResolverGeneric<FsCache<OverlayFs>>,
 }
 
 impl PathResolver {
@@ -24,6 +125,11 @@ impl PathResolver {
     /// its `paths` are honoured.
     #[must_use]
     pub fn new(project_root: &Utf8Path) -> Self {
+        Self::with_overlay(project_root, Arc::default())
+    }
+
+    #[must_use]
+    pub fn with_overlay(project_root: &Utf8Path, overlay: Arc<Overlay>) -> Self {
         let tsconfig = project_root.join("tsconfig.json");
         let opts = ResolveOptions {
             extensions: vec![
@@ -42,7 +148,7 @@ impl PathResolver {
             ],
             condition_names: vec!["import".into(), "node".into(), "default".into()],
             main_files: vec!["index".into()],
-            tsconfig: if tsconfig.exists() {
+            tsconfig: if overlay.exists(tsconfig.as_std_path()) {
                 Some(TsconfigOptions {
                     config_file: tsconfig.into_std_path_buf(),
                     references: TsconfigReferences::Auto,
@@ -53,7 +159,10 @@ impl PathResolver {
             ..ResolveOptions::default()
         };
         Self {
-            inner: Resolver::new(opts),
+            inner: ResolverGeneric::new_with_cache(
+                Arc::new(FsCache::new(OverlayFs(overlay))),
+                opts,
+            ),
         }
     }
 

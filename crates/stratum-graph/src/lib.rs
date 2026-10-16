@@ -19,4 +19,5 @@ pub use snapshot::{
     CURRENT_SNAPSHOT_VERSION, GraphSnapshot, SnapshotContainer, SnapshotEdge, SnapshotLayer,
     SnapshotModule, snapshot_of,
 };
+pub use stratum_parser_ts::Overlay;
 pub use topo::{direct_dependencies, direct_dependents};

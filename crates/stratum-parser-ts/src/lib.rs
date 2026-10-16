@@ -15,5 +15,5 @@ pub use extractor::{ExtractError, ExtractedData, LanguageExtractor, RawCall, Raw
 pub use imports::{Collected, collect};
 pub use oxc_span::SourceType;
 pub use oxc_ts::OxcTsExtractor;
-pub use resolver::{PathResolver, ResolveError};
+pub use resolver::{Overlaid, Overlay, PathResolver, ResolveError};
 pub use source_span::{SourceSpan, offset_to_line_col};
