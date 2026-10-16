@@ -1,7 +1,7 @@
 {
   "name": "stratum",
   "displayName": "Stratum",
-  "version": "0.1.0",
+  "version": "0.2.0-rc.1",
   "description": "Architecture validation for TS/Vue: a stratum-lint check of every edited file, a stratum-lint gate at the end of each turn, and a skill for layer-aware edits.",
   "author": {
     "name": "PetukhovArt",
