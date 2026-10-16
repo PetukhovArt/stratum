@@ -1,0 +1,46 @@
+name: action-selftest
+
+# Runs ci/github on fixtures with a stratum-lint built from this checkout, so the
+# action is tested before any npm release exists.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: build stratum-lint
+        run: |
+          cargo build --release -p stratum-lint
+          echo "$PWD/target/release" >> "$GITHUB_PATH"
+
+      # Warnings only: annotations appear, the gate passes, the drift comment is upserted.
+      - name: action on a passing fixture
+        uses: ./ci/github
+        with:
+          root: tests/fixtures/tiny-ts
+
+      - name: action on a failing fixture
+        id: failing
+        uses: ./ci/github
+        continue-on-error: true
+        with:
+          root: tests/fixtures/tiny-ts-violations
+          token: ''
+      - name: the gate failed the failing fixture
+        if: steps.failing.outcome != 'failure'
+        run: |
+          echo "::error::the action passed on tests/fixtures/tiny-ts-violations"
+          exit 1
