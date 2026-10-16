@@ -8,6 +8,7 @@ export type Selection =
   | { kind: 'container'; id: number }
   | { kind: 'edge'; from: number; to: number }
   | { kind: 'cell'; level: 'layer' | 'unit'; from: number; to: number }
+  | { kind: 'imports'; pairs: readonly (readonly [from: number, to: number])[] }
 
 export interface NavState {
   view: ViewId
@@ -26,7 +27,7 @@ const STORAGE_KEY = 'stratum.nav'
 const HISTORY_CAP = 40
 
 const DEFAULT_STATE: NavState = {
-  view: 'overview',
+  view: 'focus',
   focus: null,
   hops: 1,
   isTerritoryOpen: true,

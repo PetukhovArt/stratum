@@ -10,6 +10,7 @@ import {
   useContext,
 } from 'solid-js'
 import { t } from '../i18n'
+import { CANVAS_DEFS, HATCH_STROKE } from '../render/encoding'
 import { Bounds, DEFAULT_VIEWPORT, fitViewport, zoomAround } from '../render/viewport'
 import { CanvasSize, Viewport } from '../state'
 
@@ -141,6 +142,7 @@ export const Canvas: Component<{
           onPointerUp={endDrag}
           onPointerLeave={endDrag}
         >
+          <CanvasDefs />
           <g data-bounds={dataBounds()} transform={transform()}>
             {props.children}
           </g>
@@ -162,6 +164,26 @@ export const Canvas: Component<{
     </CanvasContext.Provider>
   )
 }
+
+const CanvasDefs: Component = () => (
+  <defs>
+    <marker
+      id={CANVAS_DEFS.arrowId}
+      viewBox="0 0 8 8"
+      refX="7"
+      refY="4"
+      markerUnits="userSpaceOnUse"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0,0 L8,4 L0,8 z" fill="context-stroke" />
+    </marker>
+    <pattern id={CANVAS_DEFS.hatchId} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke={HATCH_STROKE} stroke-width="1.2" />
+    </pattern>
+  </defs>
+)
 
 const svgEl = (name: string, attrs: Record<string, string | number>): SVGElement => {
   const el = document.createElementNS(SVG_NS, name)
