@@ -81,7 +81,7 @@
 | **Baseline Growth** | A rise in some **Baseline** entry's count versus the baseline committed at a git ref: what `baseline --check` fails on. Counted per fingerprint, so a fixed **Violation** does not pay for a new one, and a moved file grows. A baseline absent at the ref is introduced, not grown. | baseline regression, new debt |
 | **Drift** | The change in architecture between a git ref and the working tree, as `stratum-lint diff --base` reports it: layer and **Slice** edges, **Cycles**, **Stage** changes, **Slice Fan-in** growth. Advisory: it never fails a **Gate**. Not a **Violation**: it compares two graphs, not a graph against rules. | architecture diff, regression |
 | **Report Scope** | The files a report is limited to: `--files`, `--changed`, or the edited file in the **Hook**. A **Violation** is in scope when its file, either end of its **Edge** or any of its **Modules** is. | scope (unqualified) |
-| **Gate** | The end-of-turn, pre-commit or CI check of the changed files (`stratum-lint --changed --format agent`, or the **Hook** on `Stop`): it fails on new error-severity **Violations**. | check run |
+| **Gate** | The check that fails on new error-severity **Violations**: end-of-turn or pre-commit on the changed files (`stratum-lint --changed --format agent`, or the **Hook** on `Stop`), in CI on the whole project (a **CI Template**). | check run |
 | **Brief** | What `stratum-lint context` prints for one file, existing or planned: its **Layer**, **Purity**, **Container** with **Stage** and **Entry**, visible **Private Zones**, what it may and may not import, and its current **Violations**. | context dump, file report |
 
 ## Tooling components
