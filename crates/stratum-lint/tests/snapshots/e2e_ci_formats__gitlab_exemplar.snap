@@ -172,12 +172,72 @@ expression: "lint(\"exemplar-stratum-app\", \"gitlab\")"
     }
   },
   {
+    "description": "Folder 'coupon' holds a single file, 'index.ts'",
+    "check_name": "stratum/container-breadth",
+    "fingerprint": "c54d82e67c71df277177edf51d80c124",
+    "severity": "info",
+    "location": {
+      "path": "web/src/features/cart/coupon/index.ts",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
     "description": "Container 'cart' (stage 4) holds 4 kinds directly inside it (limit 3); it is at stage 4 already: group its sub-units into fewer, larger ones",
     "check_name": "stratum/container-breadth",
     "fingerprint": "07e67eeb4a3f051a719021991f54f1a6",
     "severity": "minor",
     "location": {
       "path": "web/src/features/cart/index.ts",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Folder 'model' holds a single file, 'store.ts'",
+    "check_name": "stratum/container-breadth",
+    "fingerprint": "6b5b109d1adc8ab3f14de92b83d698b0",
+    "severity": "info",
+    "location": {
+      "path": "web/src/features/cart/model/store.ts",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Folder 'checkout' holds a single file, 'index.ts'",
+    "check_name": "stratum/container-breadth",
+    "fingerprint": "8d95dadeddc10c34ee948907586a2c91",
+    "severity": "info",
+    "location": {
+      "path": "web/src/features/checkout/index.ts",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Folder 'profile' holds a single file, 'index.ts'",
+    "check_name": "stratum/container-breadth",
+    "fingerprint": "db363109a0741bf6c9e7f433fe723e25",
+    "severity": "info",
+    "location": {
+      "path": "web/src/features/profile/index.ts",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Folder 'api' holds a single file, 'http.ts'",
+    "check_name": "stratum/container-breadth",
+    "fingerprint": "d8c19bc73a63edc805648d0ec9c9d02f",
+    "severity": "info",
+    "location": {
+      "path": "web/src/shared/api/http.ts",
       "lines": {
         "begin": 1
       }

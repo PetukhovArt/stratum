@@ -12,7 +12,7 @@ expression: "without_elapsed(&lint(\"exemplar-stratum-app\", \"github\"))"
 ::warning file=web/src/shared/utils.ts,line=1,col=1,title=stratum/miller-limit::Imported by 3 modules from other containers whose layers depend on this one (limit 2); this module is a change hotspot
 ::warning file=web/src/features/cart/index.ts,line=9,col=1,title=stratum/restricted-calls::Use a scope hook (inject())
 ::warning file=web/src/entities/user/index.ts,line=1,col=1,title=stratum/slice-fan-in::Slice entities/user is imported by 2 other slices (limit 1): features/checkout, features/profile
-stratum: 6 errors, 4 warnings, 5 info, <elapsed>
+stratum: 6 errors, 4 warnings, 10 info, <elapsed>
 error stratum/no-circular-deps (1) - stratum-lint explain stratum/no-circular-deps
   src/features/cart/boom.ts:1  Import cycle of 2 modules through boom.ts; about 1 imports close it
   fix: Break it at one of: `src/features/cart/boom.ts:1 -> src/features/cart/circle.ts` (frees 2 of 2), `src/features/cart/circle.ts:1 -> src/features/cart/boom.ts` (frees 2 of 2); extract the shared piece into a lower module or invert the dependency
@@ -43,4 +43,4 @@ warning stratum/restricted-calls (1) - stratum-lint explain stratum/restricted-c
 warning stratum/slice-fan-in (1) - stratum-lint explain stratum/slice-fan-in
   src/entities/user/index.ts:1  Slice entities/user is imported by 2 other slices (limit 1): features/checkout, features/profile
   fix: Narrow the slice's entry or split it so each importer reaches only the part it needs; code every slice needs may belong in a lower layer.
-info (advisory, details in --format json): stratum/depth-ratio (4), stratum/promotion-pressure (1)
+info (advisory, details in --format json): stratum/container-breadth (5), stratum/depth-ratio (4), stratum/promotion-pressure (1)

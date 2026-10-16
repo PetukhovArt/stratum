@@ -299,7 +299,9 @@ impl Walk<'_> {
             .map(|(dir, role)| {
                 let role = match role {
                     RoleDraft::Container(key) => DirRole::Container(ids[&key]),
-                    RoleDraft::Segment => DirRole::Segment,
+                    RoleDraft::Segment => DirRole::Segment {
+                        entry: self.entries.get(dir.as_path()).map(|e| module_id(e.module)),
+                    },
                     RoleDraft::PrivateZone => DirRole::PrivateZone,
                     RoleDraft::Collection => DirRole::Collection,
                 };
@@ -550,7 +552,10 @@ mod tests {
             role("src/entities/cart/parts"),
             container("src/entities/cart/parts")
         );
-        assert_eq!(role("src/entities/user/model"), DirRole::Segment);
+        assert_eq!(
+            role("src/entities/user/model"),
+            DirRole::Segment { entry: None }
+        );
         assert_eq!(role("src/entities/user/_shared"), DirRole::PrivateZone);
         assert_eq!(
             role("src/entities/user/_shared/deep/_shared"),

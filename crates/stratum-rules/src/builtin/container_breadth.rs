@@ -1,14 +1,15 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use stratum_core::{
     ids::{ContainerId, ModuleId, RuleId},
     severity::Severity,
     stage::Stage,
     types::{Container, ContainerKind},
-    violation::{SourceLocation, Violation},
+    violation::Violation,
 };
-use stratum_graph::CompoundGraph;
+use stratum_graph::{CompoundGraph, DirRole};
 
+use super::folder::{at_folder, relative};
 use crate::ids::CONTAINER_BREADTH;
 use crate::options::ContainerBreadthOptions;
 use crate::rule::Rule;
@@ -40,69 +41,83 @@ impl Rule for ContainerBreadth {
         let Some(c) = graph.containers.get(&scope) else {
             return vec![];
         };
-        let mut out = Vec::new();
-        if c.kind != ContainerKind::Layer && c.stage != Stage::FILE {
-            let kinds = graph.kinds(&c.path);
-            if kinds.len() > limit(options.max_kinds) {
-                let rep = c.entry.or_else(|| first_module_in(graph, scope));
-                out.extend(rep.and_then(|rep| {
-                    violation(
-                        graph,
-                        rep,
-                        severity,
-                        container_message(c, kinds.len(), options.max_kinds),
-                    )
-                }));
+        let mut found = Vec::new();
+        if c.kind == ContainerKind::Layer {
+            found.extend(sliced_layer(graph, c, options));
+        } else if c.stage != Stage::FILE {
+            found.extend(heterogeneous(graph, c, options));
+            found.extend(composer(graph, c, options));
+            found.extend(single_file(graph, &c.path, c.entry));
+        }
+        for (dir, role) in graph.folders_below(scope) {
+            if matches!(role, DirRole::Segment { .. } | DirRole::Collection) {
+                found.extend(homogeneous(graph, c, dir, options));
+                found.extend(single_file(graph, dir, None));
             }
         }
-        for zone in graph.private_zones_in(scope) {
-            let kinds = graph.kinds(&zone.path);
-            if kinds.len() <= limit(options.max_kinds) {
-                continue;
-            }
-            let message = format!(
-                "Private zone '{zone}' of '{name}' holds {n} kinds directly inside it (limit {max}); group its files into folders",
-                zone = display(zone.path.strip_prefix(&c.path).unwrap_or(&zone.path)),
-                name = c.name,
-                n = kinds.len(),
-                max = options.max_kinds,
-            );
-            out.extend(
-                zone.files
-                    .first()
-                    .and_then(|rep| violation(graph, *rep, severity.min(Severity::Info), message)),
-            );
-        }
-        out
+        found
+            .into_iter()
+            .filter_map(|f| {
+                let severity = if f.single_file {
+                    severity.min(Severity::Info)
+                } else {
+                    severity
+                };
+                at_folder(
+                    graph,
+                    CONTAINER_BREADTH,
+                    severity,
+                    &f.dir,
+                    f.entry,
+                    f.message,
+                    f.fix,
+                )
+            })
+            .collect()
     }
 }
 
-fn violation(
-    graph: &CompoundGraph,
-    rep: ModuleId,
-    severity: Severity,
+struct Finding {
+    dir: PathBuf,
+    entry: Option<ModuleId>,
     message: String,
-) -> Option<Violation> {
-    let file = graph.modules.get(&rep)?.path.clone();
-    Some(Violation {
-        rule: CONTAINER_BREADTH,
-        severity,
-        message,
-        file,
-        location: SourceLocation { line: 1, column: 1 },
-        modules: vec![rep],
-        edge: None,
-        fix: Some(
-            "Group the files into segment folders (stage 3), or split them into sub-units with their own entry file (stage 4).".into(),
+    fix: String,
+    single_file: bool,
+}
+
+fn limit(max: u32) -> usize {
+    usize::try_from(max).unwrap_or(usize::MAX)
+}
+
+fn sliced_layer(
+    graph: &CompoundGraph,
+    layer: &Container,
+    options: &ContainerBreadthOptions,
+) -> Option<Finding> {
+    let sliced = graph.layers.get(&layer.layer)?.slices;
+    let items = graph.items(&layer.path);
+    (sliced && items > limit(options.max_items)).then(|| Finding {
+        dir: layer.path.clone(),
+        entry: layer.entry,
+        message: format!(
+            "Layer '{name}' holds {items} slices and files directly inside it (limit {max})",
+            name = layer.name,
+            max = options.max_items,
         ),
+        fix: "Group related slices under a shared parent slice, or move the ones several layers use into a lower layer.".into(),
+        single_file: false,
     })
 }
 
-fn limit(max_kinds: u32) -> usize {
-    usize::try_from(max_kinds).unwrap_or(usize::MAX)
-}
-
-fn container_message(c: &Container, kinds: usize, max_kinds: u32) -> String {
+fn heterogeneous(
+    graph: &CompoundGraph,
+    c: &Container,
+    options: &ContainerBreadthOptions,
+) -> Option<Finding> {
+    let kinds = graph.kinds(&c.path).len();
+    if kinds <= limit(options.max_kinds) {
+        return None;
+    }
     let next = if c.stage < Stage::SEGMENTED {
         "evolve it to stage 3 by grouping files into segment folders"
     } else if c.stage < Stage::COMPOSED {
@@ -110,24 +125,85 @@ fn container_message(c: &Container, kinds: usize, max_kinds: u32) -> String {
     } else {
         "it is at stage 4 already: group its sub-units into fewer, larger ones"
     };
-    format!(
-        "Container '{name}' (stage {stage}) holds {kinds} kinds directly inside it (limit {max}); {next}",
-        name = c.name,
-        stage = c.stage.rank(),
-        max = max_kinds,
-    )
+    Some(Finding {
+        dir: c.path.clone(),
+        entry: c.entry,
+        message: format!(
+            "Container '{name}' (stage {stage}) holds {kinds} kinds directly inside it (limit {max}); {next}",
+            name = c.name,
+            stage = c.stage.rank(),
+            max = options.max_kinds,
+        ),
+        fix: "Group the files into segment folders (stage 3), or split them into sub-units with their own entry file (stage 4).".into(),
+        single_file: false,
+    })
 }
 
-fn first_module_in(graph: &CompoundGraph, c: ContainerId) -> Option<ModuleId> {
-    graph
-        .modules
-        .values()
-        .find(|m| m.container == c)
-        .map(|m| m.id)
+fn composer(
+    graph: &CompoundGraph,
+    c: &Container,
+    options: &ContainerBreadthOptions,
+) -> Option<Finding> {
+    let files = graph.loose_files(&c.path);
+    (c.stage == Stage::COMPOSED && files > limit(options.max_root_files)).then(|| Finding {
+        dir: c.path.clone(),
+        entry: c.entry,
+        message: format!(
+            "Composer '{name}' holds {files} files at its root besides its entry (limit {max}); a composer only wires its sub-units",
+            name = c.name,
+            max = options.max_root_files,
+        ),
+        fix: format!(
+            "Move the logic in the root files of '{name}' into its sub-units or a new sub-unit, and keep only the wiring at the root.",
+            name = c.name,
+        ),
+        single_file: false,
+    })
 }
 
-fn display(path: &Path) -> String {
-    path.to_string_lossy().replace('\\', "/")
+fn homogeneous(
+    graph: &CompoundGraph,
+    c: &Container,
+    dir: &Path,
+    options: &ContainerBreadthOptions,
+) -> Option<Finding> {
+    let items = graph.items(dir);
+    let path = relative(dir, &c.path);
+    (items > limit(options.max_items)).then(|| Finding {
+        dir: dir.to_path_buf(),
+        entry: None,
+        message: format!(
+            "Folder '{path}' of '{name}' holds {items} items directly inside it (limit {max})",
+            name = c.name,
+            max = options.max_items,
+        ),
+        fix: format!(
+            "Split '{path}' into sub-folders by theme, or into sub-units with their own entry file."
+        ),
+        single_file: false,
+    })
+}
+
+fn single_file(graph: &CompoundGraph, dir: &Path, entry: Option<ModuleId>) -> Option<Finding> {
+    let entries = graph.dir_entries(dir)?;
+    let [file] = entries.files.as_slice() else {
+        return None;
+    };
+    if !entries.dirs.is_empty() {
+        return None;
+    }
+    let name = dir
+        .file_name()
+        .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+    Some(Finding {
+        dir: dir.to_path_buf(),
+        entry,
+        message: format!("Folder '{name}' holds a single file, '{file}'"),
+        fix: format!(
+            "Move '{file}' up into the parent folder and delete '{name}', unless more files are about to join it."
+        ),
+        single_file: true,
+    })
 }
 
 #[cfg(test)]
@@ -229,14 +305,5 @@ mod tests {
         assert_eq!(v.len(), 1);
         assert_eq!(v[0].severity, Severity::Warning);
         assert!(v[0].message.contains("stage 3"));
-    }
-
-    #[test]
-    fn broad_private_zone_is_downgraded_to_info() {
-        let g = graph(&["_shared/a.ts", "_shared/b.ts", "_shared/c.ts"], None);
-        let v = check(&g, Severity::Error);
-        assert_eq!(v.len(), 1);
-        assert_eq!(v[0].severity, Severity::Info);
-        assert!(v[0].message.contains("Private zone"));
     }
 }

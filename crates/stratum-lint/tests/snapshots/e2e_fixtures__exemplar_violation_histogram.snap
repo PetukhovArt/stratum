@@ -2,7 +2,7 @@
 source: crates/stratum-lint/tests/e2e_fixtures.rs
 expression: by_rule
 ---
-stratum/container-breadth: 1
+stratum/container-breadth: 6
 stratum/depth-ratio: 4
 stratum/miller-limit: 1
 stratum/no-circular-deps: 1

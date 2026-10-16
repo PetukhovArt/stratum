@@ -1,8 +1,13 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::ops::Bound;
 use std::path::{Path, PathBuf};
 
 use rustc_hash::FxHashMap;
-use stratum_core::{ids::ContainerId, types::ContainerKind, visibility::VisibilityScope};
+use stratum_core::{
+    ids::{ContainerId, ModuleId},
+    types::ContainerKind,
+    visibility::VisibilityScope,
+};
 
 use crate::graph::{CompoundGraph, PrivateZone};
 
@@ -21,7 +26,11 @@ pub(crate) struct GraphIndex {
 pub enum DirRole {
     LayerRoot,
     Container(ContainerId),
-    Segment,
+    /// `entry` is the entry file sitting directly in the folder, if any. A segment is no unit,
+    /// so that file is the entry of nothing.
+    Segment {
+        entry: Option<ModuleId>,
+    },
     PrivateZone,
     /// A folder without an entry file that is none of the others: its files belong to the
     /// enclosing container.
@@ -32,6 +41,8 @@ pub enum DirRole {
 pub struct DirEntries {
     pub files: Vec<String>,
     pub dirs: BTreeSet<String>,
+    /// The first module (in graph order) anywhere under the folder.
+    pub first: Option<ModuleId>,
 }
 
 impl GraphIndex {
@@ -50,6 +61,7 @@ impl GraphIndex {
                 }
                 let name = name.to_string_lossy().into_owned();
                 let entries = dirs.entry(outer.to_path_buf()).or_default();
+                entries.first.get_or_insert(m.id);
                 if inner == m.path {
                     entries.files.push(name);
                 } else if !entries.dirs.insert(name) {
@@ -101,6 +113,50 @@ impl CompoundGraph {
         self.child_names(dir).len()
     }
 
+    /// The distinct files directly in `dir`, counted by stem as in [`Self::kinds`], without the
+    /// folder's entry file.
+    #[must_use]
+    pub fn loose_files(&self, dir: &Path) -> usize {
+        let mut stems = self.child_stems(dir);
+        if let Some(entry) = self.index().entry_stems.get(dir) {
+            stems.remove(entry);
+        }
+        stems.len()
+    }
+
+    /// The folders below container `c` that are not containers themselves (segments, private
+    /// zones, collections), at any depth short of a nested container or layer, in path order.
+    /// Their files belong to `c`.
+    #[must_use]
+    pub fn folders_below(&self, c: ContainerId) -> Vec<(&Path, DirRole)> {
+        let Some(root) = self.containers.get(&c).map(|c| c.path.as_path()) else {
+            return vec![];
+        };
+        let mut out = Vec::new();
+        let mut inside: Option<&Path> = None;
+        let below = self
+            .dir_roles
+            .range::<Path, _>((Bound::Excluded(root), Bound::Unbounded))
+            .take_while(|(dir, _)| dir.starts_with(root));
+        for (dir, role) in below {
+            if inside.is_some_and(|other| dir.starts_with(other)) {
+                continue;
+            }
+            if matches!(role, DirRole::Container(_) | DirRole::LayerRoot) {
+                inside = Some(dir);
+            } else {
+                out.push((dir.as_path(), *role));
+            }
+        }
+        out
+    }
+
+    /// The first module under `dir`, at any depth.
+    #[must_use]
+    pub fn first_module_in(&self, dir: &Path) -> Option<ModuleId> {
+        self.dir_entries(dir)?.first
+    }
+
     fn child_names(&self, dir: &Path) -> BTreeSet<String> {
         let Some(entries) = self.dir_entries(dir) else {
             return BTreeSet::new();
@@ -110,8 +166,13 @@ impl CompoundGraph {
             .iter()
             .filter(|name| self.dir_roles.get(&dir.join(name)) != Some(&DirRole::PrivateZone))
             .map(|name| format!("{name}/"));
-        let files = entries.files.iter().filter_map(|name| stem(name));
-        folders.chain(files).collect()
+        folders.chain(self.child_stems(dir)).collect()
+    }
+
+    fn child_stems(&self, dir: &Path) -> BTreeSet<String> {
+        self.dir_entries(dir)
+            .map(|entries| entries.files.iter().filter_map(|name| stem(name)).collect())
+            .unwrap_or_default()
     }
 }
 

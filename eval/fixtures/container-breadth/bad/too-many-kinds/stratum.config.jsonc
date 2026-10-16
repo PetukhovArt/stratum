@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "structure": {
+    "segments": [
+      "model"
+    ],
+    "private": [
+      "_shared"
+    ]
+  },
+  "layers": [
+    {
+      "id": "modules",
+      "path": "src/modules",
+      "depends_on": [],
+      "slices": true
+    }
+  ],
+  "rules": {
+    "stratum/container-breadth": {
+      "severity": "warning",
+      "options": {
+        "max_kinds": 3,
+        "max_items": 2,
+        "max_root_files": 2
+      }
+    }
+  }
+}

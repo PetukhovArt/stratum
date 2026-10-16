@@ -10,7 +10,8 @@
     "stratum/no-circular-deps":      { "severity": "error" },
     "stratum/purity":          { "severity": "error" },
     "stratum/miller-limit":          { "severity": "warning", "options": { "max_children": 7 } },
-    "stratum/depth-ratio":           { "severity": "info",    "options": { "min_ratio": 3.0 } }
+    "stratum/depth-ratio":           { "severity": "info",    "options": { "min_ratio": 3.0 } },
+    "stratum/container-breadth":     { "severity": "off" }
   },
   "overrides": [
     {
