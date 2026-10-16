@@ -76,9 +76,9 @@ pub fn builtin(slug: &str) -> Option<RuleDoc> {
             ],
         ),
         "stratum/stage-mixing" => (
-            "Reports a container with both segment folders (`structure.segments`) and sub-unit folders directly inside it.",
-            "Segments (stage 3) and sub-units (stage 4) are two different ways to split a container; mixing them leaves code that belongs to no sub-unit next to code that does.",
-            "Pick one: move the segment folders' code into sub-units, or fold the sub-units back into segments.",
+            "Reports a container (layers are exempt) with both segment folders (`structure.segments`) and, directly inside it, sub-unit folders or other plain folders (no entry file, not a segment: a domain folder next to the segments).",
+            "Segments (stage 3) and sub-units (stage 4) are two different ways to split a container; mixing them leaves code that belongs to no sub-unit next to code that does. A domain folder beside the segments splits the same code a second way.",
+            "Pick one: move the segment folders' code into sub-units, or fold the sub-units and domain folders back into segments.",
             &[],
         ),
         "stratum/container-breadth" => (
@@ -116,11 +116,11 @@ pub fn builtin(slug: &str) -> Option<RuleDoc> {
             &[],
         ),
         "stratum/no-barrel" => (
-            "Reports an entry file (`structure.entries`) used as a barrel where it hurts: directly inside a segment folder, and, in the layers named in `layers`, at the layer root or inside its segment folders.",
+            "Reports an entry file (`structure.entries`) used as a barrel where it hurts: directly inside a segment folder, and, in the layers named in `layers`, at the layer root.",
             "A segment is a group of files, not a unit. A barrel over it, or over a layer every other layer imports, makes each importer load all of it, hides which file provides a name and invites import cycles.",
             "Delete the barrel and import the files directly; in a global layer, import from the file or from a sub-unit's entry.",
             &[
-                "layers: ids of layers whose root and segment folders may not hold a barrel; stratum:fsd sets [\"shared\"] ([])",
+                "layers: ids of layers whose root may not hold a barrel; stratum:fsd sets [\"shared\"] ([])",
             ],
         ),
         "stratum/composer-scope" => (

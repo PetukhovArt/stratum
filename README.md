@@ -82,7 +82,7 @@ Full reference: [docs/custom-rules.md](docs/custom-rules.md). A real-world confi
 | `stratum/sibling-isolation` | An import between two slices or sub-units that share a parent container. |
 | `stratum/import-policy` | Imports denied by `from` / `deny` / `allow` / `slice` globs declared in config. |
 | `stratum/restricted-calls` | A call to a listed function outside the files its policy allows. |
-| `stratum/stage-mixing` | A container holding both segment folders and sub-unit folders. |
+| `stratum/stage-mixing` | A container holding segment folders next to sub-unit folders or other plain domain folders. |
 | `stratum/container-breadth` | A folder holding too much directly inside it: more than `max_kinds` kinds in a container, more than `max_items` items in a segment, collection or sliced layer root, more than `max_root_files` files at a composer's root. |
 | `stratum/zone-breadth` | A private zone with more than `max_kinds` kinds of children. |
 | `stratum/missing-entry` | A folder with segment or private-zone children but no entry file. |

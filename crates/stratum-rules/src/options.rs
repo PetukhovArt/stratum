@@ -78,8 +78,16 @@ pub struct NoBarrelOptions {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ComposerScopeOptions {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "glob_or_none")]
     pub scope_file: Option<String>,
+}
+
+fn glob_or_none<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
+    let glob = Option::<String>::deserialize(d)?;
+    if let Some(pattern) = &glob {
+        globset::Glob::new(pattern).map_err(serde::de::Error::custom)?;
+    }
+    Ok(glob)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]

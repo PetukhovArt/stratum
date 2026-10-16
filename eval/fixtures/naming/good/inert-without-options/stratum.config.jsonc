@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "structure": {
+    "segments": [
+      "model"
+    ],
+    "private": [
+      "_shared"
+    ]
+  },
+  "layers": [
+    {
+      "id": "modules",
+      "path": "src/modules",
+      "depends_on": [],
+      "slices": true
+    }
+  ],
+  "rules": {
+    "stratum/container-breadth": {
+      "severity": "off"
+    },
+    "stratum/naming": {
+      "severity": "warning"
+    }
+  }
+}

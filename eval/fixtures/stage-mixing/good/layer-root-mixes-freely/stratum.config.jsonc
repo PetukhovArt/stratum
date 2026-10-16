@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "structure": {
+    "segments": [
+      "model"
+    ],
+    "private": [
+      "_shared"
+    ]
+  },
+  "layers": [
+    {
+      "id": "shared",
+      "path": "src/shared",
+      "depends_on": []
+    }
+  ],
+  "rules": {
+    "stratum/container-breadth": {
+      "severity": "off"
+    },
+    "stratum/stage-mixing": {
+      "severity": "error"
+    }
+  }
+}

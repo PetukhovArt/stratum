@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "structure": {
+    "segments": [
+      "model"
+    ],
+    "private": [
+      "_shared"
+    ]
+  },
+  "layers": [
+    {
+      "id": "features",
+      "path": "src/features",
+      "depends_on": [
+        "entities"
+      ],
+      "slices": true
+    },
+    {
+      "id": "entities",
+      "path": "src/entities",
+      "depends_on": [],
+      "slices": true
+    }
+  ],
+  "rules": {
+    "stratum/container-breadth": {
+      "severity": "off"
+    },
+    "stratum/naming": {
+      "severity": "warning",
+      "options": {
+        "folder_case": "kebab",
+        "reserved": [
+          "utils",
+          "helpers"
+        ],
+        "duplicate_slices": true
+      }
+    }
+  }
+}

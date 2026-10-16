@@ -112,7 +112,7 @@ The metric rules' limits are calibrated on a real project, see [calibration.md](
 `stratum-lint explain <slug>` prints what a rule checks, why, how to fix a hit, and its options; `stratum-lint rules` lists the effective severity of every rule.
 `// @stratum-purity N` (1 pure to 4 side effects, default 2) in a file's leading comments sets its purity for `stratum/purity`.
 
-The configured severity is a cap: a rule may report a finding at a lower severity, never a higher one. `container-breadth` reports private-zone folders at `info` at most.
+The configured severity is a cap: a rule may report a finding at a lower severity, never a higher one. `container-breadth` reports a single-file folder at `info` at most.
 
 ## `overrides`: severity by glob
 

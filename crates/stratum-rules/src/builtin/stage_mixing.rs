@@ -4,10 +4,11 @@ use stratum_core::{
     ids::{ContainerId, RuleId},
     severity::Severity,
     types::ContainerKind,
-    violation::{SourceLocation, Violation},
+    violation::Violation,
 };
-use stratum_graph::CompoundGraph;
+use stratum_graph::{CompoundGraph, DirRole};
 
+use super::folder::at_folder;
 use crate::ids::STAGE_MIXING;
 use crate::rule::{EmptyOptions, Rule};
 
@@ -35,52 +36,66 @@ impl Rule for StageMixing {
         _options: &EmptyOptions,
         severity: Severity,
     ) -> Vec<Violation> {
-        let Some(c) = graph.containers.get(&scope) else {
+        let Some(c) = graph
+            .containers
+            .get(&scope)
+            .filter(|c| c.kind != ContainerKind::Layer)
+        else {
             return vec![];
         };
+        let segments: BTreeSet<&str> = c.segment_dirs.iter().map(String::as_str).collect();
+        if segments.is_empty() {
+            return vec![];
+        }
         let sub_units: BTreeSet<&str> = graph
             .containers
             .values()
             .filter(|s| s.parent == Some(scope) && s.kind == ContainerKind::SubUnit)
             .map(|s| s.name.as_str())
             .collect();
-        if sub_units.is_empty() {
+        let domain_folders: BTreeSet<&str> = graph
+            .dir_entries(&c.path)
+            .into_iter()
+            .flat_map(|entries| &entries.dirs)
+            .filter(|name| graph.dir_roles.get(&c.path.join(name)) == Some(&DirRole::Collection))
+            .map(String::as_str)
+            .collect();
+        if sub_units.is_empty() && domain_folders.is_empty() {
             return vec![];
         }
-        let segments: BTreeSet<&str> = c.segment_dirs.iter().map(String::as_str).collect();
-        if segments.is_empty() {
-            return vec![];
-        }
-        let Some(rep) = c.entry.or_else(|| {
-            graph
-                .modules
-                .values()
-                .find(|m| m.container == scope)
-                .map(|m| m.id)
-        }) else {
-            return vec![];
-        };
-        let Some(file) = graph.modules.get(&rep).map(|m| m.path.clone()) else {
-            return vec![];
-        };
         let list = |names: &BTreeSet<&str>| names.iter().copied().collect::<Vec<_>>().join(", ");
-        vec![Violation {
-            rule: self.id(),
+        let mut others = Vec::new();
+        if !sub_units.is_empty() {
+            others.push(format!("sub-units ({})", list(&sub_units)));
+        }
+        if !domain_folders.is_empty() {
+            others.push(format!("other folders ({})", list(&domain_folders)));
+        }
+        let fix = if sub_units.is_empty() {
+            format!(
+                "Move the code of {} into the segment folders ({}), or turn the segments into sub-units: not both on one level.",
+                list(&domain_folders),
+                list(&segments),
+            )
+        } else {
+            "Pick one split: move the segment folders' code into sub-units, or fold the sub-units back into segments.".into()
+        };
+        at_folder(
+            graph,
+            self.id(),
             severity,
-            message: format!(
-                "Container '{name}' mixes segment folders ({segments}) with sub-units ({sub_units}) on one level",
+            &c.path,
+            c.entry,
+            format!(
+                "Container '{name}' mixes segment folders ({segments}) with {others} on one level",
                 name = c.name,
                 segments = list(&segments),
-                sub_units = list(&sub_units),
+                others = others.join(" and "),
             ),
-            file,
-            location: SourceLocation { line: 1, column: 1 },
-            modules: vec![rep],
-            edge: None,
-            fix: Some(
-                "Pick one split: move the segment folders' code into sub-units, or fold the sub-units back into segments.".into(),
-            ),
-        }]
+            fix,
+        )
+        .into_iter()
+        .collect()
     }
 }
 

@@ -47,6 +47,9 @@
 | **Private Zone** | A folder named in `structure.private` (`_shared` in `stratum:recommended`), visible only inside its parent folder's subtree. Never a **Container**; counts toward no **Stage**. | local shared |
 | **Collection Folder** | A folder with no **Entry**. Its files belong to the enclosing **Container**. | group folder |
 | **Dir Role** | What a folder inside a **Layer** is, decided once in placement from `structure` and the file tree: layer root, **Container**, **Segment**, **Private Zone** or **Collection Folder**. Rules read it; none derives a role from a folder name. | folder type |
+| **Composer** | A stage-4 **Container**: it has **Sub-units** and only wires them together, so its root holds the **Entry** and little else. | orchestrator |
+| **Barrel** | An **Entry** file that sits where no unit is: directly in a **Segment**, or at the root of a global-shared **Layer**. | index file |
+| **Domain Folder** | A **Collection Folder** next to **Segments** in one **Container**: a second way of splitting the same code. | |
 | **Kind** | A distinct thing directly inside a folder: a child folder, or the child files sharing a stem before the first dot. A folder's **Entry** and **Private Zones** do not count. | item type |
 
 ## Metrics
