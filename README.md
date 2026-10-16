@@ -4,7 +4,7 @@ An architecture linter for TypeScript, JavaScript and Vue, built as the architec
 
 Source files: `.ts .tsx .mts .cts .js .jsx .mjs .cjs .vue` (Vue: `<script>` and `<script setup>` blocks).
 
-Binaries: `stratum-lint` (CLI, hook adapter, visualizer server) and `stratum-lsp` (stdio language server).
+Binaries: `stratum-lint` (CLI, visualizer server) and `stratum-lsp` (stdio language server).
 
 ## Install
 
@@ -15,7 +15,7 @@ Binaries: `stratum-lint` (CLI, hook adapter, visualizer server) and `stratum-lsp
 
 ## AI harness integration
 
-- **Claude Code**: the `stratum` plugin lints each edited file after `Edit` / `Write` and gates the changed files at the end of each turn; its skill tells the agent to run `stratum-lint context` before placing a file. The optional `stratum-lsp` plugin adds warm LSP diagnostics, for projects without `typescript-lsp` only. See [claude-plugin](claude-plugin/README.md) and [claude-plugin-lsp](claude-plugin-lsp/README.md).
+- **Claude Code**: the `stratum` plugin is a skill that tells the agent when to run the CLI: `stratum-lint context` before placing a file, `stratum-lint --changed --format agent` before finishing. Stratum ships no hooks: wire the gate into your harness, pre-commit or CI. The optional `stratum-lsp` plugin adds warm LSP diagnostics, for projects without `typescript-lsp` only. See [claude-plugin](claude-plugin/README.md) and [claude-plugin-lsp](claude-plugin-lsp/README.md).
 - **Codex, Cursor, other harnesses**: paste [docs/agents-snippet.md](docs/agents-snippet.md) into `AGENTS.md`, and launch `stratum-lsp` over stdio if the harness takes an LSP server.
 - The CLI and LSP contract, exit codes and output shapes: [docs/harness.md](docs/harness.md).
 - **CI** (GitLab, GitHub, offline): [docs/ci.md](docs/ci.md).

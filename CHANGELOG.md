@@ -13,19 +13,19 @@ package version; a bump requires a coordinated frontend release.
 
 ### Breaking
 
+- The `stratum-lint hook` command and the `stratum` plugin's Claude Code hooks (`PostToolUse` per-edit check, `Stop` gate), shipped in 0.2.0-rc.1, are removed: Stratum is the CLI plus the optional `stratum-lsp`. Run `stratum-lint --changed --format agent` from your harness, pre-commit or CI.
 - `--format json` is version 2: `{ "version": 2, "summary": {...}, "violations": [...] }`. Rules are named by slug (`stratum/no-circular-deps`, `custom/<name>`), never by numeric id, and paths are relative to ROOT.
 - Graph Snapshot v3. Over v2 (`module.stage` → `module.purity`; containers with `path`, `kind` (`layer`, `slice`, `sub_unit`, `nested`), `stage` (the evolution stage, 1–4) and `entry`) it adds `project` (the root folder name), `zones [{ id, path, root }]` (private zones), `territories` (what a module may import, each distinct one once) and per module `zone` (absent outside a zone) and `territory` (an index). Every path is ROOT-relative with `/`: no absolute machine path is left in the snapshot. The Visualizer accepts only v3.
 - Stage is renamed to purity for the 1–4 rank: `// @stratum-stage N` is now `// @stratum-purity N` and the old annotation is no longer recognised; `stratum/stage-purity` is now `stratum/purity`; Rhai `m.stage` is `m.purity`; `context` prints `purity`. "Stage" now means only a container's evolution stage. Baseline entries keyed by the old slug go stale.
 - `stratum/cross-entity-pattern` is replaced by `stratum/slice-fan-in`: distinct importing slices per slice, option `max_fan_in` (5, was `max_fanout`), off by default. No folder name (`entities`, `features`, `index.ts`, `_shared`) is hard-coded any more; slices come from `layers[].slices`.
 - `project.root` is removed: nothing read it, the graph always walks ROOT. It is now an unknown key, and `project` is optional.
-- Config validation is strict: an unknown key, an unknown rule slug, an option the rule does not take or a wrongly typed one, a `depends_on` naming an undeclared layer, a bad `project.ignore` or `overrides[].files` glob, an unknown preset or an `extends` cycle fails with exit 2, naming the slug and key. `lint`, `baseline`, `context`, `rules`, `explain`, `snapshot` and `visualize` exit 2 on it, as on any other tool failure; `hook` exits 1, Claude Code's non-blocking error.
+- Config validation is strict: an unknown key, an unknown rule slug, an option the rule does not take or a wrongly typed one, a `depends_on` naming an undeclared layer, a bad `project.ignore` or `overrides[].files` glob, an unknown preset or an `extends` cycle fails with exit 2, naming the slug and key. `lint`, `baseline`, `context`, `rules`, `explain`, `snapshot` and `visualize` exit 2 on it, as on any other tool failure.
 - `overrides` set `severity` only; `options` or `script` in an override is a config error.
 - Editor extensions are removed (`editor-extensions/` for VS Code, Zed, WebStorm). `stratum-lsp` stays and targets AI harnesses: see `docs/harness.md`.
 - `stratum-lint diff` is rewritten: it was a stub that always failed, and now takes `--base REF` (required) and prints a drift report.
 
 ### Added
 
-- `stratum-lint hook`: the Claude Code hook adapter. On `PostToolUse` of `Edit` / `Write` it lints the edited source file and returns its new error and warning violations as context; on `Stop` / `SubagentStop` it gates the changed files and blocks the stop on new errors.
 - Gate options: `--format agent` (compact text for a model's context), `--max`, `--files`, `--changed[=REF]`, `--baseline` / `--no-baseline`. `stratum-lint baseline [--prune]` writes `stratum.baseline.json`, fingerprinted by slug, file and message with numbers masked.
 - CI integration, see `docs/ci.md`:
   - `--format gitlab` (Code Quality JSON with line-shift-stable fingerprints) and `--format github` (annotations capped at 10 per severity, then the agent text). Their paths are relative to the git work-tree root.
@@ -40,7 +40,7 @@ package version; a bump requires a coordinated frontend release.
 - Config `extends`: a relative file or the presets `stratum:recommended` and `stratum:fsd`, merged by layer id and rule slug. `project.ignore` keeps files out of the graph, on top of built-in defaults. `stratum.schema.json`, referenced with `"$schema"`.
 - Rhai plugins: `m.imports`, `fn check(m, options)`, an optional `fn doc()` that shows the rule in `rules` / `explain`; `print` and `debug` go to stderr.
 - `.mts` / `.cts` sources. Export counting (`Exports`), including Vue `<script setup>` macros.
-- Claude Code plugins `stratum` (hook + skill) and `stratum-lsp` (LSP), with a marketplace; `docs/agents-snippet.md` for Codex, Cursor and others. The npm wrapper ships `stratum-lsp` too.
+- Claude Code plugins `stratum` (skill) and `stratum-lsp` (LSP), with a marketplace; `docs/agents-snippet.md` for Codex, Cursor and others. The npm wrapper ships `stratum-lsp` too.
 - `stratum-lint visualize --config PATH` and `--no-open` (serve without launching the browser). `stratum-lint snapshot --config PATH`.
 - `stratum-lint visualize --base REF` serves the **Drift** vs REF at `/api/drift` (with the `diff` markdown); without `--base` it is 404 and the Merge request view is hidden.
 - Visualizer endpoint `GET /api/context?path=REL`: the file's brief as `text/plain`, byte for byte what `stratum-lint context REL --format agent` prints.
@@ -68,7 +68,7 @@ package version; a bump requires a coordinated frontend release.
 - Zero-config applies the `stratum:recommended` severities, with `public-api`, `sibling-isolation` and `container-breadth` off until layers and structure are declared.
 - The configured severity caps a rule's findings: a rule may report lower, never higher. `container-breadth` reports private-zone folders at `info` at most.
 - `--files` resolves against the cwd, then ROOT, and a missing path exits 2. A scope matches every member of a violation, so editing any module of a cycle surfaces it.
-- `--format agent` collapses info findings into one advisory line. Hook output never shows the `baseline --prune` hint.
+- `--format agent` collapses info findings into one advisory line.
 - `/api/violations` carries rule slugs and ROOT-relative paths.
 - `context` is more accurate, with the brief version unchanged: the sibling line appears only when an isolated sibling exists, and a rule turned off for the file by an override lifts its limit (cross-layer off: every layer; purity off: purity <= 4; visibility off: every private zone).
 

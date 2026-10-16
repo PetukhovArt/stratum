@@ -17,7 +17,7 @@ Customization goes from cheapest to most flexible: a preset via `extends`, `laye
 | `rules` | by slug: `{ severity, options?, script? }` |
 | `overrides` | `[{ files, rules: { <slug>: { severity } } }]` |
 
-Errors fail every command that loads the config with exit code 2 (`hook` with 1) and are reported by `stratum-lsp` via `window/showMessage`: an unknown key at any level (`project.root` included), an unknown rule slug in `rules` or `overrides`, an option the rule does not take or a wrongly typed one (the message names the slug and the key), `options` or `script` in an override, a `depends_on` naming an undeclared layer, an invalid `project.ignore` or `overrides[].files` glob, an unknown preset, an `extends` cycle.
+Errors fail every command that loads the config with exit code 2 and are reported by `stratum-lsp` via `window/showMessage`: an unknown key at any level (`project.root` included), an unknown rule slug in `rules` or `overrides`, an option the rule does not take or a wrongly typed one (the message names the slug and the key), `options` or `script` in an override, a `depends_on` naming an undeclared layer, an invalid `project.ignore` or `overrides[].files` glob, an unknown preset, an `extends` cycle.
 
 ## Layers and slices
 

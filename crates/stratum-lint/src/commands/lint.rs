@@ -25,7 +25,7 @@ pub fn run(root: &Utf8Path, args: &LintArgs) -> miette::Result<i32> {
     Ok(report.exit_code())
 }
 
-pub fn render(
+fn render(
     root: &Utf8Path,
     args: &LintArgs,
     report: &Report,
@@ -45,7 +45,7 @@ pub fn render(
     }
 }
 
-pub fn gate(root: &Utf8Path, args: &LintArgs) -> miette::Result<Report> {
+fn gate(root: &Utf8Path, args: &LintArgs) -> miette::Result<Report> {
     let started = Instant::now();
     let loaded = load_config(root, args.config.as_deref())?;
     let baseline = load_baseline(root, args)?;

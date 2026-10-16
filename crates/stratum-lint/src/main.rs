@@ -6,7 +6,6 @@ use clap::Parser;
 use stratum_lint::{cli, commands, watch};
 
 const TOOL_FAILURE: u8 = 2;
-const HOOK_NON_BLOCKING_ERROR: u8 = 1;
 
 fn main() -> ExitCode {
     match run(cli::Cli::parse()) {
@@ -14,20 +13,6 @@ fn main() -> ExitCode {
         Err(e) => {
             eprintln!("{e:?}");
             ExitCode::from(TOOL_FAILURE)
-        }
-    }
-}
-
-fn hook(max: Option<usize>) -> u8 {
-    match commands::hook::run(max) {
-        Ok(Some(decision)) => {
-            println!("{decision}");
-            0
-        }
-        Ok(None) => 0,
-        Err(e) => {
-            eprintln!("{e:?}");
-            HOOK_NON_BLOCKING_ERROR
         }
     }
 }
@@ -61,7 +46,6 @@ fn run(cli: cli::Cli) -> miette::Result<u8> {
         Some(cli::Command::Diff { root, base, config }) => {
             commands::diff::run(&root, &base, config.as_deref()).map(exit_code)
         }
-        Some(cli::Command::Hook { max }) => Ok(hook(max)),
         Some(cli::Command::Explain {
             slug,
             root,

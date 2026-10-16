@@ -1,6 +1,6 @@
 ---
 name: stratum
-description: Layer-aware edits in TS/Vue projects checked by Stratum (stratum-lint, stratum-lsp). Use before creating, moving or renaming a source file or adding an import across layers or slices; when a Stratum diagnostic or hook report names a rule slug; when a Stratum rule looks wrong for the project.
+description: Layer-aware edits in TS/Vue projects checked by Stratum (stratum-lint, stratum-lsp). Use before creating, moving or renaming a source file or adding an import across layers or slices; before finishing a change to source files; when a Stratum report or diagnostic names a rule slug; when a Stratum rule looks wrong for the project.
 ---
 
 # Stratum
@@ -11,9 +11,11 @@ Stratum supplies facts about the dependency graph; you supply the judgement. Rul
 
 Run `stratum-lint context <file> --format agent` before you create, move or rename a file, or add an import that crosses a layer or slice. For a new file, pass the path it will have. The output says where the file sits and what it may import: place the file and pick imports from it. Its `may not import` line names what is closed to this file (sibling slices, sibling sub-units, files behind another container's entry): import through the target container's entry instead. `context` is read-only and accepts a path that does not exist yet: run it whenever you decide where a module goes, even when you only answer a question and create nothing.
 
-## Reading a report
+## Before finishing
 
-`stratum-lint [ROOT] --changed --format agent` is the gate the Stop hook runs. After each edit, the same report for the edited file, errors and warnings only, arrives as hook context: fix it before moving on.
+Run `stratum-lint [ROOT] --changed --format agent` once the source edits of the change are done: it reports the new violations in the files changed since `HEAD`, untracked included. The change is finished at exit 0; on exit 1, fix and rerun. For one file mid-change, `--files <file>` gives the same report scoped to it.
+
+## Reading a report
 
 - Line 1 is the summary. A clean run is that one line: done.
 - Each group is one rule slug with a count and a few example `file:line` sites. Fix by group: the examples show the pattern, then find every site of it.

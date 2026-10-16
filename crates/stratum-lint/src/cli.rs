@@ -130,12 +130,6 @@ pub enum Command {
         #[arg(long)]
         config: Option<Utf8PathBuf>,
     },
-    /// Claude Code hook adapter: reads the hook event JSON from stdin
-    Hook {
-        /// Cap reported violations (default 10 after an edit, 20 on stop)
-        #[arg(long)]
-        max: Option<usize>,
-    },
     /// Explain one rule: what it guards, why, how to fix a hit, its options
     Explain {
         slug: String,

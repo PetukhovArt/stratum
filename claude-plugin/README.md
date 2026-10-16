@@ -1,10 +1,8 @@
 # Stratum plugin for Claude Code
 
-Wires Stratum into Claude Code. The contract it builds on is [docs/harness.md](../docs/harness.md).
+One skill, `stratum`, that tells the agent when to run the `stratum-lint` CLI: `context` before placing a file, `--changed --format agent` before finishing, `explain` for an unfamiliar rule, and a config change or `baseline --prune` when a rule or the layer/slice map is wrong. The contract it builds on is [docs/harness.md](../docs/harness.md).
 
-- After each `Edit` / `Write` of a `.ts/.tsx/.mts/.cts/.js/.jsx/.mjs/.cjs/.vue` file under the project, `stratum-lint hook` lints that file and adds its new error and warning violations to the model's context (capped at 10 examples). A clean file adds nothing.
-- On Stop, the same command gates the changed files and blocks the stop while new error-severity violations remain.
-- The `stratum` skill: run `stratum-lint context` before placing a file, read reports by rule group, and propose a config change when a rule or the layer/slice map is wrong.
+To enforce the gate rather than leave it to the agent, run `stratum-lint --changed --format agent` from your harness, pre-commit or CI ([docs/ci.md](../docs/ci.md)).
 
 LSP diagnostics live in the separate `stratum-lsp` plugin ([claude-plugin-lsp](../claude-plugin-lsp/README.md)), because Claude Code gives each extension to one language server and `typescript-lsp` usually holds `.ts`.
 

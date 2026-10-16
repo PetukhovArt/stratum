@@ -9,7 +9,7 @@
     {
       "name": "stratum",
       "source": "./claude-plugin",
-      "description": "Architecture validation for TS/Vue: a lint check per edit, a lint gate per turn, and a layer-aware skill.",
+      "description": "Architecture validation for TS/Vue: a layer-aware skill that runs the stratum-lint CLI.",
       "category": "code-quality",
       "tags": ["architecture", "lint", "typescript", "vue"]
     },
