@@ -73,6 +73,7 @@ pub fn builtin(slug: &str) -> Option<RuleDoc> {
                 "calls: function names; a local alias of an imported name matches too (required)",
                 "allow: globs of files where the calls are allowed, forward slashes relative to the project root ([])",
                 "message: text of the violation; the called name is appended (\"Call restricted by restricted-calls\")",
+                "fix: what to use instead, module and export; replaces the rule's generic fix in the finding (none)",
             ],
         ),
         "stratum/stage-mixing" => (

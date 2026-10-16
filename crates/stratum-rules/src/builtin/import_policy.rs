@@ -34,6 +34,7 @@ pub struct Policy {
     allow: GlobSet,
     slice: Option<GlobMatcher>,
     message: String,
+    fix: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -49,6 +50,8 @@ struct PolicySpec {
     slice: Option<String>,
     #[serde(default)]
     message: Option<String>,
+    #[serde(default)]
+    fix: Option<String>,
 }
 
 impl TryFrom<PolicySpec> for Policy {
@@ -66,6 +69,7 @@ impl TryFrom<PolicySpec> for Policy {
                 .map(|p| glob(p).map(|g| g.compile_matcher()))
                 .transpose()?,
             message: spec.message.unwrap_or_else(|| DEFAULT_MESSAGE.into()),
+            fix: spec.fix,
         })
     }
 }
@@ -136,6 +140,7 @@ impl Rule for ImportPolicy {
                 "allow: imported files exempt from deny, e.g. a slice's index.ts ([])".into(),
                 "slice: glob of slice directories, e.g. src/features/*; imports inside one slice are allowed (none)".into(),
                 format!("message: text of the violation; the imported path is appended (\"{DEFAULT_MESSAGE}\")"),
+                "fix: what to use instead, module and export; replaces the rule's generic fix in the finding (none)".into(),
             ],
         })
     }
@@ -182,7 +187,7 @@ pub(crate) fn judge(
         .find(|p| p.denies_import_of(&from, &to))?;
     Some(Finding {
         message: format!("{} ({to})", policy.message),
-        fix: None,
+        fix: policy.fix.clone(),
     })
 }
 
@@ -259,6 +264,7 @@ mod tests {
             "allow": ["src/renderer/features/*/index.ts"],
             "slice": "src/renderer/features/*",
             "message": "A feature does not import another feature",
+            "fix": "Import the feature's index.ts",
         }]))
         .unwrap();
         let v = ImportPolicy.check(&g, ModuleId::new(0), &options, Severity::Error);
@@ -267,6 +273,7 @@ mod tests {
             v[0].message,
             "A feature does not import another feature (src/renderer/features/cart/model/cart.ts)"
         );
+        assert_eq!(v[0].fix.as_deref(), Some("Import the feature's index.ts"));
     }
 
     #[test]

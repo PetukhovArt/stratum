@@ -29,6 +29,7 @@ pub struct CallPolicy {
     pub calls: Vec<String>,
     allow: GlobSet,
     message: String,
+    fix: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -39,6 +40,8 @@ struct CallPolicySpec {
     allow: Vec<String>,
     #[serde(default)]
     message: Option<String>,
+    #[serde(default)]
+    fix: Option<String>,
 }
 
 impl TryFrom<CallPolicySpec> for CallPolicy {
@@ -53,6 +56,7 @@ impl TryFrom<CallPolicySpec> for CallPolicy {
             allow: glob_set(&spec.allow)?,
             calls: spec.calls,
             message: spec.message.unwrap_or_else(|| DEFAULT_MESSAGE.into()),
+            fix: spec.fix,
         })
     }
 }
@@ -101,7 +105,7 @@ impl Rule for RestrictedCalls {
                     location: call.location,
                     modules: vec![scope],
                     edge: None,
-                    fix: None,
+                    fix: policy.fix.clone(),
                 })
             })
             .collect()
@@ -190,6 +194,7 @@ mod tests {
             "calls": ["inject", "provide"],
             "allow": ["**/_shared/*-scope.ts"],
             "message": "Use useXxxScope()",
+            "fix": "Call useHomeScope() from _shared/home-scope.ts",
         }]))
         .unwrap()
     }
@@ -209,6 +214,10 @@ mod tests {
         let v = RestrictedCalls.check(&g, ModuleId::new(1), &opts, Severity::Error);
         assert_eq!(v.len(), 1);
         assert_eq!(v[0].message, "Use useXxxScope() (inject())");
+        assert_eq!(
+            v[0].fix.as_deref(),
+            Some("Call useHomeScope() from _shared/home-scope.ts")
+        );
         assert_eq!(v[0].location, SourceLocation { line: 7, column: 3 });
     }
 

@@ -31,6 +31,7 @@ package version; a bump requires a coordinated frontend release.
 
 - Rules `stratum/zone-breadth`, `stratum/missing-entry`, `stratum/no-barrel`, `stratum/composer-scope`, `stratum/naming`, `stratum/module-docs`, `stratum/unused-exports`, `stratum/unreachable-modules` and `stratum/suppression` are registered with their docs, options and preset severities; their checks arrive in later changes, so they report nothing yet. `stratum/container-breadth` declares `max_items` (20) and `max_root_files` (4). Config `project.entry_points` (globs); enabling `unused-exports` or `unreachable-modules` without it is a config error. `docs/calibration.md` records the sweeps behind the metric defaults.
 - `stratum/unreachable-modules` reports each module no entry point reaches through any import. `stratum/unused-exports` reports each export of a reachable module that no reachable module imports, following names through `export { x } from` and `export * from`; entry points' exports and an imported `.vue` file's default export count as used. Both are off in the presets. A `project.entry_points` glob that matches no module is a tool failure (exit 2) naming the glob. Blind spots are in `docs/custom-rules.md`.
+- Every `stratum/restricted-calls` entry and every `stratum/import-policy` policy accepts an optional `fix` (what to use instead: module and export); it becomes the finding's `fix`, otherwise the rule's generic fix applies.
 - Gate options: `--format agent` (compact text for a model's context), `--max`, `--files`, `--changed[=REF]`, `--baseline` / `--no-baseline`. `stratum-lint baseline [--prune]` writes `stratum.baseline.json`, fingerprinted by slug, file and message with numbers masked.
 - CI integration, see `docs/ci.md`:
   - `--format gitlab` (Code Quality JSON with line-shift-stable fingerprints) and `--format github` (annotations capped at 10 per severity, then the agent text). Their paths are relative to the git work-tree root.
@@ -93,6 +94,7 @@ package version; a bump requires a coordinated frontend release.
 
 - Vue: a `<script>` tag end respects quoted attributes, so `generic="T extends X<Y>"` keeps the script body.
 - Import findings (`no-cross-layer-import`, `public-api`, `sibling-isolation`, `visibility-scope`, `purity`, `import-policy`) point at the line of the import statement instead of line 1.
+- `stratum-lint diff --base REF` no longer exits 2 when a `project.entry_points` glob matches nothing at the base: entry points are selected at the checked tree only, drift being advisory.
 
 ### Performance
 

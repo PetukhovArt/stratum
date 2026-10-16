@@ -165,6 +165,7 @@ Globs are matched against paths relative to ROOT; `*` stays within one path segm
 | `allow` | imported files exempt from `deny`, e.g. a slice's `index.ts` |
 | `slice` | glob of directories; an import between two files under the same matching directory is allowed |
 | `message` | violation text; the imported path is appended |
+| `fix` | what to use instead, module and export; it becomes the finding's `fix`. Without it the rule's generic fix applies |
 
 ```jsonc
 "stratum/import-policy": {
@@ -172,6 +173,16 @@ Globs are matched against paths relative to ROOT; `*` stays within one path segm
   "options": [
     { "from": ["src/shared/**"], "deny": ["src/shared/legacy/**"], "message": "legacy is frozen" }
   ]
+}
+```
+
+"X only via Y": say what to use instead in `fix`, so the finding tells the author (or an agent) the replacement:
+
+```jsonc
+{
+  "from": ["src/features/**"], "deny": ["src/shared/api/http.ts"],
+  "message": "http client is not imported directly",
+  "fix": "Import `fetchJson` from `src/shared/api/index.ts`"
 }
 ```
 
@@ -187,12 +198,17 @@ Slice isolation and entry-only access need no policy: declare `slices: true` and
 | `calls` | function names (required) |
 | `allow` | globs of files where these calls are allowed, relative to ROOT |
 | `message` | violation text; the called name is appended |
+| `fix` | what to use instead, module and export; it becomes the finding's `fix`. Without it the rule's generic fix applies |
 
 ```jsonc
 "stratum/restricted-calls": {
   "severity": "error",
   "options": [
-    { "calls": ["inject", "provide"], "allow": ["**/_shared/*-scope.ts"], "message": "Use useXxxScope()/provideXxxScope()" }
+    {
+      "calls": ["inject", "provide"], "allow": ["**/_shared/*-scope.ts"],
+      "message": "inject/provide only in a scope file",
+      "fix": "Use useXxxScope()/provideXxxScope() from the module's _shared/*-scope.ts"
+    }
   ]
 }
 ```

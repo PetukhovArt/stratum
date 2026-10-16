@@ -138,6 +138,22 @@ pub(crate) fn graph(
     config: &Config,
     overlay: Vec<(String, Option<String>)>,
 ) -> Result<(Utf8PathBuf, CompoundGraph, GraphBuilder), EngineError> {
+    let (root_abs, mut graph, builder) = graph_without_entry_points(root, config, overlay)?;
+    let modules = graph
+        .modules
+        .values()
+        .map(|m| (m.id, relative(&m.path, &root_abs)));
+    graph.entry_points = EntryPoints::new(config)?
+        .select(modules)
+        .map_err(|glob| EngineError::EntryPointUnmatched(glob.to_owned()))?;
+    Ok((root_abs, graph, builder))
+}
+
+pub(crate) fn graph_without_entry_points(
+    root: &Utf8Path,
+    config: &Config,
+    overlay: Vec<(String, Option<String>)>,
+) -> Result<(Utf8PathBuf, CompoundGraph, GraphBuilder), EngineError> {
     let root_abs = canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
     let layers: Vec<Layer> = config
         .layers
@@ -179,14 +195,7 @@ pub(crate) fn graph(
         });
         builder = builder.with_overlay(Overlay::new(files));
     }
-    let mut graph = builder.build()?;
-    let modules = graph
-        .modules
-        .values()
-        .map(|m| (m.id, relative(&m.path, &root_abs)));
-    graph.entry_points = EntryPoints::new(config)?
-        .select(modules)
-        .map_err(|glob| EngineError::EntryPointUnmatched(glob.to_owned()))?;
+    let graph = builder.build()?;
     Ok((root_abs, graph, builder))
 }
 

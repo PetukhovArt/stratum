@@ -7,7 +7,7 @@ use stratum_core::edge::EdgeKind;
 use stratum_core::ids::ModuleId;
 use stratum_core::severity::Severity;
 use stratum_core::types::ContainerKind;
-use stratum_graph::{CompoundGraph, find_cycles};
+use stratum_graph::{CompoundGraph, GraphBuilder, find_cycles};
 use stratum_rules::RuleRegistry;
 use stratum_rules::territory::Territories;
 
@@ -144,12 +144,12 @@ pub fn drift(
     config: &Config,
 ) -> Result<Drift, EngineError> {
     let (base, head) = std::thread::scope(|s| {
-        let base = s.spawn(|| Side::build(root, config, base));
-        let head = Side::build(root, config, Vec::new());
+        let base = s.spawn(|| pipeline::graph_without_entry_points(root, config, base));
+        let head = pipeline::graph(root, config, Vec::new());
         (base.join(), head)
     });
-    let base = base.unwrap_or_else(|p| std::panic::resume_unwind(p))?;
-    let head = head?;
+    let base = Side::new(base.unwrap_or_else(|p| std::panic::resume_unwind(p))?);
+    let head = Side::new(head?);
     let registry = pipeline::registry(&head.root, config)?;
     let edges = edges(&base, &head, config, &registry)?;
     Ok(Drift {
@@ -170,12 +170,8 @@ struct Side {
 }
 
 impl Side {
-    fn build(
-        root: &Utf8Path,
-        config: &Config,
-        overlay: Vec<(String, Option<String>)>,
-    ) -> Result<Self, EngineError> {
-        let (root, graph, _) = pipeline::graph(root, config, overlay)?;
+    fn new(built: (Utf8PathBuf, CompoundGraph, GraphBuilder)) -> Self {
+        let (root, graph, _) = built;
         let paths = graph
             .modules
             .values()
@@ -189,12 +185,12 @@ impl Side {
                 (c.kind == ContainerKind::Slice).then(|| (m, relative(&c.path, &root)))
             })
             .collect();
-        Ok(Self {
+        Self {
             graph,
             root,
             paths,
             slices,
-        })
+        }
     }
 
     fn edges(&self) -> impl Iterator<Item = (ModuleId, ModuleId)> + '_ {
@@ -657,6 +653,20 @@ mod tests {
                     && s.base.is_none()),
             "{stages:?}"
         );
+    }
+
+    #[test]
+    fn a_base_without_the_entry_file_still_produces_drift() {
+        let mut trees = exemplar_twice();
+        trees.config.project.entry_points = vec!["src/features/checkout/main.ts".into()];
+        trees.write(
+            "src/features/checkout/main.ts",
+            "import \"@/features/cart\";\n",
+        );
+
+        let drift = trees.drift();
+
+        assert_eq!(drift.slice_edges.len(), 1, "{:?}", drift.slice_edges);
     }
 
     #[test]
