@@ -210,9 +210,18 @@ impl Baseline {
     }
 
     #[must_use]
-    #[expect(clippy::unused_self, reason = "stub until the ratchet slice")]
-    pub fn grown_since(&self, _base: &Self) -> Vec<Growth> {
-        Vec::new()
+    pub fn grown_since(&self, base: &Self) -> Vec<Growth> {
+        self.0
+            .iter()
+            .filter_map(|(fingerprint, &head)| {
+                let base = base.0.get(fingerprint).copied().unwrap_or(0);
+                (head > base).then(|| Growth {
+                    fingerprint: fingerprint.clone(),
+                    base,
+                    head,
+                })
+            })
+            .collect()
     }
 
     /// Keeps only entries still produced by `findings`; never adds new ones.
