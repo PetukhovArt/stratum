@@ -20,6 +20,7 @@ test('visualizer mounts SVG graph with lanes, containers, and modules', async ({
 
   await expect(page.locator('.app')).toBeVisible({ timeout: 15_000 })
   await expect(page.locator('header.hd')).toBeVisible()
+  await page.keyboard.press('4')
 
   const graph = page.locator('svg.cv g.strat-graph')
   await expect(graph).toBeVisible()

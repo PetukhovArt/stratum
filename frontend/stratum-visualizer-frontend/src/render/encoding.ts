@@ -29,7 +29,26 @@ export interface Tone {
 
 export const LAYER_TONE = {
   swatch: { lightness: 72, chroma: 0.09, alpha: 1 },
+  label: { lightness: 82, chroma: 0.08, alpha: 1 },
+  tint: { lightness: 34, chroma: 0.04, alpha: 0.55 },
+  tintEdge: { lightness: 70, chroma: 0.08, alpha: 0.4 },
+  tintEdgeStrong: { lightness: 70, chroma: 0.08, alpha: 0.8 },
+  pill: { lightness: 32, chroma: 0.05, alpha: 0.95 },
+  band: { lightness: 26, chroma: 0.04, alpha: 0.7 },
+  bandOff: { lightness: 24, chroma: 0.03, alpha: 0.2 },
+  card: { lightness: 78, chroma: 0.1, alpha: 0.9 },
+  cardHalo: { lightness: 80, chroma: 0.1, alpha: 0.35 },
 } as const satisfies Record<string, Tone>
+
+export const CANVAS_DEFS = {
+  arrowId: 'cv-arrow',
+  hatchId: 'cv-hatch',
+  arrow: 'url(#cv-arrow)',
+  hatch: 'url(#cv-hatch)',
+} as const
+
+export const EDGE_NEUTRAL = 'oklch(72% 0.02 260)'
+export const HATCH_STROKE = 'oklch(60% 0.01 260 / .28)'
 
 export const layerColor = (hue: number, tone: Tone = LAYER_TONE.swatch): string =>
   `oklch(${tone.lightness}% ${tone.chroma} ${hue} / ${tone.alpha})`
