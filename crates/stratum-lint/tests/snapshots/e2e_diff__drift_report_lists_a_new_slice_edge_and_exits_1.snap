@@ -4,7 +4,10 @@ expression: stdout
 ---
 <!-- stratum:drift web -->
 ### Stratum: architecture drift vs <sha>
-1 new slice edge, 1 fan-in growth
+1 import that breaks rules, 1 new slice edge, 1 fan-in growth
+
+#### Imports that break rules (1)
+- `src/features/checkout/index.ts` -> `src/features/cart/index.ts`: `stratum/sibling-isolation` (error)
 
 #### New slice edges (1)
 - `src/features/checkout` -> `src/features/cart`, e.g. `src/features/checkout/index.ts -> src/features/cart/index.ts`

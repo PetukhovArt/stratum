@@ -31,6 +31,7 @@ package version; a bump requires a coordinated frontend release.
   - `--format gitlab` (Code Quality JSON with line-shift-stable fingerprints) and `--format github` (annotations capped at 10 per severity, then the agent text). Their paths are relative to the git work-tree root.
   - `stratum-lint baseline --check[=REF]`: exit 1 when a baseline entry count grew since REF; reads no config, builds no graph.
   - `stratum-lint diff --base REF`: architecture drift of the working tree vs REF as capped markdown, first line `<!-- stratum:drift -->`; exit 1 on drift, meant as advisory.
+  - The drift report lists imports added since REF that break a built-in import rule (`Imports that break rules`, by slug and severity); a new cycle carries an ordered path through an added import.
   - CI Templates `ci/gitlab/templates/stratum.yml` (`include: project:`) and `ci/github` (composite action): gate, ratchet (skipped with the label `stratum:accept-debt`) and a drift note / comment, with no outbound internet.
 - `stratum-lint context <file>`: where a file, existing or planned, sits and what it may import: layer, purity, container with kind, stage and entry, the enclosing slice, visible private zones, and a `may not import` line (sibling slices, sibling sub-units, files behind another container's entry).
 - `stratum-lint explain <slug>` and `stratum-lint rules`, with built-in docs for every rule.

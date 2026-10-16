@@ -117,11 +117,12 @@ Baseline file (`stratum.baseline.json`): `{ "version": 1, "violations": [{ rule,
 
 ### Drift report
 
-`stratum-lint diff --base REF` compares the architecture of the working tree with REF's commit. Both sides are built as graphs with the working tree's config (`--config`, else `ROOT/stratum.config.jsonc`, else zero-config): no rules, plugins or baseline. REF is read from git; nothing is written into the work tree or `.git`.
+`stratum-lint diff --base REF` compares the architecture of the working tree with REF's commit. Both sides are built as graphs with the working tree's config (`--config`, else `ROOT/stratum.config.jsonc`, else zero-config): no full lint and no baseline. Only the imports that differ are judged, by the built-in import rules on the side where the import exists. REF is read from git; nothing is written into the work tree or `.git`.
 
 - Line 1 is the marker `<!-- stratum:drift -->`, or `<!-- stratum:drift <prefix> -->` when ROOT is the subdirectory `<prefix>` of the repository. CI Templates key their single MR note / PR comment per project root on this exact line.
 - Line 2 is `### Stratum: architecture drift vs <short sha>`; line 3 a one-line summary, `No architecture drift.` when there is none.
-- Then one `#### <kind> (<count>)` section per non-empty kind: layer edges, new slice edges, cycles, container stage changes, slice fan-in growth. A section lists 10 items, then `- ... N more`.
+- Then one `#### <kind> (<count>)` section per non-empty kind: imports that break rules, layer edges, new slice edges, cycles, container stage changes, slice fan-in growth. A section lists 10 items, then `- ... N more`.
+- `Imports that break rules` lists each module import added since REF that breaks a built-in import rule, as ``- `from` -> `to`: `<slug>` (<severity>)``, imports breaking an error rule first. An added import that shares an end and the same broken rules with a removed one counts as a moved file and is not listed.
 - The report stops at 8 KiB with a last line telling to run `stratum-lint diff --base <REF>` locally for the full report.
 - Drift is advisory: CI Templates treat exit 1 as a warning, never as a failed gate.
 

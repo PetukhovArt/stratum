@@ -1,0 +1,10 @@
+---
+source: crates/stratum-lint/tests/e2e_diff.rs
+expression: stdout
+---
+<!-- stratum:drift web -->
+### Stratum: architecture drift vs <sha>
+1 import that breaks rules
+
+#### Imports that break rules (1)
+- `src/features/checkout/index.ts` -> `src/entities/user/model.ts`: `stratum/public-api` (error)
