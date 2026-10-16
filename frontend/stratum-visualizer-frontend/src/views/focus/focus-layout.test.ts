@@ -93,6 +93,22 @@ describe('layoutColumns', () => {
     expect(layout.columns.find((c) => c.side === -2)!.groups[0].isOpen).toBe(false)
   })
 
+  it('bundles the 2nd hop group to group until the user expands the hop-1 group', () => {
+    const withOne = withAppModule(sharedApiImportedBySlices(1, 2), 1)
+    const app = withOne.modules.length - 1
+    const snapshot = { ...withOne, edges: [...withOne.edges, { from: app, to: 2, kind: EdgeKind.Static }] }
+    const m = buildModel(snapshot, [])
+    const hopTwoPairs = (expanded: Map<string, boolean>) =>
+      layoutColumns(m, SHARED_API, 2, expanded)
+        .bundles.filter((b) => b.pairs.every(([from]) => from === app))
+        .map((b) => b.pairs.length)
+    const hopOneGroup = layoutColumns(m, SHARED_API, 2, new Map()).columns.find((c) => c.side === -1)!.groups[0]
+
+    expect(hopOneGroup.isOpen).toBe(true)
+    expect(hopTwoPairs(new Map())).toEqual([2])
+    expect(hopTwoPairs(new Map([[hopOneGroup.key, true]]))).toEqual([1, 1])
+  })
+
   it('marks the far end of a drawn edge with a finding, not a module whose finding is on an undrawn edge', () => {
     const snapshot = withAppModule(sharedApiImportedBySlices(1, 2), 2)
     const findings = [finding(1, SHARED_API), finding(3, 2)]

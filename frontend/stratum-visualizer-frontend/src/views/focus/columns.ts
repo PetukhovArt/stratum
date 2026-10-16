@@ -264,20 +264,34 @@ const findingsIndex = (m: Model, edges: readonly DrawnEdge[]): FindingsAt => {
   return (side, id) => byFarEnd.get(`${side}:${id}`) ?? NONE
 }
 
-const anchorsOf = (columns: readonly Column[]): Map<string, Anchor> => {
-  const anchors = new Map<string, Anchor>()
+interface Anchors {
+  visible: Map<string, Anchor>
+  groupHeads: Map<string, Anchor>
+}
+
+const anchorsOf = (columns: readonly Column[]): Anchors => {
+  const visible = new Map<string, Anchor>()
+  const groupHeads = new Map<string, Anchor>()
   for (const c of columns) {
     for (const g of c.groups) {
       const box = { xl: g.x, xr: g.x + COLUMN.width }
+      const head: Anchor = { ...box, key: g.key, y: g.y + COLUMN.groupHead / 2 }
+      for (const id of g.ids) groupHeads.set(`${c.side}:${id}`, head)
       if (g.isOpen) {
-        for (const r of g.rows) anchors.set(`${c.side}:${r.id}`, { ...box, key: `${c.side}:${r.id}`, y: r.y })
+        for (const r of g.rows) visible.set(`${c.side}:${r.id}`, { ...box, key: `${c.side}:${r.id}`, y: r.y })
         continue
       }
-      const head: Anchor = { ...box, key: g.key, y: g.y + COLUMN.groupHead / 2 }
-      for (const id of g.ids) anchors.set(`${c.side}:${id}`, head)
+      for (const id of g.ids) visible.set(`${c.side}:${id}`, head)
     }
   }
-  return anchors
+  return { visible, groupHeads }
+}
+
+const hopOneEndOfHopTwo = (anchors: Anchors, expanded: Expanded, key: string): Anchor | undefined => {
+  const head = anchors.groupHeads.get(key)
+  if (!head) return undefined
+  const isExpandedByUser = expanded.get(head.key) === true
+  return isExpandedByUser ? anchors.visible.get(key) : head
 }
 
 const FOCUS_LEFT: Anchor = { key: 'F', xl: -CARD.w / 2, xr: -CARD.w / 2, y: 0 }
@@ -289,13 +303,14 @@ interface BundleDraft extends Bundle {
   touches: Set<number>
 }
 
-const bundleEdges = (m: Model, edges: readonly DrawnEdge[], anchors: ReadonlyMap<string, Anchor>): Bundle[] => {
+const bundleEdges = (m: Model, edges: readonly DrawnEdge[], anchors: Anchors, expanded: Expanded): Bundle[] => {
   const byKey = new Map<string, BundleDraft>()
   for (const e of edges) {
-    const far = anchors.get(`${e.side}:${e.farEnd}`)
+    const far = anchors.visible.get(`${e.side}:${e.farEnd}`)
     const nearId = e.side > 0 ? e.from : e.to
     const focusAnchor = e.side > 0 ? FOCUS_RIGHT : FOCUS_LEFT
-    const near = e.nearSide === 0 ? focusAnchor : anchors.get(`${e.nearSide}:${nearId}`)
+    const near =
+      e.nearSide === 0 ? focusAnchor : hopOneEndOfHopTwo(anchors, expanded, `${e.nearSide}:${nearId}`)
     if (!far || !near) continue
     const [a, b] = e.side > 0 ? [near, far] : [far, near]
     const key = `${a.key}|${b.key}`
@@ -331,7 +346,7 @@ export const layoutColumns = (m: Model, focus: number, hops: Hops, expanded: Exp
     columns.push(layoutColumn(m, in2, -2, expanded, farX(left) - COLUMN.hopGap, findingsAt))
     columns.push(layoutColumn(m, out2, 2, expanded, farX(right) + COLUMN.hopGap, findingsAt))
   }
-  const bundles = bundleEdges(m, edges, anchorsOf(columns))
+  const bundles = bundleEdges(m, edges, anchorsOf(columns), expanded)
 
   const card = { x: -CARD.w / 2, y: -CARD.h / 2, w: CARD.w, h: CARD.h }
   const minY = Math.min(-MIN_HALF_HEIGHT, card.y, ...columns.map((c) => c.top - COLUMN.titleGap))
