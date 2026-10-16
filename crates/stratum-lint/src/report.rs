@@ -2,7 +2,10 @@ use std::time::Duration;
 
 use serde::Serialize;
 use stratum_core::severity::Severity;
-pub use stratum_engine::{EdgeRef, Finding};
+pub use stratum_engine::{EdgeRef, Finding, Suppressed};
+
+const EXIT_ERRORS: i32 = 1;
+const EXIT_STALE_BASELINE: i32 = 3;
 
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct Summary {
@@ -11,10 +14,13 @@ pub struct Summary {
     pub infos: usize,
     pub baselined: usize,
     pub fixed: usize,
+    pub suppressed: usize,
     pub scope_files: Option<usize>,
     pub zero_config: bool,
     #[serde(rename = "elapsed_ms", serialize_with = "as_millis")]
     pub elapsed: Duration,
+    #[serde(skip)]
+    pub fixed_in_scope: usize,
 }
 
 #[allow(clippy::trivially_copy_pass_by_ref)]
@@ -33,20 +39,32 @@ impl Summary {
 pub struct Report {
     pub summary: Summary,
     pub findings: Vec<Finding>,
+    pub suppressed: Vec<Suppressed>,
 }
 
 impl Report {
     #[must_use]
-    pub fn new(findings: Vec<Finding>, mut summary: Summary) -> Self {
+    pub fn new(findings: Vec<Finding>, suppressed: Vec<Suppressed>, mut summary: Summary) -> Self {
         summary.errors = count(&findings, Severity::Error);
         summary.warnings = count(&findings, Severity::Warning);
         summary.infos = count(&findings, Severity::Info);
-        Self { summary, findings }
+        summary.suppressed = suppressed.len();
+        Self {
+            summary,
+            findings,
+            suppressed,
+        }
     }
 
     #[must_use]
-    pub fn exit_code(&self) -> i32 {
-        i32::from(self.summary.errors > 0)
+    pub const fn exit_code(&self) -> i32 {
+        if self.summary.errors > 0 {
+            EXIT_ERRORS
+        } else if self.summary.fixed_in_scope > 0 {
+            EXIT_STALE_BASELINE
+        } else {
+            0
+        }
     }
 }
 

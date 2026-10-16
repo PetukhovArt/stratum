@@ -8,7 +8,8 @@ Integration surfaces, in order of preference:
 | Surface | Use | Loop |
 |---|---|---|
 | `stratum-lsp` | per-edit diagnostics in any LSP-capable harness (Cursor, Codex…; Claude Code plugin `stratum-lsp` only without `typescript-lsp`) | warm, incremental |
-| `stratum-lint --changed --format agent` | end-of-turn / pre-commit / CI gate | cold, scoped report |
+| `stratum-lint --files F --format jsonl` | per-edit check of the files just written; one JSON finding per line ([Finding contract](#finding-contract---format-jsonl)) | scoped, within the one-file [budget](#budgets) |
+| `stratum-lint --changed=<base> --format jsonl\|agent` | end-of-turn / pre-commit / CI gate (write the `=`) | scoped report, within the changed-files [budget](#budgets) |
 | `stratum-lint context <file>` | before editing: where the file sits and what it may import | preventive |
 | `stratum-lint explain <rule>` | on demand, only when a rule is unfamiliar | judgement aid |
 | CI Template (GitLab, GitHub) | MR/PR gate with `--format gitlab` / `github`, `baseline --check` ratchet, advisory `diff --base` report; wiring in [ci.md](ci.md) | cold, whole project |
@@ -32,8 +33,9 @@ Source files: `.ts .tsx .mts .cts .js .jsx .mjs .cjs .vue`. No editor extensions
 
 ```
 stratum-lint [lint] [ROOT]                     # ROOT defaults to "."
-    [--format terminal|json|sarif|agent|gitlab|github]
+    [--format terminal|json|jsonl|sarif|agent|gitlab|github]
                                                # default terminal; agent = compact, token-cheap text;
+                                               # jsonl = one finding per line (Finding contract v1);
                                                # gitlab = Code Quality JSON; github = annotations, then agent text
     [--config PATH]                            # default ROOT/stratum.config.jsonc, else zero-config
     [--max N]                                  # agent format: cap printed violations, rest summarised (default 20)
@@ -65,18 +67,21 @@ stratum-lint visualize [ROOT] [--config PATH] [--base REF] [--no-open]
 
 ### Exit codes
 
-| Command | 0 | 1 | 2 |
-|---|---|---|---|
-| `lint` (default), every `--format` | no error-severity violation after baseline and scope; warnings and info may be listed | at least one error-severity violation | tool failure |
-| `lint --watch` | never: it runs until killed | | tool failure on any run |
-| `baseline` | file written | | tool failure; `--prune` without an existing baseline |
-| `baseline --check` | no entry count grew: equal, shrunk, introduced (absent at REF), or no baseline in the working tree | some entry count grew | tool failure; unknown REF; invalid baseline on either side; `--out` outside ROOT |
-| `diff` | no drift | drift (advisory: CI Templates let it pass) | tool failure; unknown REF; a graph fails to build on either side |
-| `explain` | printed | | tool failure; unknown slug |
-| `rules`, `context` | printed, whatever violations exist | | tool failure; `context` FILE outside ROOT |
-| `init` | config written | | tool failure; config already exists |
-| `snapshot` | snapshot written | | tool failure |
-| `visualize` | server stopped with Ctrl+C | | tool failure; unknown `--base` REF |
+| Command | 0 | 1 | 2 | 3 |
+|---|---|---|---|---|
+| `lint` (default), every `--format` | no error-severity violation after suppressions, baseline and scope, and no baseline entry fixed in scope; warnings and info may be listed | at least one error-severity violation | tool failure | no error-severity violation in scope, but the baseline holds at least one entry that is fixed in scope: stale baseline |
+| `lint --watch` | never: it runs until killed | | tool failure on any run | |
+| `baseline` | file written | | tool failure; `--prune` without an existing baseline | |
+| `baseline --check` | no entry count grew: equal, shrunk, introduced (absent at REF), or no baseline in the working tree | some entry count grew | tool failure; unknown REF; invalid baseline on either side; `--out` outside ROOT | |
+| `diff` | no drift | drift (advisory: CI Templates let it pass) | tool failure; unknown REF; a graph fails to build on either side | |
+| `explain` | printed | | tool failure; unknown slug | |
+| `rules`, `context` | printed, whatever violations exist | | tool failure; `context` FILE outside ROOT | |
+| `init` | config written | | tool failure; config already exists | |
+| `snapshot` | snapshot written | | tool failure | |
+| `visualize` | server stopped with Ctrl+C | | tool failure; unknown `--base` REF | |
+
+Only `lint` returns 3. Precedence when several apply: 2 over 1 over 3 over 0.
+A baseline entry is fixed in scope when the run no longer produces it and its file is in scope: the whole project when the run has no `--files` / `--changed`, else one of those files. `--no-baseline` never returns 3, and `baseline --check` is unaffected. The caller's action on 3 is `stratum-lint baseline --prune`, as a change of its own. Both CI Templates treat 3 as a pass.
 
 Tool failure: bad arguments, an invalid config (see Customization), a plugin that fails to load, an unreadable baseline, a failed `git` call for `--changed`, `--check`, `--base` or `diff`, a missing `--files` path. The message goes to stderr.
 An unknown REF carries the hint `git fetch --depth=1 origin <REF>`: a shallow CI clone lacks the base commit until it is fetched.
@@ -96,6 +101,36 @@ An unknown REF carries the hint `git fetch --depth=1 origin <REF>`: a shallow CI
 - Info-severity rules are advisory: one count line, no examples, not counted against `--max`.
 - Messages longer than 240 chars are clipped, with a `(+N chars, full text in --format json)` note.
 - A zero-config run appends `| zero-config: layers inferred from src/*, run "stratum-lint init" to pin them` to the summary line. Zero-config makes every `src/*` folder a layer and applies the `stratum:recommended` severities with `stratum/public-api`, `stratum/sibling-isolation` and `stratum/container-breadth` off, since they need declared layers and structure.
+
+### Finding contract (`--format jsonl`)
+
+One JSON object per finding, one per line, nothing else on stdout; a clean run prints nothing. Findings come in the same order as `--format json`. Fields, always these eight and in this order:
+
+```
+{"v":1,"tool":"stratum","rule":"stratum/public-api","severity":"warning","file":"src/shared/api/http.ts","line":2,"message":"Import of `src/features/cart/cart.tsx` reaches inside `src/features/cart`","fix":"Import from `src/features/cart` through its entry `src/features/cart/index.ts`, exporting the name there if it is missing."}
+```
+
+| Field | Meaning |
+|---|---|
+| `v` | contract version, `1` |
+| `tool` | `"stratum"` |
+| `rule` | rule slug |
+| `severity` | `error`, `warning` or `info` |
+| `file` | ROOT-relative path with `/` |
+| `line` | 1-based line of the import statement, call or declaration judged; a finding on a folder or the whole project sits on line 1 of one representative module |
+| `message` | what is wrong, full text |
+| `fix` | never empty: the violation's own advice, else the rule's `fix` from `explain`, else `Run "stratum-lint explain <rule>"` |
+
+Adding a field keeps `v`; renaming, removing or redefining one bumps it. Findings hidden by a suppression or the baseline are not printed. The exit code is the one of every format.
+
+### Suppressions
+
+`// stratum-ignore <slug>[, <slug>...] -- <reason>` (or `/* ... */`) hides the findings of those rules on the line after the comment. There is no file scope, and findings on a folder or on the whole project cannot be suppressed.
+
+- Suppressions apply before the baseline: a suppressed finding never counts as baselined, and a baseline entry it replaces counts as fixed.
+- `stratum/suppression` checks the directives. An error, and the directive suppresses nothing: no reason after `--`, or a slug that is not a rule. A warning: a valid directive that hides nothing (unused).
+- The summary of `--format json` gains `suppressed: N`; the agent summary line gains `, N suppressed`. `jsonl`, `gitlab` and `github` leave suppressed findings out; `sarif` keeps them with `suppressions: [{ "kind": "inSource", "justification": <reason> }]`.
+- A harness can treat an added line matching `\bstratum-ignore\b` as a new suppression.
 
 ### CI formats
 
@@ -125,6 +160,19 @@ Baseline file (`stratum.baseline.json`): `{ "version": 1, "violations": [{ rule,
 - The report stops at 8 KiB with a last line telling to run `stratum-lint diff --base <REF>` locally for the full report.
 - Drift is advisory: CI Templates treat exit 1 as a warning, never as a failed gate.
 
+### Budgets
+
+<!-- budgets:start -->
+| Scope | Invocation | p95 | Peak RSS |
+|---|---|---|---|
+| One file | `--files F`, warm cache | 300 ms | 150 MB |
+| Changed | `--changed`, <= 20 files, warm cache (git included) | 600 ms | 150 MB |
+| Full | whole project, warm cache | 500 ms | 200 MB |
+| Full, cold | whole project, empty cache | 1,500 ms | 300 MB |
+<!-- budgets:end -->
+
+Measured on a generated project of 4,000 modules, on Windows and macOS, before each release. For scale, a real 3,800-module project cold: full run p95 314 ms / 22 MB, `--files` p95 304 ms / 22 MB. Call `--changed=<base>` with the `=`.
+
 ### Sample output
 
 From `tests/fixtures/tiny-ts-violations`, `stratum-lint --format agent`, exit 1:
@@ -132,17 +180,17 @@ From `tests/fixtures/tiny-ts-violations`, `stratum-lint --format agent`, exit 1:
 ```
 stratum: 3 errors, 2 warnings, 1 info, 0.00s
 error stratum/purity (2) - stratum-lint explain stratum/purity
-  src/features/cart/index.ts:1 -> src/features/cart/cart.tsx  Module at purity 2 imports from purity 3: purer code cannot depend on impurer code
-  src/shared/api/http.ts:1 -> src/features/cart/cart.tsx  Module at purity 1 imports from purity 3: purer code cannot depend on impurer code
+  src/features/cart/index.ts:2 -> src/features/cart/cart.tsx  Module at purity 2 imports from purity 3: purer code cannot depend on impurer code
+  src/shared/api/http.ts:2 -> src/features/cart/cart.tsx  Module at purity 1 imports from purity 3: purer code cannot depend on impurer code
   fix: Move shared logic into a module at or below the lower purity, or inject the impure dependency at composition root.
 error stratum/no-circular-deps (1) - stratum-lint explain stratum/no-circular-deps
   src/features/cart/boom.ts:1  Circular dependency: boom.ts -> circle.ts
   fix: Break the cycle by extracting the shared piece into a lower-purity module or by inverting one of the dependencies.
 warning stratum/no-cross-layer-import (1) - stratum-lint explain stratum/no-cross-layer-import
-  src/shared/api/http.ts:1 -> src/features/cart/cart.tsx  Module imports from layer 'features' which 'shared' does not depend on
+  src/shared/api/http.ts:2 -> src/features/cart/cart.tsx  Module imports from layer 'features' which 'shared' does not depend on
   fix: Move the imported symbol into a layer 'shared' may reach, or add 'features' to 'shared'.depends_on if the dependency is legitimate.
 warning stratum/public-api (1) - stratum-lint explain stratum/public-api
-  src/shared/api/http.ts:1 -> src/features/cart/cart.tsx  Import of `src/features/cart/cart.tsx` reaches inside `src/features/cart`
+  src/shared/api/http.ts:2 -> src/features/cart/cart.tsx  Import of `src/features/cart/cart.tsx` reaches inside `src/features/cart`
   fix: Import from `src/features/cart` through its entry `src/features/cart/index.ts`, exporting the name there if it is missing.
 info (advisory, details in --format json): stratum/depth-ratio (1)
 ```
@@ -156,7 +204,7 @@ warning stratum/no-cross-layer-import (1) - stratum-lint explain stratum/no-cros
   ...
 ```
 
-`--format json` (version 2): `{ "version": 2, "summary": { errors, warnings, infos, baselined, fixed, scope_files, zero_config, elapsed_ms }, "violations": [{ rule, severity, message, file, location: { line, column }, edge: { from, to, kind } | null, suggestion }] }`. `scope_files` is `null` without `--files` / `--changed`; `kind` is `static`, `di` or `runtime`.
+`--format json` (version 2): `{ "version": 2, "summary": { errors, warnings, infos, baselined, fixed, suppressed, scope_files, zero_config, elapsed_ms }, "violations": [{ rule, severity, message, file, location: { line, column }, edge: { from, to, kind } | null, suggestion (the finding's fix, never empty) }] }`. `scope_files` is `null` without `--files` / `--changed`; `kind` is `static`, `di` or `runtime`.
 
 `--format sarif` (SARIF 2.1.0) uses slugs as `ruleId` and ROOT-relative `uri` with `uriBaseId: "%SRCROOT%"`.
 

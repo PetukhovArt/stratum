@@ -49,6 +49,11 @@ impl Scope {
     }
 
     #[must_use]
+    pub fn covers(&self, file: &str) -> bool {
+        self.0.contains(file)
+    }
+
+    #[must_use]
     pub fn touches(&self, f: &Finding) -> bool {
         self.0.contains(&f.file)
             || f.edge

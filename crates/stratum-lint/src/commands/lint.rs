@@ -11,8 +11,8 @@ use crate::{
     git,
     report::{Report, Summary},
     reporters::{
-        AgentReporter, GithubReporter, GitlabReporter, JsonReporter, Reporter, SarifReporter,
-        TerminalReporter,
+        AgentReporter, GithubReporter, GitlabReporter, JsonReporter, JsonlReporter, Reporter,
+        SarifReporter, TerminalReporter,
     },
     scope::Scope,
 };
@@ -37,6 +37,7 @@ fn render(
         Format::Github => GithubReporter::new(prefix()).write(report, w),
         Format::Terminal => TerminalReporter.write(report, w),
         Format::Json => JsonReporter.write(report, w),
+        Format::Jsonl => JsonlReporter.write(report, w),
         Format::Sarif => SarifReporter.write(report, w),
         Format::Agent => AgentReporter {
             max: args.max.unwrap_or(AgentReporter::DEFAULT_MAX),
@@ -59,15 +60,20 @@ fn gate(root: &Utf8Path, args: &LintArgs) -> miette::Result<Report> {
     };
     if scope.as_ref().is_some_and(Scope::is_empty) {
         summary.elapsed = started.elapsed();
-        return Ok(Report::new(Vec::new(), summary));
+        return Ok(Report::new(Vec::new(), Vec::new(), summary));
     }
 
-    let all = findings(&build(root, &loaded)?)?;
-    let matched = baseline.unwrap_or_default().matches(&all);
-    summary.fixed = matched.fixed;
+    let analysis = build(root, &loaded)?
+        .analyze()
+        .map_err(|e| miette::miette!("{e}"))?;
+    let in_scope = |f: &Finding| scope.as_ref().is_none_or(|s| s.touches(f));
+    let matched = baseline.unwrap_or_default().matches(&analysis.findings);
+    summary.fixed = matched.fixed();
+    summary.fixed_in_scope =
+        matched.fixed_where(|file| scope.as_ref().is_none_or(|s| s.covers(file)));
     let mut kept = Vec::new();
-    for (f, baselined) in all.into_iter().zip(matched.baselined) {
-        if scope.as_ref().is_some_and(|s| !s.touches(&f)) {
+    for (f, baselined) in analysis.findings.into_iter().zip(matched.baselined) {
+        if !in_scope(&f) {
             continue;
         }
         if baselined {
@@ -76,8 +82,13 @@ fn gate(root: &Utf8Path, args: &LintArgs) -> miette::Result<Report> {
             kept.push(f);
         }
     }
+    let suppressed = analysis
+        .suppressed
+        .into_iter()
+        .filter(|s| in_scope(&s.finding))
+        .collect();
     summary.elapsed = started.elapsed();
-    Ok(Report::new(kept, summary))
+    Ok(Report::new(kept, suppressed, summary))
 }
 
 pub fn load_config(root: &Utf8Path, path: Option<&Utf8Path>) -> miette::Result<LoadedConfig> {

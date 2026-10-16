@@ -5,6 +5,8 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 pub enum Format {
     Terminal,
     Json,
+    /// One finding per line (finding contract v1), nothing else
+    Jsonl,
     Sarif,
     /// Compact, token-cheap text for a model's context window.
     Agent,

@@ -59,8 +59,14 @@ package version; a bump requires a coordinated frontend release.
 - Rhai `m.imports` entries carry `specifier`, `line` and `type_only`.
 - `stratum/restricted-calls` entries: `name` also matches `ns.name()` on a namespace import, `obj.name` matches a member call on `obj`, `*.name` any member call.
 - `import.meta.glob('<pattern>')` with a relative or `/`-rooted literal pattern makes runtime edges to every matching module.
+- `--format jsonl`, the finding contract v1: one `{"v":1,"tool":"stratum","rule","severity","file","line","message","fix"}` object per line, nothing else on stdout, a clean run prints nothing. `fix` is never empty: the violation's own text, else the rule doc's fix, else `Run "stratum-lint explain <rule>"`. See `docs/harness.md`.
+- Exit code 3 of `lint`: no error in scope, but the baseline holds an entry fixed in scope (stale baseline); prune it with `baseline --prune` in a change of its own. Precedence 2, 1, 3, 0. `--no-baseline` never returns 3. Both CI Templates treat 3 as a pass.
+- Inline suppression `// stratum-ignore <slug>[, <slug>] -- <reason>` (next line only), checked by `stratum/suppression`: a missing reason or an unknown slug is an error and suppresses nothing, a directive that hides nothing is a warning. Applied before the baseline. `--format json` summary gains `suppressed`, the agent summary `, N suppressed`; `jsonl`, `gitlab` and `github` omit suppressed findings, `sarif` keeps them with `suppressions`.
+- `docs/harness.md` budgets table and `eval/` fixtures (`eval/README.md`) with the runner `crates/stratum-lint/tests/eval.rs`.
 
 ### Changed
+
+- Every finding carries a non-empty fix, so `--format json` v2 `suggestion` is never `null` and the terminal and agent formats print a `fix:` line for every rule.
 
 - `stratum-lsp`:
   - `initialize` answers at once and the analysis runs in the background.

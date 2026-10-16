@@ -41,6 +41,8 @@ runs:
         stratum-lint --version
         rc=
         stratum-lint "$ROOT" --format github || rc=$?
+        # Exit 3: no error, but baseline entries are fixed and could be pruned. Not a failure.
+        if [ "$rc" = 3 ]; then rc=; fi
         if [ -n "$BASE" ]; then
           if [ "$ACCEPT_DEBT" = true ]; then
             echo "stratum: label stratum:accept-debt is set, baseline --check skipped"

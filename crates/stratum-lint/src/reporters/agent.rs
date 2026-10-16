@@ -100,6 +100,9 @@ fn summary_line(s: &Summary) -> String {
     if s.baselined > 0 {
         let _ = write!(line, ", {} baselined", s.baselined);
     }
+    if s.suppressed > 0 {
+        let _ = write!(line, ", {} suppressed", s.suppressed);
+    }
     if s.fixed > 0 {
         let _ = write!(
             line,
@@ -146,10 +149,8 @@ fn clip(message: &str) -> String {
 }
 
 fn common_fix<'a>(hits: &[&'a Finding]) -> Option<&'a str> {
-    let first = hits.first()?.fix.as_deref()?;
-    hits.iter()
-        .all(|f| f.fix.as_deref() == Some(first))
-        .then_some(first)
+    let first = hits.first()?.fix.as_str();
+    hits.iter().all(|f| f.fix == first).then_some(first)
 }
 
 #[cfg(test)]
@@ -174,7 +175,7 @@ mod tests {
                 to: "src/app/main.ts".into(),
                 kind: EdgeKind::Static,
             }),
-            fix: Some("move it".into()),
+            fix: "move it".into(),
             members: Vec::new(),
         }
     }
@@ -182,7 +183,7 @@ mod tests {
     fn render(findings: Vec<Finding>, summary: Summary, max: usize) -> String {
         let mut buf = Vec::new();
         AgentReporter { max }
-            .write(&Report::new(findings, summary), &mut buf)
+            .write(&Report::new(findings, Vec::new(), summary), &mut buf)
             .unwrap();
         String::from_utf8(buf).unwrap()
     }

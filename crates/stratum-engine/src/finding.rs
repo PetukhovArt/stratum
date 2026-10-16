@@ -16,7 +16,8 @@ pub struct Finding {
     pub file: String,
     pub location: SourceLocation,
     pub edge: Option<EdgeRef>,
-    pub fix: Option<String>,
+    /// Never empty: the violation's own text, else the rule doc's fix, else a pointer to `explain`.
+    pub fix: String,
     #[serde(skip)]
     pub members: Vec<String>,
 }

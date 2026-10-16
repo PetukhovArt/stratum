@@ -6,19 +6,23 @@ use stratum_core::severity::Severity;
 
 use crate::registry::DynRule;
 
-pub(crate) struct EffectiveSeverities<'c> {
+#[derive(Debug)]
+pub struct EffectiveSeverities<'c> {
     config: &'c Config,
     overrides: Overrides<'c>,
     root: String,
 }
 
-pub(crate) struct FileSeverities<'s> {
+#[derive(Debug)]
+pub struct FileSeverities<'s> {
     of: &'s EffectiveSeverities<'s>,
     blocks: Vec<&'s OverrideBlock>,
 }
 
 impl<'c> EffectiveSeverities<'c> {
-    pub(crate) fn new(config: &'c Config, project_root: &Utf8Path) -> Result<Self, ConfigError> {
+    /// # Errors
+    /// Returns [`ConfigError`] when an override block holds an invalid glob.
+    pub fn new(config: &'c Config, project_root: &Utf8Path) -> Result<Self, ConfigError> {
         let root = project_root.as_str();
         let root = root.strip_prefix(r"\\?\").unwrap_or(root);
         Ok(Self {
@@ -32,7 +36,8 @@ impl<'c> EffectiveSeverities<'c> {
         self.for_slashed(&slashed(file))
     }
 
-    pub(crate) fn for_slashed(&self, file: &str) -> FileSeverities<'_> {
+    #[must_use]
+    pub fn for_slashed(&self, file: &str) -> FileSeverities<'_> {
         self.for_relative(under(file, &self.root).unwrap_or(file))
     }
 
@@ -47,7 +52,7 @@ impl<'c> EffectiveSeverities<'c> {
         }
     }
 
-    pub(crate) fn off_everywhere(&self, rule: &dyn DynRule) -> bool {
+    pub fn off_everywhere(&self, rule: &dyn DynRule) -> bool {
         let slug = rule.slug();
         self.base(rule) == Severity::Off
             && self
@@ -67,7 +72,7 @@ impl<'c> EffectiveSeverities<'c> {
 }
 
 impl FileSeverities<'_> {
-    pub(crate) fn of(&self, rule: &dyn DynRule) -> Severity {
+    pub fn of(&self, rule: &dyn DynRule) -> Severity {
         self.blocks
             .iter()
             .rev()
