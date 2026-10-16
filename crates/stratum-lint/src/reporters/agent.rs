@@ -52,13 +52,17 @@ impl Reporter for AgentReporter {
             writeln!(out, "{severity} {rule} ({}){hint}", hits.len())?;
             let shown = hits.len().min(EXAMPLES_PER_RULE).min(budget);
             budget -= shown;
+            let common = common_suggestion(&hits);
             for f in &hits[..shown] {
                 writeln!(out, "  {}", example(f))?;
+                if let (None, Some(fix)) = (common, f.suggestion.as_deref()) {
+                    writeln!(out, "    fix: {fix}")?;
+                }
             }
             if hits.len() > shown {
                 writeln!(out, "  ... {} more", hits.len() - shown)?;
             }
-            if let Some(fix) = common_suggestion(&hits) {
+            if let Some(fix) = common {
                 writeln!(out, "  fix: {fix}")?;
             }
         }
@@ -197,6 +201,24 @@ mod tests {
             ..Summary::default()
         };
         insta::assert_snapshot!(render(Vec::new(), summary, 20));
+    }
+
+    #[test]
+    fn differing_fixes_print_under_each_example() {
+        let mut a = finding("stratum/no-circular-deps", Severity::Error, "src/a.ts");
+        let mut b = finding("stratum/no-circular-deps", Severity::Error, "src/b.ts");
+        a.suggestion = Some("cut a.ts -> x.ts".into());
+        b.suggestion = Some("cut b.ts -> y.ts".into());
+        let text = render(vec![a, b], Summary::default(), 20);
+        assert!(
+            text.contains("in src/a.ts\n    fix: cut a.ts -> x.ts\n"),
+            "{text}"
+        );
+        assert!(
+            text.contains("in src/b.ts\n    fix: cut b.ts -> y.ts\n"),
+            "{text}"
+        );
+        assert!(!text.contains("\n  fix:"), "{text}");
     }
 
     #[test]

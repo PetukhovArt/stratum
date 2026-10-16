@@ -12,7 +12,7 @@ pub mod snapshot;
 pub mod topo;
 
 pub use builder::{BuildConfig, BuildError, GraphBuilder};
-pub use cycles::{Cycle, find_cycles};
+pub use cycles::{Breaks, Cut, Cycle, break_candidates, find_cycles};
 pub use graph::{CompoundGraph, PrivateZone};
 pub use index::{DirEntries, DirRole};
 pub use snapshot::{

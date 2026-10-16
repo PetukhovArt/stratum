@@ -15,7 +15,7 @@ use stratum_rules::{DynRule, RuleRegistry};
 
 use crate::baseline::BaselineError;
 use crate::finding::{EdgeRef, Finding};
-use crate::paths::{canonicalize, relative};
+use crate::paths::{canonicalize, relative, relative_in_text};
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
@@ -86,7 +86,9 @@ impl EngineInput {
             }),
             members: v.modules.iter().map(|&id| self.module_path(id)).collect(),
             message: v.message,
-            suggestion: v.suggestion,
+            suggestion: v
+                .suggestion
+                .map(|fix| relative_in_text(&fix, &self.project_root)),
         }
     }
 }

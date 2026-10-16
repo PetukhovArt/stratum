@@ -16,9 +16,9 @@ expression: "lint(\"exemplar-stratum-app\", \"gitlab\")"
     }
   },
   {
-    "description": "Circular dependency: boom.ts -> circle.ts",
+    "description": "Import cycle of 2 modules through boom.ts; about 1 imports close it",
     "check_name": "stratum/no-circular-deps",
-    "fingerprint": "d6f7f432336c6bb1ca7861c89c418c68",
+    "fingerprint": "ae6a9a78bed6ee602b21e2bed132fda3",
     "severity": "major",
     "location": {
       "path": "web/src/features/cart/boom.ts",

@@ -3,7 +3,7 @@ source: crates/stratum-lint/tests/e2e_ci_formats.rs
 expression: "without_elapsed(&lint(\"tiny-ts-violations\", \"github\"))"
 ---
 ::error file=web/src/features/cart/index.ts,line=1,col=1,title=stratum/purity::Module at purity 2 imports from purity 3: purer code cannot depend on impurer code
-::error file=web/src/features/cart/boom.ts,line=1,col=1,title=stratum/no-circular-deps::Circular dependency: boom.ts -> circle.ts
+::error file=web/src/features/cart/boom.ts,line=1,col=1,title=stratum/no-circular-deps::Import cycle of 2 modules through boom.ts; about 1 imports close it
 ::error file=web/src/shared/api/http.ts,line=1,col=1,title=stratum/purity::Module at purity 1 imports from purity 3: purer code cannot depend on impurer code
 ::warning file=web/src/shared/api/http.ts,line=1,col=1,title=stratum/no-cross-layer-import::Module imports from layer 'features' which 'shared' does not depend on
 ::warning file=web/src/shared/api/http.ts,line=1,col=1,title=stratum/public-api::Import of `src/features/cart/cart.tsx` reaches inside `src/features/cart`
@@ -13,8 +13,8 @@ error stratum/purity (2) - stratum-lint explain stratum/purity
   src/shared/api/http.ts:1 -> src/features/cart/cart.tsx  Module at purity 1 imports from purity 3: purer code cannot depend on impurer code
   fix: Move shared logic into a module at or below the lower purity, or inject the impure dependency at composition root.
 error stratum/no-circular-deps (1) - stratum-lint explain stratum/no-circular-deps
-  src/features/cart/boom.ts:1  Circular dependency: boom.ts -> circle.ts
-  fix: Break the cycle by extracting the shared piece into a lower-purity module or by inverting one of the dependencies.
+  src/features/cart/boom.ts:1  Import cycle of 2 modules through boom.ts; about 1 imports close it
+  fix: Break it at one of: `src/features/cart/boom.ts -> src/features/cart/circle.ts` (frees 2 of 2), `src/features/cart/circle.ts -> src/features/cart/boom.ts` (frees 2 of 2); extract the shared piece into a lower module or invert the dependency
 warning stratum/no-cross-layer-import (1) - stratum-lint explain stratum/no-cross-layer-import
   src/shared/api/http.ts:1 -> src/features/cart/cart.tsx  Module imports from layer 'features' which 'shared' does not depend on
   fix: Move the imported symbol into a layer 'shared' may reach, or add 'features' to 'shared'.depends_on if the dependency is legitimate.

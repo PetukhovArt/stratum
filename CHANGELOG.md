@@ -73,6 +73,7 @@ package version; a bump requires a coordinated frontend release.
 - `--format agent` collapses info findings into one advisory line.
 - `/api/violations` carries rule slugs and ROOT-relative paths.
 - `context` is more accurate, with the brief version unchanged: the sibling line appears only when an isolated sibling exists, and a rule turned off for the file by an override lifts its limit (cross-layer off: every layer; purity off: purity <= 4; visibility off: every private zone).
+- `stratum/no-circular-deps` reports one finding per cycle at its anchor (the member with the smallest path) with a message of at most 240 characters: `Import cycle of N modules through <anchor>; about k imports close it`. It no longer lists every member; the fix names up to three imports to break, best first, each with how many modules it frees from the cycle. `--format agent` prints the fix under each example when the fixes in a group differ. Baseline entries for the old `Circular dependency: …` message go stale.
 
 ### Fixed
 

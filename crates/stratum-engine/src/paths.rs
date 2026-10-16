@@ -14,6 +14,14 @@ pub fn strip_verbatim(path: &str) -> &str {
     path.strip_prefix(VERBATIM_PREFIX).unwrap_or(path)
 }
 
+/// Rewrites every `ROOT/`-prefixed path inside free text (a rule's fix, which
+/// cannot see ROOT) to its ROOT-relative form.
+#[must_use]
+pub fn relative_in_text(text: &str, root: &Utf8Path) -> String {
+    let root = strip_verbatim(root.as_str()).replace('\\', "/");
+    text.replace(&format!("{}/", root.trim_end_matches('/')), "")
+}
+
 #[must_use]
 pub fn relative(path: &Path, root: &Utf8Path) -> String {
     let path = path.to_string_lossy();

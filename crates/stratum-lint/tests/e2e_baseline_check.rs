@@ -62,7 +62,7 @@ fn moving_a_violation_to_another_file_at_the_same_total_grows() {
 
     assert_eq!(code, Some(1), "{stdout}");
     assert!(
-        stdout.contains("+1 stratum/no-circular-deps src/features/cart/circle.ts Circular"),
+        stdout.contains("+1 stratum/no-circular-deps src/features/cart/circle.ts Import cycle"),
         "{stdout}"
     );
     assert!(!stdout.contains("src/features/cart/boom.ts"), "{stdout}");
