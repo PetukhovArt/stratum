@@ -1,11 +1,9 @@
-use std::collections::HashSet;
-
 use camino::Utf8Path;
 
-use stratum_core::types::Exports;
+use stratum_core::types::ExportOrigin;
 use stratum_parser_ts::{
-    ExtractError, ExtractedData, LanguageExtractor, RawCall, RawImport, SourceType, collect,
-    extract_purity,
+    ExtractError, ExtractedData, LanguageExtractor, RawCall, RawExports, RawImport, RawSuppression,
+    SourceType, TrackedCalls, collect, extract_purity,
 };
 
 use crate::setup_macros;
@@ -14,12 +12,12 @@ use crate::span_remap::shift;
 
 #[derive(Debug, Default, Clone)]
 pub struct VueExtractor {
-    tracked_calls: HashSet<String>,
+    tracked_calls: TrackedCalls,
 }
 
 impl VueExtractor {
     #[must_use]
-    pub const fn new(tracked_calls: HashSet<String>) -> Self {
+    pub const fn new(tracked_calls: TrackedCalls) -> Self {
         Self { tracked_calls }
     }
 }
@@ -35,8 +33,9 @@ impl LanguageExtractor for VueExtractor {
             message: e.to_string(),
         })?;
         let mut all_imports: Vec<RawImport> = Vec::new();
-        let mut exports = Exports::default();
+        let mut exports = RawExports::default();
         let mut calls: Vec<RawCall> = Vec::new();
+        let mut suppressions: Vec<RawSuppression> = Vec::new();
         for block in blocks {
             let st = if block.is_typescript {
                 SourceType::default()
@@ -48,34 +47,71 @@ impl LanguageExtractor for VueExtractor {
                     .with_module(true)
             };
             let collected = collect(&block.body, st, &self.tracked_calls);
-            let macros = if block.setup {
-                setup_macros::surface(&block.body, st)
-            } else {
-                0
-            };
-            exports.count = exports
-                .count
-                .saturating_add(collected.exports.count)
-                .saturating_add(macros);
-            exports.star_reexports += collected.exports.star_reexports;
+            if block.setup {
+                exports.unimportable = exports
+                    .unimportable
+                    .saturating_add(setup_macros::surface(&block.body, st));
+            }
+            let offset = block.content_range.start;
+            let first_import = all_imports.len();
+            exports.unimportable = exports
+                .unimportable
+                .saturating_add(collected.exports.unimportable);
+            exports
+                .stars
+                .extend(collected.exports.stars.iter().map(|i| first_import + i));
+            for mut decl in collected.exports.decls {
+                decl.span = shift(decl.span, offset);
+                if let ExportOrigin::Reexport { import, .. } = &mut decl.origin {
+                    *import += first_import;
+                }
+                exports.decls.push(decl);
+            }
             for mut imp in collected.imports {
-                imp.span = shift(imp.span, block.content_range.start);
+                imp.span = shift(imp.span, offset);
+                imp.statement = shift(imp.statement, offset);
                 all_imports.push(imp);
             }
             for mut call in collected.calls {
-                call.span = shift(call.span, block.content_range.start);
+                call.span = shift(call.span, offset);
                 calls.push(call);
             }
+            for mut suppression in collected.suppressions {
+                suppression.span = shift(suppression.span, offset);
+                suppressions.push(suppression);
+            }
         }
-        all_imports.sort_by_key(|i| (i.specifier.clone(), i.span.start));
-        all_imports.dedup_by(|a, b| a.specifier == b.specifier && a.span.start == b.span.start);
+        let all_imports = sorted_by_specifier(all_imports, &mut exports);
         Ok(ExtractedData {
             imports: all_imports,
             purity: extract_purity(source),
             exports,
             calls,
+            suppressions,
         })
     }
+}
+
+fn sorted_by_specifier(imports: Vec<RawImport>, exports: &mut RawExports) -> Vec<RawImport> {
+    let mut order: Vec<usize> = (0..imports.len()).collect();
+    order.sort_by(|&a, &b| {
+        (&imports[a].specifier, imports[a].span.start)
+            .cmp(&(&imports[b].specifier, imports[b].span.start))
+    });
+    let mut new_index = vec![0; imports.len()];
+    for (new, &old) in order.iter().enumerate() {
+        new_index[old] = new;
+    }
+    for star in &mut exports.stars {
+        *star = new_index[*star];
+    }
+    for decl in &mut exports.decls {
+        if let ExportOrigin::Reexport { import, .. } = &mut decl.origin {
+            *import = new_index[*import];
+        }
+    }
+    let mut slots: Vec<Option<RawImport>> = imports.into_iter().map(Some).collect();
+    order.iter().filter_map(|&old| slots[old].take()).collect()
 }
 
 #[cfg(test)]
@@ -117,13 +153,16 @@ mod tests {
         let data = VueExtractor::default()
             .extract(Utf8Path::new("Btn.vue"), src)
             .unwrap();
-        assert_eq!(data.exports.count, 4);
+        assert_eq!(data.exports.decls.len(), 2);
+        assert_eq!(data.exports.unimportable, 2);
     }
 
     #[test]
     fn tracked_calls_in_both_script_blocks_map_to_sfc_offsets() {
         let src = "<script>\nprovide('a', 1);\n</script>\n<script setup>\nimport { inject as i } from 'vue';\ni('a');\n</script>";
-        let tracked = ["inject".to_owned(), "provide".to_owned()].into();
+        let mut tracked = TrackedCalls::default();
+        tracked.insert("inject").unwrap();
+        tracked.insert("provide").unwrap();
         let data = VueExtractor::new(tracked)
             .extract(Utf8Path::new("Di.vue"), src)
             .unwrap();

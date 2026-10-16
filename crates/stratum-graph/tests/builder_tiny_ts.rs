@@ -45,9 +45,9 @@ fn tiny_ts_graph_snapshot() {
     let cfg = BuildConfig {
         project_root: root.clone(),
         layers,
+        tracked_calls: stratum_graph::TrackedCalls::default(),
         default_purity: Purity::new(2).unwrap(),
         structure: stratum_core::structure::Structure::default(),
-        tracked_calls: std::collections::HashSet::new(),
     };
     let graph = GraphBuilder::new(cfg).build().unwrap();
     let snap = snapshot_of(&graph, &root);

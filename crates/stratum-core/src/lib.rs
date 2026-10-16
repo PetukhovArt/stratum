@@ -23,7 +23,10 @@ pub use crate::{
     severity::Severity,
     stage::{InvalidStage, Stage},
     structure::Structure,
-    types::{Call, Container, ContainerKind, Exports, Layer, Module},
+    types::{
+        Bindings, Call, Container, ContainerKind, ExportDecl, ExportOrigin, Exports, Import,
+        ImportedName, Layer, Module, Suppression,
+    },
     violation::{SourceLocation, Violation},
     visibility::VisibilityScope,
 };

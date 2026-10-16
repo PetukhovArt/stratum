@@ -98,7 +98,7 @@ fn violation(
         location: SourceLocation { line: 1, column: 1 },
         modules: vec![rep],
         edge: None,
-        suggestion: Some(
+        fix: Some(
             "Group the files into segment folders (stage 3), or split them into sub-units with their own entry file (stage 4).".into(),
         ),
     })
@@ -225,6 +225,8 @@ mod tests {
                     visibility,
                     exports: stratum_core::types::Exports::default(),
                     calls: vec![],
+                    imports: vec![],
+                    suppressions: vec![],
                 },
             );
         }

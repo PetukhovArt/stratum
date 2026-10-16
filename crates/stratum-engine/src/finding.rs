@@ -16,7 +16,7 @@ pub struct Finding {
     pub file: String,
     pub location: SourceLocation,
     pub edge: Option<EdgeRef>,
-    pub suggestion: Option<String>,
+    pub fix: Option<String>,
     #[serde(skip)]
     pub members: Vec<String>,
 }

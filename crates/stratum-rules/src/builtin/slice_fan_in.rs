@@ -79,7 +79,7 @@ impl Rule for SliceFanIn {
             location: SourceLocation { line: 1, column: 1 },
             modules: vec![rep],
             edge: None,
-            suggestion: Some(
+            fix: Some(
                 "Narrow the slice's entry or split it so each importer reaches only the part it needs; code every slice needs may belong in a lower layer.".into(),
             ),
         }]
@@ -152,6 +152,8 @@ mod tests {
                     visibility: VisibilityScope::Public,
                     exports: stratum_core::types::Exports::default(),
                     calls: vec![],
+                    imports: vec![],
+                    suppressions: vec![],
                 },
             );
         }

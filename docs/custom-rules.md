@@ -183,7 +183,7 @@ A Rhai rule is a `.rhai` script, in the small embedded [Rhai](https://rhai.rs/) 
        let out = [];
        for i in m.imports {
            if i.path.contains("/legacy/") {
-               out.push(#{ message: "imports legacy module " + i.path, suggestion: "Use the replacement in shared/." });
+               out.push(#{ message: "imports legacy module " + i.path, fix: "Use the replacement in shared/." });
            }
        }
        out
@@ -217,7 +217,7 @@ The script defines `fn check(m)` or `fn check(m, options)`; a script with neithe
 | `m.container` | `int` | Id of the innermost container. Deterministic for a given file set, not stable when files are added or removed. |
 | `m.purity` | `int` | Purity rank, 1–4. |
 | `m.dependents` | `array` of `int` | Ids of the modules that import this one. |
-| `m.imports` | `array` of `map` | Imports that resolve to a module in a layer: `#{ path, layer, kind }`, with `path` absolute and `kind` one of `"static"`, `"di"`, `"runtime"`. Package imports and raw specifiers are absent. |
+| `m.imports` | `array` of `map` | Imports that resolve to a module in a layer: `#{ path, layer, kind, specifier, line, type_only }`, with `path` absolute, `kind` one of `"static"`, `"di"`, `"runtime"`, `specifier` as written in source and `line` the 1-based line of the import statement. Package imports are absent. |
 | `m.metadata` | `map` | Reserved; empty. |
 
 ```rhai
@@ -240,7 +240,7 @@ Return an `Array` of `Map` entries, one per violation; `[]` means none. Entries 
 |-----|------|----------|-------------|
 | `message` | `string` | yes | The diagnostic message. |
 | `line` | `int` | no (defaults to 1) | 1-based line of the source location. |
-| `suggestion` | `string` | no | Advice text, never an auto-applied fix. |
+| `fix` | `string` | no | Advice text, never an auto-applied edit. The old key `suggestion` is still read, with a deprecation warning on stderr once per rule. |
 
 The severity comes from the config; the script never sets it. A `check` call that fails at runtime logs `[rhai-rule <slug>] call_fn failed: ...` to stderr and reports nothing for that module.
 

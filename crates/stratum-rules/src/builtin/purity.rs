@@ -55,7 +55,7 @@ pub(crate) fn judge(graph: &CompoundGraph, from: ModuleId, to: ModuleId) -> Opti
             from.rank(),
             to.rank()
         ),
-        suggestion: Some(
+        fix: Some(
             "Move shared logic into a module at or below the lower purity, or inject the impure dependency at composition root."
                 .into(),
         ),
@@ -86,6 +86,8 @@ mod tests {
             visibility: VisibilityScope::Public,
             exports: stratum_core::types::Exports::default(),
             calls: vec![],
+            imports: vec![],
+            suppressions: vec![],
         }
     }
 

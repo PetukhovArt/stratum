@@ -86,7 +86,7 @@ impl EngineInput {
             }),
             members: v.modules.iter().map(|&id| self.module_path(id)).collect(),
             message: v.message,
-            suggestion: v.suggestion,
+            fix: v.fix,
         }
     }
 }

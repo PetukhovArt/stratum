@@ -24,7 +24,7 @@ Source files: `.ts .tsx .mts .cts .js .jsx .mjs .cjs .vue`. No editor extensions
 - Baseline: violations matched by `ROOT/stratum.baseline.json` are not published, as in the CLI.
 - Unsaved buffers count. The graph stays in memory: `didOpen` / `didChange` re-parse that document from its buffer text, replace its outgoing edges and re-run the rules; nothing re-runs when its imports, purity, exports and tracked calls are unchanged. `didClose` clears the file's diagnostics and reverts it to the text on disk. A full rebuild re-applies every open buffer.
 - A full rebuild also runs on a `workspace/didChangeWatchedFiles` create or delete (the server registers a watcher for the source extensions when the client supports dynamic registration), for a document created after the last build, and when an incremental update fails. A watched change to a closed file re-parses it from disk.
-- Diagnostics are published only for open documents whose diagnostics changed. Each has `source: "stratum"`, `code` = rule slug (`stratum/no-cross-layer-import`, plugin slugs too), `message` = violation message, then the suggestion on the next line. `relatedInformation` points at the imported module of an import violation, or at up to 10 other members of a multi-module violation such as a cycle, which is reported on each member.
+- Diagnostics are published only for open documents whose diagnostics changed. Each has `source: "stratum"`, `code` = rule slug (`stratum/no-cross-layer-import`, plugin slugs too), `message` = violation message, then the fix on the next line. `relatedInformation` points at the imported module of an import violation, or at up to 10 other members of a multi-module violation such as a cycle, which is reported on each member.
 - stdout carries JSON-RPC only; logs go to `window/logMessage` (filter with `RUST_LOG`, default `warn,stratum_lsp=info`). The process exits on `exit`: code 0 after `shutdown`, else 1.
 - Claude Code routes each file extension to one LSP server, so `stratum-lsp` and a TypeScript server cannot both serve `.ts` there. Hence the separate `stratum-lsp` plugin.
 
@@ -90,7 +90,7 @@ An unknown REF carries the hint `git fetch --depth=1 origin <REF>`: a shallow CI
 `--format agent`:
 
 - The first line is a one-line summary; a clean run prints only that line, starting `stratum: ok, no new violations`.
-- Violations collapse into one group per rule and severity: a header with the count and an `explain` hint (once per rule), up to 3 examples, `... N more`, and the shared `fix:` line when every hit has the same suggestion.
+- Violations collapse into one group per rule and severity: a header with the count and an `explain` hint (once per rule), up to 3 examples, `... N more`, and the shared `fix:` line when every hit has the same fix.
 - `-> file` is the import target when the violation has an edge.
 - Groups are ordered by severity, then count. Past `--max` printed examples, the remaining groups collapse into one `+N more rules over --max M` line.
 - Info-severity rules are advisory: one count line, no examples, not counted against `--max`.

@@ -182,7 +182,7 @@ pub(crate) fn judge(
         .find(|p| p.denies_import_of(&from, &to))?;
     Some(Finding {
         message: format!("{} ({to})", policy.message),
-        suggestion: None,
+        fix: None,
     })
 }
 
@@ -227,6 +227,8 @@ mod tests {
                     visibility: VisibilityScope::Public,
                     exports: stratum_core::types::Exports::default(),
                     calls: vec![],
+                    imports: vec![],
+                    suppressions: vec![],
                 },
             );
         }

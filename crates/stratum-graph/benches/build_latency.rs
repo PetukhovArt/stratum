@@ -47,9 +47,9 @@ fn bench_build_tiny_ts(c: &mut Criterion) {
                 slices: false,
             },
         ],
+        tracked_calls: stratum_graph::TrackedCalls::default(),
         default_purity: Purity::new(2).unwrap(),
         structure: stratum_core::structure::Structure::default(),
-        tracked_calls: std::collections::HashSet::new(),
     };
     c.bench_function("build_tiny_ts_cold", |b| {
         b.iter(|| {

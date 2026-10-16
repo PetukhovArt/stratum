@@ -63,7 +63,7 @@ pub(crate) fn judge(graph: &CompoundGraph, from: ModuleId, to: ModuleId) -> Opti
         message: format!(
             "Module imports from layer '{to_layer_name}' which '{from_layer_name}' does not depend on"
         ),
-        suggestion: Some(format!(
+        fix: Some(format!(
             "Move the imported symbol into a layer '{from_layer_name}' may reach, or add '{to_layer_name}' to '{from_layer_name}'.depends_on if the dependency is legitimate."
         )),
     })
@@ -93,6 +93,8 @@ mod tests {
             visibility: VisibilityScope::Public,
             exports: stratum_core::types::Exports::default(),
             calls: vec![],
+            imports: vec![],
+            suppressions: vec![],
         }
     }
 

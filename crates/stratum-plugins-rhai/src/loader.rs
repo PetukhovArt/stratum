@@ -1,5 +1,5 @@
 use std::fs;
-use std::sync::Arc;
+use std::sync::{Arc, Once};
 
 use camino::{Utf8Path, Utf8PathBuf};
 use rhai::{AST, Dynamic, Engine, Scope};
@@ -80,6 +80,7 @@ pub fn load(slug: &'static str, id: RuleId, path: &Utf8Path) -> Result<RhaiRule,
         engine: Arc::new(engine),
         takes_options,
         doc,
+        legacy_fix_key: Once::new(),
     })
 }
 

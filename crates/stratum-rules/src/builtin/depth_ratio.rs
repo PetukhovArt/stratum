@@ -50,14 +50,14 @@ impl Rule for DepthRatio {
             message: format!(
                 "Depth ratio {ratio:.2} ({size} modules in {container} / its {exports} exports) is below the configured minimum {min:.2}; module exposes too much relative to its container size",
                 container = outer.map_or_else(|| "its container".into(), |c| format!("'{}'", c.name)),
-                exports = m.exports.count,
+                exports = m.exports.count(),
                 min = options.min_ratio
             ),
             file: m.path.clone(),
             location: SourceLocation { line: 1, column: 1 },
             modules: vec![scope],
             edge: None,
-            suggestion: Some(
+            fix: Some(
                 "Consolidate functionality so each public symbol stands for more internal work, or split the container.".into(),
             ),
         }]
@@ -73,7 +73,7 @@ mod tests {
     use stratum_core::{
         ids::{ContainerId, LayerId},
         purity::Purity,
-        types::{Exports, Module},
+        types::{ExportDecl, ExportOrigin, Exports, Module},
         visibility::VisibilityScope,
     };
 
@@ -86,10 +86,19 @@ mod tests {
             purity: Purity::new(2).unwrap(),
             visibility: VisibilityScope::Public,
             exports: Exports {
-                count: exports,
-                star_reexports: 0,
+                decls: (0..exports)
+                    .map(|i| ExportDecl {
+                        name: format!("e{i}"),
+                        type_only: false,
+                        location: SourceLocation { line: 1, column: 1 },
+                        origin: ExportOrigin::Local,
+                    })
+                    .collect(),
+                ..Exports::default()
             },
             calls: vec![],
+            imports: vec![],
+            suppressions: vec![],
         }
     }
 

@@ -255,7 +255,7 @@ mod tests {
             file: file.into(),
             location: SourceLocation { line, column: 1 },
             edge: None,
-            suggestion: None,
+            fix: None,
             members: Vec::new(),
         }
     }

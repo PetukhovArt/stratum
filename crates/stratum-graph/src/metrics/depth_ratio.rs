@@ -9,11 +9,11 @@ use crate::graph::CompoundGraph;
 #[allow(clippy::cast_precision_loss)]
 pub fn depth_ratio(g: &CompoundGraph, module: ModuleId) -> Option<f64> {
     let m = g.modules.get(&module)?;
-    if m.exports.count == 0 {
+    if m.exports.count() == 0 {
         return None;
     }
     let size = g.subtree_module_count(super::outer_container(g, m));
-    Some(size as f64 / f64::from(m.exports.count))
+    Some(size as f64 / f64::from(m.exports.count()))
 }
 
 #[cfg(test)]
@@ -24,7 +24,8 @@ mod tests {
     use stratum_core::{
         ids::{ContainerId, LayerId},
         purity::Purity,
-        types::{Exports, Module},
+        types::{ExportDecl, ExportOrigin, Exports, Module},
+        violation::SourceLocation,
         visibility::VisibilityScope,
     };
 
@@ -37,10 +38,19 @@ mod tests {
             purity: Purity::new(2).unwrap(),
             visibility: VisibilityScope::Public,
             exports: Exports {
-                count: exports,
-                star_reexports: 0,
+                decls: (0..exports)
+                    .map(|i| ExportDecl {
+                        name: format!("e{i}"),
+                        type_only: false,
+                        location: SourceLocation { line: 1, column: 1 },
+                        origin: ExportOrigin::Local,
+                    })
+                    .collect(),
+                ..Exports::default()
             },
             calls: vec![],
+            imports: vec![],
+            suppressions: vec![],
         }
     }
 

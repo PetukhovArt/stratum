@@ -65,7 +65,7 @@ impl Rule for NoCircularDeps {
                 location: SourceLocation { line: 1, column: 1 },
                 modules: cycle.modules.clone(),
                 edge: None,
-                suggestion: Some(
+                fix: Some(
                     "Break the cycle by extracting the shared piece into a lower-purity module or by inverting one of the dependencies."
                         .into(),
                 ),
@@ -102,6 +102,8 @@ mod tests {
                 visibility: VisibilityScope::Public,
                 exports: stratum_core::types::Exports::default(),
                 calls: vec![],
+                imports: vec![],
+                suppressions: vec![],
             };
             let node = g.deps.add_node(id);
             g.node_index.insert(id, node);

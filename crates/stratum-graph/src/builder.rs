@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -12,10 +11,13 @@ use stratum_core::edge::EdgeKind;
 use stratum_core::ids::ModuleId;
 use stratum_core::purity::Purity;
 use stratum_core::structure::Structure;
-use stratum_core::types::{Call, Exports, Layer, Module};
+use stratum_core::types::{
+    Call, ExportDecl, ExportOrigin, Exports, Import, Layer, Module, Suppression,
+};
 use stratum_core::violation::SourceLocation;
 use stratum_parser_ts::{
-    LanguageExtractor, Overlaid, Overlay, OxcTsExtractor, PathResolver, offset_to_line_col,
+    ExtractedData, LanguageExtractor, LineIndex, Overlaid, Overlay, OxcTsExtractor, PathResolver,
+    RawImport, TrackedCalls,
 };
 
 use crate::graph::CompoundGraph;
@@ -58,7 +60,7 @@ pub struct BuildConfig {
     pub project_root: Utf8PathBuf,
     pub layers: Vec<Layer>,
     pub structure: Structure,
-    pub tracked_calls: HashSet<String>,
+    pub tracked_calls: TrackedCalls,
     pub default_purity: Purity,
 }
 
@@ -179,17 +181,20 @@ impl GraphBuilder {
                 layer: placed.layer,
                 purity: facts[i].purity.unwrap_or(self.config.default_purity),
                 visibility: placed.visibility,
-                exports: facts[i].exports,
+                exports: std::mem::take(&mut facts[i].exports),
                 calls: std::mem::take(&mut facts[i].calls),
+                imports: std::mem::take(&mut facts[i].imports),
+                suppressions: std::mem::take(&mut facts[i].suppressions),
             };
             let node = graph.deps.add_node(id);
             graph.node_index.insert(id, node);
             graph.modules.insert(id, module);
         }
 
-        for (i, f) in facts.into_iter().enumerate() {
-            let from_node = graph.node_index[&module_id(i)];
-            for (to_id, kind) in f.edges {
+        for i in 0..facts.len() {
+            let id = module_id(i);
+            let from_node = graph.node_index[&id];
+            for (to_id, kind) in edges(&graph.modules[&id].imports) {
                 let to_node = graph.node_index[&to_id];
                 graph.deps.add_edge(from_node, to_node, kind);
             }
@@ -326,33 +331,162 @@ impl GraphBuilder {
                 path: path.to_path_buf(),
                 source: e,
             })?;
-        let edges = data
-            .imports
-            .iter()
-            .filter_map(|imp| {
-                let target = self.resolver.resolve(path, &imp.specifier).ok()?;
-                let id = path_to_id.get(&strip_windows_extended_prefix(&target))?;
-                Some((*id, imp.kind))
-            })
-            .collect();
+        Ok(self.located(path, &LineIndex::new(source), data, path_to_id))
+    }
+
+    fn located(
+        &self,
+        path: &Utf8Path,
+        lines: &LineIndex<'_>,
+        data: ExtractedData,
+        path_to_id: &FxHashMap<Utf8PathBuf, ModuleId>,
+    ) -> FileFacts {
+        let at = |offset: u32| {
+            let (line, column) = lines.line_col(offset);
+            SourceLocation { line, column }
+        };
+        let mut imports = Vec::with_capacity(data.imports.len());
+        let mut first_of_raw = Vec::with_capacity(data.imports.len());
+        for raw in data.imports {
+            first_of_raw.push(imports.len());
+            let targets = if raw.glob {
+                self.glob_targets(path, &raw.specifier, path_to_id)
+            } else {
+                self.resolver
+                    .resolve(path, &raw.specifier)
+                    .ok()
+                    .and_then(|t| path_to_id.get(&strip_windows_extended_prefix(&t)).copied())
+                    .into_iter()
+                    .collect()
+            };
+            let location = at(raw.statement.start);
+            if targets.is_empty() {
+                imports.push(import(&raw, location, None));
+            }
+            imports.extend(targets.into_iter().map(|t| import(&raw, location, Some(t))));
+        }
+        let exports = Exports {
+            decls: data
+                .exports
+                .decls
+                .into_iter()
+                .map(|d| ExportDecl {
+                    name: d.name,
+                    type_only: d.type_only,
+                    location: at(d.span.start),
+                    origin: match d.origin {
+                        ExportOrigin::Reexport { import, imported } => ExportOrigin::Reexport {
+                            import: first_of_raw[import],
+                            imported,
+                        },
+                        ExportOrigin::Local => ExportOrigin::Local,
+                    },
+                })
+                .collect(),
+            stars: data
+                .exports
+                .stars
+                .into_iter()
+                .map(|i| first_of_raw[i])
+                .collect(),
+            unimportable: data.exports.unimportable,
+        };
         let calls = data
             .calls
             .into_iter()
-            .map(|call| {
-                let (line, column) = offset_to_line_col(source, call.span.start);
-                Call {
-                    name: call.name,
-                    location: SourceLocation { line, column },
-                }
+            .map(|call| Call {
+                name: call.name,
+                location: at(call.span.start),
             })
             .collect();
-        Ok(FileFacts {
+        let suppressions = data
+            .suppressions
+            .into_iter()
+            .map(|s| Suppression {
+                location: at(s.span.start),
+                applies_to: at(s.span.end).line.saturating_add(1),
+                slugs: s.slugs,
+                reason: s.reason,
+            })
+            .collect();
+        FileFacts {
             purity: data.purity,
-            exports: data.exports,
-            edges,
+            exports,
+            imports,
             calls,
-        })
+            suppressions,
+        }
     }
+
+    /// Modules an `import.meta.glob` pattern matches, the importer excluded. Relative patterns
+    /// and `/`-rooted ones (from ROOT) are resolved; alias patterns match nothing.
+    fn glob_targets(
+        &self,
+        from: &Utf8Path,
+        pattern: &str,
+        path_to_id: &FxHashMap<Utf8PathBuf, ModuleId>,
+    ) -> Vec<ModuleId> {
+        let root = &self.config.project_root;
+        let base: Vec<&str> = if pattern.starts_with('/') {
+            Vec::new()
+        } else if pattern.starts_with("./") || pattern.starts_with("../") {
+            let Some(dir) = from.parent().and_then(|d| d.strip_prefix(root).ok()) else {
+                return Vec::new();
+            };
+            dir.components().map(|c| c.as_str()).collect()
+        } else {
+            return Vec::new();
+        };
+        let Some(relative) = normalized(base, pattern) else {
+            return Vec::new();
+        };
+        let Ok(glob) = globset::GlobBuilder::new(&relative)
+            .literal_separator(true)
+            .build()
+        else {
+            return Vec::new();
+        };
+        let matcher = glob.compile_matcher();
+        let mut ids: Vec<ModuleId> = path_to_id
+            .iter()
+            .filter(|(path, _)| path.as_path() != from)
+            .filter(|(path, _)| {
+                path.strip_prefix(root)
+                    .is_ok_and(|rel| matcher.is_match(rel.as_str().replace('\\', "/")))
+            })
+            .map(|(_, id)| *id)
+            .collect();
+        ids.sort_unstable();
+        ids
+    }
+}
+
+fn normalized<'p>(mut segments: Vec<&'p str>, pattern: &'p str) -> Option<String> {
+    for segment in pattern.split('/') {
+        match segment {
+            "" | "." => {}
+            ".." => {
+                segments.pop()?;
+            }
+            s => segments.push(s),
+        }
+    }
+    Some(segments.join("/"))
+}
+
+fn import(raw: &RawImport, location: SourceLocation, target: Option<ModuleId>) -> Import {
+    Import {
+        specifier: raw.specifier.clone(),
+        location,
+        kind: raw.kind,
+        type_only: raw.type_only,
+        bindings: raw.bindings.clone(),
+        target,
+    }
+}
+
+pub(crate) fn edges(imports: &[Import]) -> impl Iterator<Item = (ModuleId, EdgeKind)> + '_ {
+    imports.iter().filter_map(|i| Some((i.target?, i.kind)))
 }
 
 fn module_id(index: usize) -> ModuleId {
@@ -365,8 +499,9 @@ const MAX_WORKERS: usize = 8;
 struct FileFacts {
     purity: Option<Purity>,
     exports: Exports,
-    edges: Vec<(ModuleId, EdgeKind)>,
+    imports: Vec<Import>,
     calls: Vec<Call>,
+    suppressions: Vec<Suppression>,
 }
 
 type Scan = Result<FileFacts, BuildError>;

@@ -51,7 +51,7 @@ impl Rule for MillerLimit {
             location: SourceLocation { line: 1, column: 1 },
             modules: vec![scope],
             edge: None,
-            suggestion: Some(
+            fix: Some(
                 "Split the module so each consumer reaches only the surface it needs, or move the implementation closer to its consumers.".into(),
             ),
         }]
@@ -82,6 +82,8 @@ mod tests {
             visibility: VisibilityScope::Public,
             exports: stratum_core::types::Exports::default(),
             calls: vec![],
+            imports: vec![],
+            suppressions: vec![],
         }
     }
 

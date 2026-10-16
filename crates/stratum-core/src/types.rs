@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    edge::EdgeKind,
     ids::{ContainerId, LayerId, ModuleId},
     purity::Purity,
     stage::Stage,
@@ -23,20 +24,102 @@ pub struct Module {
     pub exports: Exports,
     #[serde(default)]
     pub calls: Vec<Call>,
+    /// Source order, package and unresolved imports included.
+    #[serde(default)]
+    pub imports: Vec<Import>,
+    #[serde(default)]
+    pub suppressions: Vec<Suppression>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Call {
+    /// The tracked-call entry it matched: `inject`, `obj.get` or `*.get`.
     pub name: String,
     pub location: SourceLocation,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Import {
+    pub specifier: String,
+    /// Start of the import statement, or of the `import()` / `require()` / `import.meta.glob()` call.
+    pub location: SourceLocation,
+    pub kind: EdgeKind,
+    pub type_only: bool,
+    pub bindings: Bindings,
+    /// `None` for packages and anything else outside the graph.
+    pub target: Option<ModuleId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Bindings {
+    /// By the name the target exports; `default` for a default import.
+    Names(Vec<ImportedName>),
+    /// Namespace import, `export * as ns from`, `require()`, `import()`, `import.meta.glob()`.
+    All,
+    None,
+    Forward,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImportedName {
+    pub imported: String,
+    pub type_only: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Exports {
-    /// Distinct exported names, plus 1 for every `export * from`.
-    pub count: u32,
-    /// How many `export * from` entries `count` holds; each hides an unknown number of names.
-    pub star_reexports: u32,
+    /// One per distinct exported name.
+    pub decls: Vec<ExportDecl>,
+    /// Indices into [`Module::imports`] of every `export * from`.
+    pub stars: Vec<usize>,
+    /// Names counted toward the surface that no import can take (Vue `defineProps` members).
+    pub unimportable: u32,
+}
+
+impl Exports {
+    /// Distinct names, plus 1 for every `export * from`, plus the unimportable names.
+    #[must_use]
+    pub fn count(&self) -> u32 {
+        u32::try_from(self.decls.len() + self.stars.len())
+            .unwrap_or(u32::MAX)
+            .saturating_add(self.unimportable)
+    }
+
+    #[must_use]
+    pub fn star_reexports(&self) -> u32 {
+        u32::try_from(self.stars.len()).unwrap_or(u32::MAX)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExportDecl {
+    pub name: String,
+    pub type_only: bool,
+    pub location: SourceLocation,
+    pub origin: ExportOrigin,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExportOrigin {
+    Local,
+    /// `import` indexes [`Module::imports`]; `imported` is `*` for `export * as name from`.
+    Reexport {
+        import: usize,
+        imported: String,
+    },
+}
+
+/// A `stratum-ignore <slug>[, <slug>] -- <reason>` comment as written, not validated.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Suppression {
+    pub location: SourceLocation,
+    /// The line after the comment ends.
+    pub applies_to: u32,
+    pub slugs: Vec<String>,
+    /// `None` when there is no `--` or nothing after it.
+    pub reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

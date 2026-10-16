@@ -36,11 +36,11 @@ impl Rule for DeepModule {
         let Some(m) = graph.modules.get(&scope) else {
             return vec![];
         };
-        let exports = m.exports;
-        if exports.count <= options.max_exports {
+        let exports = &m.exports;
+        if exports.count() <= options.max_exports {
             return vec![];
         }
-        let stars = match exports.star_reexports {
+        let stars = match exports.star_reexports() {
             0 => String::new(),
             n => {
                 format!(", {n} of them `export *` re-exports counted as 1 each that may hide more")
@@ -51,14 +51,14 @@ impl Rule for DeepModule {
             severity,
             message: format!(
                 "Module exports {count} names{stars} (limit {limit}); split it or hide some exports",
-                count = exports.count,
+                count = exports.count(),
                 limit = options.max_exports
             ),
             file: m.path.clone(),
             location: SourceLocation { line: 1, column: 1 },
             modules: vec![scope],
             edge: None,
-            suggestion: Some(
+            fix: Some(
                 "Group related exports behind a single facade or split the module along the natural fault lines.".into(),
             ),
         }]
@@ -75,7 +75,7 @@ mod tests {
         edge::EdgeKind,
         ids::{ContainerId, LayerId},
         purity::Purity,
-        types::{Exports, Module},
+        types::{ExportDecl, ExportOrigin, Exports, Module},
         visibility::VisibilityScope,
     };
 
@@ -88,10 +88,19 @@ mod tests {
             purity: Purity::new(2).unwrap(),
             visibility: VisibilityScope::Public,
             exports: Exports {
-                count: exports,
-                star_reexports: 0,
+                decls: (0..exports)
+                    .map(|i| ExportDecl {
+                        name: format!("e{i}"),
+                        type_only: false,
+                        location: SourceLocation { line: 1, column: 1 },
+                        origin: ExportOrigin::Local,
+                    })
+                    .collect(),
+                ..Exports::default()
             },
             calls: vec![],
+            imports: vec![],
+            suppressions: vec![],
         }
     }
 

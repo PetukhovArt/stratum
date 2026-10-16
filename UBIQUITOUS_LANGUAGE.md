@@ -69,10 +69,10 @@
 | **Rule Doc** | What a **Rule** checks, why, how to fix a hit, and its options, as `explain` and `rules` show it. A **Custom Rule** supplies one through `fn doc()`. | rule help, rule description |
 | **Rule Scope** | The unit a **Rule** checks per call: a **Module**, a **Container**, or the whole project. | rule input, scope kind |
 | **Import Policy** | The declarative `stratum/import-policy` **Rule**: config policies of `from` / `except_from` / `deny` / `allow` / `slice` globs that deny **Edges** without scripting. | boundary rule, import rule |
-| **Violation** | One reported **Rule** infraction: **Rule Slug**, **Severity**, message, file, **Source Location**, the **Modules** involved, an optional **Edge**, an optional **Suggestion**. | error, issue |
+| **Violation** | One reported **Rule** infraction: **Rule Slug**, **Severity**, message, file, **Source Location**, the **Modules** involved, an optional **Edge**, an optional **Fix**. | error, issue |
 | **Severity** | One of `error`, `warning`, `info`, `off`. Only `error` makes the **Gate** fail. The configured severity is a cap: a **Rule** may report lower, never higher. | level, priority |
 | **Advisory** | An `info`-severity **Violation**. The agent format shows advisories as one count line, not counted against `--max`. | info finding, hint |
-| **Suggestion** | Human-readable advice attached to a **Violation**. Never an auto-applied fix: a **Violation** has no edit object. | autofix, quick fix, suggested fix |
+| **Fix** | Human-readable advice attached to a **Violation** on how to resolve it. Never applied: a **Violation** has no edit object. `--format json` v2 still names the field `suggestion`. | suggestion, autofix, quick fix |
 | **Config** | `stratum.config.jsonc` at the project root: `project` (`extends`, `ignore`), `structure`, `layers`, `rules`, `overrides`. Validated strictly: an unknown key, slug or option is an error. | settings, configuration |
 | **Override** | A glob-scoped block in the **Config** (`overrides[]`) that changes a **Rule**'s **Severity** for matching files, and nothing else. The last matching block wins per rule. | exception, scoped rule, override block |
 | **Ignore** | `project.ignore` globs, on top of built-in defaults (`node_modules`, `dist`, `out`, `build`, `coverage`, `.git`, `*.d.ts`), that keep files out of the **Compound DAG** entirely. Unlike an **Override**, an ignored file makes no **Edges**. | exclude |
@@ -107,8 +107,8 @@
 |------|-----------|-----------------|
 | **Plugin** | A user extension that delivers a **Custom Rule**: a **Rhai Script**. | extension, addon |
 | **Rhai Script** | A **Plugin** written in the Rhai DSL: `fn check(m)` or `fn check(m, options)` returning an array of maps, plus an optional `fn doc()`. No build step; the tool compiles it at load. | dsl rule, scripted rule |
-| **Plugin API** | What a **Rhai Script** sees and returns: a **Module View**, the rule's `options`, and an array of maps, each one **Violation** (`message`, optional `line`, optional `suggestion`). The engine is sandboxed: no filesystem, network or process; `eval` disabled; bounded recursion and operations. | extension API, SDK |
-| **Module View** | The read-only projection of a **Module** a **Rhai Script** sees: `id`, `path` (absolute, forward slashes), `layer`, `container`, `purity`, `dependents`, `imports` (`#{ path, layer, kind }` per **Edge**), `metadata` (reserved). Raw import specifiers are not exposed. | rhai module, plugin module |
+| **Plugin API** | What a **Rhai Script** sees and returns: a **Module View**, the rule's `options`, and an array of maps, each one **Violation** (`message`, optional `line`, optional `fix`; the old key `suggestion` is read with a deprecation warning). The engine is sandboxed: no filesystem, network or process; `eval` disabled; bounded recursion and operations. | extension API, SDK |
+| **Module View** | The read-only projection of a **Module** a **Rhai Script** sees: `id`, `path` (absolute, forward slashes), `layer`, `container`, `purity`, `dependents`, `imports` (`#{ path, layer, kind, specifier, line, type_only }` per **Edge**), `metadata` (reserved). Package imports are not exposed. | rhai module, plugin module |
 | **Plugin Hot-Reload** | Picking up a changed **Rhai Script** without restarting: the **LSP Server** watches every script referenced from the **Config** and rebuilds; **Watch Mode** re-runs on the next file event. | rhai reload, live plugin |
 
 ## Visualization
@@ -159,4 +159,4 @@
 - **"methodology"** vs **"Stratum"**: **Stratum** is the tool; FSD is one **Methodology**, shipped as a **Preset**.
 - **"violation"** vs **"error"**: **Violation** is the object; `error` is a value of **Severity**.
 - **"finding"**: the code calls a **Violation** in its reported form (slug, root-relative paths) a `Finding`. In prose say **Violation**.
-- **"fix"** vs **"suggestion"**: a **Violation** carries only a textual **Suggestion**. Do not speak of `fix.edits` or "auto-fix": that is a deliberate non-feature.
+- **"fix"** vs **"suggestion"**: a **Violation** carries only a textual **Fix**; `suggestion` is its old name, kept only on the json v2 wire. Do not speak of `fix.edits` or "auto-fix": that is a deliberate non-feature.

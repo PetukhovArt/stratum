@@ -5,9 +5,9 @@ expression: "without_elapsed(&lint(\"exemplar-stratum-app\", \"github\"))"
 ::error file=web/src/features/cart/boom.ts,line=1,col=1,title=stratum/no-circular-deps::Circular dependency: boom.ts -> circle.ts
 ::error file=web/src/shared/api/http.ts,line=1,col=1,title=stratum/no-cross-layer-import::Module imports from layer 'entities' which 'shared' does not depend on
 ::error file=web/src/shared/api/http.ts,line=1,col=1,title=stratum/public-api::Import of `src/entities/user/model.ts` reaches inside `src/entities/user`
-::error file=web/src/features/profile/index.ts,line=1,col=1,title=stratum/sibling-isolation::`src/features/profile` imports its sibling `src/features/checkout`; siblings inside `src/features` must stay independent
+::error file=web/src/features/profile/index.ts,line=4,col=1,title=stratum/sibling-isolation::`src/features/profile` imports its sibling `src/features/checkout`; siblings inside `src/features` must stay independent
 ::error file=web/src/features/cart/index.ts,line=1,col=1,title=stratum/stage-mixing::Container 'cart' mixes segment folders (model) with sub-units (coupon) on one level
-::error file=web/src/features/profile/index.ts,line=1,col=1,title=stratum/visibility-scope::`src/shared/_shared/token.ts` is in a private zone of `src/shared`; only modules under `src/shared` may import it
+::error file=web/src/features/profile/index.ts,line=3,col=1,title=stratum/visibility-scope::`src/shared/_shared/token.ts` is in a private zone of `src/shared`; only modules under `src/shared` may import it
 ::warning file=web/src/features/cart/index.ts,line=1,col=1,title=stratum/container-breadth::Container 'cart' (stage 4) holds 4 kinds directly inside it (limit 3); it is at stage 4 already: group its sub-units into fewer, larger ones
 ::warning file=web/src/shared/utils.ts,line=1,col=1,title=stratum/miller-limit::Imported by 3 modules from other containers whose layers depend on this one (limit 2); this module is a change hotspot
 ::warning file=web/src/features/cart/index.ts,line=9,col=1,title=stratum/restricted-calls::Use a scope hook (inject())
@@ -23,13 +23,13 @@ error stratum/public-api (1) - stratum-lint explain stratum/public-api
   src/shared/api/http.ts:1 -> src/entities/user/model.ts  Import of `src/entities/user/model.ts` reaches inside `src/entities/user`
   fix: Import from `src/entities/user` through its entry `src/entities/user/index.ts`, exporting the name there if it is missing.
 error stratum/sibling-isolation (1) - stratum-lint explain stratum/sibling-isolation
-  src/features/profile/index.ts:1 -> src/features/checkout/index.ts  `src/features/profile` imports its sibling `src/features/checkout`; siblings inside `src/features` must stay independent
+  src/features/profile/index.ts:4 -> src/features/checkout/index.ts  `src/features/profile` imports its sibling `src/features/checkout`; siblings inside `src/features` must stay independent
   fix: Move the shared code down (a lower layer or a private zone of `src/features`), or compose `src/features/profile` and `src/features/checkout` in `src/features`.
 error stratum/stage-mixing (1) - stratum-lint explain stratum/stage-mixing
   src/features/cart/index.ts:1  Container 'cart' mixes segment folders (model) with sub-units (coupon) on one level
   fix: Pick one split: move the segment folders' code into sub-units, or fold the sub-units back into segments.
 error stratum/visibility-scope (1) - stratum-lint explain stratum/visibility-scope
-  src/features/profile/index.ts:1 -> src/shared/_shared/token.ts  `src/shared/_shared/token.ts` is in a private zone of `src/shared`; only modules under `src/shared` may import it
+  src/features/profile/index.ts:3 -> src/shared/_shared/token.ts  `src/shared/_shared/token.ts` is in a private zone of `src/shared`; only modules under `src/shared` may import it
   fix: Import it through the entry of the container that owns `src/shared`, move the importer under `src/shared`, or move the code out of the private zone if it is meant to be shared.
 warning stratum/container-breadth (1) - stratum-lint explain stratum/container-breadth
   src/features/cart/index.ts:1  Container 'cart' (stage 4) holds 4 kinds directly inside it (limit 3); it is at stage 4 already: group its sub-units into fewer, larger ones

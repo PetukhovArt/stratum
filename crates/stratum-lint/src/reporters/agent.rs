@@ -58,7 +58,7 @@ impl Reporter for AgentReporter {
             if hits.len() > shown {
                 writeln!(out, "  ... {} more", hits.len() - shown)?;
             }
-            if let Some(fix) = common_suggestion(&hits) {
+            if let Some(fix) = common_fix(&hits) {
                 writeln!(out, "  fix: {fix}")?;
             }
         }
@@ -145,10 +145,10 @@ fn clip(message: &str) -> String {
     }
 }
 
-fn common_suggestion<'a>(hits: &[&'a Finding]) -> Option<&'a str> {
-    let first = hits.first()?.suggestion.as_deref()?;
+fn common_fix<'a>(hits: &[&'a Finding]) -> Option<&'a str> {
+    let first = hits.first()?.fix.as_deref()?;
     hits.iter()
-        .all(|f| f.suggestion.as_deref() == Some(first))
+        .all(|f| f.fix.as_deref() == Some(first))
         .then_some(first)
 }
 
@@ -174,7 +174,7 @@ mod tests {
                 to: "src/app/main.ts".into(),
                 kind: EdgeKind::Static,
             }),
-            suggestion: Some("move it".into()),
+            fix: Some("move it".into()),
             members: Vec::new(),
         }
     }

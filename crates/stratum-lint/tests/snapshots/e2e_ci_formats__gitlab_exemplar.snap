@@ -95,7 +95,7 @@ expression: "lint(\"exemplar-stratum-app\", \"gitlab\")"
     "location": {
       "path": "web/src/features/profile/index.ts",
       "lines": {
-        "begin": 1
+        "begin": 3
       }
     }
   },
@@ -143,7 +143,7 @@ expression: "lint(\"exemplar-stratum-app\", \"gitlab\")"
     "location": {
       "path": "web/src/features/profile/index.ts",
       "lines": {
-        "begin": 1
+        "begin": 4
       }
     }
   },

@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Once};
 
 use rhai::{AST, Array, Engine, Scope};
 
@@ -19,7 +19,10 @@ pub struct RhaiRule {
     pub engine: Arc<Engine>,
     pub takes_options: bool,
     pub doc: Option<RuleDoc>,
+    pub legacy_fix_key: Once,
 }
+
+const LEGACY_FIX_KEY: &str = "suggestion";
 
 impl RhaiRule {
     fn invoke(
@@ -95,8 +98,18 @@ impl Rule for RhaiRule {
                 .and_then(|d| d.as_int().ok())
                 .and_then(|n| u32::try_from(n).ok())
                 .unwrap_or(1);
-            let suggestion = map
-                .get("suggestion")
+            let fix = map
+                .get("fix")
+                .or_else(|| {
+                    let legacy = map.get(LEGACY_FIX_KEY)?;
+                    self.legacy_fix_key.call_once(|| {
+                        eprintln!(
+                            "[rhai-rule {}] the `{LEGACY_FIX_KEY}` key is deprecated; return `fix` instead",
+                            self.slug
+                        );
+                    });
+                    Some(legacy)
+                })
                 .and_then(|d| d.clone().into_string().ok());
             let file = graph
                 .modules
@@ -110,7 +123,7 @@ impl Rule for RhaiRule {
                 location: SourceLocation { line, column: 1 },
                 modules: vec![scope],
                 edge: None,
-                suggestion,
+                fix,
             });
         }
         out
