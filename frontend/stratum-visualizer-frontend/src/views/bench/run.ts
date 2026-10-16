@@ -1,4 +1,5 @@
 import { createSignal } from 'solid-js'
+import { SCENE_MARK_BUDGET } from '../../render/budget'
 import { Model } from '../../render/model'
 import { NavHooks, NavPatch } from '../../shell/nav'
 import { layoutBands } from '../focus/bands'
@@ -22,7 +23,7 @@ import { pickSubjects, Subject, Subjects } from './subjects'
 import { Asker, SkippedTask, TASK_BLOCKS } from './tasks'
 import { drawnPairsOf, DrawnPairs, TerritoryAgreement, TerritoryTally } from './territory'
 
-export const TARGET = { renderMs: 100, marks: 1500, panZoomMs: 16.7, actions: 3, card: { w: 800, h: 600 } } as const
+export const TARGET = { renderMs: 100, marks: SCENE_MARK_BUDGET, panZoomMs: 16.7, actions: 3, card: { w: 800, h: 600 } } as const
 
 const STAGE_REGION = '.stage-region'
 const PANELS = '.panel-slot'

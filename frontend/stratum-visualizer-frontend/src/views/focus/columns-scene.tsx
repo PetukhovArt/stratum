@@ -1,11 +1,22 @@
 import { Accessor, Component, createMemo, createSignal, For, Show } from 'solid-js'
+import { BudgetNote } from '../../canvas/budget-note'
 import { Canvas } from '../../canvas/canvas'
 import { t } from '../../i18n'
 import { CANVAS_DEFS, EDGE_DASH, EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR } from '../../render/encoding'
 import { Model, worst } from '../../render/model'
 import { go, nav, set } from '../../shell/nav'
 import { Territory } from '../../types'
-import { Bundle, Column, COLUMN, ColumnGroup, ColumnRow, Expanded, layoutColumns } from './columns'
+import {
+  BudgetFold,
+  Bundle,
+  Column,
+  COLUMN,
+  ColumnGroup,
+  ColumnRow,
+  Expanded,
+  layoutColumns,
+  SHOW_HIDDEN,
+} from './columns'
 import { FocusCard } from './focus-card'
 import { entryOf, layerName, layerTone, rulesOf, shortRule, trunc, curve } from './paint'
 
@@ -247,6 +258,21 @@ const ColumnView: Component<{ ctx: SceneCtx; column: Column }> = (props) => {
   )
 }
 
+const foldText = (fold: BudgetFold): string => {
+  if (fold.collapsed && fold.hidden) return t('focus.budget.both', { collapsed: fold.collapsed, hidden: fold.hidden })
+  if (fold.hidden) return t('focus.budget.hidden', { n: fold.hidden })
+  return t('focus.budget.collapsed', { n: fold.collapsed })
+}
+
+const FoldNote: Component<{ fold: BudgetFold; showHidden: () => void }> = (props) => (
+  <Show when={props.fold.collapsed + props.fold.hidden > 0}>
+    <BudgetNote
+      text={foldText(props.fold)}
+      action={props.fold.hidden ? { label: t('focus.budget.showAll'), run: props.showHidden } : undefined}
+    />
+  </Show>
+)
+
 export const ColumnsScene: Component<{ model: Model; focus: number }> = (props) => {
   const [expansion, setExpansion] = createSignal<{ focus: number; map: Expanded }>({ focus: -1, map: new Map() })
   const [hover, setHover] = createSignal<number | null>(null)
@@ -266,7 +292,11 @@ export const ColumnsScene: Component<{ model: Model; focus: number }> = (props) 
     toggle,
   })
   return (
-    <Canvas bounds={layout().bounds} fitKey={`${props.focus}:${nav().hops}`}>
+    <Canvas
+      bounds={layout().bounds}
+      fitKey={`${props.focus}:${nav().hops}`}
+      overlay={<FoldNote fold={layout().fold} showHidden={() => toggle(SHOW_HIDDEN, true)} />}
+    >
       <g data-testid="focus-columns" fill="none">
         <For each={layout().bundles}>{(b) => <BundlePath bundle={b} hover={hover} selected={selected} />}</For>
       </g>

@@ -26,6 +26,10 @@ export const en = {
   'map.errors': { one: '{n} error', other: '{n} errors' },
   'map.imports': { one: '{n} import', other: '{n} imports' },
   'map.breaks': { one: '{n} rule break', other: '{n} rule breaks' },
+  'map.budget.hidden': {
+    one: '{n} unit link hidden to stay readable · hover a unit to see its links',
+    other: '{n} unit links hidden to stay readable · hover a unit to see its links',
+  },
   'map.unitPairs': { one: 'across {n} unit pair', other: 'across {n} unit pairs' },
   'map.dependsOn': 'depends on {layers}',
   'map.declared': 'declared in depends_on',
@@ -78,6 +82,12 @@ export const ru: MessagesOf<typeof en> = {
   'map.units': { one: '{n} юнит', few: '{n} юнита', many: '{n} юнитов', other: '{n} юнита' },
   'map.modules': { one: '{n} модуль', few: '{n} модуля', many: '{n} модулей', other: '{n} модуля' },
   'map.errors': { one: '{n} ошибка', few: '{n} ошибки', many: '{n} ошибок', other: '{n} ошибки' },
+  'map.budget.hidden': {
+    one: '{n} связь юнитов скрыта, чтобы схема читалась · наведите на юнит, чтобы увидеть его связи',
+    few: '{n} связи юнитов скрыты, чтобы схема читалась · наведите на юнит, чтобы увидеть его связи',
+    many: '{n} связей юнитов скрыто, чтобы схема читалась · наведите на юнит, чтобы увидеть его связи',
+    other: '{n} связи юнитов скрыты, чтобы схема читалась · наведите на юнит, чтобы увидеть его связи',
+  },
   'map.imports': { one: '{n} импорт', few: '{n} импорта', many: '{n} импортов', other: '{n} импорта' },
   'map.breaks': {
     one: '{n} нарушение',

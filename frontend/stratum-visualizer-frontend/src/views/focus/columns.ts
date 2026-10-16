@@ -1,7 +1,9 @@
+import { SCENE_MARK_BUDGET } from '../../render/budget'
 import { EdgeKindLabel } from '../../render/encoding'
-import { Group, Model } from '../../render/model'
+import { Group, Model, worst } from '../../render/model'
 import { Bounds } from '../../render/viewport'
 import { Violation } from '../../types'
+import { entryOf } from './paint'
 
 export const COLUMN = {
   width: 250,
@@ -75,15 +77,23 @@ export interface Bundle {
   touches: ReadonlySet<number>
 }
 
+export interface BudgetFold {
+  collapsed: number
+  hidden: number
+}
+
 export interface ColumnsLayout {
   focus: number
   columns: readonly Column[]
   bundles: readonly Bundle[]
   card: Bounds
   bounds: Bounds
+  fold: BudgetFold
 }
 
 export type Expanded = ReadonlyMap<string, boolean>
+
+export const SHOW_HIDDEN = '*'
 
 interface DrawnEdge {
   from: number
@@ -124,6 +134,7 @@ const buildGroups = (
   ids: readonly number[],
   side: Side,
   expanded: Expanded,
+  hidden: ReadonlySet<string>,
   findingsAt: FindingsAt,
 ): GroupDraft[] => {
   const byKey = new Map<string, { group: Group; ids: number[] }>()
@@ -155,6 +166,7 @@ const buildGroups = (
         edgeFindings: sorted.flatMap((id) => findingsAt(side, id)),
       }
     })
+    .filter((g) => !hidden.has(g.key))
 }
 
 const stackedHeight = (groups: readonly GroupDraft[]): number =>
@@ -195,10 +207,11 @@ const layoutColumn = (
   ids: readonly number[],
   side: Side,
   expanded: Expanded,
+  hidden: ReadonlySet<string>,
   nearX: number,
   findingsAt: FindingsAt,
 ): Column => {
-  const subs = splitIntoSubColumns(buildGroups(m, ids, side, expanded, findingsAt))
+  const subs = splitIntoSubColumns(buildGroups(m, ids, side, expanded, hidden, findingsAt))
   const dir = side > 0 ? 1 : -1
   const groups: ColumnGroup[] = []
   const heads: LayerHead[] = []
@@ -329,7 +342,93 @@ const bundleEdges = (m: Model, edges: readonly DrawnEdge[], anchors: Anchors, ex
   return [...byKey.values()]
 }
 
-/** `expanded` is keyed by `ColumnGroup.key` and overrides the default open state of that group. */
+const FOCUS_CARD_MARKS = 13
+const ROW_MARKS = 2
+const CLOSED_GROUP_MARKS = 6
+
+const hasSeverity = (findings: readonly Violation[]): boolean => worst(findings) !== null
+
+const marksOf = (m: Model, focus: number, columns: readonly Column[], bundles: readonly Bundle[]): number => {
+  const territory = m.territoryOf(focus)
+  let marks = FOCUS_CARD_MARKS
+  for (const b of bundles) marks += 2 + Number(b.pairs.length > 1)
+  for (const c of columns) {
+    const allowed = c.side > 0 ? territory.may_import_layers : territory.imported_by_layers
+    marks += 1
+    for (const h of c.heads) marks += 2 + Number(Math.abs(c.side) === 1 && !allowed.includes(h.layer))
+    for (const g of c.groups) {
+      marks += 4 + Number(g.edgeFindings.length > 0)
+      if (!g.isOpen) marks += Number(hasSeverity(g.ids.flatMap((id) => m.findingsOf(id))))
+      for (const r of g.rows) {
+        marks += ROW_MARKS + Number(entryOf(m, r.id).length > 0) + Number(hasSeverity(r.edgeFindings))
+        marks += Number(hasSeverity(m.findingsOf(r.id)))
+      }
+    }
+  }
+  return marks
+}
+
+interface Placed {
+  columns: Column[]
+  bundles: Bundle[]
+  marks: number
+}
+
+type Place = (open: Expanded, hidden: ReadonlySet<string>) => Placed
+
+const foldToBudget = (place: Place, expanded: Expanded): { placed: Placed; fold: BudgetFold } => {
+  const open = new Map(expanded)
+  const hidden = new Set<string>()
+  const fold: BudgetFold = { collapsed: 0, hidden: 0 }
+  let placed = place(open, hidden)
+  const isDefault = (g: ColumnGroup) => !expanded.has(g.key)
+  const shrink = (candidates: readonly ColumnGroup[], saving: (g: ColumnGroup) => number, apply: (g: ColumnGroup) => void) => {
+    let saved = 0
+    for (const g of candidates) {
+      if (saved >= placed.marks - SCENE_MARK_BUDGET) break
+      apply(g)
+      saved += saving(g)
+    }
+    placed = place(open, hidden)
+  }
+  while (placed.marks > SCENE_MARK_BUDGET) {
+    const defaultOpen = placed.columns
+      .flatMap((c) => c.groups)
+      .filter((g) => g.isOpen && isDefault(g))
+      .sort((a, b) => b.ids.length - a.ids.length || a.key.localeCompare(b.key))
+    if (!defaultOpen.length) break
+    shrink(
+      defaultOpen,
+      (g) => g.rows.length * ROW_MARKS,
+      (g) => {
+        open.set(g.key, false)
+        fold.collapsed++
+      },
+    )
+  }
+  while (placed.marks > SCENE_MARK_BUDGET && expanded.get(SHOW_HIDDEN) !== true) {
+    const shown = placed.columns
+      .flatMap((c) => c.groups.filter(isDefault).map((g) => ({ g, hop: Math.abs(c.side) })))
+      .sort((a, b) => b.hop - a.hop || a.g.ids.length - b.g.ids.length || a.g.key.localeCompare(b.g.key))
+      .map(({ g }) => g)
+    if (!shown.length) break
+    shrink(
+      shown,
+      (g) => CLOSED_GROUP_MARKS + g.rows.length * ROW_MARKS,
+      (g) => {
+        hidden.add(g.key)
+        fold.hidden++
+      },
+    )
+  }
+  return { placed, fold }
+}
+
+/**
+ * `expanded` is keyed by `ColumnGroup.key` and overrides the default open state of that group; `SHOW_HIDDEN: true`
+ * brings back the groups the mark budget left out. To fit `SCENE_MARK_BUDGET`, default-open groups collapse, largest
+ * first, then the smallest groups (2nd hop first) leave the scene; a group named in `expanded` never folds.
+ */
 export const layoutColumns = (m: Model, focus: number, hops: Hops, expanded: Expanded): ColumnsLayout => {
   const out1 = unique(m.out(focus), new Set([focus]))
   const in1 = unique(m.inn(focus), new Set([focus]))
@@ -339,19 +438,24 @@ export const layoutColumns = (m: Model, focus: number, hops: Hops, expanded: Exp
   const edges = drawnEdges(m, focus, { 1: out1, [-1]: in1, 2: out2, [-2]: in2 })
   const findingsAt = findingsIndex(m, edges)
 
-  const left = layoutColumn(m, in1, -1, expanded, -NEAR_X, findingsAt)
-  const right = layoutColumn(m, out1, 1, expanded, NEAR_X, findingsAt)
-  const columns = [left, right]
-  if (hops > 1) {
-    columns.push(layoutColumn(m, in2, -2, expanded, farX(left) - COLUMN.hopGap, findingsAt))
-    columns.push(layoutColumn(m, out2, 2, expanded, farX(right) + COLUMN.hopGap, findingsAt))
+  const place: Place = (open, hidden) => {
+    const left = layoutColumn(m, in1, -1, open, hidden, -NEAR_X, findingsAt)
+    const right = layoutColumn(m, out1, 1, open, hidden, NEAR_X, findingsAt)
+    const columns = [left, right]
+    if (hops > 1) {
+      columns.push(layoutColumn(m, in2, -2, open, hidden, farX(left) - COLUMN.hopGap, findingsAt))
+      columns.push(layoutColumn(m, out2, 2, open, hidden, farX(right) + COLUMN.hopGap, findingsAt))
+    }
+    const bundles = bundleEdges(m, edges, anchorsOf(columns), open)
+    return { columns, bundles, marks: marksOf(m, focus, columns, bundles) }
   }
-  const bundles = bundleEdges(m, edges, anchorsOf(columns), expanded)
+  const { placed, fold } = foldToBudget(place, expanded)
+  const { columns, bundles } = placed
 
   const card = { x: -CARD.w / 2, y: -CARD.h / 2, w: CARD.w, h: CARD.h }
   const minY = Math.min(-MIN_HALF_HEIGHT, card.y, ...columns.map((c) => c.top - COLUMN.titleGap))
   const maxY = Math.max(MIN_HALF_HEIGHT, card.y + card.h, ...columns.map((c) => c.top + c.height))
   const minX = Math.min(card.x, ...columns.map((c) => c.minX))
   const maxX = Math.max(card.x + card.w, ...columns.map((c) => c.maxX))
-  return { focus, columns, bundles, card, bounds: { x: minX, y: minY, w: maxX - minX, h: maxY - minY } }
+  return { focus, columns, bundles, card, bounds: { x: minX, y: minY, w: maxX - minX, h: maxY - minY }, fold }
 }

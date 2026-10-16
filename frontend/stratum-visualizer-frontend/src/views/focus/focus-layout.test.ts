@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { SCENE_MARK_BUDGET } from '../../render/budget'
 import { buildModel } from '../../render/model'
 import { snapshotV3 } from '../../test/snapshot'
 import { EdgeKind, GraphSnapshot, Severity, SnapshotContainer, Territory, Violation } from '../../types'
 import { layoutBands } from './bands'
-import { COLUMN, layoutColumns } from './columns'
+import { COLUMN, ColumnsLayout, layoutColumns } from './columns'
 
 const LAYERS = ['app', 'features', 'shared'].map((name, id) => ({ id, name, depends_on: [] }))
 
@@ -42,14 +43,17 @@ const finding = (from: number, to: number): Violation => ({
 
 const SHARED_API = 0
 
-const sharedApiImportedBySlices = (slices: number, perSlice: number): GraphSnapshot => {
+const sharedApiImportedBySlices = (slices: number, perSlice: number): GraphSnapshot =>
+  sharedApiImportedBy(Array.from({ length: slices }, () => perSlice))
+
+const sharedApiImportedBy = (sliceSizes: readonly number[]): GraphSnapshot => {
   const containers = [0, 1, 2].map(layerContainer)
   const modules = [{ id: SHARED_API, path: 'src/shared/api.ts', container: 2, layer: 2, purity: 2 }]
   const edges = []
-  for (let s = 0; s < slices; s++) {
+  for (const [s, size] of sliceSizes.entries()) {
     const c = slice(10 + s, 1, `s${s}`)
     containers.push(c)
-    for (let k = 0; k < perSlice; k++) {
+    for (let k = 0; k < size; k++) {
       const id = modules.length
       modules.push({ id, path: `${c.path}/m${k}.ts`, container: c.id, layer: 1, purity: 2 })
       edges.push({ from: id, to: SHARED_API, kind: EdgeKind.Static })
@@ -119,6 +123,43 @@ describe('layoutColumns', () => {
       [1, 1],
       [2, 0],
     ])
+  })
+})
+
+describe('layoutColumns mark budget', () => {
+  const GROUPS = 300
+  const hub = buildModel(sharedApiImportedBy(Array.from({ length: GROUPS }, (_, i) => (i < 200 ? 7 : 6))), [])
+
+  const FINDING_FREE_CARD_MARKS = 8
+  const findingFreeMarks = (layout: ColumnsLayout): number =>
+    FINDING_FREE_CARD_MARKS +
+    layout.bundles.reduce((n, b) => n + 2 + Number(b.pairs.length > 1), 0) +
+    layout.columns.reduce(
+      (n, c) =>
+        n +
+        1 +
+        c.heads.length * (Math.abs(c.side) === 1 ? 3 : 2) +
+        c.groups.reduce((k, g) => k + 4 + g.rows.length * 2, 0),
+      0,
+    )
+
+  it('starts a hub of 2,000 importers in 300 groups within the mark budget, every group still counted', () => {
+    const layout = layoutColumns(hub, SHARED_API, 2, new Map())
+    const importers = layout.columns.find((c) => c.side === -1)!
+
+    expect(importers.count).toBe(2000)
+    expect(findingFreeMarks(layout)).toBeLessThanOrEqual(SCENE_MARK_BUDGET)
+    expect(importers.groups.length + layout.fold.hidden).toBe(GROUPS)
+  })
+
+  it('opens a group the user expanded even when the budget collapsed it', () => {
+    const collapsed = layoutColumns(hub, SHARED_API, 2, new Map()).columns.find((c) => c.side === -1)!.groups[0]
+    const expanded = layoutColumns(hub, SHARED_API, 2, new Map([[collapsed.key, true]]))
+    const group = expanded.columns.find((c) => c.side === -1)!.groups.find((g) => g.key === collapsed.key)!
+
+    expect(collapsed.isOpen).toBe(false)
+    expect(group.isOpen).toBe(true)
+    expect(group.rows.length).toBe(collapsed.ids.length)
   })
 })
 

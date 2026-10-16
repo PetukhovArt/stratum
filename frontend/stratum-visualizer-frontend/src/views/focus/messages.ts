@@ -58,6 +58,10 @@ export const en = {
   'focus.outline.filter': 'Filter modules…',
   'focus.outline.mostImported': 'Most imported',
   'focus.outline.matches': { one: '{n} match', other: '{n} matches' },
+  'focus.budget.collapsed': { one: '{n} group collapsed to stay readable', other: '{n} groups collapsed to stay readable' },
+  'focus.budget.hidden': { one: '{n} group hidden to stay readable', other: '{n} groups hidden to stay readable' },
+  'focus.budget.both': '{collapsed} groups collapsed, {hidden} hidden to stay readable',
+  'focus.budget.showAll': 'show all',
 } as const
 
 export const ru: MessagesOf<typeof en> = {
@@ -128,4 +132,18 @@ export const ru: MessagesOf<typeof en> = {
     many: '{n} совпадений',
     other: '{n} совпадения',
   },
+  'focus.budget.collapsed': {
+    one: '{n} группа свёрнута, чтобы схема читалась',
+    few: '{n} группы свёрнуты, чтобы схема читалась',
+    many: '{n} групп свёрнуто, чтобы схема читалась',
+    other: '{n} группы свёрнуты, чтобы схема читалась',
+  },
+  'focus.budget.hidden': {
+    one: '{n} группа скрыта, чтобы схема читалась',
+    few: '{n} группы скрыты, чтобы схема читалась',
+    many: '{n} групп скрыто, чтобы схема читалась',
+    other: '{n} группы скрыты, чтобы схема читалась',
+  },
+  'focus.budget.both': 'Свёрнуто групп: {collapsed}, скрыто: {hidden}, чтобы схема читалась',
+  'focus.budget.showAll': 'показать все',
 }

@@ -67,3 +67,13 @@
   white-space: nowrap;
 }
 .legend-row { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.budget-note {
+  position: absolute; left: 50%; bottom: 14px; z-index: 3; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 8px; padding: 5px 10px; white-space: nowrap;
+  background: oklch(20% 0.012 260 / .85); backdrop-filter: blur(10px);
+  border: 1px solid var(--bd-1); border-radius: 8px; font-size: 11px; color: var(--tx-3);
+}
+.budget-note button {
+  appearance: none; border: 0; background: transparent; color: var(--tx-1); cursor: pointer;
+  font-size: 11px; padding: 0; text-decoration: underline;
+}

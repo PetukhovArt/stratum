@@ -1,6 +1,8 @@
+import { SCENE_MARK_BUDGET } from '../../render/budget'
 import { Model, Unit } from '../../render/model'
 import { Bounds } from '../../render/viewport'
-import { LayerLink, MapData, UnitLink } from './units'
+import { MapGate } from '../../shell/nav'
+import { isGated, LayerLink, MapData, UnitLink } from './units'
 
 export const LANES = { width: 1700, pad: 14, gap: 10, header: 26, spacing: 12, margin: 10 } as const
 const BOX = { minW: 104, maxW: 240, baseW: 70, perRootW: 9, minH: 40, maxH: 110, baseH: 28, perRootH: 4.5 } as const
@@ -132,6 +134,42 @@ export const layoutLanes = (m: Model, data: MapData, expanded: ReadonlySet<numbe
   })
   const margin = LANES.margin
   return { lanes, boxes, curves, bounds: { x: -margin, y: -margin, w: LANES.width + margin * 2, h: top + margin } }
+}
+
+const LANE_MARKS = 4
+const UNIT_MARKS = 2
+
+export interface DefaultCurves {
+  curves: readonly Curve[]
+  hidden: number
+}
+
+/**
+ * The curves drawn while no unit is hovered or selected. Past `SCENE_MARK_BUDGET` the gate narrows to rule breaks
+ * plus the expanded units' links, then to rule breaks alone; the expanded cells themselves always stay.
+ */
+export const defaultCurves = (
+  layout: LanesLayout,
+  data: MapData,
+  gate: MapGate,
+  expanded: ReadonlySet<number>,
+  pairKey: string | null,
+): DefaultCurves => {
+  let base = layout.lanes.length * LANE_MARKS
+  for (const b of layout.boxes.values()) {
+    base += UNIT_MARKS + Number((data.units.get(b.unit.id)?.errors ?? 0) > 0) + (b.cells?.length ?? 0)
+  }
+  const isPair = (c: Curve) => c.link.key === pairKey
+  const isBreak = (c: Curve) => c.link.breaks > 0 || isPair(c)
+  const gated = layout.curves.filter((c) => isGated(c.link, gate) || isPair(c))
+  const tiers = [
+    gated,
+    gated.filter((c) => isBreak(c) || expanded.has(c.link.from) || expanded.has(c.link.to)),
+    gated.filter(isBreak),
+  ]
+  const marks = (curves: readonly Curve[]) => base + curves.length + Number(curves.some(isPair))
+  const curves = tiers.find((t) => marks(t) <= SCENE_MARK_BUDGET) ?? tiers[tiers.length - 1]
+  return { curves, hidden: gated.length - curves.length }
 }
 
 export interface LayerNode {
