@@ -1,0 +1,7 @@
+---
+source: crates/stratum-lint/tests/e2e_diff.rs
+expression: stdout
+---
+<!-- stratum:drift web -->
+### Stratum: architecture drift vs <sha>
+No architecture drift.
