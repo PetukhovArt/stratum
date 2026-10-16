@@ -47,7 +47,7 @@ export class TerritoryTally {
   record(scene: string, drawn: DrawnPairs, stage: Element | null): void {
     const shown = new Map<string, Set<string>>()
     for (const el of stage?.querySelectorAll('[data-edge]') ?? []) {
-      if (el.closest('.dsm')) continue
+      if (el.closest('.dsm, .map')) continue
       const rules = (el.getAttribute('data-rule') ?? '').split(' ').filter(Boolean)
       shown.set(el.getAttribute('data-edge') ?? '', new Set(rules))
     }

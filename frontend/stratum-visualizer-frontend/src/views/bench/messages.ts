@@ -42,7 +42,6 @@ export const en = {
   'bench.col.notShown': 'linted, not shown',
   'bench.yes': 'yes',
   'bench.no': 'no',
-  'bench.pending': 'pending: {reason}',
   'bench.skipped': 'skipped: {reason}',
   'bench.note':
     'Render = synchronous go() plus forced layout. Pan/zoom = 24 synchronous setViewport calls, each with forced layout; paint excluded. Leak gate covers the stage; panels are reported.',
@@ -90,7 +89,6 @@ export const ru: MessagesOf<typeof en> = {
   'bench.col.notShown': 'в линтере, не показано',
   'bench.yes': 'да',
   'bench.no': 'нет',
-  'bench.pending': 'ожидает: {reason}',
   'bench.skipped': 'пропущен: {reason}',
   'bench.note':
     'Отрисовка = синхронный go() и принудительная раскладка. Панорама/зум = 24 синхронных вызова setViewport, каждый с принудительной раскладкой, без отрисовки пикселей. Порог утечек считается по сцене, панели только в отчёте.',

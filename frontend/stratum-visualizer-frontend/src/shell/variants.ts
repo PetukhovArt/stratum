@@ -12,6 +12,8 @@ export const variantPatch = (v: Variants, index: number): NavPatch => {
       return { dsmLevel: v.options[index].id, sel: null }
     case 'mrVariant':
       return { mrVariant: v.options[index].id, sel: null }
+    case 'mapVariant':
+      return { mapVariant: v.options[index].id, sel: null }
     case 'setVariant':
       return { setVariant: v.options[index].id, sel: null }
   }

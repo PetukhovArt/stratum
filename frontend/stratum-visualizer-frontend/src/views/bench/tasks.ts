@@ -27,16 +27,14 @@ export interface TaskDef {
   isAnswerShown: () => boolean
 }
 
-export interface PendingTask {
+export interface SkippedTask {
   order: number
   id: string
   question: string
   who: Asker
   view: string
-  reason: 'phase 2'
+  skip: 'no /api/drift: run visualize --base REF'
 }
-
-export type SkippedTask = Omit<PendingTask, 'reason'> & { skip: 'no /api/drift: run visualize --base REF' }
 
 type TaskBlock = (m: Model, s: Subjects) => (TaskDef | SkippedTask)[]
 
@@ -285,15 +283,27 @@ const cycleCutTask = (m: Model): TaskDef => {
 
 const setTasks: TaskBlock = (m) => [cycleCutTask(m)]
 
-export const TASK_BLOCKS: readonly TaskBlock[] = [focusTasks, mrTasks, dsmTasks, setTasks]
-
-export const PENDING_TASKS: readonly PendingTask[] = [
-  {
+const fanInHotspotTask = (m: Model): TaskDef => {
+  const importers = new Map<number, number>()
+  for (const e of m.unitEdges) importers.set(e.to, (importers.get(e.to) ?? 0) + 1)
+  const [hot] = m.units
+    .map((u) => ({ unit: u, fanIn: importers.get(u.id) ?? 0 }))
+    .sort((a, b) => b.fanIn - a.fanIn || a.unit.id - b.unit.id)
+  return {
     order: 6,
     id: 'fan-in-hotspot',
     question: 'Which unit is the biggest fan-in hotspot?',
     who: 'architect',
     view: 'map',
-    reason: 'phase 2',
-  },
-]
+    answer: hot ? `${hot.unit.path} (${hot.fanIn} importing units)` : 'no units',
+    steps: [{ label: 'open Container map', patch: { view: 'map', mapVariant: 'lanes', sel: null } }],
+    isAnswerShown: () => {
+      const top = document.querySelector('[data-testid="map-hotspots"] [data-id]')
+      return hot ? top?.getAttribute('data-id') === String(hot.unit.id) : top === null
+    },
+  }
+}
+
+const mapTasks: TaskBlock = (m) => [fanInHotspotTask(m)]
+
+export const TASK_BLOCKS: readonly TaskBlock[] = [focusTasks, mrTasks, dsmTasks, setTasks, mapTasks]

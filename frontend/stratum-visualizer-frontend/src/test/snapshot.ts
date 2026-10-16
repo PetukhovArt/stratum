@@ -1,7 +1,4 @@
-import { adaptModel } from '../render/adapt'
-import { DesignData } from '../render/design'
-import { buildModel } from '../render/model'
-import { GraphSnapshot, SnapshotModule, Territory, Violation } from '../types'
+import { GraphSnapshot, SnapshotModule, Territory } from '../types'
 
 export interface SnapshotInput {
   modules: Omit<SnapshotModule, 'territory'>[]
@@ -26,6 +23,3 @@ export const snapshotV3 = (input: SnapshotInput): GraphSnapshot => ({
   ...input,
   modules: input.modules.map((m) => ({ territory: 0, ...m })),
 })
-
-export const designOf = (input: SnapshotInput, violations: Violation[] = []): DesignData =>
-  adaptModel(buildModel(snapshotV3(input), violations))

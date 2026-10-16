@@ -81,6 +81,7 @@ test('the bench answers every phase-1 question and meets every gate', async ({ p
   expect(ran.map((t) => t.id).sort()).toEqual(
     [
       'cycle-cut',
+      'fan-in-hotspot',
       'importers-in-layer',
       'layer-pairs-against',
       'may-import',

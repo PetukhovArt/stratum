@@ -22,9 +22,7 @@ const TaskRow: Component<{ task: TaskResult }> = (props) => (
       when={props.task.status === 'run' ? props.task : null}
       fallback={
         <td colSpan={3} class="bn-dim">
-          {props.task.status === 'skipped'
-            ? t('bench.skipped', { reason: props.task.skip })
-            : t('bench.pending', { reason: props.task.status === 'pending' ? props.task.reason : '' })}
+          {props.task.status === 'skipped' ? t('bench.skipped', { reason: props.task.skip }) : ''}
         </td>
       }
     >

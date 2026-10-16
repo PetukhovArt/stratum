@@ -19,7 +19,7 @@ import {
   stageSvg,
 } from './probes'
 import { pickSubjects, Subject, Subjects } from './subjects'
-import { Asker, PENDING_TASKS, PendingTask, SkippedTask, TASK_BLOCKS } from './tasks'
+import { Asker, SkippedTask, TASK_BLOCKS } from './tasks'
 import { drawnPairsOf, DrawnPairs, TerritoryAgreement, TerritoryTally } from './territory'
 
 export const TARGET = { renderMs: 100, marks: 1500, panZoomMs: 16.7, actions: 3, card: { w: 800, h: 600 } } as const
@@ -28,7 +28,7 @@ const STAGE_REGION = '.stage-region'
 const PANELS = '.panel-slot'
 
 export interface RenderRun {
-  view: 'focus' | 'dsm' | 'mr' | 'set'
+  view: 'focus' | 'dsm' | 'mr' | 'set' | 'map'
   variant: string
   scenario: string
   renderMs: number
@@ -54,7 +54,6 @@ export type TaskResult =
       isAnswerShown: boolean
       ms: number
     }
-  | ({ status: 'pending' } & PendingTask)
   | ({ status: 'skipped' } & SkippedTask)
 
 export type TargetId = 'tasks' | 'marks' | 'render' | 'pan-zoom' | 'leaks' | 'precision' | 'recall' | 'card'
@@ -186,6 +185,28 @@ const MR_SCENARIOS: readonly Scenario[] = [
   { view: 'mr', variant: 'card', scenario: 'drift vs base', patch: { view: 'mr', mrVariant: 'card' } },
 ]
 
+const mapScenarios = (m: Model): Scenario[] => {
+  const lanes = { view: 'map' as const, variant: 'lanes' }
+  const whole = { view: 'map', mapVariant: 'lanes', mapExpanded: [], sel: null } as const
+  const [largest] = [...m.units].sort((a, b) => b.modules.length - a.modules.length || a.id - b.id)
+  const expanded: Scenario[] = largest
+    ? [
+        {
+          ...lanes,
+          scenario: `expanded: ${largest.path} (${largest.modules.length} modules)`,
+          patch: { ...whole, mapGate: 'rules', mapExpanded: [largest.id] },
+        },
+      ]
+    : []
+  return [
+    { ...lanes, scenario: 'gate: rule breaks', patch: { ...whole, mapGate: 'rules' } },
+    { ...lanes, scenario: 'gate: ≥ 12 imports', patch: { ...whole, mapGate: 'top' } },
+    { ...lanes, scenario: `gate: all ${m.unitEdges.length}`, patch: { ...whole, mapGate: 'all' } },
+    ...expanded,
+    { view: 'map', variant: 'layers', scenario: 'layer graph', patch: { view: 'map', mapVariant: 'layers', sel: null } },
+  ]
+}
+
 const auditPanels = (colours: ReadonlySet<string>): ChannelAudit => {
   const audits = [...document.querySelectorAll(PANELS)].map((panel) => auditChannel(panel, colours))
   return {
@@ -237,8 +258,7 @@ const runTasks = (hooks: NavHooks, m: Model, s: Subjects): TaskResult[] => {
       ms: performance.now() - t0,
     }
   })
-  const pending = PENDING_TASKS.map((p): TaskResult => ({ ...p, status: 'pending' }))
-  return [...ran, ...pending].sort((a, b) => a.order - b.order)
+  return ran.sort((a, b) => a.order - b.order)
 }
 
 const percent = (x: number | null): string => (x === null ? 'n/a' : `${(x * 100).toFixed(1)}%`)
@@ -299,9 +319,13 @@ export const runBench = (): BenchResult => {
   const tally = new TerritoryTally(m.violations)
   const tasks = runTasks(hooks, m, subjects)
   const mrScenarios = driftReport() ? MR_SCENARIOS : []
-  const runs = [...focusScenarios(m, subjects), ...DSM_SCENARIOS, ...mrScenarios, ...setScenarios(m, subjects)].map((sc) =>
-    measureRun(hooks, sc, colours, tally),
-  )
+  const runs = [
+    ...focusScenarios(m, subjects),
+    ...DSM_SCENARIOS,
+    ...mrScenarios,
+    ...setScenarios(m, subjects),
+    ...mapScenarios(m),
+  ].map((sc) => measureRun(hooks, sc, colours, tally))
   const territory = tally.result()
   const targets = judge(runs, tasks, territory)
   const result: BenchResult = {

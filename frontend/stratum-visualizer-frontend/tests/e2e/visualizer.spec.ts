@@ -14,18 +14,29 @@ const stubRoutes = async (page: import('@playwright/test').Page) => {
   })
 }
 
-test('visualizer mounts SVG graph with lanes, containers, and modules', async ({ page }) => {
+test('container map packs units into layer lanes and expands one into modules', async ({ page }) => {
   await stubRoutes(page)
   await page.goto('/')
-
   await expect(page.locator('.app')).toBeVisible({ timeout: 15_000 })
-  await expect(page.locator('header.hd')).toBeVisible()
   await page.keyboard.press('4')
 
-  const graph = page.locator('svg.cv g.strat-graph')
-  await expect(graph).toBeVisible()
-  await expect(graph.locator('g.containers')).toBeVisible()
-  await expect(graph.locator('g.modules')).toBeVisible()
+  const map = page.locator('svg.cv g.map[data-variant="lanes"]')
+  await expect(map).toBeVisible()
+  await expect(map.getByTestId('map-unit')).toHaveCount(5)
+
+  await page.getByTestId('map-gate-all').click()
+  await expect(page.getByTestId('map-gate-all')).toHaveText('all 6')
+  await expect(map.locator('path[data-edge^="unit:"]')).toHaveCount(6)
+
+  const shared = map.locator('[data-testid="map-unit"][data-id="4"]')
+  await shared.dblclick()
+  await expect(map.getByTestId('map-cell')).toHaveCount(3)
+  await map.locator('[data-testid="map-cell"][data-id="8"]').click()
+  await expect(page.getByTestId('focus-stage')).toBeVisible()
+
+  await page.keyboard.press('4')
+  await page.keyboard.press('v')
+  await expect(page.locator('svg.cv g.map[data-variant="layers"]').getByTestId('map-layer')).toHaveCount(5)
 })
 
 test('status bar surfaces module + edge counts', async ({ page }) => {
