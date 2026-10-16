@@ -8,7 +8,7 @@ Binaries: `stratum-lint` (CLI, hook adapter, visualizer server) and `stratum-lsp
 
 ## Install
 
-- npm (all platforms): `npm install -g @stratum/lint` (ships both binaries)
+- npm (all platforms): `npm install -g @petukhovart/stratum-lint` (ships both binaries)
 - Windows: `scoop bucket add stratum https://github.com/PetukhovArt/scoop-stratum-bucket`, then `scoop install stratum-lint`
 - macOS / Linux: `brew tap petukhovart/stratum`, then `brew install stratum-lint`
 - From source: `cargo install --path crates/stratum-lint` and `cargo install --path crates/stratum-lsp`

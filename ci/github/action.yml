@@ -27,7 +27,7 @@ runs:
           prefix="$RUNNER_TEMP/stratum"
           mkdir -p "$prefix"
           if [ -f "$ROOT/.npmrc" ]; then cp "$ROOT/.npmrc" "$prefix/.npmrc"; fi
-          npm install --prefix "$prefix" --no-save --no-package-lock --no-audit --no-fund "@stratum-lint/cli@0.2.0"
+          npm install --prefix "$prefix" --no-save --no-package-lock --no-audit --no-fund "@petukhovart/stratum-lint@0.2.0"
           echo "$prefix/node_modules/.bin" >> "$GITHUB_PATH"
         fi
 

@@ -12,8 +12,8 @@ This document walks through cutting a `stratum-lint` / `stratum-lsp` release. Tr
 ## Cut the release
 
 1. Bump versions:
-   - Every `crates/*/Cargo.toml`'s `version = ...`.
-   - `npm-wrapper/package.json` `version`.
+   - Every `crates/*/Cargo.toml`'s `version = ...`. The npm packages take theirs from cargo-dist's `dist-manifest.json`.
+   - The `@petukhovart/stratum-lint@X.Y.Z` pin in `ci/github/action.yml` and `ci/gitlab/templates/stratum.yml`.
    - `claude-plugin/.claude-plugin/plugin.json` and `claude-plugin-lsp/.claude-plugin/plugin.json` `version`.
 2. Update `CHANGELOG.md` — move "Unreleased" content under the new version + date.
 3. Commit: `chore(release): vX.Y.Z`.
@@ -23,12 +23,10 @@ This document walks through cutting a `stratum-lint` / `stratum-lsp` release. Tr
    - `build` job runs `cargo dist build` per target on the right runner.
    - Each artifact must stay under 25 MB (CI ceiling; PRD target is 20 MB).
    - `publish` job uploads to the GitHub Release for the tag.
-6. Verify the GitHub Release page lists all five targets:
-   - `stratum-lint-x86_64-pc-windows-msvc.zip`
-   - `stratum-lint-x86_64-apple-darwin.tar.gz`
-   - `stratum-lint-aarch64-apple-darwin.tar.gz`
-   - `stratum-lint-x86_64-unknown-linux-gnu.tar.gz`
-   - `stratum-lint-aarch64-unknown-linux-gnu.tar.gz`
+   - `publish-npm` job runs `scripts/npm-pack.mjs` on the archives and publishes each `@petukhovart/stratum-lint-<platform>-<arch>`, then the launcher `@petukhovart/stratum-lint` (secret `NPM_TOKEN`, `--provenance`; a version with `-` goes to the `next` dist-tag).
+6. Verify the GitHub Release lists the archive of every target in `dist-workspace.toml`, and npm lists the new version of the launcher and of each platform package.
+
+`release.yml` is written by hand, not by `dist generate` (`allow-dirty = ["ci"]` lets cargo-dist accept it). Never run `dist generate` or `dist init` with CI enabled: it overwrites the file and drops `publish-npm`. A target added to `dist-workspace.toml` also needs its row in the `build` matrix; `npm-pack.mjs` fails before publishing when an archive in the manifest is missing, and names a triple it has no npm `os`/`cpu` for.
 
 ## Downstream package updates
 
@@ -36,9 +34,30 @@ After the GitHub Release exists:
 
 1. **Homebrew tap** — `scripts/bump_homebrew.sh vX.Y.Z /path/to/homebrew-stratum-tap` recomputes the `sha256` per artefact and commits to the tap. Then `cd /path/to/homebrew-stratum-tap && git push`.
 2. **Scoop bucket** — `scripts/bump_scoop.sh vX.Y.Z /path/to/scoop-stratum-bucket`, then push.
-3. **npm wrapper** — `cd npm-wrapper && npm publish --access public`. The `postinstall` script fetches the binary that matches `package.json`'s version against the GitHub release URL.
 
 ## Smoke test
+
+### npm packages, before tagging
+
+Install must work with `--ignore-scripts` and with no host but the registry. With the archives and `dist-manifest.json` in `target/distrib` (from `cargo dist build`, or a release run's artifacts):
+
+```bash
+node scripts/npm-pack.mjs target/distrib target/npm
+dir=$(mktemp -d) && cd "$dir" && npm init -y > /dev/null
+# launcher + this platform's package; --offline proves no registry or GitHub fetch happens
+npm install --offline --ignore-scripts --no-audit --no-fund \
+  /path/to/stratum/target/npm/petukhovart-stratum-lint-X.Y.Z.tgz \
+  /path/to/stratum/target/npm/petukhovart-stratum-lint-<platform>-<arch>-X.Y.Z.tgz
+npx stratum-lint --help
+npx stratum-lsp < /dev/null    # starts, exits when stdin closes
+# missing platform package: exit 2 naming it
+rm -rf node_modules/@petukhovart/stratum-lint-<platform>-<arch>
+npx stratum-lint --help; echo "exit $?"
+```
+
+To test resolution through a registry proxy, publish the tarballs to a local Verdaccio (`npx verdaccio`, then `npm publish <tarball> --registry http://localhost:4873`) and `npm install --ignore-scripts --registry http://localhost:4873 @petukhovart/stratum-lint@X.Y.Z`.
+
+### Released artefacts
 
 On a clean machine (or VM):
 
@@ -49,7 +68,7 @@ curl -L https://github.com/PetukhovArt/stratum/releases/download/vX.Y.Z/stratum-
 test -x ./stratum-lsp    # the archive bundles stratum-lsp too
 
 # npm install path
-npm i -g @stratum/lint
+npm i -g --ignore-scripts @petukhovart/stratum-lint
 stratum-lint --help
 command -v stratum-lsp
 
