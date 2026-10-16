@@ -88,6 +88,36 @@ fn report_stays_within_8_kib_and_ends_with_the_local_command() {
 }
 
 #[test]
+fn renamed_file_is_no_drift() {
+    let repo = repo_with_committed_fixture_in_subdir("exemplar-stratum-app");
+    let root = repo.path().join(PROJECT_SUBDIR);
+    git(
+        &root,
+        &[
+            "mv",
+            "src/entities/user/model.ts",
+            "src/entities/user/user-model.ts",
+        ],
+    );
+    for (file, from, to) in [
+        ("src/entities/user/index.ts", "./model", "./user-model"),
+        (
+            "src/shared/api/http.ts",
+            "@/entities/user/model",
+            "@/entities/user/user-model",
+        ),
+    ] {
+        let path = root.join(file);
+        let text = std::fs::read_to_string(&path).unwrap().replace(from, to);
+        std::fs::write(path, text).unwrap();
+    }
+
+    let (code, stdout) = diff(&root);
+
+    assert_eq!(code, 0, "{stdout}");
+}
+
+#[test]
 fn base_tsconfig_extending_a_package_keeps_its_aliases() {
     let repo = repo_with_committed_fixture_in_subdir("exemplar-stratum-app");
     let root = repo.path().join(PROJECT_SUBDIR);

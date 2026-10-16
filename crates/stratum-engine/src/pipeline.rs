@@ -9,7 +9,7 @@ use stratum_core::{
     types::Layer,
     violation::Violation,
 };
-use stratum_graph::{BuildConfig, CompoundGraph, GraphBuilder};
+use stratum_graph::{BuildConfig, CompoundGraph, GraphBuilder, Overlay};
 use stratum_plugins_rhai::{LoadError as PluginLoadError, PLUGIN_ID_FLOOR};
 use stratum_rules::{DynRule, RuleRegistry};
 
@@ -98,7 +98,7 @@ pub fn build_with_builder(
     root: &Utf8Path,
     config: &Config,
 ) -> Result<(EngineInput, GraphBuilder), EngineError> {
-    let (root_abs, graph, builder) = graph(root, config)?;
+    let (root_abs, graph, builder) = graph(root, config, Vec::new())?;
     let registry = registry(&root_abs, config)?;
 
     Ok((
@@ -115,6 +115,7 @@ pub fn build_with_builder(
 pub(crate) fn graph(
     root: &Utf8Path,
     config: &Config,
+    overlay: Vec<(String, Option<String>)>,
 ) -> Result<(Utf8PathBuf, CompoundGraph, GraphBuilder), EngineError> {
     let root_abs = canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
     let layers: Vec<Layer> = config
@@ -145,9 +146,18 @@ pub(crate) fn graph(
     };
     let ignore = IgnoreSet::new(config)?;
     let vue = stratum_parser_vue::VueExtractor::new(build_cfg.tracked_calls.clone());
-    let builder = GraphBuilder::new(build_cfg)
+    let mut builder = GraphBuilder::new(build_cfg)
         .with_extractor(Box::new(vue))
         .with_ignore(move |rel| ignore.is_ignored(rel));
+    if !overlay.is_empty() {
+        let files = overlay.into_iter().map(|(rel, text)| {
+            let path = rel
+                .split('/')
+                .fold(root_abs.as_std_path().to_path_buf(), |p, c| p.join(c));
+            (path, text)
+        });
+        builder = builder.with_overlay(Overlay::new(files));
+    }
     let graph = builder.build()?;
     Ok((root_abs, graph, builder))
 }

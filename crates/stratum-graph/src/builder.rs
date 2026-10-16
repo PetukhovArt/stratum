@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 use camino::{Utf8Path, Utf8PathBuf};
 use rustc_hash::FxHashMap;
@@ -14,7 +14,9 @@ use stratum_core::purity::Purity;
 use stratum_core::structure::Structure;
 use stratum_core::types::{Call, Exports, Layer, Module};
 use stratum_core::violation::SourceLocation;
-use stratum_parser_ts::{LanguageExtractor, OxcTsExtractor, PathResolver, offset_to_line_col};
+use stratum_parser_ts::{
+    LanguageExtractor, Overlaid, Overlay, OxcTsExtractor, PathResolver, offset_to_line_col,
+};
 
 use crate::graph::CompoundGraph;
 use crate::placement::place;
@@ -66,6 +68,7 @@ pub struct GraphBuilder {
     extractors: Vec<Box<dyn LanguageExtractor>>,
     resolver: PathResolver,
     ignore: IgnorePredicate,
+    overlay: Arc<Overlay>,
 }
 
 type IgnorePredicate = Box<dyn Fn(&Utf8Path) -> bool + Send + Sync>;
@@ -90,7 +93,16 @@ impl GraphBuilder {
             extractors: vec![Box::new(ts)],
             resolver,
             ignore: Box::new(|_| false),
+            overlay: Arc::default(),
         }
+    }
+
+    #[must_use]
+    pub fn with_overlay(mut self, overlay: Overlay) -> Self {
+        self.overlay = Arc::new(overlay);
+        self.resolver =
+            PathResolver::with_overlay(&self.config.project_root, Arc::clone(&self.overlay));
+        self
     }
 
     /// `ignored` gets paths relative to the project root; a matching directory is not descended.
@@ -201,25 +213,41 @@ impl GraphBuilder {
                     .any(|lp| rel.starts_with(lp) || lp.starts_with(rel))
             })
         };
+        let ignored = |path: &Path| {
+            path.strip_prefix(root_std)
+                .ok()
+                .and_then(Utf8Path::from_path)
+                .is_some_and(|rel| (self.ignore)(rel))
+        };
         let mut paths: Vec<(Utf8PathBuf, u64)> = WalkDir::new(root_std)
             .into_iter()
             .filter_entry(|e| {
-                let ignored = e
-                    .path()
-                    .strip_prefix(root_std)
-                    .ok()
-                    .and_then(Utf8Path::from_path)
-                    .is_some_and(|rel| (self.ignore)(rel));
-                !ignored && (!e.file_type().is_dir() || reachable(e.path()))
+                !ignored(e.path()) && (!e.file_type().is_dir() || reachable(e.path()))
             })
             .filter_map(Result::ok)
-            .filter(|e| e.file_type().is_file())
+            .filter(|e| e.file_type().is_file() && self.overlay.get(e.path()) == Overlaid::Disk)
             .filter_map(|e| {
                 let size = e.metadata().map_or(0, |m| m.len());
                 let path = Utf8PathBuf::from_path_buf(e.into_path()).ok()?;
                 Some((strip_windows_extended_prefix(&path), size))
             })
             .collect();
+        let walked = |file: &Path| {
+            file.starts_with(root_std)
+                && !ignored(file)
+                && file
+                    .ancestors()
+                    .skip(1)
+                    .take_while(|dir| dir.starts_with(root_std) && *dir != root_std)
+                    .all(|dir| !ignored(dir) && reachable(dir))
+        };
+        paths.extend(self.overlay.present().filter_map(|(path, text)| {
+            let path = Utf8Path::from_path(path).filter(|p| walked(p.as_std_path()))?;
+            Some((
+                path.to_path_buf(),
+                u64::try_from(text.len()).unwrap_or(u64::MAX),
+            ))
+        }));
         paths.sort_unstable();
         paths
     }
@@ -269,10 +297,13 @@ impl GraphBuilder {
         path_to_id: &FxHashMap<Utf8PathBuf, ModuleId>,
         large_file: &Mutex<()>,
     ) -> Scan {
-        let source = fs::read_to_string(path.as_std_path()).map_err(|e| BuildError::Io {
-            path: path.to_path_buf(),
-            source: e,
-        })?;
+        let source = match self.overlay.get(path.as_std_path()) {
+            Overlaid::Text(text) => text.to_owned(),
+            _ => fs::read_to_string(path.as_std_path()).map_err(|e| BuildError::Io {
+                path: path.to_path_buf(),
+                source: e,
+            })?,
+        };
         let _serial = (source.len() > LARGE_FILE_BYTES).then(|| large_file.lock());
         self.facts_of(path, &source, path_to_id)
     }

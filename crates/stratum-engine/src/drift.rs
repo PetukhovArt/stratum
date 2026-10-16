@@ -35,7 +35,6 @@ pub struct LayerEdgeGrowth {
     pub to: String,
     pub base: usize,
     pub head: usize,
-    pub declared: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -67,16 +66,17 @@ pub struct FanInGrowth {
     pub added: Vec<String>,
 }
 
-/// Architecture changes from `base_root` to `head_root`, both built with `config`.
-/// Modules and containers match by path relative to their root; every list is sorted.
+/// Architecture changes from a base to the tree at `root`, both built with `config`.
+/// The base is `root` with every file in `base` replaced by its base text, `None` for a file
+/// absent at the base; paths are relative to `root` with `/`. Every list is sorted.
 pub fn drift(
-    base_root: &Utf8Path,
-    head_root: &Utf8Path,
+    root: &Utf8Path,
+    base: Vec<(String, Option<String>)>,
     config: &Config,
 ) -> Result<Drift, EngineError> {
     let (base, head) = std::thread::scope(|s| {
-        let base = s.spawn(|| Side::build(base_root, config));
-        let head = Side::build(head_root, config);
+        let base = s.spawn(|| Side::build(root, config, base));
+        let head = Side::build(root, config, Vec::new());
         (base.join(), head)
     });
     let base = base.unwrap_or_else(|p| std::panic::resume_unwind(p))?;
@@ -98,8 +98,12 @@ struct Side {
 }
 
 impl Side {
-    fn build(root: &Utf8Path, config: &Config) -> Result<Self, EngineError> {
-        let (root, graph, _) = pipeline::graph(root, config)?;
+    fn build(
+        root: &Utf8Path,
+        config: &Config,
+        overlay: Vec<(String, Option<String>)>,
+    ) -> Result<Self, EngineError> {
+        let (root, graph, _) = pipeline::graph(root, config, overlay)?;
         let paths = graph
             .modules
             .values()
@@ -209,9 +213,9 @@ fn layer_edges(base: &Side, head: &Side, config: &Config) -> Vec<LayerEdgeGrowth
             .iter()
             .any(|l| l.id == from && l.depends_on.iter().any(|d| d == to))
     };
-    let mut grown: Vec<LayerEdgeGrowth> = head
-        .layer_edge_counts()
+    head.layer_edge_counts()
         .into_iter()
+        .filter(|((from, to), _)| !declared(from, to))
         .filter_map(|((from, to), head)| {
             let base = before.get(&(from, to)).copied().unwrap_or(0);
             (head > base).then(|| LayerEdgeGrowth {
@@ -219,12 +223,9 @@ fn layer_edges(base: &Side, head: &Side, config: &Config) -> Vec<LayerEdgeGrowth
                 to: to.to_owned(),
                 base,
                 head,
-                declared: declared(from, to),
             })
         })
-        .collect();
-    grown.sort_by_key(|g| g.declared);
-    grown
+        .collect()
 }
 
 fn slice_edges(base: &Side, head: &Side) -> Vec<SliceEdge> {
@@ -306,52 +307,61 @@ mod tests {
 
     struct Trees {
         _dir: tempfile::TempDir,
-        base: Utf8PathBuf,
         head: Utf8PathBuf,
         config: Config,
+        base: BTreeMap<String, Option<String>>,
     }
 
     fn exemplar_twice() -> Trees {
         let fixture = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../tests/fixtures/exemplar-stratum-app");
         let dir = tempfile::tempdir().unwrap();
-        let root = Utf8PathBuf::from_path_buf(dir.path().to_path_buf()).unwrap();
-        let (base, head) = (root.join("base"), root.join("head"));
-        for side in [&base, &head] {
-            for entry in walkdir::WalkDir::new(&fixture) {
-                let entry = entry.unwrap();
-                let rel = entry.path().strip_prefix(&fixture).unwrap();
-                let to = side.as_std_path().join(rel);
-                if entry.file_type().is_dir() {
-                    std::fs::create_dir_all(&to).unwrap();
-                } else {
-                    std::fs::copy(entry.path(), &to).unwrap();
-                }
+        let head = Utf8PathBuf::from_path_buf(dir.path().to_path_buf()).unwrap();
+        for entry in walkdir::WalkDir::new(&fixture) {
+            let entry = entry.unwrap();
+            let rel = entry.path().strip_prefix(&fixture).unwrap();
+            let to = head.as_std_path().join(rel);
+            if entry.file_type().is_dir() {
+                std::fs::create_dir_all(&to).unwrap();
+            } else {
+                std::fs::copy(entry.path(), &to).unwrap();
             }
         }
         let config = stratum_config::parse_file(&head.join("stratum.config.jsonc")).unwrap();
         Trees {
             _dir: dir,
-            base,
             head,
             config,
+            base: BTreeMap::new(),
         }
     }
 
     impl Trees {
-        fn write(&self, rel: &str, text: &str) {
+        fn keep_base(&mut self, rel: &str) {
+            let old = std::fs::read_to_string(self.head.join(rel)).ok();
+            self.base.entry(rel.to_owned()).or_insert(old);
+        }
+
+        fn write(&mut self, rel: &str, text: &str) {
+            self.keep_base(rel);
             let path = self.head.join(rel);
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();
             std::fs::write(path, text).unwrap();
         }
 
-        fn append(&self, rel: &str, text: &str) {
+        fn append(&mut self, rel: &str, text: &str) {
             let old = std::fs::read_to_string(self.head.join(rel)).unwrap();
             self.write(rel, &format!("{old}{text}"));
         }
 
+        fn delete(&mut self, rel: &str) {
+            self.keep_base(rel);
+            std::fs::remove_file(self.head.join(rel)).unwrap();
+        }
+
         fn drift(&self) -> Drift {
-            drift(&self.base, &self.head, &self.config).unwrap()
+            let base = self.base.clone().into_iter().collect();
+            drift(&self.head, base, &self.config).unwrap()
         }
     }
 
@@ -362,7 +372,7 @@ mod tests {
 
     #[test]
     fn new_cross_slice_import_is_reported_with_its_example() {
-        let trees = exemplar_twice();
+        let mut trees = exemplar_twice();
         trees.append(
             "src/features/checkout/index.ts",
             "import \"@/features/cart\";\n",
@@ -383,7 +393,7 @@ mod tests {
 
     #[test]
     fn new_cycle_is_reported_and_the_old_one_is_not() {
-        let trees = exemplar_twice();
+        let mut trees = exemplar_twice();
         trees.append("src/shared/utils.ts", "import \"./api/http\";\n");
 
         assert_eq!(
@@ -401,7 +411,7 @@ mod tests {
 
     #[test]
     fn new_sub_unit_with_an_entry_is_a_stage_change() {
-        let trees = exemplar_twice();
+        let mut trees = exemplar_twice();
         trees.write(
             "src/features/profile/settings/index.ts",
             "export const s = 1;\n",
@@ -417,5 +427,20 @@ mod tests {
                     && s.base.is_none()),
             "{stages:?}"
         );
+    }
+
+    #[test]
+    fn a_file_deleted_in_head_still_imports_at_the_base() {
+        let mut trees = exemplar_twice();
+        trees.delete("src/features/profile/index.ts");
+        trees.append(
+            "src/features/cart/index.ts",
+            "import \"@/features/checkout\";\n",
+        );
+
+        let drift = trees.drift();
+
+        assert_eq!(drift.fan_in, [], "checkout had profile as its importer");
+        assert_eq!(drift.slice_edges.len(), 1, "{:?}", drift.slice_edges);
     }
 }

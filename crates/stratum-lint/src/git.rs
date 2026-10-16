@@ -1,9 +1,7 @@
-use std::io::Read;
+use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicU32, Ordering};
 
-use camino::{Utf8Path, Utf8PathBuf};
-use tar::EntryType;
+use camino::Utf8Path;
 
 pub fn changed_files(root: &Utf8Path, reference: &str) -> miette::Result<Vec<String>> {
     verify(root, reference)?;
@@ -55,107 +53,111 @@ pub fn prefix(root: &Utf8Path) -> Option<String> {
     })
 }
 
-/// Pathspecs that match nothing at `reference` are skipped; no pathspecs give an empty tree.
-pub fn tree_at(root: &Utf8Path, reference: &str, pathspecs: &[String]) -> miette::Result<TempTree> {
-    verify(root, reference)?;
-    let tree = TempTree::create()?;
-    let mut specs: Vec<&str> = pathspecs.iter().map(String::as_str).collect();
-    while !specs.is_empty() {
-        let Some(unmatched) = archive(root, reference, &specs, &tree.0)? else {
-            break;
-        };
-        let before = specs.len();
-        specs.retain(|s| *s != unmatched);
-        if specs.len() == before {
-            return Err(miette::miette!(
-                "git archive rejected pathspec {unmatched:?} that was not passed"
-            ));
-        }
-    }
-    Ok(tree)
-}
-
-#[derive(Debug)]
-pub struct TempTree(Utf8PathBuf);
-
-impl TempTree {
-    fn create() -> miette::Result<Self> {
-        static NEXT: AtomicU32 = AtomicU32::new(0);
-        let name = format!(
-            "stratum-tree-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        );
-        let dir = Utf8PathBuf::from_path_buf(std::env::temp_dir().join(name))
-            .map_err(|p| miette::miette!("Temp dir {} is not UTF-8", p.display()))?;
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir(&dir).map_err(|e| miette::miette!("Could not create {dir}: {e}"))?;
-        Ok(Self(dir))
-    }
-
-    pub fn path(&self) -> &Utf8Path {
-        &self.0
-    }
-}
-
-impl Drop for TempTree {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
-fn archive(
+/// Files under `root` whose working-tree state differs from `reference`, untracked ones
+/// included, with their text at `reference` (`None`: absent there). Paths are relative to
+/// `root`; `keep` filters them before any content is read.
+pub fn files_at(
     root: &Utf8Path,
     reference: &str,
-    specs: &[&str],
-    into: &Utf8Path,
-) -> miette::Result<Option<String>> {
+    keep: impl Fn(&str) -> bool,
+) -> miette::Result<Vec<(String, Option<String>)>> {
+    verify(root, reference)?;
+    let status = lines(&run(
+        root,
+        &[
+            "diff",
+            "--name-status",
+            "--no-renames",
+            "--relative",
+            "-z",
+            reference,
+            "--",
+        ],
+    )?);
+    let mut absent = Vec::new();
+    let mut present = Vec::new();
+    for pair in status.chunks_exact(2) {
+        let (code, path) = (&pair[0], &pair[1]);
+        if keep(path) {
+            if code.starts_with('A') {
+                absent.push(path.clone());
+            } else {
+                present.push(path.clone());
+            }
+        }
+    }
+    let untracked = lines(&run(
+        root,
+        &["ls-files", "--others", "--exclude-standard", "-z"],
+    )?);
+    absent.extend(untracked.into_iter().filter(|p| keep(p)));
+    let texts = blobs(root, reference, &present)?;
+    Ok(present
+        .into_iter()
+        .zip(texts)
+        .chain(absent.into_iter().map(|p| (p, None)))
+        .collect())
+}
+
+fn blobs(root: &Utf8Path, reference: &str, rels: &[String]) -> miette::Result<Vec<Option<String>>> {
+    if rels.is_empty() {
+        return Ok(Vec::new());
+    }
     let mut child = git(root)
-        .args(["archive", "--format=tar", reference, "--"])
-        .args(specs)
+        .args(["cat-file", "--batch"])
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .map_err(spawn_error)?;
-    let mut stdout = child
-        .stdout
-        .take()
-        .ok_or_else(|| miette::miette!("git archive: no stdout"))?;
-    let unpacked = unpack(&mut stdout, into);
-    let _ = std::io::copy(&mut stdout, &mut std::io::sink());
-    drop(stdout);
+    let (Some(mut stdin), Some(stdout)) = (child.stdin.take(), child.stdout.take()) else {
+        return Err(miette::miette!("git cat-file: no pipes"));
+    };
+    let read = std::thread::scope(|s| {
+        s.spawn(move || {
+            for rel in rels {
+                if writeln!(stdin, "{reference}:./{rel}").is_err() {
+                    break;
+                }
+            }
+        });
+        read_batch(BufReader::new(stdout), rels.len())
+    });
     let out = child.wait_with_output().map_err(spawn_error)?;
     if !out.status.success() {
-        let stderr = String::from_utf8_lossy(&out.stderr);
-        return unmatched_pathspec(&stderr)
-            .map(Some)
-            .ok_or_else(|| miette::miette!("git archive {reference} failed: {}", stderr.trim()));
+        return Err(miette::miette!(
+            "git cat-file --batch failed: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
     }
-    unpacked
-        .map(|()| None)
-        .map_err(|e| miette::miette!("Could not extract {reference} into {into}: {e}"))
+    read.map_err(|e| miette::miette!("Could not read git cat-file output: {e}"))
 }
 
-fn unpack(reader: impl Read, into: &Utf8Path) -> std::io::Result<()> {
-    let mut archive = tar::Archive::new(reader);
-    for entry in archive.entries()? {
-        let mut entry = entry?;
-        if matches!(
-            entry.header().entry_type(),
-            EntryType::Regular | EntryType::Directory
-        ) {
-            entry.unpack_in(into)?;
-        }
+fn read_batch(mut out: impl BufRead, count: usize) -> std::io::Result<Vec<Option<String>>> {
+    let mut texts = Vec::with_capacity(count);
+    let mut header = String::new();
+    for _ in 0..count {
+        header.clear();
+        out.read_line(&mut header)?;
+        let header = header.trim_end();
+        let size = if header.ends_with(" missing") {
+            None
+        } else {
+            header
+                .rsplit(' ')
+                .next()
+                .and_then(|s| s.parse::<usize>().ok())
+        };
+        let Some(size) = size else {
+            texts.push(None);
+            continue;
+        };
+        let mut bytes = vec![0; size + 1];
+        out.read_exact(&mut bytes)?;
+        bytes.pop();
+        texts.push(Some(String::from_utf8_lossy(&bytes).into_owned()));
     }
-    Ok(())
-}
-
-fn unmatched_pathspec(stderr: &str) -> Option<String> {
-    let rest = stderr.split("pathspec '").nth(1)?;
-    let (spec, tail) = rest.split_once('\'')?;
-    tail.trim_start()
-        .starts_with("did not match any files")
-        .then(|| spec.to_owned())
+    Ok(texts)
 }
 
 fn verify(root: &Utf8Path, reference: &str) -> miette::Result<()> {
@@ -202,71 +204,11 @@ fn lines(stdout: &[u8]) -> Vec<String> {
 
 fn git(root: &Utf8Path) -> Command {
     let mut cmd = Command::new("git");
-    cmd.arg("-C").arg(root.as_str());
+    cmd.arg("--no-optional-locks").arg("-C").arg(root.as_str());
     cmd
 }
 
 #[allow(clippy::needless_pass_by_value)]
 fn spawn_error(e: std::io::Error) -> miette::Report {
     miette::miette!("Could not run git: {e}")
-}
-
-#[cfg(test)]
-#[allow(clippy::unwrap_used)]
-mod tests {
-    use super::*;
-
-    fn repo_with_project_in_subdir() -> (tempfile::TempDir, Utf8PathBuf) {
-        let dir = tempfile::tempdir().unwrap();
-        let repo = Utf8PathBuf::from_path_buf(dir.path().to_path_buf()).unwrap();
-        let root = repo.join("web");
-        std::fs::create_dir_all(root.join("src/shared")).unwrap();
-        std::fs::write(root.join("src/shared/a.ts"), "export const a = 1;").unwrap();
-        std::fs::write(root.join("tsconfig.json"), "{}\n").unwrap();
-        std::fs::write(repo.join("outside.ts"), "export {};\n").unwrap();
-        for args in [
-            &["init", "-q"][..],
-            &["add", "."],
-            &[
-                "-c",
-                "user.name=stratum",
-                "-c",
-                "user.email=stratum@example.com",
-                "-c",
-                "commit.gpgsign=false",
-                "commit",
-                "-q",
-                "-m",
-                "fixture",
-            ],
-        ] {
-            run(&repo, args).unwrap();
-        }
-        (dir, root)
-    }
-
-    #[test]
-    fn tree_at_extracts_root_relative_files_outside_the_repo_and_skips_unmatched_pathspecs() {
-        let (dir, root) = repo_with_project_in_subdir();
-        std::fs::write(root.join("src/shared/a.ts"), "export const a = 2;").unwrap();
-        let specs = ["src".to_owned(), "tsconfig.*.json".to_owned()];
-
-        let tree = tree_at(&root, "HEAD", &specs).unwrap();
-        let extracted = tree.path().to_path_buf();
-
-        assert!(!extracted.starts_with(dir.path().to_str().unwrap()));
-        assert_eq!(
-            std::fs::read_to_string(extracted.join("src/shared/a.ts")).unwrap(),
-            "export const a = 1;"
-        );
-        assert!(!extracted.join("tsconfig.json").exists());
-        assert!(!extracted.join("outside.ts").exists());
-        let status = run(&root, &["status", "--porcelain", "--untracked-files=all"]).unwrap();
-        assert_eq!(
-            String::from_utf8(status).unwrap(),
-            " M web/src/shared/a.ts\n"
-        );
-        drop(tree);
-        assert!(!extracted.exists());
-    }
 }
