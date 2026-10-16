@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
@@ -10,7 +11,7 @@ use stratum_core::{
     types::{Container, ContainerKind, Layer, Module},
 };
 
-use crate::index::{DirEntries, GraphIndex};
+use crate::index::{DirEntries, GraphIndex, SliceImporters, slice_importers};
 
 /// The compound graph view used by rules, the LSP, and the visualizer.
 ///
@@ -29,6 +30,7 @@ pub struct CompoundGraph {
     /// Built on first read from module paths, visibility and containers. Incremental updates
     /// change none of these; a change to them needs a new graph, or the index goes stale.
     index: OnceLock<GraphIndex>,
+    slice_importers: OnceLock<SliceImporters>,
 }
 
 impl CompoundGraph {
@@ -41,11 +43,27 @@ impl CompoundGraph {
             deps: DiGraph::new(),
             node_index: rustc_hash::FxHashMap::default(),
             index: OnceLock::new(),
+            slice_importers: OnceLock::new(),
         }
     }
 
     pub(crate) fn index(&self) -> &GraphIndex {
         self.index.get_or_init(|| GraphIndex::of(self))
+    }
+
+    pub(crate) fn replace_deps(&mut self, deps: DiGraph<ModuleId, EdgeKind>) {
+        self.deps = deps;
+        self.slice_importers = OnceLock::new();
+    }
+
+    /// The other slices holding a module that imports a module of `slice`, by any edge kind.
+    #[must_use]
+    pub fn importing_slices(&self, slice: ContainerId) -> &BTreeSet<ContainerId> {
+        static NONE: BTreeSet<ContainerId> = BTreeSet::new();
+        self.slice_importers
+            .get_or_init(|| slice_importers(self))
+            .get(&slice)
+            .unwrap_or(&NONE)
     }
 
     /// Modules held by `c` or by any container nested in it.

@@ -98,6 +98,24 @@ pub fn build_with_builder(
     root: &Utf8Path,
     config: &Config,
 ) -> Result<(EngineInput, GraphBuilder), EngineError> {
+    let (root_abs, graph, builder) = graph(root, config)?;
+    let registry = registry(&root_abs, config)?;
+
+    Ok((
+        EngineInput {
+            graph: Arc::new(graph),
+            config: Arc::new(config.clone()),
+            project_root: root_abs,
+            registry: Arc::new(registry),
+        },
+        builder,
+    ))
+}
+
+pub(crate) fn graph(
+    root: &Utf8Path,
+    config: &Config,
+) -> Result<(Utf8PathBuf, CompoundGraph, GraphBuilder), EngineError> {
     let root_abs = canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
     let layers: Vec<Layer> = config
         .layers
@@ -131,17 +149,7 @@ pub fn build_with_builder(
         .with_extractor(Box::new(vue))
         .with_ignore(move |rel| ignore.is_ignored(rel));
     let graph = builder.build()?;
-    let registry = registry(&root_abs, config)?;
-
-    Ok((
-        EngineInput {
-            graph: Arc::new(graph),
-            config: Arc::new(config.clone()),
-            project_root: root_abs,
-            registry: Arc::new(registry),
-        },
-        builder,
-    ))
+    Ok((root_abs, graph, builder))
 }
 
 pub fn registry(root: &Utf8Path, config: &Config) -> Result<RuleRegistry, EngineError> {

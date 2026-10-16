@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use rustc_hash::FxHashMap;
-use stratum_core::{ids::ContainerId, visibility::VisibilityScope};
+use stratum_core::{ids::ContainerId, types::ContainerKind, visibility::VisibilityScope};
 
 use crate::graph::{CompoundGraph, PrivateZone};
 
@@ -56,6 +56,30 @@ impl GraphIndex {
             zone_containers,
         }
     }
+}
+
+pub(crate) type SliceImporters = FxHashMap<ContainerId, BTreeSet<ContainerId>>;
+
+pub(crate) fn slice_importers(g: &CompoundGraph) -> SliceImporters {
+    let slice_of: FxHashMap<_, _> = g
+        .modules
+        .keys()
+        .filter_map(|&m| {
+            let c = g.outer_container(m)?;
+            (c.kind == ContainerKind::Slice).then_some((m, c.id))
+        })
+        .collect();
+    let mut importers = SliceImporters::default();
+    for e in g.deps.raw_edges() {
+        let from = slice_of.get(&g.deps[e.source()]);
+        let to = slice_of.get(&g.deps[e.target()]);
+        if let (Some(&from), Some(&to)) = (from, to) {
+            if from != to {
+                importers.entry(to).or_default().insert(from);
+            }
+        }
+    }
+    importers
 }
 
 fn private_zones(g: &CompoundGraph) -> Vec<PrivateZone> {

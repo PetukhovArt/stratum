@@ -6,7 +6,7 @@ use stratum_core::{
     types::{Container, ContainerKind},
     violation::{SourceLocation, Violation},
 };
-use stratum_graph::{CompoundGraph, topo::direct_dependents};
+use stratum_graph::CompoundGraph;
 
 use crate::ids::SLICE_FAN_IN;
 use crate::options::SliceFanInOptions;
@@ -43,29 +43,24 @@ impl Rule for SliceFanIn {
         else {
             return vec![];
         };
-        let slice_of = |m| {
-            graph
-                .outer_container(m)
-                .filter(|c| c.kind == ContainerKind::Slice)
-        };
-        let members: Vec<_> = graph
-            .modules
-            .keys()
-            .copied()
-            .filter(|m| slice_of(*m).is_some_and(|c| c.id == scope))
-            .collect();
-        let importers: BTreeSet<String> = members
+        let importers: BTreeSet<String> = graph
+            .importing_slices(scope)
             .iter()
-            .flat_map(|m| direct_dependents(graph, *m))
-            .filter_map(slice_of)
-            .filter(|c| c.id != scope)
+            .filter_map(|c| graph.containers.get(c))
             .map(|c| qualified(graph, c))
             .collect();
         let fan_in = u32::try_from(importers.len()).unwrap_or(u32::MAX);
         if fan_in <= options.max_fan_in {
             return vec![];
         }
-        let Some(rep) = slice.entry.or_else(|| members.first().copied()) else {
+        let first_member = || {
+            graph
+                .modules
+                .keys()
+                .copied()
+                .find(|&m| graph.outer_container(m).is_some_and(|c| c.id == scope))
+        };
+        let Some(rep) = slice.entry.or_else(first_member) else {
             return vec![];
         };
         let Some(file) = graph.modules.get(&rep).map(|m| m.path.clone()) else {
