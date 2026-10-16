@@ -1,0 +1,186 @@
+---
+source: crates/stratum-lint/tests/e2e_ci_formats.rs
+expression: "lint(\"exemplar-stratum-app\", \"gitlab\")"
+---
+[
+  {
+    "description": "Module imports from layer 'entities' which 'shared' does not depend on",
+    "check_name": "stratum/no-cross-layer-import",
+    "fingerprint": "542cdaf782d76db2141ce1e6c314844c",
+    "severity": "major",
+    "location": {
+      "path": "web/src/shared/api/http.ts",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Circular dependency: boom.ts -> circle.ts",
+    "check_name": "stratum/no-circular-deps",
+    "fingerprint": "d6f7f432336c6bb1ca7861c89c418c68",
+    "severity": "major",
+    "location": {
+      "path": "web/src/features/cart/boom.ts",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Imported by 3 modules from other containers whose layers depend on this one (limit 2); this module is a change hotspot",
+    "check_name": "stratum/miller-limit",
+    "fingerprint": "cfc9f1db131ef864f7509d490e262d00",
+    "severity": "minor",
+    "location": {
+      "path": "web/src/shared/utils.ts",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Depth ratio 2.00 (2 modules in 'user' / its 1 exports) is below the configured minimum 3.00; module exposes too much relative to its container size",
+    "check_name": "stratum/depth-ratio",
+    "fingerprint": "b83f4c75988c43109d283fa31b12fecb",
+    "severity": "info",
+    "location": {
+      "path": "web/src/entities/user/index.ts",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Depth ratio 2.00 (2 modules in 'user' / its 1 exports) is below the configured minimum 3.00; module exposes too much relative to its container size",
+    "check_name": "stratum/depth-ratio",
+    "fingerprint": "2585be07163962208b81ccccc8b0e932",
+    "severity": "info",
+    "location": {
+      "path": "web/src/entities/user/model.ts",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Depth ratio 1.00 (1 modules in 'checkout' / its 1 exports) is below the configured minimum 3.00; module exposes too much relative to its container size",
+    "check_name": "stratum/depth-ratio",
+    "fingerprint": "34ce9f9ad7adbfde90a29601c5993299",
+    "severity": "info",
+    "location": {
+      "path": "web/src/features/checkout/index.ts",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Depth ratio 1.00 (1 modules in 'profile' / its 1 exports) is below the configured minimum 3.00; module exposes too much relative to its container size",
+    "check_name": "stratum/depth-ratio",
+    "fingerprint": "09946dca28b9d88b87893313a06a90eb",
+    "severity": "info",
+    "location": {
+      "path": "web/src/features/profile/index.ts",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "`src/shared/_shared/token.ts` is in a private zone of `src/shared`; only modules under `src/shared` may import it",
+    "check_name": "stratum/visibility-scope",
+    "fingerprint": "d17283e942419dd92924bac1d28c9f9a",
+    "severity": "major",
+    "location": {
+      "path": "web/src/features/profile/index.ts",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Slice entities/user is imported by 2 other slices (limit 1): features/checkout, features/profile",
+    "check_name": "stratum/slice-fan-in",
+    "fingerprint": "6681bcc34c505de4659e7a44879806a2",
+    "severity": "minor",
+    "location": {
+      "path": "web/src/entities/user/index.ts",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Imported by 1 modules from layers that do not depend on 'entities' (threshold 1); consider promoting it to a lower layer",
+    "check_name": "stratum/promotion-pressure",
+    "fingerprint": "b2ffbc82382488999942fc113142b99d",
+    "severity": "info",
+    "location": {
+      "path": "web/src/entities/user/model.ts",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Import of `src/entities/user/model.ts` reaches inside `src/entities/user`",
+    "check_name": "stratum/public-api",
+    "fingerprint": "db17d3831c43d46e343e6d04523cba6d",
+    "severity": "major",
+    "location": {
+      "path": "web/src/shared/api/http.ts",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "`src/features/profile` imports its sibling `src/features/checkout`; siblings inside `src/features` must stay independent",
+    "check_name": "stratum/sibling-isolation",
+    "fingerprint": "23b7ed61c85b9e24d092658e4598c89e",
+    "severity": "major",
+    "location": {
+      "path": "web/src/features/profile/index.ts",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Use a scope hook (inject())",
+    "check_name": "stratum/restricted-calls",
+    "fingerprint": "747e6cfc806e9c319f513212531d0804",
+    "severity": "minor",
+    "location": {
+      "path": "web/src/features/cart/index.ts",
+      "lines": {
+        "begin": 9
+      }
+    }
+  },
+  {
+    "description": "Container 'cart' mixes segment folders (model) with sub-units (coupon) on one level",
+    "check_name": "stratum/stage-mixing",
+    "fingerprint": "4171d3b5f0b563aa4edd1b132eef3dd1",
+    "severity": "major",
+    "location": {
+      "path": "web/src/features/cart/index.ts",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Container 'cart' (stage 4) holds 4 kinds directly inside it (limit 3); it is at stage 4 already: group its sub-units into fewer, larger ones",
+    "check_name": "stratum/container-breadth",
+    "fingerprint": "07e67eeb4a3f051a719021991f54f1a6",
+    "severity": "minor",
+    "location": {
+      "path": "web/src/features/cart/index.ts",
+      "lines": {
+        "begin": 1
+      }
+    }
+  }
+]

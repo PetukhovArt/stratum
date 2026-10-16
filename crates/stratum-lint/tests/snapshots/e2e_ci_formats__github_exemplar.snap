@@ -1,0 +1,45 @@
+---
+source: crates/stratum-lint/tests/e2e_ci_formats.rs
+expression: "without_elapsed(&lint(\"exemplar-stratum-app\", \"github\"))"
+---
+::error file=web/src/features/cart/boom.ts,line=1,col=1,title=stratum/no-circular-deps::Circular dependency: boom.ts -> circle.ts
+::error file=web/src/shared/api/http.ts,line=1,col=1,title=stratum/no-cross-layer-import::Module imports from layer 'entities' which 'shared' does not depend on
+::error file=web/src/shared/api/http.ts,line=1,col=1,title=stratum/public-api::Import of `src/entities/user/model.ts` reaches inside `src/entities/user`
+::error file=web/src/features/profile/index.ts,line=1,col=1,title=stratum/sibling-isolation::`src/features/profile` imports its sibling `src/features/checkout`; siblings inside `src/features` must stay independent
+::error file=web/src/features/cart/index.ts,line=1,col=1,title=stratum/stage-mixing::Container 'cart' mixes segment folders (model) with sub-units (coupon) on one level
+::error file=web/src/features/profile/index.ts,line=1,col=1,title=stratum/visibility-scope::`src/shared/_shared/token.ts` is in a private zone of `src/shared`; only modules under `src/shared` may import it
+::warning file=web/src/features/cart/index.ts,line=1,col=1,title=stratum/container-breadth::Container 'cart' (stage 4) holds 4 kinds directly inside it (limit 3); it is at stage 4 already: group its sub-units into fewer, larger ones
+::warning file=web/src/shared/utils.ts,line=1,col=1,title=stratum/miller-limit::Imported by 3 modules from other containers whose layers depend on this one (limit 2); this module is a change hotspot
+::warning file=web/src/features/cart/index.ts,line=9,col=1,title=stratum/restricted-calls::Use a scope hook (inject())
+::warning file=web/src/entities/user/index.ts,line=1,col=1,title=stratum/slice-fan-in::Slice entities/user is imported by 2 other slices (limit 1): features/checkout, features/profile
+stratum: 6 errors, 4 warnings, 5 info, <elapsed>
+error stratum/no-circular-deps (1) - stratum-lint explain stratum/no-circular-deps
+  src/features/cart/boom.ts:1  Circular dependency: boom.ts -> circle.ts
+  fix: Break the cycle by extracting the shared piece into a lower-purity module or by inverting one of the dependencies.
+error stratum/no-cross-layer-import (1) - stratum-lint explain stratum/no-cross-layer-import
+  src/shared/api/http.ts:1 -> src/entities/user/model.ts  Module imports from layer 'entities' which 'shared' does not depend on
+  fix: Move the imported symbol into a layer 'shared' may reach, or add 'entities' to 'shared'.depends_on if the dependency is legitimate.
+error stratum/public-api (1) - stratum-lint explain stratum/public-api
+  src/shared/api/http.ts:1 -> src/entities/user/model.ts  Import of `src/entities/user/model.ts` reaches inside `src/entities/user`
+  fix: Import from `src/entities/user` through its entry `src/entities/user/index.ts`, exporting the name there if it is missing.
+error stratum/sibling-isolation (1) - stratum-lint explain stratum/sibling-isolation
+  src/features/profile/index.ts:1 -> src/features/checkout/index.ts  `src/features/profile` imports its sibling `src/features/checkout`; siblings inside `src/features` must stay independent
+  fix: Move the shared code down (a lower layer or a private zone of `src/features`), or compose `src/features/profile` and `src/features/checkout` in `src/features`.
+error stratum/stage-mixing (1) - stratum-lint explain stratum/stage-mixing
+  src/features/cart/index.ts:1  Container 'cart' mixes segment folders (model) with sub-units (coupon) on one level
+  fix: Pick one split: move the segment folders' code into sub-units, or fold the sub-units back into segments.
+error stratum/visibility-scope (1) - stratum-lint explain stratum/visibility-scope
+  src/features/profile/index.ts:1 -> src/shared/_shared/token.ts  `src/shared/_shared/token.ts` is in a private zone of `src/shared`; only modules under `src/shared` may import it
+  fix: Import it through the entry of the container that owns `src/shared`, move the importer under `src/shared`, or move the code out of the private zone if it is meant to be shared.
+warning stratum/container-breadth (1) - stratum-lint explain stratum/container-breadth
+  src/features/cart/index.ts:1  Container 'cart' (stage 4) holds 4 kinds directly inside it (limit 3); it is at stage 4 already: group its sub-units into fewer, larger ones
+  fix: Group the files into segment folders (stage 3), or split them into sub-units with their own entry file (stage 4).
+warning stratum/miller-limit (1) - stratum-lint explain stratum/miller-limit
+  src/shared/utils.ts:1  Imported by 3 modules from other containers whose layers depend on this one (limit 2); this module is a change hotspot
+  fix: Split the module so each consumer reaches only the surface it needs, or move the implementation closer to its consumers.
+warning stratum/restricted-calls (1) - stratum-lint explain stratum/restricted-calls
+  src/features/cart/index.ts:9  Use a scope hook (inject())
+warning stratum/slice-fan-in (1) - stratum-lint explain stratum/slice-fan-in
+  src/entities/user/index.ts:1  Slice entities/user is imported by 2 other slices (limit 1): features/checkout, features/profile
+  fix: Narrow the slice's entry or split it so each importer reaches only the part it needs; code every slice needs may belong in a lower layer.
+info (advisory, details in --format json): stratum/depth-ratio (4), stratum/promotion-pressure (1)

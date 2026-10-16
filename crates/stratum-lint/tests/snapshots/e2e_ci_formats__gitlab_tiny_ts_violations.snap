@@ -1,0 +1,78 @@
+---
+source: crates/stratum-lint/tests/e2e_ci_formats.rs
+expression: "lint(\"tiny-ts-violations\", \"gitlab\")"
+---
+[
+  {
+    "description": "Module imports from layer 'features' which 'shared' does not depend on",
+    "check_name": "stratum/no-cross-layer-import",
+    "fingerprint": "f48e9af24535dd4622cc78ed2616a0b0",
+    "severity": "minor",
+    "location": {
+      "path": "web/src/shared/api/http.ts",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Circular dependency: boom.ts -> circle.ts",
+    "check_name": "stratum/no-circular-deps",
+    "fingerprint": "d6f7f432336c6bb1ca7861c89c418c68",
+    "severity": "major",
+    "location": {
+      "path": "web/src/features/cart/boom.ts",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Module at purity 2 imports from purity 3: purer code cannot depend on impurer code",
+    "check_name": "stratum/purity",
+    "fingerprint": "445c081a388200c97091318f7a80878b",
+    "severity": "major",
+    "location": {
+      "path": "web/src/features/cart/index.ts",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Module at purity 1 imports from purity 3: purer code cannot depend on impurer code",
+    "check_name": "stratum/purity",
+    "fingerprint": "803a38f68fc5db2ad26677b9d35769c9",
+    "severity": "major",
+    "location": {
+      "path": "web/src/shared/api/http.ts",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Depth ratio 1.00 (1 modules in 'shared' / its 1 exports) is below the configured minimum 3.00; module exposes too much relative to its container size",
+    "check_name": "stratum/depth-ratio",
+    "fingerprint": "225d53d9091bef98e1b0523a66d2d4ce",
+    "severity": "info",
+    "location": {
+      "path": "web/src/shared/api/http.ts",
+      "lines": {
+        "begin": 1
+      }
+    }
+  },
+  {
+    "description": "Import of `src/features/cart/cart.tsx` reaches inside `src/features/cart`",
+    "check_name": "stratum/public-api",
+    "fingerprint": "07617684b49726b5f844b8fd5834dc38",
+    "severity": "minor",
+    "location": {
+      "path": "web/src/shared/api/http.ts",
+      "lines": {
+        "begin": 1
+      }
+    }
+  }
+]
