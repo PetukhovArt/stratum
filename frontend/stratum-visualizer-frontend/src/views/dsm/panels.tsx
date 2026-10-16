@@ -3,6 +3,7 @@ import { lang, t } from '../../i18n'
 import { layerColor } from '../../render/encoding'
 import { Model } from '../../render/model'
 import { go, nav, set } from '../../shell/nav'
+import { PathText } from '../../shell/path-text'
 import { cellOf, Matrix, MatrixCell, matrixOf, pairCells } from './layout'
 
 const LIST_LIMIT = 30
@@ -19,7 +20,6 @@ export const percent = (part: number, whole: number): string => {
 }
 
 const layerName = (model: Model, id: number): string => model.layers.find((l) => l.id === id)?.name ?? String(id)
-const unitName = (model: Model, id: number): string => model.containers.get(id)?.name ?? String(id)
 const unitPath = (model: Model, id: number): string => model.containers.get(id)?.path ?? ''
 
 const byWeight = (a: MatrixCell, b: MatrixCell): number => b.breaks - a.breaks || b.count - a.count
@@ -55,11 +55,11 @@ const UnitCell: Component<{ model: Model; cell: MatrixCell }> = (props) => {
   return (
     <div class="det-section" data-testid="dsm-cell">
       <h4>
-        {unitName(props.model, props.cell.from)} → {unitName(props.model, props.cell.to)}
+        {props.model.unitLabel(props.cell.from)} → {props.model.unitLabel(props.cell.to)}
       </h4>
       <div class="det-path">
-        {unitPath(props.model, props.cell.from)}
-        <br />→ {unitPath(props.model, props.cell.to)}
+        <PathText path={unitPath(props.model, props.cell.from)} />
+        <br />→ <PathText path={unitPath(props.model, props.cell.to)} />
       </div>
       <p class="dsm-note">
         {t('dsm.imports', { n: props.cell.count })}
@@ -130,7 +130,7 @@ const LayerCell: Component<{ model: Model; matrix: Matrix; from: number; to: num
             {(c) => (
               <button class="dsm-row" onClick={() => set({ sel: { kind: 'cell', level: 'unit', from: c.from, to: c.to } })}>
                 <span class="nm mono">
-                  {unitName(props.model, c.from)} → {unitName(props.model, c.to)}
+                  {props.model.unitLabel(c.from)} → {props.model.unitLabel(c.to)}
                 </span>
                 <span class="n">{c.count}</span>
                 <Show when={c.breaks}>

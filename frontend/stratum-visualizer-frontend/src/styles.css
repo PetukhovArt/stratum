@@ -23,8 +23,11 @@
 .det-path {
   font-size: 11.5px; color: var(--tx-3); padding: 6px 8px; margin-bottom: 12px;
   background: var(--bg-0); border: 1px solid var(--bd-1); border-radius: 6px;
-  word-break: break-all;
+  overflow-wrap: anywhere;
 }
+.path-label { display: inline-flex; min-width: 0; max-width: 100%; white-space: nowrap; }
+.path-label-dir { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.path-label-base { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .det-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 16px; }
 .det-stats-grid { grid-template-columns: repeat(3, 1fr); }
 .stat {
@@ -58,8 +61,8 @@
 .vio-sev.sev-info { background: oklch(70% 0.10 230 / .15); color: var(--info); }
 .vio-rule { font-family: var(--mono); font-size: 11px; color: var(--tx-2); flex: 1; }
 .vio-msg { font-size: 11.5px; color: var(--tx-1); line-height: 1.4; }
+.cv-legend { position: absolute; left: 14px; bottom: 14px; z-index: 3; }
 .legend {
-  position: absolute; left: 14px; bottom: 14px; z-index: 3;
   background: oklch(20% 0.012 260 / .8); backdrop-filter: blur(12px);
   border: 1px solid var(--bd-1); border-radius: 8px;
   padding: 10px 12px; display: flex; flex-direction: column; gap: 6px;

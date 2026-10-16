@@ -4,7 +4,8 @@ import { t } from '../../i18n'
 import { CANVAS_DEFS, EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR } from '../../render/encoding'
 import { Model } from '../../render/model'
 import { set } from '../../shell/nav'
-import { layerName, layerTone, shortRule, trunc } from '../focus/paint'
+import { trunc } from '../../render/labels'
+import { layerName, layerTone, shortRule } from '../focus/paint'
 import { LAYER_NODE, LayerCurve, LayerNode, layoutLayers } from './layout'
 import { MapLegend } from './legend'
 import { selectedLayerPair } from './selection'
@@ -144,7 +145,7 @@ export const LayersScene: Component<{ model: Model }> = (props) => {
   const [open, setOpen] = createSignal<number | null>(null)
   const layout = createMemo(() => layoutLayers(props.model, data(), open()))
   return (
-    <Canvas bounds={layout().bounds} fitKey={`layers:${open()}`} overlay={<MapLegend variant="layers" />}>
+    <Canvas bounds={layout().bounds} fitKey={`layers:${open()}`} legend={<MapLegend variant="layers" />}>
       <g class="map" data-variant="layers">
         <g class="map-edges" fill="none">
           <For each={layout().curves}>{(curve) => <LayerEdge curve={curve} model={props.model} />}</For>

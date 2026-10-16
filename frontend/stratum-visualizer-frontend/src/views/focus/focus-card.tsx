@@ -3,7 +3,8 @@ import { t } from '../../i18n'
 import { LAYER_TONE, SEV_COLOR } from '../../render/encoding'
 import { Model } from '../../render/model'
 import { CARD } from './columns'
-import { entryOf, layerName, layerTone, severityCounts, trunc } from './paint'
+import { ellipsizePath, trunc } from '../../render/labels'
+import { entryOf, layerName, layerTone, severityCounts } from './paint'
 
 const SEV_STEP = 92
 const HALO = 4
@@ -52,10 +53,10 @@ export const FocusCard: Component<{ model: Model; id: number }> = (props) => {
         {trunc(crumbs(), 40)}
       </text>
       <text x={x + 16} y={y + 46} font-size="15" font-weight="600" fill="oklch(95% 0.005 260)">
-        {trunc(m().label(props.id), 28)}
+        {ellipsizePath(m().label(props.id), 28)}
       </text>
       <text x={x + 16} y={y + 64} font-size="9.5" fill="oklch(60% 0.012 260)">
-        {trunc(dir(), 44)}
+        {ellipsizePath(dir(), 44)}
       </text>
       <text x={x + 16} y={y + 88} font-size="10" fill="oklch(78% 0.008 260)">
         {trunc(meta(), 44)}

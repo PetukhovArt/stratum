@@ -2,8 +2,9 @@ import { Component, createMemo, For, Show } from 'solid-js'
 import { t } from '../../i18n'
 import { Model } from '../../render/model'
 import { go, nav, set } from '../../shell/nav'
+import { PathText } from '../../shell/path-text'
 import { DriftReport } from './drift'
-import { describeItem } from './items'
+import { describeItems } from './items'
 import { rulesOf, shortPath } from './paint'
 import { Review } from './review'
 
@@ -53,8 +54,8 @@ const SelectedEdge: Component<{ review: Review }> = (props) => {
         <div class="det-section" data-testid="mr-selected">
           <h4>{t(`mr.tag.${e().tag}`)}</h4>
           <div class="det-path mono">
-            {props.review.nodes.get(e().from)?.path}
-            <br />→ {props.review.nodes.get(e().to)?.path}
+            <PathText path={props.review.nodes.get(e().from)?.path ?? ''} />
+            <br />→ <PathText path={props.review.nodes.get(e().to)?.path ?? ''} />
           </div>
           <Show when={e().breaks.length}>
             <div class="mono mr-rules">{rulesOf(e().breaks)}</div>
@@ -66,7 +67,7 @@ const SelectedEdge: Component<{ review: Review }> = (props) => {
 }
 
 export const MrDetails: Component<{ model: Model; review: Review; drift: DriftReport }> = (props) => {
-  const items = createMemo(() => props.review.items.slice(0, LIST_LIMIT).map((it) => describeItem(props.model, it)))
+  const items = createMemo(() => describeItems(props.model, props.review.items.slice(0, LIST_LIMIT)))
   const c = () => props.review.counts
   return (
     <div class="panel panel-details">
@@ -124,7 +125,9 @@ export const MrDetails: Component<{ model: Model; review: Review; drift: DriftRe
                     </span>
                     <span class="mono mr-item-sub">{it.sub}</span>
                   </span>
-                  <span class="mono mr-item-main">{it.main}</span>
+                  <span class="mono mr-item-main">
+                    <PathText path={it.main} />
+                  </span>
                 </button>
               )}
             </For>

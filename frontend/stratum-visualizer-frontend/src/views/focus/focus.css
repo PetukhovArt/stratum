@@ -44,7 +44,7 @@
 .fo-btn:hover { color: var(--tx-1); background: var(--bg-3); }
 .fo-brief {
   font-family: var(--mono); font-size: 10.5px; line-height: 1.55; color: var(--tx-2); background: var(--bg-0);
-  border: 1px solid var(--bd-1); border-radius: 6px; padding: 8px 9px; white-space: pre-wrap; word-break: break-word; margin: 0;
+  border: 1px solid var(--bd-1); border-radius: 6px; padding: 8px 9px; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0;
 }
 .fo-rows { display: flex; flex-direction: column; margin-bottom: 8px; }
 .fo-row-item {

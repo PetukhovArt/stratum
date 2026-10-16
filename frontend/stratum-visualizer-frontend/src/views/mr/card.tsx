@@ -5,8 +5,8 @@ import { SEV_COLOR } from '../../render/encoding'
 import { Model } from '../../render/model'
 import { nav, set } from '../../shell/nav'
 import { DriftReport } from './drift'
-import { describeItem } from './items'
-import { trunc } from './paint'
+import { describeItems } from './items'
+import { trunc } from '../../render/labels'
 import { Review } from './review'
 
 const EXPORTED_LIMIT = { w: 800, h: 600 } as const
@@ -34,7 +34,7 @@ export const cardHeight = (rows: number): number => CARD.top + rows * CARD.row +
 const CardSvg: Component<{ model: Model; review: Review; drift: DriftReport }> = (props) => {
   const rows = createMemo(() => cardRows(props.review.items.length))
   const height = createMemo(() => cardHeight(rows()))
-  const items = createMemo(() => props.review.items.slice(0, rows()).map((it) => describeItem(props.model, it)))
+  const items = createMemo(() => describeItems(props.model, props.review.items.slice(0, rows())))
   const more = () => props.review.items.length - rows()
   const c = () => props.review.counts
   const selectedKey = () => {
@@ -129,7 +129,9 @@ export const CardScene: Component<{ model: Model; review: Review; drift: DriftRe
       </div>
       <aside class="mr-md">
         <div class="mr-md-hd">
-          <span>{t('mr.markdown')}</span>
+          <span class="mr-md-title" title={t('mr.markdown')}>
+            {t('mr.markdown')}
+          </span>
           <span class="mr-md-btns">
             <button class="mr-btn" data-testid="mr-copy" onClick={() => void copy()}>
               {isCopied() ? t('mr.copied') : t('mr.copy')}

@@ -1,5 +1,6 @@
 import { t } from '../../i18n'
 import { SeverityLabel } from '../../render/encoding'
+import { disambiguate } from '../../render/labels'
 import { Model } from '../../render/model'
 import { labelOf, rulesOf, shortPath } from './paint'
 import { ChangeItem, ReviewEdge, worstBreak } from './review'
@@ -15,18 +16,22 @@ export interface ItemView {
 
 const PATH_PREVIEW = 4
 
-export const describeItem = (m: Model, item: ChangeItem): ItemView => {
+type ImportItem = Extract<ChangeItem, { kind: 'import' }>
+
+const importText = (from: string, item: ImportItem, to: string): string =>
+  `${from} ${item.edge.tag === 'removed' ? '↛' : '→'} ${to}`
+
+const describeItem = (m: Model, item: ChangeItem): ItemView => {
   switch (item.kind) {
     case 'import': {
       const e = item.edge
       const isFixed = e.tag === 'removed'
       const severity = isFixed ? null : worstBreak(e.breaks)
-      const arrow = isFixed ? '↛' : '→'
       return {
         pill: isFixed ? t('mr.item.fixed') : (severity ?? ''),
         severity,
         isFixed,
-        main: `${labelOf(m, e.from, item.from)} ${arrow} ${labelOf(m, e.to, item.to)}`,
+        main: importText(labelOf(m, e.from, item.from), item, labelOf(m, e.to, item.to)),
         sub: rulesOf(e.breaks),
         edge: e,
       }
@@ -56,4 +61,17 @@ export const describeItem = (m: Model, item: ChangeItem): ItemView => {
       }
     }
   }
+}
+
+export const describeItems = (m: Model, items: readonly ChangeItem[]): ItemView[] => {
+  const views = items.map((it) => describeItem(m, it))
+  const imports = items.flatMap((it, i) => (it.kind === 'import' ? [{ it, view: views[i] }] : []))
+  const side = (end: 'from' | 'to') =>
+    disambiguate(imports.map(({ it, view }) => ({ key: view.main, label: labelOf(m, it.edge[end], it[end]), path: it[end] })))
+  const froms = side('from')
+  const tos = side('to')
+  imports.forEach(({ it, view }, i) => {
+    view.main = importText(froms[i], it, tos[i])
+  })
+  return views
 }

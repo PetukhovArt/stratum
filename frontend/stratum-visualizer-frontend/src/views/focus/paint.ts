@@ -35,9 +35,6 @@ export const layerTone = (m: Model, layer: number, tone: Tone = LAYER_TONE.swatc
 
 export const entryOf = (m: Model, id: number): readonly string[] => paintOf(m).entries.get(id) ?? []
 
-export const trunc = (s: string, n: number): string =>
-  s.length <= n ? s : `${s.slice(0, Math.ceil(n / 2) - 1)}…${s.slice(-Math.floor(n / 2))}`
-
 const MIN_CURVE_DX = 40
 
 export const curve = (x1: number, y1: number, x2: number, y2: number): string => {
