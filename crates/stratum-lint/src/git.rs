@@ -19,7 +19,6 @@ pub fn changed_files(root: &Utf8Path, reference: &str) -> miette::Result<Vec<Str
 }
 
 /// `None` when `rel` (relative to `root`) does not exist at `reference`.
-#[expect(dead_code, reason = "baseline --check lands in the ratchet slice")]
 pub fn show(root: &Utf8Path, reference: &str, rel: &str) -> miette::Result<Option<String>> {
     verify(root, reference)?;
     let object = format!("{reference}:./{rel}");
