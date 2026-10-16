@@ -1,15 +1,12 @@
-use std::collections::HashSet;
-
-use petgraph::Direction;
-use petgraph::visit::EdgeRef;
-
 use stratum_core::{
     ids::{LayerId, ModuleId, RuleId},
     severity::Severity,
-    violation::{SourceLocation, Violation},
+    types::Layer,
+    violation::Violation,
 };
 use stratum_graph::CompoundGraph;
 
+use crate::builtin::edge::{EdgeJudge, Finding, edge_violations};
 use crate::ids::NO_CROSS_LAYER_IMPORT;
 use crate::rule::{EmptyOptions, Rule};
 
@@ -30,6 +27,10 @@ impl Rule for NoCrossLayerImport {
         Severity::Error
     }
 
+    fn edge_judge(&self) -> Option<EdgeJudge<EmptyOptions>> {
+        Some(EdgeJudge(|graph, from, to, _| judge(graph, from, to)))
+    }
+
     fn check(
         &self,
         graph: &CompoundGraph,
@@ -37,61 +38,35 @@ impl Rule for NoCrossLayerImport {
         _options: &EmptyOptions,
         severity: Severity,
     ) -> Vec<Violation> {
-        let Some(from_mod) = graph.modules.get(&scope) else {
-            return vec![];
-        };
-        let from_layer = from_mod.layer;
-        let Some(layer_def) = graph.layers.get(&from_layer) else {
-            return vec![];
-        };
-        let allowed: HashSet<LayerId> = layer_def
-            .depends_on
-            .iter()
-            .copied()
-            .chain(std::iter::once(from_layer))
-            .collect();
-        let Some(node) = graph.node_for(scope) else {
-            return vec![];
-        };
-        let mut out = Vec::new();
-        for edge in graph.deps.edges_directed(node, Direction::Outgoing) {
-            let to_id = graph.deps[edge.target()];
-            let Some(to_mod) = graph.modules.get(&to_id) else {
-                continue;
-            };
-            if !allowed.contains(&to_mod.layer) {
-                let from_layer_name = layer_def.name.clone();
-                let to_layer_name = graph.layers.get(&to_mod.layer).map_or_else(
-                    || format!("layer#{}", to_mod.layer.raw()),
-                    |l| l.name.clone(),
-                );
-                out.push(Violation {
-                    rule: self.id(),
-                    severity,
-                    message: format!(
-                        "Module imports from layer '{to_layer_name}' which '{from_layer_name}' does not depend on"
-                    ),
-                    file: from_mod.path.clone(),
-                    location: SourceLocation { line: 1, column: 1 },
-                    modules: vec![scope, to_id],
-                    edge: Some(stratum_core::edge::Edge {
-                        from: scope,
-                        to: to_id,
-                        kind: *edge.weight(),
-                    }),
-                    suggestion: Some(format!(
-                        "Move the imported symbol into a layer '{from_layer_name}' may reach, or add '{to_layer_name}' to '{from_layer_name}'.depends_on if the dependency is legitimate."
-                    )),
-                });
-            }
-        }
-        out.sort_by(|a, b| {
-            let am = a.modules.get(1).map_or(0, |m| m.raw());
-            let bm = b.modules.get(1).map_or(0, |m| m.raw());
-            am.cmp(&bm)
-        });
-        out
+        edge_violations(graph, scope, self.id(), severity, |to| {
+            judge(graph, scope, to)
+        })
     }
+}
+
+pub(crate) fn may_import(from: &Layer, to: LayerId) -> bool {
+    from.id == to || from.depends_on.contains(&to)
+}
+
+pub(crate) fn judge(graph: &CompoundGraph, from: ModuleId, to: ModuleId) -> Option<Finding> {
+    let from_layer = graph.layers.get(&graph.modules.get(&from)?.layer)?;
+    let to_layer = graph.modules.get(&to)?.layer;
+    if may_import(from_layer, to_layer) {
+        return None;
+    }
+    let from_layer_name = &from_layer.name;
+    let to_layer_name = graph
+        .layers
+        .get(&to_layer)
+        .map_or_else(|| format!("layer#{}", to_layer.raw()), |l| l.name.clone());
+    Some(Finding {
+        message: format!(
+            "Module imports from layer '{to_layer_name}' which '{from_layer_name}' does not depend on"
+        ),
+        suggestion: Some(format!(
+            "Move the imported symbol into a layer '{from_layer_name}' may reach, or add '{to_layer_name}' to '{from_layer_name}'.depends_on if the dependency is legitimate."
+        )),
+    })
 }
 
 #[cfg(test)]

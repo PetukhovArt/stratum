@@ -1,6 +1,7 @@
 pub mod container_breadth;
 pub mod deep_module;
 pub mod depth_ratio;
+pub mod edge;
 pub mod import_policy;
 pub mod miller_limit;
 pub mod no_circular_deps;

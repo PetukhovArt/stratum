@@ -4,16 +4,15 @@ use std::path::Path;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use serde::Serialize;
-use stratum_config::resolve_for_file;
 use stratum_core::{
-    ids::{LayerId, RuleId},
+    ids::LayerId,
     severity::Severity,
     types::{Container, ContainerKind, Layer, Module},
     visibility::VisibilityScope,
 };
 use stratum_engine::{CONFIG_FILE, EngineInput, paths};
 use stratum_graph::{CompoundGraph, direct_dependencies, direct_dependents};
-use stratum_rules::{PUBLIC_API, SIBLING_ISOLATION};
+use stratum_rules::territory::{PlannedSlice, Region, Site, Territories};
 
 use crate::{cli::BriefFormat, commands::lint};
 
@@ -112,13 +111,11 @@ pub fn run(
 fn brief(input: &EngineInput, file_abs: &Utf8Path, rel: &Utf8Path) -> miette::Result<Brief> {
     let graph = &input.graph;
     let layers: Vec<Layer> = graph.layers.values().cloned().collect();
-    let module = graph
-        .modules
-        .values()
-        .find(|m| Path::new(file_abs.as_str()) == m.path);
+    let file = Path::new(file_abs.as_str());
+    let module = graph.modules.values().find(|m| file == m.path);
     let container = module
         .and_then(|m| graph.containers.get(&m.container))
-        .or_else(|| graph.container_at(Path::new(file_abs.as_str())));
+        .or_else(|| graph.container_at(file));
     let layer_id = module.map(|m| m.layer).or(container.map(|c| c.layer));
     let status = match (module, layer_id) {
         (Some(_), _) => Status::Module,
@@ -152,37 +149,56 @@ fn brief(input: &EngineInput, file_abs: &Utf8Path, rel: &Utf8Path) -> miette::Re
     let Some(layer_id) = layer_id else {
         return Ok(brief);
     };
-    let purity = module.map_or(DEFAULT_PURITY, |m| m.purity.rank());
+    let territories = Territories::new(graph, &input.config, &input.project_root, &input.registry)
+        .map_err(|e| miette::miette!("{e}"))?;
+    let territory = territories.of(module.map_or(Site::Planned(file), |m| Site::Module(m.id)));
     brief.layer = Some(layer_name(graph, layer_id));
-    fill_containers(&mut brief, input, container, file_abs, rel)?;
-    brief.private_zones = graph
-        .private_zones()
+    let planned = match module {
+        Some(_) => None,
+        None => territories.planned_slice(file),
+    };
+    fill_containers(&mut brief, input, container, planned);
+    brief.private_zones = territory
+        .visible_zones
         .iter()
-        .filter(|z| Path::new(file_abs.as_str()).starts_with(&z.root))
-        .map(|z| input.relative(&z.path))
+        .map(|z| input.relative(&graph.private_zones()[z.index()].path))
         .collect();
-    brief.purity = Some(purity);
-    brief.max_import_purity = Some(purity);
+    brief.purity = Some(module.map_or(DEFAULT_PURITY, |m| m.purity.rank()));
+    brief.max_import_purity = Some(territory.max_import_purity);
     brief.visibility = Some(module.map_or_else(
         || visibility_name(input, &visibility_at(input, file_abs)),
         |m| visibility_name(input, &m.visibility),
     ));
-    brief.may_import_layers = std::iter::once(layer_id)
-        .chain(
-            graph
-                .layers
-                .get(&layer_id)
-                .map(|l| l.depends_on.clone())
-                .unwrap_or_default(),
-        )
-        .map(|id| layer_name(graph, id))
+    brief.may_import_layers = territory
+        .may_import_layers
+        .iter()
+        .map(|&id| layer_name(graph, id))
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect();
-    brief.imported_by_layers = layers
+    brief.imported_by_layers = territory
+        .imported_by_layers
         .iter()
-        .filter(|l| l.id == layer_id || l.depends_on.contains(&layer_id))
-        .map(|l| l.name.clone())
+        .map(|&id| layer_name(graph, id))
+        .collect();
+    brief.may_not_import = territory
+        .may_not
+        .iter()
+        .map(|f| match &f.region {
+            Region::Siblings { parent, kind, .. } => {
+                let parent = graph
+                    .containers
+                    .get(parent)
+                    .map(|p| input.relative(&p.path))
+                    .unwrap_or_default();
+                if *kind == ContainerKind::SubUnit {
+                    Forbidden::SiblingSubUnits { parent }
+                } else {
+                    Forbidden::SiblingSlices { parent }
+                }
+            }
+            Region::Internals => Forbidden::ContainerInternals,
+        })
         .collect();
     if let Some(m) = module {
         fill_from_graph(&mut brief, input, m)?;
@@ -206,103 +222,26 @@ fn fill_containers(
     brief: &mut Brief,
     input: &EngineInput,
     innermost: Option<&Container>,
-    file_abs: &Utf8Path,
-    rel: &Utf8Path,
-) -> miette::Result<()> {
+    planned: Option<PlannedSlice>,
+) {
     let graph = &input.graph;
     let chain: Vec<&Container> = std::iter::successors(innermost, |c| {
         c.parent.and_then(|p| graph.containers.get(&p))
     })
     .collect();
-    let new_slice = chain
-        .first()
-        .and_then(|c| prospective_slice(input, c, file_abs));
     brief.slice = chain
         .iter()
         .skip(1)
         .find(|c| c.kind == ContainerKind::Slice)
         .map(|c| container_brief(input, c));
-    brief.may_not_import = forbidden(input, rel, &chain)?;
-    if let (Some(layer), Some(_)) = (chain.first(), &new_slice)
-        && is_active(input, rel, SIBLING_ISOLATION)?
-    {
-        brief.may_not_import.insert(
-            0,
-            Forbidden::SiblingSlices {
-                parent: input.relative(&layer.path),
-            },
-        );
-    }
-    brief.container = new_slice.or_else(|| chain.first().map(|c| container_brief(input, c)));
-    Ok(())
-}
-
-fn prospective_slice(
-    input: &EngineInput,
-    container: &Container,
-    file_abs: &Utf8Path,
-) -> Option<ContainerBrief> {
-    let sliced = input
-        .graph
-        .layers
-        .get(&container.layer)
-        .is_some_and(|l| l.slices);
-    if container.kind != ContainerKind::Layer || !sliced {
-        return None;
-    }
-    let below = Path::new(file_abs.as_str())
-        .strip_prefix(&container.path)
-        .ok()?;
-    let first = below.components().next()?;
-    let is_file_slice = below.components().count() == 1;
-    let entries = &input.config.structure.entries;
-    if is_file_slice && entries.iter().any(|e| first.as_os_str() == e.as_str()) {
-        return None;
-    }
-    Some(ContainerBrief {
-        path: input.relative(&container.path.join(first)),
-        kind: ContainerKind::Slice,
-        stage: if is_file_slice { 1 } else { 2 },
-        entry: None,
-    })
-}
-
-fn is_active(input: &EngineInput, rel: &Utf8Path, id: RuleId) -> miette::Result<bool> {
-    let severities = resolve_for_file(&input.config, rel)
-        .map_err(|e| miette::miette!("{e}"))?
-        .severities;
-    Ok(input.registry.by_id(id).is_some_and(|r| {
-        severities
-            .get(r.slug())
-            .copied()
-            .unwrap_or_else(|| r.default_severity())
-            != Severity::Off
-    }))
-}
-
-fn forbidden(
-    input: &EngineInput,
-    rel: &Utf8Path,
-    chain: &[&Container],
-) -> miette::Result<Vec<Forbidden>> {
-    let mut out = Vec::new();
-    if is_active(input, rel, SIBLING_ISOLATION)? {
-        for c in chain {
-            let Some(parent) = c.parent.and_then(|p| input.graph.containers.get(&p)) else {
-                continue;
-            };
-            let parent = input.relative(&parent.path);
-            match c.kind {
-                ContainerKind::Slice => out.push(Forbidden::SiblingSlices { parent }),
-                ContainerKind::SubUnit => out.push(Forbidden::SiblingSubUnits { parent }),
-                ContainerKind::Layer | ContainerKind::Nested => {}
-            }
-        }
-    }
-    if is_active(input, rel, PUBLIC_API)? {
-        out.push(Forbidden::ContainerInternals);
-    }
-    Ok(out)
+    brief.container = planned
+        .map(|s| ContainerBrief {
+            path: input.relative(&s.path),
+            kind: ContainerKind::Slice,
+            stage: s.stage.rank(),
+            entry: None,
+        })
+        .or_else(|| chain.first().map(|c| container_brief(input, c)));
 }
 
 fn fill_from_graph(brief: &mut Brief, input: &EngineInput, m: &Module) -> miette::Result<()> {

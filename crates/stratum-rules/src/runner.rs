@@ -1,13 +1,14 @@
-use std::collections::hash_map::Entry;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
+use std::path::PathBuf;
 
-use camino::{Utf8Path, Utf8PathBuf};
+use camino::Utf8Path;
 
-use stratum_config::{Config, ConfigError, resolve_for_file};
+use stratum_config::{Config, ConfigError};
 use stratum_core::{severity::Severity, violation::Violation};
 use stratum_graph::CompoundGraph;
 
 use crate::registry::RuleRegistry;
+use crate::severity::{EffectiveSeverities, FileSeverities};
 
 /// Run every built-in rule against `graph`, then cap each violation's severity
 /// at the per-file effective config: a rule may downgrade a finding, never
@@ -35,33 +36,27 @@ pub fn run_all_with_registry(
     project_root: &Utf8Path,
     registry: &RuleRegistry,
 ) -> Result<Vec<Violation>, ConfigError> {
+    let effective = EffectiveSeverities::new(config, project_root)?;
+    let project = effective.for_project();
+    let mut by_file: HashMap<PathBuf, FileSeverities<'_>> = HashMap::new();
     let mut all = Vec::new();
-    let mut severities_by_file: HashMap<Utf8PathBuf, BTreeMap<String, Severity>> = HashMap::new();
     for r in registry.rules() {
-        let slug = r.slug();
-        let default_sev = r.default_severity();
-        if is_off_everywhere(config, slug, default_sev) {
+        if effective.off_everywhere(r.as_ref()) {
             continue;
         }
         let base_options = config
             .rules
-            .get(slug)
+            .get(r.slug())
             .map_or_else(|| serde_json::Value::Null, |rc| rc.options.clone());
-        let raw = r.run(graph, Severity::Error, &base_options);
-        for mut v in raw {
-            let probe = if r.project_wide() {
-                Utf8PathBuf::from("<project>")
+        for mut v in r.run(graph, Severity::Error, &base_options) {
+            let sev = if r.project_wide() {
+                project.of(r.as_ref())
             } else {
-                to_relative_forward_slash(&v.file, project_root)
+                by_file
+                    .entry(v.file.clone())
+                    .or_insert_with_key(|file| effective.for_file(file))
+                    .of(r.as_ref())
             };
-            let severities = match severities_by_file.entry(probe) {
-                Entry::Occupied(e) => e.into_mut(),
-                Entry::Vacant(e) => {
-                    let severities = resolve_for_file(config, e.key())?.severities;
-                    e.insert(severities)
-                }
-            };
-            let sev = severities.get(slug).copied().unwrap_or(default_sev);
             if sev == Severity::Off {
                 continue;
             }
@@ -74,32 +69,6 @@ pub fn run_all_with_registry(
             .cmp(&(b.rule.raw(), b.modules.first().map_or(0, |m| m.raw())))
     });
     Ok(all)
-}
-
-fn is_off_everywhere(config: &Config, slug: &str, default_sev: Severity) -> bool {
-    let base = config.rules.get(slug).map_or(default_sev, |rc| rc.severity);
-    base == Severity::Off
-        && config
-            .overrides
-            .iter()
-            .filter_map(|block| block.rules.get(slug))
-            .all(|rule| rule.severity == Severity::Off)
-}
-
-fn to_relative_forward_slash(file: &std::path::Path, project_root: &Utf8Path) -> Utf8PathBuf {
-    let abs = Utf8PathBuf::from(file.to_string_lossy().to_string());
-    let root = strip_windows_extended_prefix(project_root);
-    let rel = abs.strip_prefix(&root).unwrap_or(&abs).to_owned();
-    Utf8PathBuf::from(rel.as_str().replace('\\', "/"))
-}
-
-fn strip_windows_extended_prefix(p: &Utf8Path) -> Utf8PathBuf {
-    let s = p.as_str();
-    if let Some(rest) = s.strip_prefix(r"\\?\") {
-        Utf8PathBuf::from(rest)
-    } else {
-        p.to_owned()
-    }
 }
 
 #[cfg(test)]
