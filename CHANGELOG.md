@@ -42,6 +42,7 @@ package version; a bump requires a coordinated frontend release.
 - `.mts` / `.cts` sources. Export counting (`Exports`), including Vue `<script setup>` macros.
 - Claude Code plugins `stratum` (hook + skill) and `stratum-lsp` (LSP), with a marketplace; `docs/agents-snippet.md` for Codex, Cursor and others. The npm wrapper ships `stratum-lsp` too.
 - `stratum-lint visualize --config PATH` and `--no-open` (serve without launching the browser). `stratum-lint snapshot --config PATH`.
+- `stratum-lint visualize --base REF` serves the **Drift** vs REF at `/api/drift` (with the `diff` markdown) and opens the Merge request view: the changed region with added and removed imports, the files that changed them, and a comment card ≤ 800×600 next to the markdown.
 - Visualizer endpoint `GET /api/context?path=REL`: the file's brief as `text/plain`, byte for byte what `stratum-lint context REL --format agent` prints.
 - Visualizer: rewritten in SolidJS + SVG with a fractal pack layout (PixiJS and dagre dropped), violations from `/api/violations`, an outline panel, a search palette, a path glob filter, a minimap, node and edge tooltips, a violators-only filter, cycle focus, colour modes layer / stage / purity, and stage and purity filters.
 

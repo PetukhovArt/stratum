@@ -1,5 +1,7 @@
 #![allow(clippy::unwrap_used)]
 
+mod support;
+
 use std::sync::Arc;
 
 use assert_cmd::Command;
@@ -12,18 +14,22 @@ use stratum_lint::commands::{
     lint,
     visualize::{Api, build_router},
 };
+use support::{PROJECT_SUBDIR, repo_with_committed_fixture_in_subdir};
 use tower::ServiceExt;
 
 const FIXTURE: &str = "../../tests/fixtures/tiny-ts-violations";
 
-fn router() -> Router {
-    let root = Utf8Path::new(FIXTURE);
+fn router_at(root: &Utf8Path, base: Option<&str>) -> Router {
     let input = lint::build(root, &lint::load_config(root, None).unwrap()).unwrap();
-    build_router(Arc::new(Api::new(input).unwrap()))
+    build_router(Arc::new(Api::new(input, base).unwrap()))
 }
 
 async fn get(uri: &str) -> (StatusCode, String) {
-    let response = router()
+    get_from(router_at(Utf8Path::new(FIXTURE), None), uri).await
+}
+
+async fn get_from(router: Router, uri: &str) -> (StatusCode, String) {
+    let response = router
         .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
         .await
         .unwrap();
@@ -71,5 +77,46 @@ async fn root_path_serves_embedded_index_html() {
 #[tokio::test]
 async fn unknown_asset_path_returns_404() {
     let (status, _) = get("/no-such-asset.js").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn drift_route_returns_the_drift_vs_base_with_its_markdown() {
+    let repo = repo_with_committed_fixture_in_subdir("exemplar-stratum-app");
+    let root = repo.path().join(PROJECT_SUBDIR);
+    let file = root.join("src/features/checkout/index.ts");
+    let old = std::fs::read_to_string(&file).unwrap();
+    std::fs::write(&file, format!("{old}import \"@/entities/user/model\";\n")).unwrap();
+
+    let root = Utf8Path::from_path(&root).unwrap();
+    let (status, body) = get_from(router_at(root, Some("HEAD")), "/api/drift").await;
+
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let drift: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(drift["base"]["ref"], "HEAD");
+    let markdown = drift["markdown"].as_str().unwrap();
+    assert_eq!(
+        markdown.lines().next(),
+        Some(format!("<!-- stratum:drift {PROJECT_SUBDIR} -->").as_str())
+    );
+    assert!(markdown.contains(drift["base"]["sha"].as_str().unwrap()));
+    let breaking: Vec<&serde_json::Value> = drift["breaking"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| &drift["edges"][usize::try_from(i.as_u64().unwrap()).unwrap()])
+        .collect();
+    let added = breaking
+        .iter()
+        .find(|e| e["to"] == "src/entities/user/model.ts")
+        .unwrap();
+    assert_eq!(added["change"], "added");
+    assert_eq!(added["from"], "src/features/checkout/index.ts");
+    assert!(!added["breaks"].as_array().unwrap().is_empty(), "{added}");
+}
+
+#[tokio::test]
+async fn drift_route_is_404_without_base() {
+    let (status, _) = get("/api/drift").await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
