@@ -1,13 +1,11 @@
-use petgraph::Direction;
-use petgraph::visit::EdgeRef;
-
 use stratum_core::{
     ids::{ModuleId, RuleId},
     severity::Severity,
-    violation::{SourceLocation, Violation},
+    violation::Violation,
 };
 use stratum_graph::CompoundGraph;
 
+use crate::builtin::edge::{EdgeJudge, Finding, edge_violations};
 use crate::ids::PURITY;
 use crate::rule::{EmptyOptions, Rule};
 
@@ -28,6 +26,10 @@ impl Rule for PurityRule {
         Severity::Error
     }
 
+    fn edge_judge(&self) -> Option<EdgeJudge<EmptyOptions>> {
+        Some(EdgeJudge(|graph, from, to, _| judge(graph, from, to)))
+    }
+
     fn check(
         &self,
         graph: &CompoundGraph,
@@ -35,44 +37,29 @@ impl Rule for PurityRule {
         _options: &EmptyOptions,
         severity: Severity,
     ) -> Vec<Violation> {
-        let Some(from_mod) = graph.modules.get(&scope) else {
-            return vec![];
-        };
-        let Some(node) = graph.node_for(scope) else {
-            return vec![];
-        };
-        let mut out = Vec::new();
-        for edge in graph.deps.edges_directed(node, Direction::Outgoing) {
-            let to_id = graph.deps[edge.target()];
-            let Some(to_mod) = graph.modules.get(&to_id) else {
-                continue;
-            };
-            if !from_mod.purity.may_depend_on(to_mod.purity) {
-                out.push(Violation {
-                    rule: self.id(),
-                    severity,
-                    message: format!(
-                        "Module at purity {} imports from purity {}: purer code cannot depend on impurer code",
-                        from_mod.purity.rank(),
-                        to_mod.purity.rank()
-                    ),
-                    file: from_mod.path.clone(),
-                    location: SourceLocation { line: 1, column: 1 },
-                    modules: vec![scope, to_id],
-                    edge: Some(stratum_core::edge::Edge {
-                        from: scope,
-                        to: to_id,
-                        kind: *edge.weight(),
-                    }),
-                    suggestion: Some(
-                        "Move shared logic into a module at or below the lower purity, or inject the impure dependency at composition root."
-                            .into(),
-                    ),
-                });
-            }
-        }
-        out
+        edge_violations(graph, scope, self.id(), severity, |to| {
+            judge(graph, scope, to)
+        })
     }
+}
+
+pub(crate) fn judge(graph: &CompoundGraph, from: ModuleId, to: ModuleId) -> Option<Finding> {
+    let from = graph.modules.get(&from)?.purity;
+    let to = graph.modules.get(&to)?.purity;
+    if from.may_depend_on(to) {
+        return None;
+    }
+    Some(Finding {
+        message: format!(
+            "Module at purity {} imports from purity {}: purer code cannot depend on impurer code",
+            from.rank(),
+            to.rank()
+        ),
+        suggestion: Some(
+            "Move shared logic into a module at or below the lower purity, or inject the impure dependency at composition root."
+                .into(),
+        ),
+    })
 }
 
 #[cfg(test)]

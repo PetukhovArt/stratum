@@ -6,7 +6,7 @@ use stratum_core::{
 };
 use stratum_graph::CompoundGraph;
 
-use crate::builtin::public_api::{Finding, edge_violations};
+use crate::builtin::edge::{EdgeJudge, Finding, edge_violations};
 use crate::ids::VISIBILITY_SCOPE;
 use crate::paths::project_relative;
 use crate::rule::{EmptyOptions, Rule};
@@ -28,6 +28,10 @@ impl Rule for VisibilityScope {
         Severity::Error
     }
 
+    fn edge_judge(&self) -> Option<EdgeJudge<EmptyOptions>> {
+        Some(EdgeJudge(|graph, from, to, _| judge(graph, from, to)))
+    }
+
     fn check(
         &self,
         graph: &CompoundGraph,
@@ -35,29 +39,31 @@ impl Rule for VisibilityScope {
         _options: &EmptyOptions,
         severity: Severity,
     ) -> Vec<Violation> {
-        let Some(from) = graph.modules.get(&scope) else {
-            return vec![];
-        };
         edge_violations(graph, scope, self.id(), severity, |to| {
-            let target = graph.modules.get(&to)?;
-            let VS::Private { root } = &target.visibility else {
-                return None;
-            };
-            if from.path.starts_with(root) {
-                return None;
-            }
-            let root = project_relative(graph, target.layer, root);
-            let target = project_relative(graph, target.layer, &target.path);
-            Some(Finding {
-                message: format!(
-                    "`{target}` is in a private zone of `{root}`; only modules under `{root}` may import it"
-                ),
-                suggestion: format!(
-                    "Import it through the entry of the container that owns `{root}`, move the importer under `{root}`, or move the code out of the private zone if it is meant to be shared."
-                ),
-            })
+            judge(graph, scope, to)
         })
     }
+}
+
+pub(crate) fn judge(graph: &CompoundGraph, from: ModuleId, to: ModuleId) -> Option<Finding> {
+    let from = graph.modules.get(&from)?;
+    let target = graph.modules.get(&to)?;
+    let VS::Private { root } = &target.visibility else {
+        return None;
+    };
+    if from.path.starts_with(root) {
+        return None;
+    }
+    let root = project_relative(graph, target.layer, root);
+    let target = project_relative(graph, target.layer, &target.path);
+    Some(Finding {
+        message: format!(
+            "`{target}` is in a private zone of `{root}`; only modules under `{root}` may import it"
+        ),
+        suggestion: Some(format!(
+            "Import it through the entry of the container that owns `{root}`, move the importer under `{root}`, or move the code out of the private zone if it is meant to be shared."
+        )),
+    })
 }
 
 #[cfg(test)]

@@ -1,18 +1,16 @@
 use std::collections::BTreeSet;
 
 use globset::{GlobBuilder, GlobMatcher, GlobSet, GlobSetBuilder};
-use petgraph::Direction;
-use petgraph::visit::EdgeRef;
 use serde::Deserialize;
 
 use stratum_core::{
-    edge::Edge,
     ids::{ModuleId, RuleId},
     severity::Severity,
-    violation::{SourceLocation, Violation},
+    violation::Violation,
 };
 use stratum_graph::CompoundGraph;
 
+use crate::builtin::edge::{EdgeJudge, Finding, edge_violations};
 use crate::docs::RuleDoc;
 use crate::ids::IMPORT_POLICY;
 use crate::paths::project_relative;
@@ -142,6 +140,10 @@ impl Rule for ImportPolicy {
         })
     }
 
+    fn edge_judge(&self) -> Option<EdgeJudge<ImportPolicyOptions>> {
+        Some(EdgeJudge(judge))
+    }
+
     fn check(
         &self,
         graph: &CompoundGraph,
@@ -152,47 +154,36 @@ impl Rule for ImportPolicy {
         if options.0.is_empty() {
             return Vec::new();
         }
-        let (Some(from_mod), Some(node)) = (graph.modules.get(&scope), graph.node_for(scope))
-        else {
-            return Vec::new();
-        };
-        let from = project_relative(graph, from_mod.layer, &from_mod.path);
-        let governing: Vec<&Policy> = options.0.iter().filter(|p| p.governs(&from)).collect();
-        if governing.is_empty() {
-            return Vec::new();
-        }
         let mut seen = BTreeSet::new();
-        let mut out = Vec::new();
-        for edge in graph.deps.edges_directed(node, Direction::Outgoing) {
-            let to_id = graph.deps[edge.target()];
-            let Some(to_mod) = graph.modules.get(&to_id) else {
-                continue;
-            };
-            if !seen.insert(to_id) {
-                continue;
-            }
-            let to = project_relative(graph, to_mod.layer, &to_mod.path);
-            let Some(policy) = governing.iter().find(|p| p.denies_import_of(&from, &to)) else {
-                continue;
-            };
-            out.push(Violation {
-                rule: self.id(),
-                severity,
-                message: format!("{} ({to})", policy.message),
-                file: from_mod.path.clone(),
-                location: SourceLocation { line: 1, column: 1 },
-                modules: vec![scope, to_id],
-                edge: Some(Edge {
-                    from: scope,
-                    to: to_id,
-                    kind: *edge.weight(),
-                }),
-                suggestion: None,
-            });
-        }
-        out.sort_by_key(|v| v.modules.get(1).map_or(0, |m| m.raw()));
-        out
+        edge_violations(graph, scope, self.id(), severity, |to| {
+            seen.insert(to)
+                .then(|| judge(graph, scope, to, options))
+                .flatten()
+        })
     }
+}
+
+pub(crate) fn judge(
+    graph: &CompoundGraph,
+    from: ModuleId,
+    to: ModuleId,
+    options: &ImportPolicyOptions,
+) -> Option<Finding> {
+    let rel = |id| {
+        let m = graph.modules.get(&id)?;
+        Some(project_relative(graph, m.layer, &m.path))
+    };
+    let from = rel(from)?;
+    let to = rel(to)?;
+    let policy = options
+        .0
+        .iter()
+        .filter(|p| p.governs(&from))
+        .find(|p| p.denies_import_of(&from, &to))?;
+    Some(Finding {
+        message: format!("{} ({to})", policy.message),
+        suggestion: None,
+    })
 }
 
 #[cfg(test)]

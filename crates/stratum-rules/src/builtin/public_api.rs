@@ -1,15 +1,12 @@
-use petgraph::Direction;
-use petgraph::visit::EdgeRef;
-
 use stratum_core::{
-    edge::Edge,
     ids::{ModuleId, RuleId},
     severity::Severity,
     types::{Container, ContainerKind},
-    violation::{SourceLocation, Violation},
+    violation::Violation,
 };
 use stratum_graph::CompoundGraph;
 
+use crate::builtin::edge::{EdgeJudge, Finding, edge_violations};
 use crate::ids::PUBLIC_API;
 use crate::paths::project_relative;
 use crate::rule::{EmptyOptions, Rule};
@@ -31,6 +28,10 @@ impl Rule for PublicApi {
         Severity::Warning
     }
 
+    fn edge_judge(&self) -> Option<EdgeJudge<EmptyOptions>> {
+        Some(EdgeJudge(|graph, from, to, _| judge(graph, from, to)))
+    }
+
     fn check(
         &self,
         graph: &CompoundGraph,
@@ -39,35 +40,39 @@ impl Rule for PublicApi {
         severity: Severity,
     ) -> Vec<Violation> {
         edge_violations(graph, scope, self.id(), severity, |to| {
-            let entered = entered_container(graph, scope, to)?;
-            if entered.entry == Some(to) {
-                return None;
-            }
-            let unit = project_relative(graph, entered.layer, &entered.path);
-            let target = graph.modules.get(&to)?;
-            let target = project_relative(graph, target.layer, &target.path);
-            let entry = entered
-                .entry
-                .and_then(|e| graph.modules.get(&e))
-                .map(|e| project_relative(graph, e.layer, &e.path));
-            Some(match entry {
-                Some(entry) => Finding {
-                    message: format!("Import of `{target}` reaches inside `{unit}`"),
-                    suggestion: format!(
-                        "Import from `{unit}` through its entry `{entry}`, exporting the name there if it is missing."
-                    ),
-                },
-                None => Finding {
-                    message: format!(
-                        "Import of `{target}` reaches inside `{unit}`, which has no entry file"
-                    ),
-                    suggestion: format!(
-                        "Add an entry file to `{unit}` (a name from `structure.entries`, e.g. index.ts) that exports what outside code needs, and import through it."
-                    ),
-                },
-            })
+            judge(graph, scope, to)
         })
     }
+}
+
+pub(crate) fn judge(graph: &CompoundGraph, from: ModuleId, to: ModuleId) -> Option<Finding> {
+    let entered = entered_container(graph, from, to)?;
+    if entered.entry == Some(to) {
+        return None;
+    }
+    let unit = project_relative(graph, entered.layer, &entered.path);
+    let target = graph.modules.get(&to)?;
+    let target = project_relative(graph, target.layer, &target.path);
+    let entry = entered
+        .entry
+        .and_then(|e| graph.modules.get(&e))
+        .map(|e| project_relative(graph, e.layer, &e.path));
+    Some(match entry {
+        Some(entry) => Finding {
+            message: format!("Import of `{target}` reaches inside `{unit}`"),
+            suggestion: Some(format!(
+                "Import from `{unit}` through its entry `{entry}`, exporting the name there if it is missing."
+            )),
+        },
+        None => Finding {
+            message: format!(
+                "Import of `{target}` reaches inside `{unit}`, which has no entry file"
+            ),
+            suggestion: Some(format!(
+                "Add an entry file to `{unit}` (a name from `structure.entries`, e.g. index.ts) that exports what outside code needs, and import through it."
+            )),
+        },
+    })
 }
 
 fn entered_container(graph: &CompoundGraph, from: ModuleId, to: ModuleId) -> Option<&Container> {
@@ -76,47 +81,6 @@ fn entered_container(graph: &CompoundGraph, from: ModuleId, to: ModuleId) -> Opt
         .filter(|c| c.kind != ContainerKind::Layer)
         .take_while(|c| !graph.containers_of(from).any(|f| f.id == c.id))
         .last()
-}
-
-pub(crate) struct Finding {
-    pub message: String,
-    pub suggestion: String,
-}
-
-pub(crate) fn edge_violations(
-    graph: &CompoundGraph,
-    scope: ModuleId,
-    rule: RuleId,
-    severity: Severity,
-    mut judge: impl FnMut(ModuleId) -> Option<Finding>,
-) -> Vec<Violation> {
-    let (Some(from), Some(node)) = (graph.modules.get(&scope), graph.node_for(scope)) else {
-        return vec![];
-    };
-    let mut out: Vec<Violation> = graph
-        .deps
-        .edges_directed(node, Direction::Outgoing)
-        .filter_map(|edge| {
-            let to = graph.deps[edge.target()];
-            let finding = judge(to)?;
-            Some(Violation {
-                rule,
-                severity,
-                message: finding.message,
-                file: from.path.clone(),
-                location: SourceLocation { line: 1, column: 1 },
-                modules: vec![scope, to],
-                edge: Some(Edge {
-                    from: scope,
-                    to,
-                    kind: *edge.weight(),
-                }),
-                suggestion: Some(finding.suggestion),
-            })
-        })
-        .collect();
-    out.sort_by_key(|v| v.modules[1].raw());
-    out
 }
 
 #[cfg(test)]

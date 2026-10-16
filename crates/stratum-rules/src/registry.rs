@@ -2,6 +2,7 @@ use stratum_config::{Config, ConfigError};
 use stratum_core::{ids::RuleId, severity::Severity, violation::Violation};
 use stratum_graph::CompoundGraph;
 
+use crate::builtin::edge::{BoundJudge, EdgeJudge};
 use crate::docs::RuleDoc;
 use crate::rule::Rule;
 use crate::scope::RuleScope;
@@ -21,6 +22,7 @@ pub trait DynRule: Send + Sync {
         severity: Severity,
         options: &serde_json::Value,
     ) -> Vec<Violation>;
+    fn edge_judge(&self, options: &serde_json::Value) -> Option<BoundJudge>;
 }
 
 #[derive(Debug)]
@@ -67,6 +69,14 @@ impl<R: Rule> DynRule for DynRuleAdapter<R> {
             out.extend(self.inner.check(graph, scope, &opts, severity));
         }
         out
+    }
+
+    fn edge_judge(&self, options: &serde_json::Value) -> Option<BoundJudge> {
+        let EdgeJudge(judge) = self.inner.edge_judge()?;
+        Some(BoundJudge::new(
+            judge,
+            parse_options::<R::Options>(options).unwrap_or_default(),
+        ))
     }
 }
 

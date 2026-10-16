@@ -6,7 +6,7 @@ use stratum_core::{
 };
 use stratum_graph::CompoundGraph;
 
-use crate::builtin::public_api::{Finding, edge_violations};
+use crate::builtin::edge::{EdgeJudge, Finding, edge_violations};
 use crate::ids::SIBLING_ISOLATION;
 use crate::paths::project_relative;
 use crate::rule::{EmptyOptions, Rule};
@@ -28,6 +28,10 @@ impl Rule for SiblingIsolation {
         Severity::Warning
     }
 
+    fn edge_judge(&self) -> Option<EdgeJudge<EmptyOptions>> {
+        Some(EdgeJudge(|graph, from, to, _| judge(graph, from, to)))
+    }
+
     fn check(
         &self,
         graph: &CompoundGraph,
@@ -35,27 +39,33 @@ impl Rule for SiblingIsolation {
         _options: &EmptyOptions,
         severity: Severity,
     ) -> Vec<Violation> {
-        let from_chain: Vec<&Container> = graph.containers_of(scope).collect();
         edge_violations(graph, scope, self.id(), severity, |to| {
-            let to_chain: Vec<&Container> = graph.containers_of(to).collect();
-            let (from_unit, to_unit, parent) = siblings(&from_chain, &to_chain)?;
-            let isolated =
-                |c: &Container| matches!(c.kind, ContainerKind::Slice | ContainerKind::SubUnit);
-            if !isolated(from_unit) || !isolated(to_unit) {
-                return None;
-            }
-            let rel = |c: &Container| project_relative(graph, c.layer, &c.path);
-            let (from_unit, to_unit, parent) = (rel(from_unit), rel(to_unit), rel(parent));
-            Some(Finding {
-                message: format!(
-                    "`{from_unit}` imports its sibling `{to_unit}`; siblings inside `{parent}` must stay independent"
-                ),
-                suggestion: format!(
-                    "Move the shared code down (a lower layer or a private zone of `{parent}`), or compose `{from_unit}` and `{to_unit}` in `{parent}`."
-                ),
-            })
+            judge(graph, scope, to)
         })
     }
+}
+
+pub(crate) const fn is_isolated(kind: ContainerKind) -> bool {
+    matches!(kind, ContainerKind::Slice | ContainerKind::SubUnit)
+}
+
+pub(crate) fn judge(graph: &CompoundGraph, from: ModuleId, to: ModuleId) -> Option<Finding> {
+    let from_chain: Vec<&Container> = graph.containers_of(from).collect();
+    let to_chain: Vec<&Container> = graph.containers_of(to).collect();
+    let (from_unit, to_unit, parent) = siblings(&from_chain, &to_chain)?;
+    if !is_isolated(from_unit.kind) || !is_isolated(to_unit.kind) {
+        return None;
+    }
+    let rel = |c: &Container| project_relative(graph, c.layer, &c.path);
+    let (from_unit, to_unit, parent) = (rel(from_unit), rel(to_unit), rel(parent));
+    Some(Finding {
+        message: format!(
+            "`{from_unit}` imports its sibling `{to_unit}`; siblings inside `{parent}` must stay independent"
+        ),
+        suggestion: Some(format!(
+            "Move the shared code down (a lower layer or a private zone of `{parent}`), or compose `{from_unit}` and `{to_unit}` in `{parent}`."
+        )),
+    })
 }
 
 fn siblings<'g>(

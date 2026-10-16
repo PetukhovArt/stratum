@@ -9,6 +9,8 @@ pub mod registry;
 pub mod rule;
 pub mod runner;
 pub mod scope;
+mod severity;
+pub mod territory;
 
 pub use builtin::container_breadth::ContainerBreadth;
 pub use builtin::deep_module::DeepModule;

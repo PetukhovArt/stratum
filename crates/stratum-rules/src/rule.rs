@@ -1,6 +1,7 @@
 use stratum_core::{ids::RuleId, severity::Severity, violation::Violation};
 use stratum_graph::CompoundGraph;
 
+use crate::builtin::edge::EdgeJudge;
 use crate::docs::RuleDoc;
 use crate::scope::RuleScope;
 
@@ -14,6 +15,10 @@ pub trait Rule: Send + Sync {
 
     fn doc(&self) -> Option<RuleDoc> {
         crate::docs::builtin(self.slug())
+    }
+
+    fn edge_judge(&self) -> Option<EdgeJudge<Self::Options>> {
+        None
     }
 
     /// `severity` is the ceiling: stamp findings with it, or with a lower severity to downgrade
