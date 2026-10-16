@@ -24,6 +24,14 @@ spec:
       fi
       stratum-lint --version
 
+# Merged-results pipelines set CI_MERGE_REQUEST_TARGET_BRANCH_SHA, and their HEAD already
+# holds the target tip; other MR pipelines compare with the merge base. Empty outside MRs.
+.stratum-base:
+  script:
+    - |
+      STRATUM_BASE="${CI_MERGE_REQUEST_TARGET_BRANCH_SHA:-$CI_MERGE_REQUEST_DIFF_BASE_SHA}"
+      if [ -n "$STRATUM_BASE" ]; then git fetch -q --depth=1 origin "$STRATUM_BASE" || true; fi
+
 stratum:
   stage: $[[ inputs.stage ]]
   rules:
@@ -31,18 +39,18 @@ stratum:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   script:
     - !reference [.stratum-install, script]
+    - !reference [.stratum-base, script]
     - |
       rc=
       stratum-lint --format gitlab > gl-code-quality-report.json || rc=$?
       stratum-lint --format agent || true
-      if [ -n "$CI_MERGE_REQUEST_DIFF_BASE_SHA" ]; then
+      if [ -n "$STRATUM_BASE" ]; then
         case ",$CI_MERGE_REQUEST_LABELS," in
           *,stratum:accept-debt,*)
             echo "stratum: label stratum:accept-debt is set, baseline --check skipped"
             ;;
           *)
-            git fetch -q --depth=1 origin "$CI_MERGE_REQUEST_DIFF_BASE_SHA" || true
-            stratum-lint baseline --check="$CI_MERGE_REQUEST_DIFF_BASE_SHA" || rc=${rc:-$?}
+            stratum-lint baseline --check="$STRATUM_BASE" || rc=${rc:-$?}
             ;;
         esac
       fi
@@ -61,12 +69,12 @@ stratum-drift:
     exit_codes: [1]
   script:
     - !reference [.stratum-install, script]
+    - !reference [.stratum-base, script]
     # With STRATUM_GITLAB_TOKEN the report goes to one MR note keyed by its first line:
     # updated when it exists, created only when there is drift.
     - |
-      git fetch -q --depth=1 origin "$CI_MERGE_REQUEST_DIFF_BASE_SHA" || true
       d=0
-      stratum-lint diff --base "$CI_MERGE_REQUEST_DIFF_BASE_SHA" > stratum-drift.md || d=$?
+      stratum-lint diff --base "$STRATUM_BASE" > stratum-drift.md || d=$?
       [ "$d" -le 1 ] || exit "$d"
       cat stratum-drift.md
       if [ -n "$STRATUM_GITLAB_TOKEN" ]; then

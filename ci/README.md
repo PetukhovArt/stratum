@@ -36,6 +36,7 @@ A copy works too: `include: local: ci/stratum.yml`. So does a component in an in
 - They keep `default: before_script`, so `npm config set registry ...` there still applies.
 - MR note: set the CI/CD variable `STRATUM_GITLAB_TOKEN` (masked) to a project access token with the `api` scope, role Reporter or higher. The job then keeps one note per project root up to date. Without the variable, the drift report is only the artifact.
 - Self-signed or internal CA: set `NODE_EXTRA_CA_CERTS` to the CA bundle path in the image (for example a file variable), otherwise the note request fails TLS.
+- The base is `CI_MERGE_REQUEST_TARGET_BRANCH_SHA` in merged-results pipelines, otherwise the merge base `CI_MERGE_REQUEST_DIFF_BASE_SHA`.
 - `CI_MERGE_REQUEST_DIFF_BASE_SHA` exists only in merge request pipelines. Without `workflow: rules` or job rules that create them, only the default-branch run happens.
 
 ## GitHub (github.com and GitHub Enterprise Server)
