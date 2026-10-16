@@ -11,7 +11,7 @@ LSP diagnostics live in the separate `stratum-lsp` plugin ([claude-plugin-lsp](.
 ## Install
 
 1. Put `stratum-lint` on `PATH` (check: `which stratum-lint`, or `Get-Command` in PowerShell):
-   - npm (all platforms): `npm install -g @stratum/lint`
+   - npm (all platforms): `npm install -g @petukhovart/stratum-lint`
    - Windows: `scoop bucket add stratum https://github.com/PetukhovArt/scoop-stratum-bucket` and `scoop install stratum-lint`
    - macOS / Linux: `brew tap petukhovart/stratum` and `brew install stratum-lint`
    - from source: `cargo install --path crates/stratum-lint` (and `cargo install --path crates/stratum-lsp` for the LSP plugin)

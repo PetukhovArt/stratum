@@ -2,7 +2,7 @@
 
 Two adapters around the same sequence: lint with findings in the CI's own format, `baseline --check` against the merge base, and on merge requests an advisory drift report (`stratum-lint diff --base`). They need no outbound internet: the only hosts they talk to are the CI instance itself and the npm registry the job already uses.
 
-`stratum-lint` comes from the project's `node_modules/.bin` when the project pins `@stratum-lint/cli`. Otherwise the template installs the version it was tagged with into `.stratum/` from the job's npm registry config (env, user `.npmrc`, project `.npmrc`).
+`stratum-lint` comes from the project's `node_modules/.bin` when the project pins `@petukhovart/stratum-lint`. Otherwise the template installs the version it was tagged with into `.stratum/` from the job's npm registry config (env, user `.npmrc`, project `.npmrc`).
 
 The label `stratum:accept-debt` on an MR/PR skips `baseline --check`, for example after a file move. A label added later applies to the next pipeline only: on GitLab run a new pipeline, on GitHub `labeled`/`unlabeled` in `on.pull_request.types` reruns the workflow.
 

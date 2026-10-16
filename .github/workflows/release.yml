@@ -18,7 +18,13 @@ jobs:
       - name: install cargo-dist
         run: cargo install cargo-dist --locked
       - name: cargo dist plan
-        run: cargo dist plan --tag ${{ github.ref_name }}
+        run: |
+          mkdir -p target/distrib
+          cargo dist plan --tag ${{ github.ref_name }} --output-format=json > target/distrib/dist-manifest.json
+      - uses: actions/upload-artifact@v5
+        with:
+          name: dist-manifest
+          path: target/distrib/dist-manifest.json
 
   build:
     needs: plan
@@ -28,13 +34,9 @@ jobs:
         include:
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-          - target: x86_64-apple-darwin
-            os: macos-13
           - target: aarch64-apple-darwin
             os: macos-14
           - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-          - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
     runs-on: ${{ matrix.os }}
     steps:
@@ -85,3 +87,32 @@ jobs:
           tag_name: ${{ github.ref_name }}
           files: target/distrib/**
           generate_release_notes: true
+
+  publish-npm:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          path: target/distrib
+          merge-multiple: true
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+      - name: pack npm packages
+        run: node scripts/npm-pack.mjs target/distrib target/npm > target/npm-publish-order.txt
+      - name: publish platform packages, then the launcher
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          dist_tag=latest
+          case "$TAG" in *-*) dist_tag=next ;; esac
+          while read -r tarball; do
+            npm publish "$tarball" --access public --provenance --tag "$dist_tag"
+          done < target/npm-publish-order.txt
