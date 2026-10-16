@@ -41,6 +41,15 @@ impl Drift {
     /// edge that shares an end and its `breaks` with a removed one is a moved file, not listed.
     #[must_use]
     pub fn breaking_imports(&self) -> Vec<&EdgeChange> {
+        self.breaking_indices()
+            .into_iter()
+            .map(|i| &self.edges[i])
+            .collect()
+    }
+
+    /// Indices into `edges` of [`Self::breaking_imports`], in its order.
+    #[must_use]
+    pub fn breaking_indices(&self) -> Vec<usize> {
         let removed: HashSet<(&str, &[(String, Severity)])> = self
             .edges
             .iter()
@@ -56,12 +65,14 @@ impl Drift {
             removed.contains(&(e.from.as_str(), &e.breaks[..]))
                 || removed.contains(&(e.to.as_str(), &e.breaks[..]))
         };
-        let mut added: Vec<&EdgeChange> = self
+        let mut added: Vec<usize> = self
             .edges
             .iter()
-            .filter(|e| e.change == Change::Added && !e.breaks.is_empty() && !moved(e))
+            .enumerate()
+            .filter(|(_, e)| e.change == Change::Added && !e.breaks.is_empty() && !moved(e))
+            .map(|(i, _)| i)
             .collect();
-        added.sort_by_key(|e| std::cmp::Reverse(e.breaks[0].1));
+        added.sort_by_key(|&i| std::cmp::Reverse(self.edges[i].breaks[0].1));
         added
     }
 }

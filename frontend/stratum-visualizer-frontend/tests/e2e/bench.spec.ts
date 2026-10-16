@@ -30,6 +30,27 @@ const tinyTsViolations = (snapshot: { modules: { id: number; path: string }[] })
   }))
 }
 
+const TINY_TS_DRIFT = {
+  base: { ref: 'HEAD~1', sha: 'abc1234' },
+  markdown: '<!-- stratum:drift -->\n### Stratum: architecture drift vs abc1234\n1 import that breaks rules\n',
+  breaking: [0],
+  edges: [
+    {
+      from: 'src/legacy/old-helper.js',
+      to: 'src/shared/ui/Button.tsx',
+      kind: 'static',
+      change: 'added',
+      breaks: [[CROSS_LAYER, 'error']],
+    },
+    { from: 'src/features/cart/cart.tsx', to: 'src/features/cart/gone.ts', kind: 'static', change: 'removed', breaks: [] },
+  ],
+  layer_edges: [],
+  slice_edges: [],
+  cycles: [],
+  stages: [],
+  fan_in: [],
+}
+
 const serveTinyTs = async (page: Page) => {
   const body = readFileSync(SNAPSHOT_PATH, 'utf-8')
   await page.route('**/api/snapshot', (route) => route.fulfill({ body, contentType: 'application/json' }))
@@ -37,6 +58,9 @@ const serveTinyTs = async (page: Page) => {
     route.fulfill({ body: JSON.stringify(tinyTsViolations(JSON.parse(body))), contentType: 'application/json' }),
   )
   await page.route('**/api/context?**', (route) => route.fulfill({ status: 404, body: 'not found' }))
+  await page.route('**/api/drift', (route) =>
+    route.fulfill({ body: JSON.stringify(TINY_TS_DRIFT), contentType: 'application/json' }),
+  )
 }
 
 test('the bench answers every phase-1 question and meets every gate', async ({ page }) => {
@@ -46,14 +70,25 @@ test('the bench answers every phase-1 question and meets every gate', async ({ p
   await page.waitForFunction(() => window.__stratum !== undefined && window.__benchRun !== undefined, null, {
     timeout: 60_000,
   })
+  await page.waitForLoadState('networkidle')
 
   const result = await page.evaluate(() => window.__benchRun!())
   console.log(JSON.stringify(result, null, 2))
 
   const ran = result.tasks.filter((t) => t.status === 'run')
+  const isMrShown = result.tasks.some((t) => t.id === 'mr-breaks' && t.status === 'run')
+  if (!BENCH_URL) expect(isMrShown).toBe(true)
   expect(ran.map((t) => t.id).sort()).toEqual(
-    ['importers-in-layer', 'layer-pairs-against', 'may-import', 'may-not-import', 'unit-cycles'].sort(),
+    [
+      'importers-in-layer',
+      'layer-pairs-against',
+      'may-import',
+      'may-not-import',
+      'unit-cycles',
+      ...(isMrShown ? ['mr-breaks'] : []),
+    ].sort(),
   )
+  expect(result.runs.filter((r) => r.view === 'mr').map((r) => r.variant)).toEqual(isMrShown ? ['region', 'card'] : [])
   expect(ran.filter((t) => !t.isAnswerShown || t.actions.length > 3)).toEqual([])
   expect(result.runs.length).toBeGreaterThan(2)
   expect(result.targets.filter((t) => t.isGate && !t.isMet)).toEqual([])

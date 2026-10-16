@@ -1,6 +1,7 @@
 import { Model, sccs } from '../../render/model'
 import { NavPatch } from '../../shell/nav'
 import { SnapshotLayer } from '../../types'
+import { DriftReport, driftReport } from '../mr/drift'
 import { Subjects } from './subjects'
 
 const CROSS_LAYER_RULE = 'stratum/no-cross-layer-import'
@@ -31,10 +32,12 @@ export interface PendingTask {
   question: string
   who: Asker
   view: string
-  reason: 'phase 2' | 'needs the merge request view'
+  reason: 'phase 2'
 }
 
-type TaskBlock = (m: Model, s: Subjects) => TaskDef[]
+export type SkippedTask = Omit<PendingTask, 'reason'> & { skip: 'no /api/drift: run visualize --base REF' }
+
+type TaskBlock = (m: Model, s: Subjects) => (TaskDef | SkippedTask)[]
 
 const words = (text: string | null): string[] => (text ?? '').split(/[\s,]+/).filter(Boolean)
 
@@ -210,7 +213,42 @@ const unitCyclesTask = (m: Model): TaskDef => {
 
 const dsmTasks: TaskBlock = (m) => [layerPairsTask(m), unitCyclesTask(m)]
 
-export const TASK_BLOCKS: readonly TaskBlock[] = [focusTasks, dsmTasks]
+const MR_BREAKS = {
+  order: 4,
+  id: 'mr-breaks',
+  question: 'What does this merge request break?',
+  who: 'reviewer',
+  view: 'mr',
+} as const
+
+const breakingKeys = (m: Model, drift: DriftReport): string[] =>
+  drift.breaking.map((i) => {
+    const e = drift.edges[i]
+    return `${m.byPath.get(e.from)}>${m.byPath.get(e.to)}`
+  })
+
+const mrBreaksTask = (m: Model, drift: DriftReport): TaskDef => {
+  const keys = breakingKeys(m, drift)
+  const rules = [...new Set(drift.breaking.flatMap((i) => drift.edges[i].breaks.map(([slug]) => slug)))].sort()
+  return {
+    ...MR_BREAKS,
+    answer: keys.length ? `${keys.length} imports break ${rules.join(', ')}` : 'nothing',
+    steps: [{ label: 'open Merge request region', patch: { view: 'mr', mrVariant: 'region' } }],
+    isAnswerShown: () => {
+      const count = document.querySelector('[data-testid="mr-breaking"]')?.textContent?.trim()
+      const drawn = (key: string) =>
+        document.querySelector(`[data-testid="mr-stage"] path[data-edge="${key}"][data-tag="added"][data-rule]`) !== null
+      return count === String(keys.length) && keys.every(drawn)
+    },
+  }
+}
+
+const mrTasks: TaskBlock = (m) => {
+  const drift = driftReport()
+  return [drift ? mrBreaksTask(m, drift) : { ...MR_BREAKS, skip: 'no /api/drift: run visualize --base REF' }]
+}
+
+export const TASK_BLOCKS: readonly TaskBlock[] = [focusTasks, mrTasks, dsmTasks]
 
 export const PENDING_TASKS: readonly PendingTask[] = [
   {
@@ -220,14 +258,6 @@ export const PENDING_TASKS: readonly PendingTask[] = [
     who: 'reviewer',
     view: 'set',
     reason: 'phase 2',
-  },
-  {
-    order: 4,
-    id: 'mr-breaks',
-    question: 'What does this merge request break?',
-    who: 'reviewer',
-    view: 'mr',
-    reason: 'needs the merge request view',
   },
   {
     order: 6,

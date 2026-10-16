@@ -78,7 +78,7 @@ export const MrDetails: Component<{ model: Model; review: Review; drift: DriftRe
         <SelectedEdge review={props.review} />
         <div class="det-stats det-stats-grid" data-testid="mr-stats">
           <div class="stat stat-err">
-            <div class="stat-val" data-testid="mr-breaking">
+            <div class="stat-val" data-testid="mr-breaking" data-ch="sev">
               {c().breaking}
             </div>
             <div class="stat-lbl">{t('mr.stat.breaking', { n: c().breaking })}</div>

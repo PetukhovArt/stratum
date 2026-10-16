@@ -4,7 +4,7 @@ export const en = {
   'view.bench': 'Bench',
   'bench.run': 'Run bench',
   'bench.rerun': 'Run again',
-  'bench.idle': 'Drives Focus and Matrix through the app’s navigation API and measures them.',
+  'bench.idle': 'Drives Focus, Matrix and Merge request through the app’s navigation API and measures them.',
   'bench.passing': 'all gates met',
   'bench.failing': 'gates missed',
   'bench.targets': 'Targets',
@@ -15,6 +15,7 @@ export const en = {
   'bench.target.leaks': 'severity colours only on severity marks',
   'bench.target.precision': 'edge rules shown that lint reports',
   'bench.target.recall': 'lint edge findings shown',
+  'bench.target.card': 'comment card ≤ 800×600',
   'bench.met': 'met',
   'bench.miss': 'miss',
   'bench.tasks': 'Canonical questions',
@@ -42,6 +43,7 @@ export const en = {
   'bench.yes': 'yes',
   'bench.no': 'no',
   'bench.pending': 'pending: {reason}',
+  'bench.skipped': 'skipped: {reason}',
   'bench.note':
     'Render = synchronous go() plus forced layout. Pan/zoom = 24 synchronous setViewport calls, each with forced layout; paint excluded. Leak gate covers the stage; panels are reported.',
 } as const
@@ -50,7 +52,7 @@ export const ru: MessagesOf<typeof en> = {
   'view.bench': 'Стенд',
   'bench.run': 'Запустить стенд',
   'bench.rerun': 'Запустить снова',
-  'bench.idle': 'Проходит Фокус и Матрицу через навигационный API приложения и замеряет их.',
+  'bench.idle': 'Проходит Фокус, Матрицу и Merge request через навигационный API приложения и замеряет их.',
   'bench.passing': 'все пороги пройдены',
   'bench.failing': 'пороги не пройдены',
   'bench.targets': 'Цели',
@@ -61,6 +63,7 @@ export const ru: MessagesOf<typeof en> = {
   'bench.target.leaks': 'цвета серьёзности только на метках серьёзности',
   'bench.target.precision': 'показанные правила рёбер есть в линтере',
   'bench.target.recall': 'находки линтера на рёбрах показаны',
+  'bench.target.card': 'карточка комментария ≤ 800×600',
   'bench.met': 'да',
   'bench.miss': 'нет',
   'bench.tasks': 'Канонические вопросы',
@@ -88,6 +91,7 @@ export const ru: MessagesOf<typeof en> = {
   'bench.yes': 'да',
   'bench.no': 'нет',
   'bench.pending': 'ожидает: {reason}',
+  'bench.skipped': 'пропущен: {reason}',
   'bench.note':
     'Отрисовка = синхронный go() и принудительная раскладка. Панорама/зум = 24 синхронных вызова setViewport, каждый с принудительной раскладкой, без отрисовки пикселей. Порог утечек считается по сцене, панели только в отчёте.',
 }

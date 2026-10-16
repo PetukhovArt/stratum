@@ -21,7 +21,6 @@ use stratum_core::{
 use stratum_engine::{Drift, EngineInput, Finding};
 
 use crate::commands::{context, diff, lint};
-use crate::git;
 
 #[derive(RustEmbed)]
 #[folder = "../../frontend/stratum-visualizer-frontend/dist/"]
@@ -63,7 +62,7 @@ struct ApiDrift<'a> {
 struct ApiBase<'a> {
     #[serde(rename = "ref")]
     reference: &'a str,
-    sha: String,
+    sha: &'a str,
 }
 
 impl Api {
@@ -93,28 +92,15 @@ impl Api {
 }
 
 fn drift_json(input: &EngineInput, base: &str) -> miette::Result<String> {
-    let root = input.project_root.as_path();
-    let sha = git::short_sha(root, base)?;
-    let base_files = git::files_at(root, base, |rel| {
-        let path = Utf8Path::new(rel);
-        stratum_engine::is_source(path) || path.extension() == Some("json")
-    })?;
-    let drift = stratum_engine::drift(root, base_files, &input.config)
-        .map_err(|e| miette::miette!("{e}"))?;
-    let prefix = git::prefix(root).unwrap_or_default();
-    let breaking = drift
-        .breaking_imports()
-        .into_iter()
-        .filter_map(|b| drift.edges.iter().position(|e| std::ptr::eq(e, b)))
-        .collect();
+    let report = diff::compute(input.project_root.as_path(), base, &input.config)?;
     let api = ApiDrift {
-        markdown: diff::markdown(&drift, &sha, prefix.trim_end_matches('/'), base),
-        breaking,
+        markdown: report.markdown(),
+        breaking: report.drift.breaking_indices(),
         base: ApiBase {
-            reference: base,
-            sha,
+            reference: report.base,
+            sha: &report.sha,
         },
-        drift: &drift,
+        drift: &report.drift,
     };
     serde_json::to_string(&api).into_diagnostic()
 }

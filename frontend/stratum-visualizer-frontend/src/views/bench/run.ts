@@ -3,6 +3,7 @@ import { Model } from '../../render/model'
 import { NavHooks, NavPatch } from '../../shell/nav'
 import { layoutBands } from '../focus/bands'
 import { layoutColumns } from '../focus/columns'
+import { driftReport } from '../mr/drift'
 import {
   auditChannel,
   boundsSize,
@@ -17,16 +18,16 @@ import {
   stageSvg,
 } from './probes'
 import { pickSubjects, Subject, Subjects } from './subjects'
-import { Asker, PENDING_TASKS, PendingTask, TASK_BLOCKS } from './tasks'
+import { Asker, PENDING_TASKS, PendingTask, SkippedTask, TASK_BLOCKS } from './tasks'
 import { drawnPairsOf, DrawnPairs, TerritoryAgreement, TerritoryTally } from './territory'
 
-export const TARGET = { renderMs: 100, marks: 1500, panZoomMs: 16.7, actions: 3 } as const
+export const TARGET = { renderMs: 100, marks: 1500, panZoomMs: 16.7, actions: 3, card: { w: 800, h: 600 } } as const
 
 const STAGE_REGION = '.stage-region'
 const PANELS = '.panel-slot'
 
 export interface RenderRun {
-  view: 'focus' | 'dsm'
+  view: 'focus' | 'dsm' | 'mr'
   variant: string
   scenario: string
   renderMs: number
@@ -53,8 +54,9 @@ export type TaskResult =
       ms: number
     }
   | ({ status: 'pending' } & PendingTask)
+  | ({ status: 'skipped' } & SkippedTask)
 
-export type TargetId = 'tasks' | 'marks' | 'render' | 'pan-zoom' | 'leaks' | 'precision' | 'recall'
+export type TargetId = 'tasks' | 'marks' | 'render' | 'pan-zoom' | 'leaks' | 'precision' | 'recall' | 'card'
 
 export interface TargetResult {
   id: TargetId
@@ -140,6 +142,11 @@ const DSM_SCENARIOS: readonly Scenario[] = [
   { view: 'dsm', variant: 'partitioned', scenario: 'unit level', patch: { view: 'dsm', dsmLevel: 'unit' } },
 ]
 
+const MR_SCENARIOS: readonly Scenario[] = [
+  { view: 'mr', variant: 'region', scenario: 'drift vs base', patch: { view: 'mr', mrVariant: 'region' } },
+  { view: 'mr', variant: 'card', scenario: 'drift vs base', patch: { view: 'mr', mrVariant: 'card' } },
+]
+
 const auditPanels = (colours: ReadonlySet<string>): ChannelAudit => {
   const audits = [...document.querySelectorAll(PANELS)].map((panel) => auditChannel(panel, colours))
   return {
@@ -177,6 +184,7 @@ const measureRun = (hooks: NavHooks, sc: Scenario, colours: ReadonlySet<string>,
 
 const runTasks = (hooks: NavHooks, m: Model, s: Subjects): TaskResult[] => {
   const ran = TASK_BLOCKS.flatMap((block) => block(m, s)).map((task): TaskResult => {
+    if ('skip' in task) return { ...task, status: 'skipped' }
     hooks.go({ view: 'bench' })
     const t0 = performance.now()
     for (const step of task.steps) hooks.go(step.patch)
@@ -208,6 +216,7 @@ const judge = (runs: readonly RenderRun[], tasks: readonly TaskResult[], territo
   const byRender = worstOf(runs, (r) => r.renderMs)
   const byPanZoom = worstOf(runs, (r) => r.panZoom?.p95 ?? 0)
   const leaks = runs.reduce((n, r) => n + r.audit.leaks + r.panelAudit.leaks, 0)
+  const card = runs.find((r) => r.view === 'mr' && r.variant === 'card')?.size ?? null
   return [
     { id: 'tasks', value: `${answered.length}/${ran.length}`, isMet: answered.length === ran.length, isGate: true },
     {
@@ -230,6 +239,12 @@ const judge = (runs: readonly RenderRun[], tasks: readonly TaskResult[], territo
     },
     { id: 'leaks', value: String(leaks), isMet: leaks === 0, isGate: true },
     { id: 'precision', value: percent(territory.precision), isMet: (territory.precision ?? 1) === 1, isGate: true },
+    {
+      id: 'card',
+      value: card ? card.join('×') : 'n/a',
+      isMet: !card || (card[0] <= TARGET.card.w && card[1] <= TARGET.card.h),
+      isGate: true,
+    },
     { id: 'recall', value: percent(territory.recall), isMet: (territory.recall ?? 1) === 1, isGate: true },
   ]
 }
@@ -244,7 +259,8 @@ export const runBench = (): BenchResult => {
   const colours = severityColours()
   const tally = new TerritoryTally(m.violations)
   const tasks = runTasks(hooks, m, subjects)
-  const runs = [...focusScenarios(m, subjects), ...DSM_SCENARIOS].map((sc) => measureRun(hooks, sc, colours, tally))
+  const mrScenarios = driftReport() ? MR_SCENARIOS : []
+  const runs = [...focusScenarios(m, subjects), ...DSM_SCENARIOS, ...mrScenarios].map((sc) => measureRun(hooks, sc, colours, tally))
   const territory = tally.result()
   const targets = judge(runs, tasks, territory)
   const result: BenchResult = {

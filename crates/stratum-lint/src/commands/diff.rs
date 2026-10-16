@@ -1,6 +1,7 @@
 use std::fmt::Write as _;
 
 use camino::Utf8Path;
+use stratum_config::Config;
 use stratum_core::types::ContainerKind;
 use stratum_engine::Drift;
 
@@ -13,22 +14,50 @@ const MAX_CYCLE_MEMBERS: usize = 5;
 
 pub fn run(root: &Utf8Path, base: &str, config_path: Option<&Utf8Path>) -> miette::Result<i32> {
     let config = lint::load_config(root, config_path)?.config;
+    let report = compute(root, base, &config)?;
+    print!("{}", report.markdown());
+    Ok(i32::from(!report.drift.is_empty()))
+}
+
+pub(crate) struct DriftReport<'a> {
+    pub base: &'a str,
+    pub sha: String,
+    pub drift: Drift,
+    prefix: String,
+}
+
+impl DriftReport<'_> {
+    pub fn markdown(&self) -> String {
+        markdown(
+            &self.drift,
+            &self.sha,
+            self.prefix.trim_end_matches('/'),
+            self.base,
+        )
+    }
+}
+
+pub(crate) fn compute<'a>(
+    root: &Utf8Path,
+    base: &'a str,
+    config: &Config,
+) -> miette::Result<DriftReport<'a>> {
     let sha = git::short_sha(root, base)?;
     let base_files = git::files_at(root, base, |rel| {
         let path = Utf8Path::new(rel);
         stratum_engine::is_source(path) || path.extension() == Some("json")
     })?;
     let drift =
-        stratum_engine::drift(root, base_files, &config).map_err(|e| miette::miette!("{e}"))?;
-    let prefix = git::prefix(root).unwrap_or_default();
-    print!(
-        "{}",
-        markdown(&drift, &sha, prefix.trim_end_matches('/'), base)
-    );
-    Ok(i32::from(!drift.is_empty()))
+        stratum_engine::drift(root, base_files, config).map_err(|e| miette::miette!("{e}"))?;
+    Ok(DriftReport {
+        base,
+        sha,
+        drift,
+        prefix: git::prefix(root).unwrap_or_default(),
+    })
 }
 
-pub(crate) fn markdown(drift: &Drift, sha: &str, prefix: &str, base: &str) -> String {
+fn markdown(drift: &Drift, sha: &str, prefix: &str, base: &str) -> String {
     let mut lines = vec![
         if prefix.is_empty() {
             "<!-- stratum:drift -->".to_owned()
