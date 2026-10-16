@@ -4,7 +4,7 @@ fn check(m) {
             #{
                 message: "Module is under src/legacy/ — phase out per migration plan.",
                 line: 1,
-                suggestion: "Move to the corresponding stable layer.",
+                fix: "Move to the corresponding stable layer.",
             }
         ];
     }

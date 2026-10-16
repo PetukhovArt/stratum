@@ -24,6 +24,8 @@ package version; a bump requires a coordinated frontend release.
 - `overrides` set `severity` only; `options` or `script` in an override is a config error.
 - Editor extensions are removed (`editor-extensions/` for VS Code, Zed, WebStorm). `stratum-lsp` stays and targets AI harnesses: see `docs/harness.md`.
 - `stratum-lint diff` is rewritten: it was a stub that always failed, and now takes `--base REF` (required) and prints a drift report.
+- Suggestion is renamed to fix: the Rhai return key `fix` (a script returning `suggestion` still works and gets a deprecation warning on stderr once per rule), `/api/violations` field `fix`, the terminal `fix:` line. `--format json` v2 keeps the field name `suggestion`.
+- `stratum/restricted-calls`: a `calls` entry that is not `name`, `obj.name` or `*.name` is a config error.
 
 ### Added
 
@@ -54,6 +56,9 @@ package version; a bump requires a coordinated frontend release.
   - `5` Module set: a set of modules, from "Add to set" or a module cycle, as a Ring, an Arc diagram or a Set matrix, with the modules on short paths outside the set and the cut that frees the most modules from the cycle (its cut score).
   - `9` Bench: canonical questions per view and render runs against gates (≤ 1,500 marks, pan/zoom p95 ≤ 16.7 ms, severity colour only on severity marks, edge rules matching lint, card ≤ 800×600); `BENCH_URL=<url> npx playwright test tests/e2e/bench.spec.ts` runs it on a live `visualize`.
   - UI language EN | RU; Inter Tight and JetBrains Mono (Latin and Cyrillic) bundled, so it works offline.
+- Rhai `m.imports` entries carry `specifier`, `line` and `type_only`.
+- `stratum/restricted-calls` entries: `name` also matches `ns.name()` on a namespace import, `obj.name` matches a member call on `obj`, `*.name` any member call.
+- `import.meta.glob('<pattern>')` with a relative or `/`-rooted literal pattern makes runtime edges to every matching module.
 
 ### Changed
 
@@ -78,6 +83,7 @@ package version; a bump requires a coordinated frontend release.
 ### Fixed
 
 - Vue: a `<script>` tag end respects quoted attributes, so `generic="T extends X<Y>"` keeps the script body.
+- Import findings (`no-cross-layer-import`, `public-api`, `sibling-isolation`, `visibility-scope`, `purity`, `import-policy`) point at the line of the import statement instead of line 1.
 
 ### Performance
 

@@ -11,7 +11,7 @@ expression: "lint(\"tiny-ts-violations\", \"gitlab\")"
     "location": {
       "path": "web/src/shared/api/http.ts",
       "lines": {
-        "begin": 1
+        "begin": 2
       }
     }
   },
@@ -35,7 +35,7 @@ expression: "lint(\"tiny-ts-violations\", \"gitlab\")"
     "location": {
       "path": "web/src/features/cart/index.ts",
       "lines": {
-        "begin": 1
+        "begin": 2
       }
     }
   },
@@ -47,7 +47,7 @@ expression: "lint(\"tiny-ts-violations\", \"gitlab\")"
     "location": {
       "path": "web/src/shared/api/http.ts",
       "lines": {
-        "begin": 1
+        "begin": 2
       }
     }
   },
@@ -71,7 +71,7 @@ expression: "lint(\"tiny-ts-violations\", \"gitlab\")"
     "location": {
       "path": "web/src/shared/api/http.ts",
       "lines": {
-        "begin": 1
+        "begin": 2
       }
     }
   }

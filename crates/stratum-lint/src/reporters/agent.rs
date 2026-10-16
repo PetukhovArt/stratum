@@ -52,10 +52,10 @@ impl Reporter for AgentReporter {
             writeln!(out, "{severity} {rule} ({}){hint}", hits.len())?;
             let shown = hits.len().min(EXAMPLES_PER_RULE).min(budget);
             budget -= shown;
-            let common = common_suggestion(&hits);
+            let common = common_fix(&hits);
             for f in &hits[..shown] {
                 writeln!(out, "  {}", example(f))?;
-                if let (None, Some(fix)) = (common, f.suggestion.as_deref()) {
+                if let (None, Some(fix)) = (common, f.fix.as_deref()) {
                     writeln!(out, "    fix: {fix}")?;
                 }
             }
@@ -149,10 +149,10 @@ fn clip(message: &str) -> String {
     }
 }
 
-fn common_suggestion<'a>(hits: &[&'a Finding]) -> Option<&'a str> {
-    let first = hits.first()?.suggestion.as_deref()?;
+fn common_fix<'a>(hits: &[&'a Finding]) -> Option<&'a str> {
+    let first = hits.first()?.fix.as_deref()?;
     hits.iter()
-        .all(|f| f.suggestion.as_deref() == Some(first))
+        .all(|f| f.fix.as_deref() == Some(first))
         .then_some(first)
 }
 
@@ -178,7 +178,7 @@ mod tests {
                 to: "src/app/main.ts".into(),
                 kind: EdgeKind::Static,
             }),
-            suggestion: Some("move it".into()),
+            fix: Some("move it".into()),
             members: Vec::new(),
         }
     }
@@ -207,8 +207,8 @@ mod tests {
     fn differing_fixes_print_under_each_example() {
         let mut a = finding("stratum/no-circular-deps", Severity::Error, "src/a.ts");
         let mut b = finding("stratum/no-circular-deps", Severity::Error, "src/b.ts");
-        a.suggestion = Some("cut a.ts -> x.ts".into());
-        b.suggestion = Some("cut b.ts -> y.ts".into());
+        a.fix = Some("cut a.ts -> x.ts".into());
+        b.fix = Some("cut b.ts -> y.ts".into());
         let text = render(vec![a, b], Summary::default(), 20);
         assert!(
             text.contains("in src/a.ts\n    fix: cut a.ts -> x.ts\n"),

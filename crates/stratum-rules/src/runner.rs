@@ -98,6 +98,8 @@ mod tests {
             visibility: VisibilityScope::Public,
             exports: stratum_core::types::Exports::default(),
             calls: vec![],
+            imports: vec![],
+            suppressions: vec![],
         }
     }
 
@@ -229,7 +231,7 @@ mod tests {
                     location: stratum_core::violation::SourceLocation { line: 1, column: 1 },
                     modules: vec![],
                     edge: None,
-                    suggestion: None,
+                    fix: None,
                 })
                 .collect()
         }

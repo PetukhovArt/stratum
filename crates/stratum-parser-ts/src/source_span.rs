@@ -36,6 +36,40 @@ pub fn offset_to_line_col(source: &str, offset: u32) -> (u32, u32) {
     (line, col)
 }
 
+#[derive(Debug)]
+pub struct LineIndex<'s> {
+    source: &'s str,
+    line_starts: Vec<usize>,
+}
+
+impl<'s> LineIndex<'s> {
+    #[must_use]
+    pub fn new(source: &'s str) -> Self {
+        let line_starts = std::iter::once(0)
+            .chain(source.match_indices('\n').map(|(i, _)| i + 1))
+            .collect();
+        Self {
+            source,
+            line_starts,
+        }
+    }
+
+    #[must_use]
+    pub fn line_col(&self, offset: u32) -> (u32, u32) {
+        let offset = offset as usize;
+        let line = self.line_starts.partition_point(|&s| s <= offset) - 1;
+        let start = self.line_starts[line];
+        let col = self.source[start..]
+            .char_indices()
+            .take_while(|(i, ch)| start + i < offset && *ch != '\n')
+            .count();
+        (
+            u32::try_from(line + 1).unwrap_or(u32::MAX),
+            u32::try_from(col + 1).unwrap_or(u32::MAX),
+        )
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {

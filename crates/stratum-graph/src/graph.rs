@@ -9,6 +9,7 @@ use stratum_core::{
     edge::EdgeKind,
     ids::{ContainerId, LayerId, ModuleId},
     types::{Container, ContainerKind, Layer, Module},
+    violation::SourceLocation,
 };
 
 use crate::index::{DirEntries, DirRole, GraphIndex, SliceImporters, slice_importers};
@@ -56,6 +57,17 @@ impl CompoundGraph {
     pub(crate) fn replace_deps(&mut self, deps: DiGraph<ModuleId, EdgeKind>) {
         self.deps = deps;
         self.slice_importers = OnceLock::new();
+    }
+
+    /// Where `from` first imports `to`.
+    #[must_use]
+    pub fn import_location(&self, from: ModuleId, to: ModuleId) -> Option<SourceLocation> {
+        self.modules
+            .get(&from)?
+            .imports
+            .iter()
+            .find(|i| i.target == Some(to))
+            .map(|i| i.location)
     }
 
     /// The other slices holding a module that imports a module of `slice`, by any edge kind.

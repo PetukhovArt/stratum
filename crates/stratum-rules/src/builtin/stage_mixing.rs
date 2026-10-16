@@ -77,7 +77,7 @@ impl Rule for StageMixing {
             location: SourceLocation { line: 1, column: 1 },
             modules: vec![rep],
             edge: None,
-            suggestion: Some(
+            fix: Some(
                 "Pick one split: move the segment folders' code into sub-units, or fold the sub-units back into segments.".into(),
             ),
         }]
@@ -141,6 +141,8 @@ mod tests {
                 visibility: VisibilityScope::Public,
                 exports: stratum_core::types::Exports::default(),
                 calls: vec![],
+                imports: vec![],
+                suppressions: vec![],
             },
         );
         StageMixing.check(&g, ContainerId::new(1), &EmptyOptions, Severity::Error)

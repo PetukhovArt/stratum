@@ -26,5 +26,5 @@ pub struct Violation {
     pub modules: Vec<ModuleId>,
     pub edge: Option<Edge>,
     /// Human-readable advice — never an auto-applied fix (PRD decision #10).
-    pub suggestion: Option<String>,
+    pub fix: Option<String>,
 }

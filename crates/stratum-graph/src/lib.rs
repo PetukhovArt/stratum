@@ -19,5 +19,5 @@ pub use snapshot::{
     GraphSnapshot, SnapshotContainer, SnapshotEdge, SnapshotLayer, SnapshotModule, SnapshotZone,
     snapshot_of,
 };
-pub use stratum_parser_ts::Overlay;
+pub use stratum_parser_ts::{Overlay, TrackedCalls};
 pub use topo::{direct_dependencies, direct_dependents};

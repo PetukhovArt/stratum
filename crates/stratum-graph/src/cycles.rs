@@ -333,6 +333,8 @@ mod tests {
                     visibility: VisibilityScope::Public,
                     exports: Exports::default(),
                     calls: vec![],
+                    imports: vec![],
+                    suppressions: vec![],
                 },
             );
             let node = g.deps.add_node(id);

@@ -102,7 +102,7 @@ impl NoCircularDeps {
             },
             modules,
             edge: None,
-            suggestion: Some(fix),
+            fix: Some(fix),
         }
     }
 }
@@ -144,10 +144,8 @@ fn first_import_line(graph: &CompoundGraph, anchor: ModuleId, members: &[ModuleI
         .unwrap_or(1)
 }
 
-// TODO: once `CompoundGraph::import_location(from, to)` (slice A1) is on main,
-// return its line here; until then findings sit on line 1 and cuts carry no line.
-fn import_line(_graph: &CompoundGraph, _from: ModuleId, _to: ModuleId) -> Option<u32> {
-    None
+fn import_line(graph: &CompoundGraph, from: ModuleId, to: ModuleId) -> Option<u32> {
+    graph.import_location(from, to).map(|at| at.line)
 }
 
 #[cfg(test)]
@@ -160,7 +158,7 @@ mod tests {
         edge::EdgeKind,
         ids::{ContainerId, LayerId, ModuleId},
         purity::Purity,
-        types::Module,
+        types::{Bindings, Import, Module},
         visibility::VisibilityScope,
     };
 
@@ -177,15 +175,28 @@ mod tests {
                 visibility: VisibilityScope::Public,
                 exports: stratum_core::types::Exports::default(),
                 calls: vec![],
+                imports: vec![],
+                suppressions: vec![],
             };
             let node = g.deps.add_node(id);
             g.node_index.insert(id, node);
             g.modules.insert(id, m);
         }
-        for (a, b) in edges {
+        for (k, (a, b)) in edges.iter().enumerate() {
             let na = g.node_index[&ModuleId::new(*a)];
             let nb = g.node_index[&ModuleId::new(*b)];
             g.deps.add_edge(na, nb, EdgeKind::Static);
+            g.modules[&ModuleId::new(*a)].imports.push(Import {
+                specifier: format!("./m{b}"),
+                location: SourceLocation {
+                    line: 100 + u32::try_from(k).unwrap(),
+                    column: 1,
+                },
+                kind: EdgeKind::Static,
+                type_only: false,
+                bindings: Bindings::None,
+                target: Some(ModuleId::new(*b)),
+            });
         }
         g
     }
@@ -204,17 +215,21 @@ mod tests {
     }
 
     #[test]
-    fn finding_sits_on_the_smallest_path_and_lists_cuts_first() {
+    fn finding_sits_on_the_anchors_import_and_lists_cuts_with_lines() {
         let g = build(4, &[(3, 2), (2, 1), (1, 0), (0, 3), (1, 3)]);
         let v = &check(&g)[0];
 
         assert_eq!(v.file, PathBuf::from("src/m0.ts"));
+        assert_eq!(v.location.line, 103);
         assert_eq!(
             v.message,
             "Import cycle of 4 modules through m0.ts; about 1 imports close it"
         );
-        let fix = v.suggestion.as_deref().unwrap();
-        assert!(fix.starts_with("Break it at one of: `src/m"), "{fix}");
+        let fix = v.fix.as_deref().unwrap();
+        assert!(
+            fix.starts_with("Break it at one of: `src/m2.ts:101 -> src/m1.ts` (frees 4 of 4)"),
+            "{fix}"
+        );
         assert!(fix.contains("(frees 4 of 4)"), "{fix}");
         assert_eq!(v.modules.len(), 4);
         assert_eq!(v.modules[..2], [ModuleId::new(2), ModuleId::new(1)]);
@@ -232,8 +247,8 @@ mod tests {
         };
 
         assert_ne!(
-            check(&ring)[0].suggestion,
-            check(&with_chord)[0].suggestion,
+            check(&ring)[0].fix,
+            check(&with_chord)[0].fix,
             "the chord must change the candidates"
         );
         assert_eq!(identity(&ring), identity(&with_chord));

@@ -62,7 +62,7 @@ pub(crate) fn judge(graph: &CompoundGraph, from: ModuleId, to: ModuleId) -> Opti
         message: format!(
             "`{from_unit}` imports its sibling `{to_unit}`; siblings inside `{parent}` must stay independent"
         ),
-        suggestion: Some(format!(
+        fix: Some(format!(
             "Move the shared code down (a lower layer or a private zone of `{parent}`), or compose `{from_unit}` and `{to_unit}` in `{parent}`."
         )),
     })

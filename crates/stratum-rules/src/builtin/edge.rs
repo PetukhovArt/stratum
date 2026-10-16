@@ -11,7 +11,7 @@ use stratum_graph::CompoundGraph;
 
 pub(crate) struct Finding {
     pub message: String,
-    pub suggestion: Option<String>,
+    pub fix: Option<String>,
 }
 
 pub(crate) type Judge<O> = fn(&CompoundGraph, ModuleId, ModuleId, &O) -> Option<Finding>;
@@ -63,14 +63,16 @@ pub(crate) fn edge_violations(
                 severity,
                 message: finding.message,
                 file: from.path.clone(),
-                location: SourceLocation { line: 1, column: 1 },
+                location: graph
+                    .import_location(scope, to)
+                    .unwrap_or(SourceLocation { line: 1, column: 1 }),
                 modules: vec![scope, to],
                 edge: Some(Edge {
                     from: scope,
                     to,
                     kind: *edge.weight(),
                 }),
-                suggestion: finding.suggestion,
+                fix: finding.fix,
             })
         })
         .collect();

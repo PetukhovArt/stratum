@@ -13,7 +13,7 @@ const LEGACY_TO_HTTP = {
   location: { line: 1, column: 1 },
   modules: [5, 6],
   edge: { from: 5, to: 6, kind: 'static' },
-  suggestion: null,
+  fix: null,
 }
 
 const HTTP_PATH = 'src/shared/api/http.ts'

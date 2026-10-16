@@ -35,7 +35,7 @@ struct ApiViolation {
     location: SourceLocation,
     modules: Vec<ModuleId>,
     edge: Option<Edge>,
-    suggestion: Option<String>,
+    fix: Option<String>,
 }
 
 #[derive(Debug)]
@@ -128,7 +128,7 @@ fn api_violation(input: &EngineInput, v: Violation) -> ApiViolation {
         modules: v.modules,
         edge: v.edge,
         message: v.message,
-        suggestion: v.suggestion,
+        fix: v.fix,
     }
 }
 

@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use globset::GlobSet;
 use serde::Deserialize;
 use stratum_config::Config;
@@ -8,7 +6,7 @@ use stratum_core::{
     severity::Severity,
     violation::Violation,
 };
-use stratum_graph::CompoundGraph;
+use stratum_graph::{CompoundGraph, TrackedCalls};
 
 use crate::builtin::import_policy::glob_set;
 use crate::ids::RESTRICTED_CALLS;
@@ -47,6 +45,10 @@ impl TryFrom<CallPolicySpec> for CallPolicy {
     type Error = String;
 
     fn try_from(spec: CallPolicySpec) -> Result<Self, String> {
+        let mut entries = TrackedCalls::default();
+        for call in &spec.calls {
+            entries.insert(call).map_err(|e| e.to_string())?;
+        }
         Ok(Self {
             allow: glob_set(&spec.allow)?,
             calls: spec.calls,
@@ -99,7 +101,7 @@ impl Rule for RestrictedCalls {
                     location: call.location,
                     modules: vec![scope],
                     edge: None,
-                    suggestion: None,
+                    fix: None,
                 })
             })
             .collect()
@@ -109,9 +111,10 @@ impl Rule for RestrictedCalls {
 /// Names the parser must collect: every `calls` entry of `stratum/restricted-calls`, or none
 /// when the rule is off in `rules` and in every override.
 #[must_use]
-pub fn tracked_calls(config: &Config) -> HashSet<String> {
+pub fn tracked_calls(config: &Config) -> TrackedCalls {
+    let mut tracked = TrackedCalls::default();
     let Some(rule) = config.rules.get(SLUG) else {
-        return HashSet::new();
+        return tracked;
     };
     let enabled = rule.severity != Severity::Off
         || config
@@ -120,11 +123,15 @@ pub fn tracked_calls(config: &Config) -> HashSet<String> {
             .filter_map(|o| o.rules.get(SLUG))
             .any(|o| o.severity != Severity::Off);
     if !enabled || rule.options.is_null() {
-        return HashSet::new();
+        return tracked;
     }
-    serde_json::from_value::<RestrictedCallsOptions>(rule.options.clone())
-        .map(|opts| opts.0.into_iter().flat_map(|p| p.calls).collect())
-        .unwrap_or_default()
+    let policies = serde_json::from_value::<RestrictedCallsOptions>(rule.options.clone())
+        .map(|opts| opts.0)
+        .unwrap_or_default();
+    for call in policies.iter().flat_map(|p| &p.calls) {
+        let _validated_at_load = tracked.insert(call);
+    }
+    tracked
 }
 
 #[cfg(test)]
@@ -170,6 +177,8 @@ mod tests {
                         name: "inject".into(),
                         location: SourceLocation { line: 7, column: 3 },
                     }],
+                    imports: vec![],
+                    suppressions: vec![],
                 },
             );
         }

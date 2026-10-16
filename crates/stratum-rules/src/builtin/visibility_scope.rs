@@ -60,7 +60,7 @@ pub(crate) fn judge(graph: &CompoundGraph, from: ModuleId, to: ModuleId) -> Opti
         message: format!(
             "`{target}` is in a private zone of `{root}`; only modules under `{root}` may import it"
         ),
-        suggestion: Some(format!(
+        fix: Some(format!(
             "Import it through the entry of the container that owns `{root}`, move the importer under `{root}`, or move the code out of the private zone if it is meant to be shared."
         )),
     })

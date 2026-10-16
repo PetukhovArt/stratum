@@ -101,5 +101,5 @@ export interface Violation {
   location: { line: number; column: number }
   modules: number[]
   edge: ViolationEdge | null
-  suggestion: string | null
+  fix: string | null
 }

@@ -1,21 +1,19 @@
-use std::collections::HashSet;
-
 use camino::Utf8Path;
 use oxc_span::SourceType;
 
 use crate::annotations::extract_purity;
-use crate::extractor::{ExtractError, ExtractedData, LanguageExtractor};
+use crate::extractor::{ExtractError, ExtractedData, LanguageExtractor, TrackedCalls};
 use crate::imports::collect;
 
 /// Extractor for TypeScript, JavaScript, JSX, TSX, plus `.mts`/`.cts`/`.mjs`/`.cjs`.
 #[derive(Debug, Default, Clone)]
 pub struct OxcTsExtractor {
-    tracked_calls: HashSet<String>,
+    tracked_calls: TrackedCalls,
 }
 
 impl OxcTsExtractor {
     #[must_use]
-    pub const fn new(tracked_calls: HashSet<String>) -> Self {
+    pub const fn new(tracked_calls: TrackedCalls) -> Self {
         Self { tracked_calls }
     }
 
@@ -59,6 +57,7 @@ impl LanguageExtractor for OxcTsExtractor {
             purity,
             exports: collected.exports,
             calls: collected.calls,
+            suppressions: collected.suppressions,
         })
     }
 }

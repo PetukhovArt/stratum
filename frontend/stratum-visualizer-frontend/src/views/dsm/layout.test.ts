@@ -42,7 +42,7 @@ const finding = (rule: string, from: number, to: number): Violation => ({
   location: { line: 1, column: 1 },
   modules: [from, to],
   edge: { from, to, kind: EdgeKind.Static },
-  suggestion: null,
+  fix: null,
 })
 
 describe('layoutMatrix', () => {

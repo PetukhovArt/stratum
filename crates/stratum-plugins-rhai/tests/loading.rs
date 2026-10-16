@@ -31,6 +31,8 @@ fn module(id: u32, layer_raw: u32, path: &str) -> Module {
         visibility: VisibilityScope::Public,
         exports: stratum_core::types::Exports::default(),
         calls: vec![],
+        imports: vec![],
+        suppressions: vec![],
     }
 }
 
@@ -125,7 +127,7 @@ fn rhai_rule_flags_legacy_module_via_registry() {
         .collect();
     assert_eq!(custom.len(), 1, "expected exactly one legacy hit");
     assert!(custom[0].message.contains("legacy"));
-    assert!(custom[0].suggestion.is_some());
+    assert!(custom[0].fix.is_some());
 }
 
 #[test]

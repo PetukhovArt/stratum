@@ -55,7 +55,7 @@ impl Rule for PromotionPressure {
             location: SourceLocation { line: 1, column: 1 },
             modules: vec![scope],
             edge: None,
-            suggestion: Some(
+            fix: Some(
                 "Move this module into the lowest layer that every dependent already depends on."
                     .into(),
             ),
@@ -87,6 +87,8 @@ mod tests {
             visibility: VisibilityScope::Public,
             exports: stratum_core::types::Exports::default(),
             calls: vec![],
+            imports: vec![],
+            suppressions: vec![],
         }
     }
 

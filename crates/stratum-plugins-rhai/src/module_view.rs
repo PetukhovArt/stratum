@@ -35,10 +35,13 @@ fn imports(g: &CompoundGraph, id: ModuleId) -> Array {
     let Some(node) = g.node_for(id) else {
         return Array::new();
     };
+    let written = g.modules.get(&id).map_or(&[][..], |m| m.imports.as_slice());
+    let mut taken = vec![false; written.len()];
     g.deps
         .edges_directed(node, Direction::Outgoing)
         .filter_map(|edge| {
-            let target = g.modules.get(&g.deps[edge.target()])?;
+            let to = g.deps[edge.target()];
+            let target = g.modules.get(&to)?;
             let kind = match edge.weight() {
                 EdgeKind::Static => "static",
                 EdgeKind::Di => "di",
@@ -48,6 +51,16 @@ fn imports(g: &CompoundGraph, id: ModuleId) -> Array {
             import.insert("path".into(), forward_slash(target).into());
             import.insert("layer".into(), layer_name(g, target.layer).into());
             import.insert("kind".into(), kind.into());
+            let source = (0..written.len()).rev().find(|&i| {
+                !taken[i] && written[i].target == Some(to) && written[i].kind == *edge.weight()
+            });
+            if let Some(i) = source {
+                taken[i] = true;
+                let w = &written[i];
+                import.insert("specifier".into(), w.specifier.clone().into());
+                import.insert("line".into(), i64::from(w.location.line).into());
+                import.insert("type_only".into(), w.type_only.into());
+            }
             Some(Dynamic::from_map(import))
         })
         .collect()

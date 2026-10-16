@@ -26,7 +26,7 @@ const tinyTsViolations = (snapshot: { modules: { id: number; path: string }[] })
     location: { line: 1, column: 1 },
     modules: [idOf.get(from), idOf.get(to)],
     edge: { from: idOf.get(from), to: idOf.get(to), kind: 'static' },
-    suggestion: null,
+    fix: null,
   }))
 }
 

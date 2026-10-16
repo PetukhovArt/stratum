@@ -36,6 +36,8 @@ mod tests {
             visibility: VisibilityScope::Public,
             exports: stratum_core::types::Exports::default(),
             calls: vec![],
+            imports: vec![],
+            suppressions: vec![],
         }
     }
 
