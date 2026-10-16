@@ -3,13 +3,15 @@
 
 pub mod baseline;
 pub mod config;
+pub mod drift;
 pub mod finding;
 pub mod paths;
 pub mod pipeline;
 mod zero_config;
 
-pub use baseline::{BASELINE_FILE, Baseline, BaselineError, Matched};
+pub use baseline::{BASELINE_FILE, Baseline, BaselineError, Growth, Matched};
 pub use config::{CONFIG_FILE, ConfigSource, LoadedConfig};
+pub use drift::{CycleChange, Drift, FanInGrowth, LayerEdgeGrowth, SliceEdge, StageChange, drift};
 pub use finding::{EdgeRef, Finding};
 pub use pipeline::{EngineError, EngineInput};
 

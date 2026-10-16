@@ -8,6 +8,10 @@ pub enum Format {
     Sarif,
     /// Compact, token-cheap text for a model's context window.
     Agent,
+    /// GitLab Code Quality report (JSON array)
+    Gitlab,
+    /// GitHub Actions workflow annotations, then the agent text
+    Github,
 }
 
 #[derive(Debug, Clone, Copy, Default, ValueEnum)]
@@ -101,6 +105,25 @@ pub enum Command {
         /// Only drop entries that are fixed; never add new ones
         #[arg(long)]
         prune: bool,
+        /// Fail if a baseline entry count grew vs the baseline committed at REF (default HEAD)
+        #[arg(
+            long,
+            value_name = "REF",
+            num_args = 0..=1,
+            require_equals = true,
+            default_missing_value = "HEAD",
+            conflicts_with_all = ["prune", "config"]
+        )]
+        check: Option<String>,
+    },
+    /// Architecture drift of the working tree vs REF, as markdown
+    Diff {
+        #[arg(default_value = ".")]
+        root: Utf8PathBuf,
+        #[arg(long, value_name = "REF")]
+        base: String,
+        #[arg(long)]
+        config: Option<Utf8PathBuf>,
     },
     /// Claude Code hook adapter: reads the hook event JSON from stdin
     Hook {

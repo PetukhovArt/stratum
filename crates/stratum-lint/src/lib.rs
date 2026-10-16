@@ -3,6 +3,7 @@
 
 pub mod cli;
 pub mod commands;
+mod git;
 pub mod report;
 pub mod reporters;
 pub mod scope;

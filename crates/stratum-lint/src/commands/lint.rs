@@ -8,21 +8,33 @@ use stratum_engine::{
 
 use crate::{
     cli::{Format, LintArgs},
+    git,
     report::{Report, Summary},
-    reporters::{AgentReporter, JsonReporter, Reporter, SarifReporter, TerminalReporter},
+    reporters::{
+        AgentReporter, GithubReporter, GitlabReporter, JsonReporter, Reporter, SarifReporter,
+        TerminalReporter,
+    },
     scope::Scope,
 };
 
 pub fn run(root: &Utf8Path, args: &LintArgs) -> miette::Result<i32> {
     let report = gate(root, args)?;
     let mut stdout = std::io::stdout().lock();
-    render(args, &report, &mut stdout).map_err(|e| miette::miette!("{e}"))?;
+    render(root, args, &report, &mut stdout).map_err(|e| miette::miette!("{e}"))?;
     stdout.flush().ok();
     Ok(report.exit_code())
 }
 
-pub fn render(args: &LintArgs, report: &Report, w: &mut dyn Write) -> std::io::Result<()> {
+pub fn render(
+    root: &Utf8Path,
+    args: &LintArgs,
+    report: &Report,
+    w: &mut dyn Write,
+) -> std::io::Result<()> {
+    let prefix = || git::prefix(root).unwrap_or_default();
     match args.format {
+        Format::Gitlab => GitlabReporter::new(prefix()).write(report, w),
+        Format::Github => GithubReporter::new(prefix()).write(report, w),
         Format::Terminal => TerminalReporter.write(report, w),
         Format::Json => JsonReporter.write(report, w),
         Format::Sarif => SarifReporter.write(report, w),

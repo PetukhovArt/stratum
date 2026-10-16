@@ -32,6 +32,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal
 rust-embed = { version = "8", features = ["debug-embed"] }
 mime_guess = "2"
 open = "5"
+tar = "0.4"
 
 [dev-dependencies]
 assert_cmd = "2"

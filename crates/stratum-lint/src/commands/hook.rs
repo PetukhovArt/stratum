@@ -50,11 +50,12 @@ pub fn run(max: Option<usize>) -> miette::Result<Option<String>> {
 
 fn stop(event: HookEvent, max: Option<usize>) -> miette::Result<Option<String>> {
     let args = agent_args(max, Vec::new(), Some("HEAD".into()));
-    let report = lint::gate(&cwd(event.cwd)?, &args)?;
+    let root = cwd(event.cwd)?;
+    let report = lint::gate(&root, &args)?;
     if report.exit_code() == 0 {
         return Ok(None);
     }
-    let reason = render(&args, &report)?;
+    let reason = render(&root, &args, &report)?;
     let decision = serde_json::json!({ "decision": "block", "reason": reason });
     Ok(Some(decision.to_string()))
 }
@@ -84,7 +85,7 @@ fn post_tool_use(event: HookEvent, max: Option<usize>) -> miette::Result<Option<
     if findings.is_empty() {
         return Ok(None);
     }
-    let context = render(&args, &Report::new(findings, report.summary))?;
+    let context = render(&root, &args, &Report::new(findings, report.summary))?;
     let output = serde_json::json!({
         "hookSpecificOutput": {
             "hookEventName": "PostToolUse",
@@ -120,10 +121,10 @@ fn agent_args(max: Option<usize>, files: Vec<Utf8PathBuf>, changed: Option<Strin
     }
 }
 
-fn render(args: &LintArgs, report: &Report) -> miette::Result<String> {
+fn render(root: &Utf8Path, args: &LintArgs, report: &Report) -> miette::Result<String> {
     let mut report = report.clone();
     report.summary.fixed = 0;
     let mut text = Vec::new();
-    lint::render(args, &report, &mut text).map_err(|e| miette::miette!("{e}"))?;
+    lint::render(root, args, &report, &mut text).map_err(|e| miette::miette!("{e}"))?;
     Ok(String::from_utf8_lossy(&text).trim_end().to_owned())
 }

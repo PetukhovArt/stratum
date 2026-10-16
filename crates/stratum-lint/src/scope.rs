@@ -1,9 +1,10 @@
 use std::collections::BTreeSet;
-use std::process::Command;
 
 use camino::{Utf8Path, Utf8PathBuf};
 
 use stratum_engine::{Finding, paths};
+
+use crate::git;
 
 #[derive(Debug, Clone, Default)]
 pub struct Scope(BTreeSet<String>);
@@ -32,14 +33,7 @@ impl Scope {
             })
             .collect::<miette::Result<_>>()?;
         if let Some(reference) = changed {
-            set.extend(git_lines(
-                root_abs,
-                &["diff", "--name-only", "--relative", "-z", reference, "--"],
-            )?);
-            set.extend(git_lines(
-                root_abs,
-                &["ls-files", "--others", "--exclude-standard", "-z"],
-            )?);
+            set.extend(git::changed_files(root_abs, reference)?);
         }
         Ok(Some(Self(set)))
     }
@@ -62,25 +56,4 @@ impl Scope {
                 .is_some_and(|e| self.0.contains(&e.from) || self.0.contains(&e.to))
             || f.members.iter().any(|m| self.0.contains(m))
     }
-}
-
-fn git_lines(dir: &Utf8Path, args: &[&str]) -> miette::Result<Vec<String>> {
-    let out = Command::new("git")
-        .arg("-C")
-        .arg(dir.as_str())
-        .args(args)
-        .output()
-        .map_err(|e| miette::miette!("Could not run git: {e}"))?;
-    if !out.status.success() {
-        return Err(miette::miette!(
-            "git {} failed: {}",
-            args.join(" "),
-            String::from_utf8_lossy(&out.stderr).trim()
-        ));
-    }
-    Ok(String::from_utf8_lossy(&out.stdout)
-        .split('\0')
-        .filter(|s| !s.is_empty())
-        .map(str::to_owned)
-        .collect())
 }

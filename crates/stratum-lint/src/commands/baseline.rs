@@ -29,3 +29,9 @@ pub fn run(
     };
     next.save(&out).map_err(|e| miette::miette!("{e}"))
 }
+
+pub fn check(_root: &Utf8Path, _out: Option<&Utf8Path>, _reference: &str) -> miette::Result<i32> {
+    Err(miette::miette!(
+        "stratum-lint baseline --check is not implemented yet"
+    ))
+}

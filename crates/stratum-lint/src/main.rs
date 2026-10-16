@@ -45,10 +45,20 @@ fn run(cli: cli::Cli) -> miette::Result<u8> {
         }) => commands::visualize::run(&root, config.as_deref(), !no_open).map(|()| 0),
         Some(cli::Command::Baseline {
             root,
+            out,
+            check: Some(reference),
+            ..
+        }) => commands::baseline::check(&root, out.as_deref(), &reference).map(exit_code),
+        Some(cli::Command::Baseline {
+            root,
             config,
             out,
             prune,
+            check: None,
         }) => commands::baseline::run(&root, config.as_deref(), out.as_deref(), prune).map(|()| 0),
+        Some(cli::Command::Diff { root, base, config }) => {
+            commands::diff::run(&root, &base, config.as_deref()).map(exit_code)
+        }
         Some(cli::Command::Hook { max }) => Ok(hook(max)),
         Some(cli::Command::Explain {
             slug,

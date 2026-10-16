@@ -97,6 +97,13 @@ struct File {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Baseline(BTreeMap<Fingerprint, usize>);
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Growth {
+    pub fingerprint: Fingerprint,
+    pub base: usize,
+    pub head: usize,
+}
+
 #[derive(Debug, Default)]
 pub struct Matched {
     pub baselined: Vec<bool>,
@@ -118,13 +125,17 @@ impl Baseline {
             path: path.to_path_buf(),
             source,
         })?;
-        let file: File = serde_json::from_str(&text).map_err(|source| BaselineError::Invalid {
-            path: path.to_path_buf(),
+        Self::parse(&text, path)
+    }
+
+    pub fn parse(text: &str, origin: &Utf8Path) -> Result<Self, BaselineError> {
+        let file: File = serde_json::from_str(text).map_err(|source| BaselineError::Invalid {
+            path: origin.to_path_buf(),
             source,
         })?;
         if file.version != VERSION {
             return Err(BaselineError::Version {
-                path: path.to_path_buf(),
+                path: origin.to_path_buf(),
                 found: file.version,
             });
         }
@@ -196,6 +207,12 @@ impl Baseline {
             baselined,
             fixed: budget.values().sum(),
         }
+    }
+
+    #[must_use]
+    #[expect(clippy::unused_self, reason = "stub until the ratchet slice")]
+    pub fn grown_since(&self, _base: &Self) -> Vec<Growth> {
+        Vec::new()
     }
 
     /// Keeps only entries still produced by `findings`; never adds new ones.
