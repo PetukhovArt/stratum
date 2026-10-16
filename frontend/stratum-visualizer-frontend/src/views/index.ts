@@ -1,4 +1,5 @@
 import { ViewId } from '../shell/nav'
+import { benchView } from './bench/bench'
 import { dsmView } from './dsm/dsm'
 import { focusView } from './focus/focus'
 import { overviewView } from './overview/overview'
@@ -12,6 +13,7 @@ export const VIEWS: readonly ViewDef[] = [
   dsmView,
   placeholderView('mr', '3', 'view.mr'),
   overviewView,
+  benchView,
 ]
 
 export const viewById = (id: ViewId): ViewDef => {

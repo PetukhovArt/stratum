@@ -1,6 +1,6 @@
 import { createSignal } from 'solid-js'
 
-export const VIEW_IDS = ['focus', 'dsm', 'mr', 'overview'] as const
+export const VIEW_IDS = ['focus', 'dsm', 'mr', 'overview', 'bench'] as const
 export type ViewId = (typeof VIEW_IDS)[number]
 
 export type Selection =
