@@ -4,7 +4,8 @@ export const en = {
   'view.bench': 'Bench',
   'bench.run': 'Run bench',
   'bench.rerun': 'Run again',
-  'bench.idle': 'Drives Focus, Matrix and Merge request through the app’s navigation API and measures them.',
+  'bench.idle':
+    'Drives Module focus, Matrix, Merge request, Container map and Module set through the app’s navigation API and measures them.',
   'bench.passing': 'all gates met',
   'bench.failing': 'gates missed',
   'bench.targets': 'Targets',
@@ -51,7 +52,8 @@ export const ru: MessagesOf<typeof en> = {
   'view.bench': 'Стенд',
   'bench.run': 'Запустить стенд',
   'bench.rerun': 'Запустить снова',
-  'bench.idle': 'Проходит Фокус, Матрицу и Merge request через навигационный API приложения и замеряет их.',
+  'bench.idle':
+    'Проходит фокус на модуле, матрицу, Merge request, карту контейнеров и набор модулей через навигационный API приложения и замеряет их.',
   'bench.passing': 'все пороги пройдены',
   'bench.failing': 'пороги не пройдены',
   'bench.targets': 'Цели',

@@ -42,9 +42,16 @@ package version; a bump requires a coordinated frontend release.
 - `.mts` / `.cts` sources. Export counting (`Exports`), including Vue `<script setup>` macros.
 - Claude Code plugins `stratum` (hook + skill) and `stratum-lsp` (LSP), with a marketplace; `docs/agents-snippet.md` for Codex, Cursor and others. The npm wrapper ships `stratum-lsp` too.
 - `stratum-lint visualize --config PATH` and `--no-open` (serve without launching the browser). `stratum-lint snapshot --config PATH`.
-- `stratum-lint visualize --base REF` serves the **Drift** vs REF at `/api/drift` (with the `diff` markdown) and opens the Merge request view: the changed region with added and removed imports, the files that changed them, and a comment card ≤ 800×600 next to the markdown.
+- `stratum-lint visualize --base REF` serves the **Drift** vs REF at `/api/drift` (with the `diff` markdown); without `--base` it is 404 and the Merge request view is hidden.
 - Visualizer endpoint `GET /api/context?path=REL`: the file's brief as `text/plain`, byte for byte what `stratum-lint context REL --format agent` prints.
-- Visualizer: rewritten in SolidJS + SVG with a fractal pack layout (PixiJS and dagre dropped), violations from `/api/violations`, an outline panel, a search palette, a path glob filter, a minimap, node and edge tooltips, a violators-only filter, cycle focus, colour modes layer / stage / purity, and stage and purity filters.
+- Visualizer: rewritten in SolidJS + SVG (PixiJS and dagre dropped) as views, each with its own outline and details panel, switched by tab, palette (Ctrl+K) or key; `v` cycles a view's variant, and navigation persists in `localStorage`. See `docs/visualizer.md`.
+  - `1` Module focus: a module's importers and imports in layer columns (with a second hop) or bands, its **Territory** strip, its brief, SVG export, "Add to set".
+  - `2` Matrix: a DSM of layers or units, partitioned into cycle blocks, cells against `depends_on`; "Show in map" opens the cell's pair in the Container map.
+  - `3` Merge request (with `--base`): the changed region with added and removed imports and the files behind them, or a comment card ≤ 800×600 next to the `diff` markdown, exportable as SVG.
+  - `4` Container map: Lanes + bundles (units per layer lane, bundled unit imports gated by rule breaks, ≥ 12 imports or all; double-click expands a unit into its modules) or a Layer graph of declared and undeclared layer imports.
+  - `5` Module set: a set of modules, from "Add to set" or a module cycle, as a Ring, an Arc diagram or a Set matrix, with the modules on short paths outside the set and the cut that frees the most modules from the cycle (its cut score).
+  - `9` Bench: canonical questions per view and render runs against gates (≤ 1,500 marks, pan/zoom p95 ≤ 16.7 ms, severity colour only on severity marks, edge rules matching lint, card ≤ 800×600); `BENCH_URL=<url> npx playwright test tests/e2e/bench.spec.ts` runs it on a live `visualize`.
+  - UI language EN | RU; Inter Tight and JetBrains Mono (Latin and Cyrillic) bundled, so it works offline.
 
 ### Changed
 
@@ -76,6 +83,7 @@ package version; a bump requires a coordinated frontend release.
 ### Removed
 
 - `stratum-core`'s unused Salsa placeholder database and `stratum-plugins-rhai`'s unused `watch_plugins`.
+- Visualizer: the single-graph overview of 0.2.0-rc.1 (fractal pack layout) is replaced by the Container map, and with it go the facet bar, the colour modes and stage / purity filters, the path glob filter, the violators-only filter, the minimap, the overview legend, hover tooltips with violation lists, the per-layer and per-container visibility toggles and cycle focus.
 
 ## 0.1.0 — 2026-05-18
 

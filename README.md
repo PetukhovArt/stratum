@@ -24,7 +24,7 @@ Binaries: `stratum-lint` (CLI, hook adapter, visualizer server) and `stratum-lsp
 stratum-lint context src/features/cart/model/store.ts   # where a file sits, what it may import
 stratum-lint --changed --format agent                    # end-of-turn gate: exit 1 on new errors
 stratum-lint baseline                                    # accept current violations; later runs report only new ones
-stratum-lint visualize                                   # interactive graph in the browser
+stratum-lint visualize                                   # architecture views in the browser
 ```
 
 ## Configuration

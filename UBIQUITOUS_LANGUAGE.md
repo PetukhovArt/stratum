@@ -96,7 +96,7 @@
 | **Hook** | The Claude Code adapter `stratum-lint hook`: after an `Edit` / `Write` of a source file it adds that file's new errors and warnings to the model's context; on `Stop` it runs the **Gate** and blocks the stop on new errors. | hook script |
 | **Harness Plugin** | A Claude Code plugin that wires Stratum in: `stratum` (the **Hook** and a skill) and `stratum-lsp` (the **LSP Server**, only for projects without `typescript-lsp`). Not a **Plugin**. | extension, editor extension |
 | **CI Template** | The CI-side adapter for one platform: `ci/gitlab/templates/stratum.yml` (GitLab `include`) or `ci/github` (GitHub composite action). It installs the **Linter** from the job's npm registry and runs the **Gate** in the platform's format, the **Baseline Growth** check and the **Drift** report. All platform knowledge lives here; the binary reads no CI environment. Not a **Harness Plugin**: it wires Stratum into a pipeline, not into an agent. | CI component, CI plugin, pipeline |
-| **Visualizer** | The browser UI for the **Compound DAG** and its **Violations**: `stratum-lint visualize` serves the **Graph Snapshot** at `/api/snapshot`, the violations at `/api/violations`, a file's **Brief** at `/api/context?path=`, with `--base REF` the **Drift** at `/api/drift` (404 without it), and the bundled SolidJS frontend, which renders containers and modules as SVG. | viewer, graph UI |
+| **Visualizer** | The browser UI for the **Compound DAG** and its **Violations**: `stratum-lint visualize` serves the **Graph Snapshot** at `/api/snapshot`, the violations at `/api/violations`, a file's **Brief** at `/api/context?path=`, with `--base REF` the **Drift** at `/api/drift` (404 without it), and the bundled SolidJS frontend, which shows them as SVG views: Module focus, Matrix, Merge request (with the **Drift**), Container map, Module set and Bench. | viewer, graph UI |
 | **Watch Mode** | `stratum-lint --watch`: re-runs the lint on any file event under the project root, with a 200 ms debounce. | live mode |
 | **Language Extractor** | One parser per language (`LanguageExtractor`): it turns a source file into **Extracted Data**. One handles `.ts .mts .cts .tsx .js .jsx .mjs .cjs`, one handles `.vue`. | parser adapter, frontend |
 | **Extracted Data** | What a **Language Extractor** produces for one file: **Raw Imports**, the **Purity** annotation, **Exports**, and calls to tracked names. | parser result, extraction output |
@@ -116,9 +116,6 @@
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Toggle** | A UI control that hides or shows a **Layer**, a **Container**, or an **Edge** kind. | filter, switch |
-| **LOD** | Level-of-Detail rendering: tiny modules and non-violation edges drop out when you zoom out. | detail level |
-| **Spatial Culling** | Skipping the render of **Modules** that fall outside the viewport. | viewport culling |
 | **Fixture Project** | A reference project under `tests/fixtures/` used as input for tests and benchmarks (e.g. `tiny-ts`, `tiny-ts-violations`). | sample project, test repo |
 | **Exemplar App Fixture** | `tests/fixtures/exemplar-stratum-app/`: a curated FSD-shaped **Fixture Project** with deliberate violations; its per-rule violation histogram is a regression snapshot. | exemplar fixture, reference app |
 
