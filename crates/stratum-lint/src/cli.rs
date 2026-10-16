@@ -83,6 +83,8 @@ pub enum Command {
         root: Utf8PathBuf,
         #[arg(long, default_value = "stratum.snapshot.json")]
         out: Utf8PathBuf,
+        #[arg(long)]
+        config: Option<Utf8PathBuf>,
     },
     Visualize {
         #[arg(default_value = ".")]

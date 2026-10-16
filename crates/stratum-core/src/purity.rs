@@ -13,6 +13,8 @@ pub struct Purity(u8);
 pub struct InvalidPurity(pub u8);
 
 impl Purity {
+    pub const DEFAULT: Self = Self(2);
+
     /// # Errors
     /// Returns [`InvalidPurity`] if `rank` is not in `1..=4`.
     pub const fn new(rank: u8) -> Result<Self, InvalidPurity> {

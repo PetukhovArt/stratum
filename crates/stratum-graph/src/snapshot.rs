@@ -1,3 +1,7 @@
+use std::collections::HashMap;
+use std::path::Path;
+
+use camino::Utf8Path;
 use petgraph::visit::EdgeRef;
 use serde::{Deserialize, Serialize};
 
@@ -7,19 +11,17 @@ use stratum_core::{
     types::ContainerKind,
 };
 
+use crate::builder::strip_windows_extended_prefix;
 use crate::graph::CompoundGraph;
 
-pub const CURRENT_SNAPSHOT_VERSION: u32 = 2;
-
-/// On-disk / on-wire shape of the compound graph.
-/// **Versioned.** Bumps require a coordinated frontend release.
+/// The graph facts of a snapshot; paths are relative to the project root and `/`-separated.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct GraphSnapshot {
-    pub version: u32,
     pub modules: Vec<SnapshotModule>,
     pub containers: Vec<SnapshotContainer>,
     pub layers: Vec<SnapshotLayer>,
     pub edges: Vec<SnapshotEdge>,
+    pub zones: Vec<SnapshotZone>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -29,6 +31,9 @@ pub struct SnapshotModule {
     pub container: ContainerId,
     pub layer: LayerId,
     pub purity: u8,
+    /// Index into [`GraphSnapshot::zones`] of the innermost private zone holding the module.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub zone: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -57,18 +62,46 @@ pub struct SnapshotEdge {
     pub kind: EdgeKind,
 }
 
-/// Materialise a deterministic snapshot of `g`.
+/// A [`CompoundGraph::private_zones`] entry; `id` is its index there.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SnapshotZone {
+    pub id: u32,
+    pub path: String,
+    pub root: String,
+}
+
+/// Materialise a deterministic snapshot of `g`, its paths made relative to `root`.
 #[must_use]
-pub fn snapshot_of(g: &CompoundGraph) -> GraphSnapshot {
+pub fn snapshot_of(g: &CompoundGraph, root: &Utf8Path) -> GraphSnapshot {
+    let root = strip_windows_extended_prefix(root);
+    let rel = |path: &Path| relative(path, root.as_std_path());
+    let zones: Vec<SnapshotZone> = g
+        .private_zones()
+        .iter()
+        .zip(0..)
+        .map(|(z, id)| SnapshotZone {
+            id,
+            path: rel(&z.path),
+            root: rel(&z.root),
+        })
+        .collect();
+    let zone_of: HashMap<ModuleId, u32> = g
+        .private_zones()
+        .iter()
+        .zip(0..)
+        .flat_map(|(z, id)| z.files.iter().map(move |&m| (m, id)))
+        .collect();
+
     let mut modules: Vec<SnapshotModule> = g
         .modules
         .values()
         .map(|m| SnapshotModule {
             id: m.id,
-            path: m.path.to_string_lossy().to_string(),
+            path: rel(&m.path),
             container: m.container,
             layer: m.layer,
             purity: m.purity.rank(),
+            zone: zone_of.get(&m.id).copied(),
         })
         .collect();
     modules.sort_by_key(|m| m.id.raw());
@@ -79,7 +112,7 @@ pub fn snapshot_of(g: &CompoundGraph) -> GraphSnapshot {
         .map(|c| SnapshotContainer {
             id: c.id,
             name: c.name.clone(),
-            path: c.path.to_string_lossy().to_string(),
+            path: rel(&c.path),
             kind: c.kind,
             layer: c.layer,
             parent: c.parent,
@@ -114,12 +147,17 @@ pub fn snapshot_of(g: &CompoundGraph) -> GraphSnapshot {
     });
 
     GraphSnapshot {
-        version: CURRENT_SNAPSHOT_VERSION,
         modules,
         containers,
         layers,
         edges,
+        zones,
     }
+}
+
+fn relative(path: &Path, root: &Path) -> String {
+    let rest = path.strip_prefix(root).unwrap_or(path);
+    rest.to_string_lossy().replace('\\', "/")
 }
 
 #[cfg(test)]
@@ -130,8 +168,7 @@ mod tests {
     #[test]
     fn empty_graph_snapshot() {
         let g = CompoundGraph::empty();
-        let s = snapshot_of(&g);
-        assert_eq!(s.version, 2);
+        let s = snapshot_of(&g, Utf8Path::new(""));
         assert!(s.modules.is_empty());
         assert!(s.edges.is_empty());
     }

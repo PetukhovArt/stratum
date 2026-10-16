@@ -26,7 +26,7 @@ mod incremental;
 /// On Windows, `canonicalize` returns extended-length paths (`\\?\D:\...`).
 /// `oxc_resolver` returns the non-prefixed form. Strip the prefix so both
 /// sides use a single canonical representation when used as `HashMap` keys.
-fn strip_windows_extended_prefix(p: &Utf8Path) -> Utf8PathBuf {
+pub(crate) fn strip_windows_extended_prefix(p: &Utf8Path) -> Utf8PathBuf {
     let s = p.as_str();
     Utf8PathBuf::from(s.strip_prefix(r"\\?\").unwrap_or(s))
 }

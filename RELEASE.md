@@ -98,5 +98,5 @@ If a release is broken:
 - Minor releases (`0.X+1.0`): new rules, new CLI flags, snapshot version unchanged.
 - Major releases (`0.X+1` post-1.0): snapshot version bump, breaking API changes.
 
-The **Graph Snapshot** version (currently `2`) is the public contract between the linter (`snapshot`, `visualize`), the Visualizer and external tooling; bumping it requires a coordinated frontend release.
+The **Graph Snapshot** version (currently `3`) is the public contract between the linter (`snapshot`, `visualize`), the Visualizer and external tooling; bumping it requires a coordinated frontend release.
 The other versioned shapes are `--format json` (currently `2`), the baseline file (`1`), `rules` / `explain` JSON (`1`) and the `context` brief JSON (`2`). A breaking change to one bumps its `version` and is listed under **Breaking** in `CHANGELOG.md`.

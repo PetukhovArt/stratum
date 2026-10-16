@@ -35,8 +35,8 @@ fn hook(max: Option<usize>) -> u8 {
 fn run(cli: cli::Cli) -> miette::Result<u8> {
     match cli.command {
         Some(cli::Command::Init { root }) => commands::init::run(&root).map(|()| 0),
-        Some(cli::Command::Snapshot { root, out }) => {
-            commands::snapshot::run(&root, &out).map(|()| 0)
+        Some(cli::Command::Snapshot { root, out, config }) => {
+            commands::snapshot::run(&root, config.as_deref(), &out).map(|()| 0)
         }
         Some(cli::Command::Visualize {
             root,

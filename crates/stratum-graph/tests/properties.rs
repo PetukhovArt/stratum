@@ -62,15 +62,15 @@ proptest! {
     #[test]
     fn snapshot_is_deterministic((n, edges) in arb_graph(8)) {
         let g = build(n, &edges);
-        let s1 = snapshot_of(&g);
-        let s2 = snapshot_of(&g);
+        let s1 = snapshot_of(&g, camino::Utf8Path::new(""));
+        let s2 = snapshot_of(&g, camino::Utf8Path::new(""));
         prop_assert_eq!(s1, s2);
     }
 
     #[test]
     fn snapshot_preserves_module_and_edge_counts((n, edges) in arb_graph(8)) {
         let g = build(n, &edges);
-        let s = snapshot_of(&g);
+        let s = snapshot_of(&g, camino::Utf8Path::new(""));
         prop_assert_eq!(s.modules.len(), n as usize);
         prop_assert_eq!(s.edges.len(), edges.len());
     }

@@ -72,7 +72,8 @@ impl EngineInput {
             .map_or_else(|| format!("<module {id:?}>"), |m| self.relative(&m.path))
     }
 
-    fn finding(&self, v: Violation) -> Finding {
+    #[must_use]
+    pub fn finding(&self, v: Violation) -> Finding {
         Finding {
             rule: self.slug_of(v.rule).to_owned(),
             severity: v.severity,
@@ -142,7 +143,7 @@ pub(crate) fn graph(
         layers,
         structure: config.structure.clone(),
         tracked_calls: stratum_rules::tracked_calls(config),
-        default_purity: Purity::new(2).unwrap_or_else(|_| unreachable!("Purity(2) is valid")),
+        default_purity: Purity::DEFAULT,
     };
     let ignore = IgnoreSet::new(config)?;
     let vue = stratum_parser_vue::VueExtractor::new(build_cfg.tracked_calls.clone());

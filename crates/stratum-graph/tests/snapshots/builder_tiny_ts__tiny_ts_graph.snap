@@ -2,7 +2,6 @@
 source: crates/stratum-graph/tests/builder_tiny_ts.rs
 expression: snap
 ---
-version: 2
 modules:
   - id: 0
     path: src/app/main.ts
@@ -134,3 +133,4 @@ edges:
   - from: 4
     to: 3
     kind: static
+zones: []

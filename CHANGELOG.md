@@ -14,7 +14,7 @@ package version; a bump requires a coordinated frontend release.
 ### Breaking
 
 - `--format json` is version 2: `{ "version": 2, "summary": {...}, "violations": [...] }`. Rules are named by slug (`stratum/no-circular-deps`, `custom/<name>`), never by numeric id, and paths are relative to ROOT.
-- Graph Snapshot v2: `module.stage` is now `module.purity`; containers gain `path`, `kind` (`layer`, `slice`, `sub_unit`, `nested`), `stage` (the evolution stage, 1–4) and `entry`. The Visualizer accepts only v2.
+- Graph Snapshot v3. Over v2 (`module.stage` → `module.purity`; containers with `path`, `kind` (`layer`, `slice`, `sub_unit`, `nested`), `stage` (the evolution stage, 1–4) and `entry`) it adds `project` (the root folder name), `zones [{ id, path, root }]` (private zones), `territories` (what a module may import, each distinct one once) and per module `zone` (absent outside a zone) and `territory` (an index). Every path is ROOT-relative with `/`: no absolute machine path is left in the snapshot. The Visualizer accepts only v3.
 - Stage is renamed to purity for the 1–4 rank: `// @stratum-stage N` is now `// @stratum-purity N` and the old annotation is no longer recognised; `stratum/stage-purity` is now `stratum/purity`; Rhai `m.stage` is `m.purity`; `context` prints `purity`. "Stage" now means only a container's evolution stage. Baseline entries keyed by the old slug go stale.
 - `stratum/cross-entity-pattern` is replaced by `stratum/slice-fan-in`: distinct importing slices per slice, option `max_fan_in` (5, was `max_fanout`), off by default. No folder name (`entities`, `features`, `index.ts`, `_shared`) is hard-coded any more; slices come from `layers[].slices`.
 - `project.root` is removed: nothing read it, the graph always walks ROOT. It is now an unknown key, and `project` is optional.
@@ -41,7 +41,8 @@ package version; a bump requires a coordinated frontend release.
 - Rhai plugins: `m.imports`, `fn check(m, options)`, an optional `fn doc()` that shows the rule in `rules` / `explain`; `print` and `debug` go to stderr.
 - `.mts` / `.cts` sources. Export counting (`Exports`), including Vue `<script setup>` macros.
 - Claude Code plugins `stratum` (hook + skill) and `stratum-lsp` (LSP), with a marketplace; `docs/agents-snippet.md` for Codex, Cursor and others. The npm wrapper ships `stratum-lsp` too.
-- `stratum-lint visualize --config PATH` and `--no-open` (serve without launching the browser).
+- `stratum-lint visualize --config PATH` and `--no-open` (serve without launching the browser). `stratum-lint snapshot --config PATH`.
+- Visualizer endpoint `GET /api/context?path=REL`: the file's brief as `text/plain`, byte for byte what `stratum-lint context REL --format agent` prints.
 - Visualizer: rewritten in SolidJS + SVG with a fractal pack layout (PixiJS and dagre dropped), violations from `/api/violations`, an outline panel, a search palette, a path glob filter, a minimap, node and edge tooltips, a violators-only filter, cycle focus, colour modes layer / stage / purity, and stage and purity filters.
 
 ### Changed
@@ -61,6 +62,7 @@ package version; a bump requires a coordinated frontend release.
 - `--files` resolves against the cwd, then ROOT, and a missing path exits 2. A scope matches every member of a violation, so editing any module of a cycle surfaces it.
 - `--format agent` collapses info findings into one advisory line. Hook output never shows the `baseline --prune` hint.
 - `/api/violations` carries rule slugs and ROOT-relative paths.
+- `context` is more accurate, with the brief version unchanged: the sibling line appears only when an isolated sibling exists, and a rule turned off for the file by an override lifts its limit (cross-layer off: every layer; purity off: purity <= 4; visibility off: every private zone).
 
 ### Fixed
 

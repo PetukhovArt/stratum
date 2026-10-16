@@ -12,42 +12,83 @@ pub struct EffectiveRules {
     pub severities: BTreeMap<String, Severity>,
 }
 
-/// # Errors
-/// Returns [`ConfigError::BadGlob`] if any `overrides[].files` entry is not a
-/// valid glob.
-pub fn resolve_for_file(config: &Config, file: &Utf8Path) -> Result<EffectiveRules, ConfigError> {
-    let mut severities: BTreeMap<String, Severity> = config
-        .rules
-        .iter()
-        .map(|(slug, rc)| (slug.clone(), rc.severity))
-        .collect();
-    for block in &config.overrides {
-        if globs(block)?.is_match(file.as_str()) {
+#[derive(Debug, Clone)]
+pub struct Overrides<'c> {
+    config: &'c Config,
+    globs: GlobSet,
+    block_of_glob: Vec<usize>,
+}
+
+impl<'c> Overrides<'c> {
+    /// # Errors
+    /// Returns [`ConfigError::BadGlob`] if any `overrides[].files` entry is not a
+    /// valid glob.
+    pub fn new(config: &'c Config) -> Result<Self, ConfigError> {
+        let mut builder = GlobSetBuilder::new();
+        let mut block_of_glob = Vec::new();
+        for (block, o) in config.overrides.iter().enumerate() {
+            for pattern in &o.files {
+                let glob = Glob::new(pattern).map_err(|e| ConfigError::BadGlob {
+                    pattern: pattern.clone(),
+                    source: e,
+                })?;
+                builder.add(glob);
+                block_of_glob.push(block);
+            }
+        }
+        let globs = builder.build().map_err(|e| ConfigError::BadGlob {
+            pattern: config
+                .overrides
+                .iter()
+                .flat_map(|o| o.files.iter().map(String::as_str))
+                .collect::<Vec<_>>()
+                .join(","),
+            source: e,
+        })?;
+        Ok(Self {
+            config,
+            globs,
+            block_of_glob,
+        })
+    }
+
+    /// The blocks whose `files` match the root-relative, `/`-separated `file`, in config order.
+    #[must_use]
+    pub fn matching(&self, file: &str) -> Vec<&'c OverrideBlock> {
+        let mut indices: Vec<usize> = self
+            .globs
+            .matches(file)
+            .into_iter()
+            .map(|g| self.block_of_glob[g])
+            .collect();
+        indices.sort_unstable();
+        indices.dedup();
+        indices
+            .into_iter()
+            .map(|b| &self.config.overrides[b])
+            .collect()
+    }
+
+    /// The configured severities for `file`, the last matching block winning per rule.
+    #[must_use]
+    pub fn resolve(&self, file: &Utf8Path) -> EffectiveRules {
+        let mut severities: BTreeMap<String, Severity> = self
+            .config
+            .rules
+            .iter()
+            .map(|(slug, rc)| (slug.clone(), rc.severity))
+            .collect();
+        for block in self.matching(file.as_str()) {
             for (slug, rule) in &block.rules {
                 severities.insert(slug.clone(), rule.severity);
             }
         }
+        EffectiveRules { severities }
     }
-    Ok(EffectiveRules { severities })
 }
 
 pub(crate) fn validate(config: &Config) -> Result<(), ConfigError> {
-    config.overrides.iter().try_for_each(|b| globs(b).map(drop))
-}
-
-fn globs(block: &OverrideBlock) -> Result<GlobSet, ConfigError> {
-    let mut builder = GlobSetBuilder::new();
-    for pat in &block.files {
-        let glob = Glob::new(pat).map_err(|e| ConfigError::BadGlob {
-            pattern: pat.clone(),
-            source: e,
-        })?;
-        builder.add(glob);
-    }
-    builder.build().map_err(|e| ConfigError::BadGlob {
-        pattern: block.files.join(","),
-        source: e,
-    })
+    Overrides::new(config).map(drop)
 }
 
 #[cfg(test)]
@@ -89,7 +130,9 @@ mod tests {
     #[test]
     fn no_overrides_returns_base() {
         let cfg = base();
-        let eff = resolve_for_file(&cfg, Utf8Path::new("src/app/main.ts")).unwrap();
+        let eff = Overrides::new(&cfg)
+            .unwrap()
+            .resolve(Utf8Path::new("src/app/main.ts"));
         assert_eq!(eff.severities.len(), 2);
         assert_eq!(
             eff.severities["stratum/no-cross-layer-import"],
@@ -111,7 +154,9 @@ mod tests {
             files: vec!["src/legacy/**".into()],
             rules,
         });
-        let eff = resolve_for_file(&cfg, Utf8Path::new("src/legacy/old.ts")).unwrap();
+        let eff = Overrides::new(&cfg)
+            .unwrap()
+            .resolve(Utf8Path::new("src/legacy/old.ts"));
         assert_eq!(
             eff.severities["stratum/no-cross-layer-import"],
             Severity::Off
@@ -133,7 +178,9 @@ mod tests {
             files: vec!["src/other/**".into()],
             rules,
         });
-        let eff = resolve_for_file(&cfg, Utf8Path::new("src/legacy/old.ts")).unwrap();
+        let eff = Overrides::new(&cfg)
+            .unwrap()
+            .resolve(Utf8Path::new("src/legacy/old.ts"));
         assert_eq!(
             eff.severities["stratum/no-cross-layer-import"],
             Severity::Error
@@ -165,7 +212,9 @@ mod tests {
             files: vec!["src/legacy/**".into()],
             rules: b,
         });
-        let eff = resolve_for_file(&cfg, Utf8Path::new("src/legacy/old.ts")).unwrap();
+        let eff = Overrides::new(&cfg)
+            .unwrap()
+            .resolve(Utf8Path::new("src/legacy/old.ts"));
         assert_eq!(
             eff.severities["stratum/no-cross-layer-import"],
             Severity::Off
@@ -186,7 +235,9 @@ mod tests {
             files: vec!["**/*.test.ts".into(), "**/__tests__/**".into()],
             rules,
         });
-        let eff = resolve_for_file(&cfg, Utf8Path::new("src/x/__tests__/y.ts")).unwrap();
+        let eff = Overrides::new(&cfg)
+            .unwrap()
+            .resolve(Utf8Path::new("src/x/__tests__/y.ts"));
         assert_eq!(eff.severities["stratum/miller-limit"], Severity::Off);
     }
 }

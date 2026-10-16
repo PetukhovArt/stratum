@@ -1,54 +1,29 @@
 use std::path::Path;
 
 use camino::Utf8Path;
-use globset::{Glob, GlobSet, GlobSetBuilder};
-
-use stratum_config::{Config, ConfigError};
+use stratum_config::{Config, ConfigError, OverrideBlock, Overrides};
 use stratum_core::severity::Severity;
 
 use crate::registry::DynRule;
 
 pub(crate) struct EffectiveSeverities<'c> {
     config: &'c Config,
-    globs: GlobSet,
-    block_of_glob: Vec<usize>,
+    overrides: Overrides<'c>,
     root: String,
 }
 
 pub(crate) struct FileSeverities<'s> {
     of: &'s EffectiveSeverities<'s>,
-    blocks: Vec<usize>,
+    blocks: Vec<&'s OverrideBlock>,
 }
 
 impl<'c> EffectiveSeverities<'c> {
     pub(crate) fn new(config: &'c Config, project_root: &Utf8Path) -> Result<Self, ConfigError> {
-        let mut builder = GlobSetBuilder::new();
-        let mut block_of_glob = Vec::new();
-        for (block, o) in config.overrides.iter().enumerate() {
-            for pattern in &o.files {
-                let glob = Glob::new(pattern).map_err(|e| ConfigError::BadGlob {
-                    pattern: pattern.clone(),
-                    source: e,
-                })?;
-                builder.add(glob);
-                block_of_glob.push(block);
-            }
-        }
-        let globs = builder.build().map_err(|e| ConfigError::BadGlob {
-            pattern: config
-                .overrides
-                .iter()
-                .flat_map(|o| o.files.iter().map(String::as_str))
-                .collect::<Vec<_>>()
-                .join(","),
-            source: e,
-        })?;
         let root = project_root.as_str();
         let root = root.strip_prefix(r"\\?\").unwrap_or(root);
         Ok(Self {
             config,
-            globs,
-            block_of_glob,
+            overrides: Overrides::new(config)?,
             root: slashed(Path::new(root)).trim_end_matches('/').to_owned(),
         })
     }
@@ -66,15 +41,10 @@ impl<'c> EffectiveSeverities<'c> {
     }
 
     fn for_relative(&self, rel: &str) -> FileSeverities<'_> {
-        let mut blocks: Vec<usize> = self
-            .globs
-            .matches(rel)
-            .into_iter()
-            .map(|g| self.block_of_glob[g])
-            .collect();
-        blocks.sort_unstable();
-        blocks.dedup();
-        FileSeverities { of: self, blocks }
+        FileSeverities {
+            of: self,
+            blocks: self.overrides.matching(rel),
+        }
     }
 
     pub(crate) fn off_everywhere(&self, rule: &dyn DynRule) -> bool {
@@ -98,11 +68,10 @@ impl<'c> EffectiveSeverities<'c> {
 
 impl FileSeverities<'_> {
     pub(crate) fn of(&self, rule: &dyn DynRule) -> Severity {
-        let overrides = &self.of.config.overrides;
         self.blocks
             .iter()
             .rev()
-            .find_map(|&b| overrides[b].rules.get(rule.slug()))
+            .find_map(|b| b.rules.get(rule.slug()))
             .map_or_else(|| self.of.base(rule), |r| r.severity)
     }
 }
