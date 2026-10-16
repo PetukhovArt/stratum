@@ -55,8 +55,8 @@ impl Reporter for AgentReporter {
             let common = common_fix(&hits);
             for f in &hits[..shown] {
                 writeln!(out, "  {}", example(f))?;
-                if let (None, Some(fix)) = (common, f.fix.as_deref()) {
-                    writeln!(out, "    fix: {fix}")?;
+                if common.is_none() {
+                    writeln!(out, "    fix: {}", f.fix)?;
                 }
             }
             if hits.len() > shown {
@@ -104,6 +104,9 @@ fn summary_line(s: &Summary) -> String {
     if s.baselined > 0 {
         let _ = write!(line, ", {} baselined", s.baselined);
     }
+    if s.suppressed > 0 {
+        let _ = write!(line, ", {} suppressed", s.suppressed);
+    }
     if s.fixed > 0 {
         let _ = write!(
             line,
@@ -150,10 +153,8 @@ fn clip(message: &str) -> String {
 }
 
 fn common_fix<'a>(hits: &[&'a Finding]) -> Option<&'a str> {
-    let first = hits.first()?.fix.as_deref()?;
-    hits.iter()
-        .all(|f| f.fix.as_deref() == Some(first))
-        .then_some(first)
+    let first = hits.first()?.fix.as_str();
+    hits.iter().all(|f| f.fix == first).then_some(first)
 }
 
 #[cfg(test)]
@@ -178,7 +179,7 @@ mod tests {
                 to: "src/app/main.ts".into(),
                 kind: EdgeKind::Static,
             }),
-            fix: Some("move it".into()),
+            fix: "move it".into(),
             members: Vec::new(),
         }
     }
@@ -186,7 +187,7 @@ mod tests {
     fn render(findings: Vec<Finding>, summary: Summary, max: usize) -> String {
         let mut buf = Vec::new();
         AgentReporter { max }
-            .write(&Report::new(findings, summary), &mut buf)
+            .write(&Report::new(findings, Vec::new(), summary), &mut buf)
             .unwrap();
         String::from_utf8(buf).unwrap()
     }
@@ -207,8 +208,8 @@ mod tests {
     fn differing_fixes_print_under_each_example() {
         let mut a = finding("stratum/no-circular-deps", Severity::Error, "src/a.ts");
         let mut b = finding("stratum/no-circular-deps", Severity::Error, "src/b.ts");
-        a.fix = Some("cut a.ts -> x.ts".into());
-        b.fix = Some("cut b.ts -> y.ts".into());
+        a.fix = "cut a.ts -> x.ts".into();
+        b.fix = "cut b.ts -> y.ts".into();
         let text = render(vec![a, b], Summary::default(), 20);
         assert!(
             text.contains("in src/a.ts\n    fix: cut a.ts -> x.ts\n"),

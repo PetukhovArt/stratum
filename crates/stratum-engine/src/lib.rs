@@ -8,6 +8,7 @@ pub mod finding;
 pub mod paths;
 pub mod pipeline;
 pub mod snapshot;
+pub mod suppression;
 mod zero_config;
 
 pub use baseline::{BASELINE_FILE, Baseline, BaselineError, Growth, Matched};
@@ -16,6 +17,7 @@ pub use drift::{CycleChange, Drift, FanInGrowth, LayerEdgeGrowth, SliceEdge, Sta
 pub use finding::{EdgeRef, Finding};
 pub use pipeline::{EngineError, EngineInput};
 pub use snapshot::{SNAPSHOT_VERSION, Snapshot};
+pub use suppression::{Analysis, Suppressed};
 
 pub const SOURCE_EXTENSIONS: [&str; 9] =
     ["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs", "vue"];

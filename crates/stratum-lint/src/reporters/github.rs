@@ -96,7 +96,7 @@ mod tests {
             file: file.into(),
             location: SourceLocation { line, column: 2 },
             edge: None,
-            fix: None,
+            fix: "fix".into(),
             members: Vec::new(),
         }
     }
@@ -108,7 +108,7 @@ mod tests {
         };
         let mut buf = Vec::new();
         GithubReporter::new(prefix.into())
-            .write(&Report::new(findings, summary), &mut buf)
+            .write(&Report::new(findings, Vec::new(), summary), &mut buf)
             .unwrap();
         String::from_utf8(buf)
             .unwrap()

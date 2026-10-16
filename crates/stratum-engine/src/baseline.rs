@@ -107,7 +107,23 @@ pub struct Growth {
 #[derive(Debug, Default)]
 pub struct Matched {
     pub baselined: Vec<bool>,
-    pub fixed: usize,
+    fixed: Vec<(String, usize)>,
+}
+
+impl Matched {
+    #[must_use]
+    pub fn fixed(&self) -> usize {
+        self.fixed.iter().map(|(_, n)| n).sum()
+    }
+
+    #[must_use]
+    pub fn fixed_where(&self, in_scope: impl Fn(&str) -> bool) -> usize {
+        self.fixed
+            .iter()
+            .filter(|(file, _)| in_scope(file))
+            .map(|(_, n)| n)
+            .sum()
+    }
 }
 
 impl Baseline {
@@ -205,7 +221,11 @@ impl Baseline {
             .collect();
         Matched {
             baselined,
-            fixed: budget.values().sum(),
+            fixed: budget
+                .into_iter()
+                .filter(|(_, n)| *n > 0)
+                .map(|(fingerprint, n)| (fingerprint.file, n))
+                .collect(),
         }
     }
 
@@ -255,7 +275,7 @@ mod tests {
             file: file.into(),
             location: SourceLocation { line, column: 1 },
             edge: None,
-            fix: None,
+            fix: "fix".into(),
             members: Vec::new(),
         }
     }
@@ -265,7 +285,7 @@ mod tests {
         let base = Baseline::from_findings(&[finding("a.ts", 3)]);
         let m = base.matches(&[finding("a.ts", 40), finding("a.ts", 41)]);
         assert_eq!(m.baselined, vec![true, false]);
-        assert_eq!(m.fixed, 0);
+        assert_eq!(m.fixed(), 0);
     }
 
     #[test]
@@ -278,7 +298,7 @@ mod tests {
             Baseline::from_findings(&[with_message("Depth ratio 0.33 below 3.0 (limit 5).")]);
         let m = base.matches(&[with_message("Depth ratio 0.25 below 3.0 (limit 5).")]);
         assert_eq!(m.baselined, vec![true]);
-        assert_eq!(m.fixed, 0);
+        assert_eq!(m.fixed(), 0);
     }
 
     fn temp_baseline_path(dir: &tempfile::TempDir) -> camino::Utf8PathBuf {
@@ -303,7 +323,7 @@ mod tests {
             ..finding("a.ts", 1)
         }]);
         assert_eq!(m.baselined, vec![true]);
-        assert_eq!(m.fixed, 0);
+        assert_eq!(m.fixed(), 0);
     }
 
     #[test]

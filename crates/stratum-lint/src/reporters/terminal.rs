@@ -20,9 +20,7 @@ impl Reporter for TerminalReporter {
                     "  {}  {}:{}  {}  {}",
                     f.severity, f.location.line, f.location.column, f.rule, f.message
                 )?;
-                if let Some(s) = &f.fix {
-                    writeln!(out, "    fix: {s}")?;
-                }
+                writeln!(out, "    fix: {}", f.fix)?;
             }
         }
         let s = &report.summary;

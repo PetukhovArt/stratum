@@ -39,6 +39,7 @@ warning stratum/miller-limit (1) - stratum-lint explain stratum/miller-limit
   fix: Split the module so each consumer reaches only the surface it needs, or move the implementation closer to its consumers.
 warning stratum/restricted-calls (1) - stratum-lint explain stratum/restricted-calls
   src/features/cart/index.ts:9  Use a scope hook (inject())
+  fix: Call the wrapper the policy's message names, or move the call into a file matched by `allow`.
 warning stratum/slice-fan-in (1) - stratum-lint explain stratum/slice-fan-in
   src/entities/user/index.ts:1  Slice entities/user is imported by 2 other slices (limit 1): features/checkout, features/profile
   fix: Narrow the slice's entry or split it so each importer reaches only the part it needs; code every slice needs may belong in a lower layer.

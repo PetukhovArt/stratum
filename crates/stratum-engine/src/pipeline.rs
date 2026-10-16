@@ -16,6 +16,7 @@ use stratum_rules::{DynRule, RuleRegistry};
 use crate::baseline::BaselineError;
 use crate::finding::{EdgeRef, Finding};
 use crate::paths::{canonicalize, relative, relative_in_text};
+use crate::suppression::{self, Analysis};
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
@@ -47,12 +48,17 @@ impl EngineInput {
         )
     }
 
-    pub fn violations(&self) -> Result<Vec<Finding>, ConfigError> {
-        Ok(self
+    pub fn analyze(&self) -> Result<Analysis, ConfigError> {
+        let findings = self
             .rule_violations()?
             .into_iter()
             .map(|v| self.finding(v))
-            .collect())
+            .collect();
+        suppression::apply(self, findings)
+    }
+
+    pub fn violations(&self) -> Result<Vec<Finding>, ConfigError> {
+        self.analyze().map(|a| a.findings)
     }
 
     #[must_use]
@@ -72,10 +78,21 @@ impl EngineInput {
             .map_or_else(|| format!("<module {id:?}>"), |m| self.relative(&m.path))
     }
 
+    fn fix_of(&self, rule: RuleId, slug: &str, own: Option<String>) -> String {
+        own.filter(|fix| !fix.is_empty())
+            .or_else(|| {
+                let doc = self.registry.by_id(rule)?.doc()?;
+                Some(doc.fix).filter(|fix| !fix.is_empty())
+            })
+            .unwrap_or_else(|| format!("Run \"stratum-lint explain {slug}\""))
+    }
+
     #[must_use]
     pub fn finding(&self, v: Violation) -> Finding {
+        let slug = self.slug_of(v.rule);
         Finding {
-            rule: self.slug_of(v.rule).to_owned(),
+            fix: relative_in_text(&self.fix_of(v.rule, slug, v.fix), &self.project_root),
+            rule: slug.to_owned(),
             severity: v.severity,
             file: self.relative(&v.file),
             location: v.location,
@@ -86,7 +103,6 @@ impl EngineInput {
             }),
             members: v.modules.iter().map(|&id| self.module_path(id)).collect(),
             message: v.message,
-            fix: v.fix.map(|fix| relative_in_text(&fix, &self.project_root)),
         }
     }
 }

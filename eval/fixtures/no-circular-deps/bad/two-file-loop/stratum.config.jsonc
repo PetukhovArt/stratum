@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "layers": [
+    { "id": "modules", "path": "src/modules", "depends_on": [] }
+  ],
+  "rules": {
+    "stratum/no-circular-deps": { "severity": "error" }
+  }
+}

@@ -19,7 +19,7 @@ struct WireFinding<'a> {
     file: &'a str,
     location: SourceLocation,
     edge: Option<&'a EdgeRef>,
-    suggestion: Option<&'a str>,
+    suggestion: &'a str,
 }
 
 impl<'a> From<&'a Finding> for WireFinding<'a> {
@@ -31,7 +31,7 @@ impl<'a> From<&'a Finding> for WireFinding<'a> {
             file: &f.file,
             location: f.location,
             edge: f.edge.as_ref(),
-            suggestion: f.fix.as_deref(),
+            suggestion: &f.fix,
         }
     }
 }

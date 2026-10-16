@@ -43,6 +43,8 @@ stratum:
     - |
       rc=
       stratum-lint --format gitlab > gl-code-quality-report.json || rc=$?
+      # Exit 3: no error, but baseline entries are fixed and could be pruned. Not a failure.
+      if [ "$rc" = 3 ]; then rc=; fi
       stratum-lint --format agent || true
       if [ -n "$STRATUM_BASE" ]; then
         case ",$CI_MERGE_REQUEST_LABELS," in

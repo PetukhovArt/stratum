@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "layers": [
+    { "id": "app", "path": "src/app", "depends_on": ["modules"] },
+    { "id": "modules", "path": "src/modules", "depends_on": [], "slices": true }
+  ],
+  "rules": {
+    "stratum/public-api": { "severity": "error" }
+  }
+}

@@ -31,10 +31,7 @@ pub fn group(root: &Path, findings: &[Finding]) -> DiagnosticsByFile {
             severity: Some(severity_to_lsp(f.severity)),
             code: Some(NumberOrString::String(f.rule.clone())),
             source: Some(SOURCE.into()),
-            message: match &f.fix {
-                Some(s) => format!("{}\n{s}", f.message),
-                None => f.message.clone(),
-            },
+            message: format!("{}\n{}", f.message, f.fix),
             ..Default::default()
         };
         if let Some(edge) = &f.edge {

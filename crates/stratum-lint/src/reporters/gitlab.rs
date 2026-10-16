@@ -106,7 +106,7 @@ mod tests {
             file: file.into(),
             location: SourceLocation { line, column: 1 },
             edge: None,
-            fix: None,
+            fix: "fix".into(),
             members: Vec::new(),
         }
     }

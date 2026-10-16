@@ -4,6 +4,8 @@ Two adapters around the same sequence: lint with findings in the CI's own format
 
 `stratum-lint` comes from the project's `node_modules/.bin` when the project pins `@petukhovart/stratum-lint`. Otherwise the template installs the version it was tagged with into `.stratum/` from the job's npm registry config (env, user `.npmrc`, project `.npmrc`).
 
+Both templates treat `stratum-lint` exit 3 (no error, but baseline entries are fixed and `baseline --prune` is due) as a pass. Prune in a separate change.
+
 The label `stratum:accept-debt` on an MR/PR skips `baseline --check`, for example after a file move. A label added later applies to the next pipeline only: on GitLab run a new pipeline, on GitHub `labeled`/`unlabeled` in `on.pull_request.types` reruns the workflow.
 
 ## GitLab

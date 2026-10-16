@@ -10,6 +10,7 @@ pub mod rule;
 pub mod runner;
 pub mod scope;
 mod severity;
+pub use severity::{EffectiveSeverities, FileSeverities};
 pub mod territory;
 
 pub use builtin::composer_scope::ComposerScope;
