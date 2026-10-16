@@ -1,5 +1,6 @@
 import { Bounds } from '../../render/viewport'
 import { SeverityLabel } from '../../render/encoding'
+import { ellipsizePath, monoWidth } from '../../render/labels'
 import { AggregateEdge, Model, sccs, worst } from '../../render/model'
 import { Violation } from '../../types'
 
@@ -10,9 +11,11 @@ const SIBLING_RULE = 'stratum/sibling-isolation'
 const BREAK_RULES: ReadonlySet<string> = new Set([CROSS_LAYER_RULE, SIBLING_RULE])
 
 export const GEOMETRY = {
-  layer: { cell: 46, labelWidth: 130, headerHeight: 110 },
-  unit: { cell: 9, labelWidth: 150, headerHeight: 150 },
-} as const satisfies Record<MatrixLevel, { cell: number; labelWidth: number; headerHeight: number }>
+  layer: { cell: 46, label: { size: 11, chars: 18 } },
+  unit: { cell: 9, label: { size: 7.5, chars: 22 } },
+} as const satisfies Record<MatrixLevel, { cell: number; label: { size: number; chars: number } }>
+
+export const AXIS_LABEL = { gap: 12, angle: -60 } as const
 
 export interface MatrixCell {
   key: string
@@ -53,6 +56,7 @@ export interface Matrix {
   level: MatrixLevel
   ids: readonly number[]
   labels: readonly string[]
+  axisLabels: readonly string[]
   layers: readonly number[]
   cells: readonly MatrixCell[]
   blocks: readonly CycleBlock[]
@@ -219,7 +223,7 @@ const nodesOf = (m: Model, level: MatrixLevel) => {
     ids: m.units.map((u) => u.id),
     edges: m.unitEdges,
     endpoint: m.unitOf,
-    label: (id: number) => unit(id).name,
+    label: m.unitLabel,
     layerOf: (id: number) => unit(id).layer,
     compare: compareBy<number>(
       (id) => rankOfLayer(unit(id).layer),
@@ -277,20 +281,33 @@ export const layoutMatrix = (m: Model, level: MatrixLevel): Matrix => {
   }
 
   const g = GEOMETRY[level]
-  const span = order.length * g.cell
   const layers = order.map(nodes.layerOf)
+  const labels = order.map(nodes.label)
+  const axisLabels = labels.map((l) => ellipsizePath(l, g.label.chars))
   return {
     level,
     ids: order,
-    labels: order.map(nodes.label),
+    labels,
+    axisLabels,
     layers,
     cells,
     blocks,
     runs: layerRuns(layers),
     drift,
     cell: g.cell,
-    bounds: { x: -g.labelWidth, y: -g.headerHeight, w: g.labelWidth + span, h: g.headerHeight + span },
+    bounds: axisBounds(axisLabels, g.cell, g.label.size),
   }
+}
+
+const axisBounds = (axisLabels: readonly string[], cell: number, size: number): Bounds => {
+  const span = axisLabels.length * cell
+  const angle = (Math.abs(AXIS_LABEL.angle) * Math.PI) / 180
+  const widths = axisLabels.map((l) => monoWidth(l, size))
+  const longest = Math.max(0, ...widths)
+  const left = AXIS_LABEL.gap + longest
+  const top = AXIS_LABEL.gap + longest * Math.sin(angle) + size
+  const right = Math.max(span, ...widths.map((w, i) => (i + 0.5) * cell + size + w * Math.cos(angle)))
+  return { x: -left, y: -top, w: left + right, h: top + span }
 }
 
 const matrices = new WeakMap<Model, Partial<Record<MatrixLevel, Matrix>>>()

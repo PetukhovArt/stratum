@@ -2,17 +2,11 @@ import { Component, createEffect, createMemo, For, on, Show } from 'solid-js'
 import { useCanvas } from '../../canvas/canvas'
 import { layerColor, SEV_COLOR } from '../../render/encoding'
 import { Model } from '../../render/model'
-import { Bounds, fitViewport } from '../../render/viewport'
-import { Matrix, MatrixCell, pairCells } from './layout'
+import { Bounds } from '../../render/viewport'
+import { AXIS_LABEL, GEOMETRY, Matrix, MatrixCell, pairCells } from './layout'
 
-const LABEL_GAP = 12
 const STRIP = { offset: 6, width: 4 } as const
-const LABEL = {
-  layer: { size: 11, chars: 18 },
-  unit: { size: 7.5, chars: 20 },
-} as const
 const COUNT_TEXT_SIZE = 10
-const COLUMN_LABEL_ANGLE = -60
 const MARK_OPACITY = { base: 0.55, range: 0.45 } as const
 const GREY = { lightness: 40, range: 45, chroma: 0.01, aboveChroma: 0.02 } as const
 
@@ -20,8 +14,6 @@ export interface LayerPair {
   from: number
   to: number
 }
-
-const truncate = (text: string, max: number): string => (text.length > max ? `${text.slice(0, max - 1)}…` : text)
 
 const rectPath = (x: number, y: number, w: number, h: number): string => `M${x} ${y}h${w}v${h}h${-w}z`
 
@@ -47,7 +39,7 @@ export const MatrixMarks: Component<{
   const canvas = useCanvas()
   const s = () => props.matrix.cell
   const span = () => props.matrix.ids.length * s()
-  const label = () => LABEL[props.matrix.level]
+  const label = () => GEOMETRY[props.matrix.level].label
   const maxCount = createMemo(() => Math.max(1, ...props.matrix.cells.map((c) => c.count)))
   const layerIndex = createMemo(() => new Map(props.model.layers.map((l, i) => [l.id, i])))
   const hue = (layer: number) => props.model.layerHue(layerIndex().get(layer) ?? 0)
@@ -80,7 +72,7 @@ export const MatrixMarks: Component<{
       const wasZoomedToPair = Boolean(previous?.[0])
       if (!rect) return
       if (bounds) {
-        canvas.setViewport(fitViewport(bounds, { w: rect.width, h: rect.height }))
+        canvas.fitTo(bounds)
         return
       }
       if (wasZoomedToPair) canvas.fit()
@@ -174,16 +166,16 @@ export const MatrixMarks: Component<{
         {(c) => <rect class="dsm-sel" x={c().col * s()} y={c().row * s()} width={s()} height={s()} />}
       </Show>
       <g class="dsm-labels" font-size={String(label().size)}>
-        <For each={props.matrix.labels}>
+        <For each={props.matrix.axisLabels}>
           {(name, i) => (
             <>
-              <text x={-LABEL_GAP} y={i() * s() + s() / 2 + label().size / 3} text-anchor="end">
-                {truncate(name, label().chars)}
+              <text x={-AXIS_LABEL.gap} y={i() * s() + s() / 2 + label().size / 3} text-anchor="end">
+                {name}
               </text>
               <text
-                transform={`translate(${i() * s() + s() / 2 + label().size / 3},${-LABEL_GAP}) rotate(${COLUMN_LABEL_ANGLE})`}
+                transform={`translate(${i() * s() + s() / 2 + label().size / 3},${-AXIS_LABEL.gap}) rotate(${AXIS_LABEL.angle})`}
               >
-                {truncate(name, label().chars)}
+                {name}
               </text>
             </>
           )}

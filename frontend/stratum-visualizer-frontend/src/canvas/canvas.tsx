@@ -7,11 +7,12 @@ import {
   JSX,
   onCleanup,
   onMount,
+  Show,
   useContext,
 } from 'solid-js'
 import { t } from '../i18n'
 import { CANVAS_DEFS, HATCH_STROKE } from '../render/encoding'
-import { Bounds, DEFAULT_VIEWPORT, fitViewport, zoomAround } from '../render/viewport'
+import { Bounds, DEFAULT_VIEWPORT, fitViewport, NO_BOX, zoomAround } from '../render/viewport'
 import { CanvasSize, Viewport } from '../state'
 
 const WHEEL_ZOOM_FACTOR = 1.12
@@ -25,6 +26,7 @@ export interface CanvasApi {
   viewport: Accessor<Viewport>
   setViewport: (v: Viewport) => void
   fit: () => void
+  fitTo: (bounds: Bounds) => void
   rect: Accessor<DOMRect | null>
 }
 
@@ -58,22 +60,33 @@ const sameSize = (a: CanvasSize, b: CanvasSize): boolean => a.w === b.w && a.h =
 export const Canvas: Component<{
   bounds: Bounds
   fitKey: unknown
+  legend?: JSX.Element
   overlay?: JSX.Element
   children: JSX.Element
 }> = (props) => {
   let wrap!: HTMLDivElement
   let svg!: SVGSVGElement
+  let legendBox: HTMLDivElement | undefined
   const [rect, setRect] = createSignal<DOMRect | null>(null)
-  const size = createMemo(() => sizeOf(rect()), { w: 0, h: 0 }, { equals: sameSize })
+  const size = createMemo(() => sizeOf(rect()), NO_BOX, { equals: sameSize })
+  const [legendCorner, setLegendCorner] = createSignal<CanvasSize>(NO_BOX, { equals: sameSize })
   const [userViewport, setUserViewport] = createSignal<{ key: unknown; viewport: Viewport } | null>(null)
 
+  const fitOf = (bounds: Bounds) => fitViewport(bounds, size(), legendCorner())
   const viewport = createMemo<Viewport>(() => {
     const user = userViewport()
     if (user && user.key === props.fitKey) return user.viewport
-    return size().w ? fitViewport(props.bounds, size()) : DEFAULT_VIEWPORT
+    return size().w ? fitOf(props.bounds) : DEFAULT_VIEWPORT
   })
   const setViewport = (v: Viewport) => setUserViewport({ key: props.fitKey, viewport: v })
   const fit = () => setUserViewport(null)
+  const fitTo = (bounds: Bounds) => setViewport(fitOf(bounds))
+  const measure = () => {
+    const outer = wrap.getBoundingClientRect()
+    setRect(outer)
+    const box = legendBox?.getBoundingClientRect()
+    setLegendCorner(box?.width ? { w: box.right - outer.left, h: outer.bottom - box.top } : NO_BOX)
+  }
   const zoomAtCenter = (factor: number) =>
     setViewport(zoomAround(viewport(), { x: size().w / 2, y: size().h / 2 }, factor))
 
@@ -108,8 +121,10 @@ export const Canvas: Component<{
   }
 
   onMount(() => {
-    const ro = new ResizeObserver(() => setRect(wrap.getBoundingClientRect()))
+    const ro = new ResizeObserver(measure)
     ro.observe(wrap)
+    if (legendBox) ro.observe(legendBox)
+    measure()
     svg.addEventListener('wheel', onWheel, { passive: false })
     svg.addEventListener('click', swallowClickAfterDrag, true)
     const handle: CanvasHandle = { get: viewport, set: setViewport, fit }
@@ -124,7 +139,7 @@ export const Canvas: Component<{
     })
   })
 
-  const api: CanvasApi = { viewport, setViewport, fit, rect }
+  const api: CanvasApi = { viewport, setViewport, fit, fitTo, rect }
   const transform = () => {
     const v = viewport()
     return `translate(${v.x} ${v.y}) scale(${v.zoom})`
@@ -147,6 +162,11 @@ export const Canvas: Component<{
             {props.children}
           </g>
         </svg>
+        <Show when={props.legend}>
+          <div class="cv-legend" ref={legendBox}>
+            {props.legend}
+          </div>
+        </Show>
         {props.overlay}
         <div class="zoom">
           <button onClick={() => zoomAtCenter(1 / BUTTON_ZOOM_FACTOR)} title={t('shell.canvas.zoomOut')}>

@@ -62,7 +62,7 @@ stratum-lint visualize                                   # architecture views in
 ```
 
 - `layers`: a module belongs to the layer with the longest matching `path`; `depends_on` lists the layers it may import. With `slices: true`, each direct child of the layer is a slice.
-- `structure`: `entries` (default `index.ts`, `index.tsx`, `index.js`, `index.jsx`, `index.vue`) make a folder a container with one public entry; `segments` group a container's files by purpose; `private` folders (default `_shared`) are visible only under their parent.
+- `structure`: `entries` (default `index.ts`, `index.tsx`, `index.js`, `index.jsx`, `index.vue`) make a folder a container with one public entry; `segments` group a container's files by purpose; `private` folders (`stratum:recommended` sets `_shared`) are visible only under their parent.
 - `overrides` change severity only. Unknown keys, slugs or options fail the run with exit 2.
 - `.rhai` scripts add project-specific rules without rebuilding Stratum.
 
@@ -83,7 +83,16 @@ Full reference: [docs/custom-rules.md](docs/custom-rules.md). A real-world confi
 | `stratum/import-policy` | Imports denied by `from` / `deny` / `allow` / `slice` globs declared in config. |
 | `stratum/restricted-calls` | A call to a listed function outside the files its policy allows. |
 | `stratum/stage-mixing` | A container holding both segment folders and sub-unit folders. |
-| `stratum/container-breadth` | A container or private zone with more than `max_kinds` kinds of children. |
+| `stratum/container-breadth` | A folder holding too much directly inside it: more than `max_kinds` kinds in a container, more than `max_items` items in a segment, collection or sliced layer root, more than `max_root_files` files at a composer's root. |
+| `stratum/zone-breadth` | A private zone with more than `max_kinds` kinds of children. |
+| `stratum/missing-entry` | A folder with segment or private-zone children but no entry file. |
+| `stratum/no-barrel` | An entry file (barrel) inside a segment folder, or at the root of a layer listed in `layers`. |
+| `stratum/composer-scope` | A stage-4 composer whose private zone has no file matching `scope_file`. |
+| `stratum/naming` | A folder name outside `folder_case`, listed in `reserved`, or a duplicate or plural slice name. |
+| `stratum/module-docs` | A navigation doc (`nav_file`) missing, misplaced, or contradicting the folder's imports. |
+| `stratum/unused-exports` | An export that no module reachable from `project.entry_points` imports. |
+| `stratum/unreachable-modules` | A module that no file in `project.entry_points` reaches. |
+| `stratum/suppression` | A `stratum-ignore` directive without a reason or with an unknown slug, or one that suppresses nothing. |
 | `stratum/slice-fan-in` | A slice imported by more than `max_fan_in` other slices. |
 | `stratum/miller-limit` | A module with more than `max_children` importers from outside its slice (else its layer) whose layers may import it. |
 | `stratum/promotion-pressure` | A module with at least `threshold` importers from outside its slice (else its layer) whose layers do not declare its layer: a candidate for a lower layer. |

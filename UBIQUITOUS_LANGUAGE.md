@@ -44,8 +44,10 @@
 | **Sub-unit** | An entry-bearing folder directly under a **Slice**, **Sub-unit** or nested **Container**. Isolated from its siblings; it makes its parent **Stage** 4. | sub-feature, submodule |
 | **Segment** | A folder named in `structure.segments` that groups a **Container**'s files by purpose (FSD: `model`, `ui`, `api`). Never a **Container**, even with an **Entry** file; it makes its parent **Stage** 3. | layer folder |
 | **Entry** | The file named in `structure.entries` (default `index.ts` and its siblings) that is a **Container**'s only import target from outside. A folder that holds one is a **Container**. | barrel, public API file |
-| **Private Zone** | A folder named in `structure.private` (default `_shared`), visible only inside its parent folder's subtree. Never a **Container**; counts toward no **Stage**. | local shared |
+| **Private Zone** | A folder named in `structure.private` (`_shared` in `stratum:recommended`), visible only inside its parent folder's subtree. Never a **Container**; counts toward no **Stage**. | local shared |
 | **Collection Folder** | A folder with no **Entry**. Its files belong to the enclosing **Container**. | group folder |
+| **Dir Role** | What a folder inside a **Layer** is, decided once in placement from `structure` and the file tree: layer root, **Container**, **Segment**, **Private Zone** or **Collection Folder**. Rules read it; none derives a role from a folder name. | folder type |
+| **Kind** | A distinct thing directly inside a folder: a child folder, or the child files sharing a stem before the first dot. A folder's **Entry** and **Private Zones** do not count. | item type |
 
 ## Metrics
 

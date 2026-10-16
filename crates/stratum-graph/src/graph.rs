@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
@@ -12,7 +12,7 @@ use stratum_core::{
     violation::SourceLocation,
 };
 
-use crate::index::{DirEntries, GraphIndex, SliceImporters, slice_importers};
+use crate::index::{DirEntries, DirRole, GraphIndex, SliceImporters, slice_importers};
 
 /// The compound graph view used by rules, the LSP, and the visualizer.
 ///
@@ -25,6 +25,7 @@ use crate::index::{DirEntries, GraphIndex, SliceImporters, slice_importers};
 pub struct CompoundGraph {
     pub modules: IndexMap<ModuleId, Module>,
     pub containers: IndexMap<ContainerId, Container>,
+    pub dir_roles: BTreeMap<PathBuf, DirRole>,
     pub layers: IndexMap<LayerId, Layer>,
     pub deps: DiGraph<ModuleId, EdgeKind>,
     pub node_index: rustc_hash::FxHashMap<ModuleId, NodeIndex>,
@@ -40,6 +41,7 @@ impl CompoundGraph {
         Self {
             modules: IndexMap::new(),
             containers: IndexMap::new(),
+            dir_roles: BTreeMap::new(),
             layers: IndexMap::new(),
             deps: DiGraph::new(),
             node_index: rustc_hash::FxHashMap::default(),

@@ -42,7 +42,7 @@ pub fn infer(root: &Utf8Path) -> Config {
     Config {
         version: 1,
         project: ProjectConfig::default(),
-        structure: stratum_core::structure::Structure::default(),
+        structure: stratum_config::recommended_structure(),
         layers,
         rules,
         overrides: vec![],
@@ -66,7 +66,7 @@ mod tests {
             names,
             vec!["app", "entities", "features", "legacy", "shared"]
         );
-        assert_eq!(cfg.rules.len(), 12);
+        assert_eq!(cfg.rules.len(), stratum_config::recommended_rules().len());
     }
 
     #[test]

@@ -13,6 +13,8 @@ package version; a bump requires a coordinated frontend release.
 
 ### Breaking
 
+- Calibrated defaults: `stratum/miller-limit` `max_children` 7 to 20, `stratum/deep-module` `max_exports` 12 to 20, `stratum/depth-ratio` `min_ratio` 3.0 to 1.0.
+- `structure.private` defaults to `[]`; `_shared` now comes from the `stratum:recommended` preset (so from `stratum:fsd`, zero-config and `init`). A config that has no `extends` and relied on the old default must set `"structure": { "private": ["_shared"] }`.
 - `--format json` is version 2: `{ "version": 2, "summary": {...}, "violations": [...] }`. Rules are named by slug (`stratum/no-circular-deps`, `custom/<name>`), never by numeric id, and paths are relative to ROOT.
 - Graph Snapshot v3. Over v2 (`module.stage` → `module.purity`; containers with `path`, `kind` (`layer`, `slice`, `sub_unit`, `nested`), `stage` (the evolution stage, 1–4) and `entry`) it adds `project` (the root folder name), `zones [{ id, path, root }]` (private zones), `territories` (what a module may import, each distinct one once) and per module `zone` (absent outside a zone) and `territory` (an index). Every path is ROOT-relative with `/`: no absolute machine path is left in the snapshot. The Visualizer accepts only v3.
 - Stage is renamed to purity for the 1–4 rank: `// @stratum-stage N` is now `// @stratum-purity N` and the old annotation is no longer recognised; `stratum/stage-purity` is now `stratum/purity`; Rhai `m.stage` is `m.purity`; `context` prints `purity`. "Stage" now means only a container's evolution stage. Baseline entries keyed by the old slug go stale.
@@ -27,6 +29,7 @@ package version; a bump requires a coordinated frontend release.
 
 ### Added
 
+- Rules `stratum/zone-breadth`, `stratum/missing-entry`, `stratum/no-barrel`, `stratum/composer-scope`, `stratum/naming`, `stratum/module-docs`, `stratum/unused-exports`, `stratum/unreachable-modules` and `stratum/suppression` are registered with their docs, options and preset severities; their checks arrive in later changes, so they report nothing yet. `stratum/container-breadth` declares `max_items` (20) and `max_root_files` (4). Config `project.entry_points` (globs); enabling `unused-exports` or `unreachable-modules` without it is a config error. `docs/calibration.md` records the sweeps behind the metric defaults.
 - Gate options: `--format agent` (compact text for a model's context), `--max`, `--files`, `--changed[=REF]`, `--baseline` / `--no-baseline`. `stratum-lint baseline [--prune]` writes `stratum.baseline.json`, fingerprinted by slug, file and message with numbers masked.
 - CI integration, see `docs/ci.md`:
   - `--format gitlab` (Code Quality JSON with line-shift-stable fingerprints) and `--format github` (annotations capped at 10 per severity, then the agent text). Their paths are relative to the git work-tree root.

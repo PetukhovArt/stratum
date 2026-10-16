@@ -9,9 +9,6 @@ export const ADDED_STROKE = 'oklch(95% 0.005 260)'
 export const NEUTRAL_STROKE = 'oklch(72% 0.02 260)'
 export const REMOVED_DASH = '3 4'
 
-export const trunc = (s: string, n: number): string =>
-  s.length <= n ? s : `${s.slice(0, Math.ceil(n / 2) - 1)}…${s.slice(-Math.floor(n / 2))}`
-
 export const shortPath = (path: string): string => path.split('/').slice(-GHOST_SEGMENTS).join('/')
 
 export const labelOf = (m: Model, id: number, path: string): string => (id < 0 ? shortPath(path) : m.label(id))

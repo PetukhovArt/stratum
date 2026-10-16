@@ -5,7 +5,8 @@ import { CANVAS_DEFS, EDGE_DASH, LAYER_TONE } from '../../render/encoding'
 import { Model } from '../../render/model'
 import { go, nav, set } from '../../shell/nav'
 import { EdgeMark, GroupBox, layoutRegion, RegionLayout } from './layout'
-import { ADDED_STROKE, breakColor, labelOf, layerTint, NEUTRAL_STROKE, REMOVED_DASH, rulesOf, trunc } from './paint'
+import { ellipsizePath, trunc } from '../../render/labels'
+import { ADDED_STROKE, breakColor, labelOf, layerTint, NEUTRAL_STROKE, REMOVED_DASH, rulesOf } from './paint'
 import { Review, ReviewNode } from './review'
 
 const DIM_OPACITY = 0.15
@@ -129,7 +130,7 @@ const Node: Component<{ node: ReviewNode; layout: RegionLayout; model: Model }> 
         stroke-dasharray={n.isGhost ? '3 3' : undefined}
       />
       <text x="8" y="14.5" font-size="10" fill={n.isGhost ? 'oklch(68% 0.01 260)' : 'oklch(90% 0.005 260)'}>
-        {trunc(labelOf(props.model, n.id, n.path), LABEL_CHARS)}
+        {ellipsizePath(labelOf(props.model, n.id, n.path), LABEL_CHARS)}
       </text>
       <Show when={n.isImporter}>
         <text x={r.w - 8} y="14.5" font-size="9" text-anchor="end" font-weight="700" fill="oklch(88% 0.01 260)">
@@ -177,7 +178,7 @@ export const RegionScene: Component<{ model: Model; review: Review }> = (props) 
   const layerName = (layer: number | null) =>
     layer === null ? t('mr.lane.baseOnly') : (props.model.layers.find((l) => l.id === layer)?.name ?? '')
   return (
-    <Canvas bounds={layout().bounds} fitKey={layout()} overlay={<Legend />}>
+    <Canvas bounds={layout().bounds} fitKey={layout()} legend={<Legend />}>
       <For each={layout().lanes}>
         {(l) => (
           <g>

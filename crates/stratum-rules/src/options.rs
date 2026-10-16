@@ -21,19 +21,102 @@ impl Default for SliceFanInOptions {
 
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[allow(clippy::struct_field_names)]
 pub struct ContainerBreadthOptions {
     #[serde(default = "default_max_kinds")]
     pub max_kinds: u32,
+    #[serde(default = "default_max_items")]
+    pub max_items: u32,
+    #[serde(default = "default_max_root_files")]
+    pub max_root_files: u32,
 }
 
 const fn default_max_kinds() -> u32 {
     6
 }
 
+const fn default_max_items() -> u32 {
+    20
+}
+
+const fn default_max_root_files() -> u32 {
+    4
+}
+
 impl Default for ContainerBreadthOptions {
     fn default() -> Self {
         Self {
             max_kinds: default_max_kinds(),
+            max_items: default_max_items(),
+            max_root_files: default_max_root_files(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ZoneBreadthOptions {
+    #[serde(default = "default_max_kinds")]
+    pub max_kinds: u32,
+}
+
+impl Default for ZoneBreadthOptions {
+    fn default() -> Self {
+        Self {
+            max_kinds: default_max_kinds(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NoBarrelOptions {
+    #[serde(default)]
+    pub layers: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ComposerScopeOptions {
+    #[serde(default)]
+    pub scope_file: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum FolderCase {
+    Kebab,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NamingOptions {
+    #[serde(default)]
+    pub folder_case: Option<FolderCase>,
+    #[serde(default)]
+    pub reserved: Vec<String>,
+    #[serde(default)]
+    pub duplicate_slices: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ModuleDocsOptions {
+    #[serde(default)]
+    pub nav_file: Option<String>,
+    #[serde(default = "default_requires_key")]
+    pub requires_key: String,
+}
+
+fn default_requires_key() -> String {
+    "requires".into()
+}
+
+impl Default for ModuleDocsOptions {
+    fn default() -> Self {
+        Self {
+            nav_file: None,
+            requires_key: default_requires_key(),
         }
     }
 }
@@ -46,7 +129,7 @@ pub struct DeepModuleOptions {
 }
 
 const fn default_max_exports() -> u32 {
-    12
+    20
 }
 
 impl Default for DeepModuleOptions {
@@ -84,7 +167,7 @@ pub struct MillerLimitOptions {
 }
 
 const fn default_max_children() -> u32 {
-    7
+    20
 }
 
 impl Default for MillerLimitOptions {
@@ -103,7 +186,7 @@ pub struct DepthRatioOptions {
 }
 
 const fn default_min_ratio() -> f64 {
-    3.0
+    1.0
 }
 
 impl Default for DepthRatioOptions {

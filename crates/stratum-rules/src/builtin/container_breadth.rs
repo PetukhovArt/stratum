@@ -1,4 +1,3 @@
-use std::collections::BTreeSet;
 use std::path::Path;
 
 use stratum_core::{
@@ -41,14 +40,9 @@ impl Rule for ContainerBreadth {
         let Some(c) = graph.containers.get(&scope) else {
             return vec![];
         };
-        let zone_paths: BTreeSet<&Path> = graph
-            .private_zones()
-            .iter()
-            .map(|z| z.path.as_path())
-            .collect();
         let mut out = Vec::new();
         if c.kind != ContainerKind::Layer && c.stage != Stage::FILE {
-            let kinds = kinds_in(graph, &c.path, c.entry, &zone_paths);
+            let kinds = graph.kinds(&c.path);
             if kinds.len() > limit(options.max_kinds) {
                 let rep = c.entry.or_else(|| first_module_in(graph, scope));
                 out.extend(rep.and_then(|rep| {
@@ -62,7 +56,7 @@ impl Rule for ContainerBreadth {
             }
         }
         for zone in graph.private_zones_in(scope) {
-            let kinds = kinds_in(graph, &zone.path, None, &zone_paths);
+            let kinds = graph.kinds(&zone.path);
             if kinds.len() <= limit(options.max_kinds) {
                 continue;
             }
@@ -136,40 +130,6 @@ fn display(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
 
-fn kinds_in(
-    graph: &CompoundGraph,
-    dir: &Path,
-    entry: Option<ModuleId>,
-    zones: &BTreeSet<&Path>,
-) -> BTreeSet<String> {
-    let entry_stem = entry
-        .and_then(|e| graph.modules.get(&e))
-        .and_then(|m| m.path.file_name())
-        .and_then(|n| stem(&n.to_string_lossy()));
-    let Some(entries) = graph.dir_entries(dir) else {
-        return BTreeSet::new();
-    };
-    let folders = entries
-        .dirs
-        .iter()
-        .filter(|name| !zones.contains(dir.join(name).as_path()))
-        .map(|name| format!("{name}/"));
-    let files = entries
-        .files
-        .iter()
-        .filter_map(|name| stem(name))
-        .filter(|kind| Some(kind) != entry_stem.as_ref());
-    folders.chain(files).collect()
-}
-
-fn stem(file_name: &str) -> Option<String> {
-    file_name
-        .split('.')
-        .next()
-        .filter(|s| !s.is_empty())
-        .map(str::to_owned)
-}
-
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -230,11 +190,18 @@ mod tests {
                 },
             );
         }
+        g.dir_roles.insert(
+            PathBuf::from(format!("{SLICE}/_shared")),
+            stratum_graph::DirRole::PrivateZone,
+        );
         g
     }
 
     fn check(g: &CompoundGraph, severity: Severity) -> Vec<Violation> {
-        let options = ContainerBreadthOptions { max_kinds: 2 };
+        let options = ContainerBreadthOptions {
+            max_kinds: 2,
+            ..ContainerBreadthOptions::default()
+        };
         ContainerBreadth.check(g, ContainerId::new(1), &options, severity)
     }
 

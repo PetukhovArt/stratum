@@ -16,7 +16,7 @@
 .set-axis { stroke: oklch(40% 0.012 260); }
 .set-badge { pointer-events: none; }
 .set-badge rect { fill: oklch(20% 0.012 260); stroke: oklch(90% 0.01 260); stroke-dasharray: 3 2; }
-.set-badge text { font-size: 10px; fill: oklch(94% 0.005 260); }
+.set-badge text { fill: oklch(94% 0.005 260); }
 
 .set-mx-frame { fill: oklch(19% 0.012 260); stroke: oklch(45% 0.012 260); }
 .set-mx-diag { stroke: oklch(50% 0.012 260 / .5); stroke-dasharray: 2 3; }
@@ -41,6 +41,8 @@
 .set-row:hover { background: var(--bg-2); color: var(--tx-1); }
 .set-row.on { background: oklch(40% 0.03 260 / .45); color: var(--tx-1); }
 .set-nm { flex: 1; min-width: 0; font-family: var(--mono); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set-nm.set-pair { display: flex; flex-wrap: wrap; column-gap: .5em; white-space: normal; }
+.set-pair-to { display: inline-flex; gap: .5em; min-width: 0; max-width: 100%; }
 .set-n { font-family: var(--mono); font-size: 10px; color: var(--tx-4); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .set-sw { width: 8px; height: 8px; border-radius: 2px; flex: none; }
 .set-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }

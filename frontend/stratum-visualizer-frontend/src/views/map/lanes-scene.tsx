@@ -5,7 +5,8 @@ import { t } from '../../i18n'
 import { CANVAS_DEFS, EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR } from '../../render/encoding'
 import { Model } from '../../render/model'
 import { go, nav, set } from '../../shell/nav'
-import { entryOf, layerName, layerTone, trunc } from '../focus/paint'
+import { trunc } from '../../render/labels'
+import { entryOf, layerName, layerTone } from '../focus/paint'
 import { Curve, defaultCurves, GRID, Lane, LANES, layoutLanes, UnitBox } from './layout'
 import { MapLegend } from './legend'
 import { selectedUnit, selectedUnitPair, toggleExpanded } from './selection'
@@ -234,13 +235,11 @@ export const LanesScene: Component<{ model: Model }> = (props) => {
     <Canvas
       bounds={layout().bounds}
       fitKey={fitKey()}
+      legend={<MapLegend variant="lanes" />}
       overlay={
-        <>
-          <MapLegend variant="lanes" />
-          <Show when={focusUnit() === null && byDefault().hidden > 0}>
-            <BudgetNote text={t('map.budget.hidden', { n: byDefault().hidden })} />
-          </Show>
-        </>
+        <Show when={focusUnit() === null && byDefault().hidden > 0}>
+          <BudgetNote text={t('map.budget.hidden', { n: byDefault().hidden })} />
+        </Show>
       }
     >
       <g class="map" data-variant="lanes">

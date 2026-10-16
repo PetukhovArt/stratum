@@ -15,5 +15,5 @@ pub use extends::config_files;
 pub use ignore::{DEFAULT_IGNORE, IgnoreSet};
 pub use overrides::{EffectiveRules, Overrides};
 pub use parse::{parse_file, parse_str};
-pub use presets::recommended_rules;
+pub use presets::{recommended_rules, recommended_structure};
 pub use schema::schema;

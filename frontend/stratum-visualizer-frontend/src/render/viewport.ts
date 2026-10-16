@@ -24,16 +24,25 @@ export interface Bounds {
   h: number
 }
 
-export const fitViewport = (bounds: Bounds, size: CanvasSize): Viewport => {
-  if (!size.w || !bounds.w || !bounds.h) return DEFAULT_VIEWPORT
-  const fx = (size.w - FIT_PADDING_PX * 2) / bounds.w
-  const fy = (size.h - FIT_PADDING_PX * 2) / bounds.h
+const fitInto = (bounds: Bounds, area: Bounds): Viewport => {
+  const fx = (area.w - FIT_PADDING_PX * 2) / bounds.w
+  const fy = (area.h - FIT_PADDING_PX * 2) / bounds.h
   const zoom = clampZoom(Math.min(fx, fy), MAX_FIT_ZOOM)
   return {
     zoom,
-    x: (size.w - bounds.w * zoom) / 2 - bounds.x * zoom,
-    y: (size.h - bounds.h * zoom) / 2 - bounds.y * zoom,
+    x: area.x + (area.w - bounds.w * zoom) / 2 - bounds.x * zoom,
+    y: area.y + (area.h - bounds.h * zoom) / 2 - bounds.y * zoom,
   }
+}
+
+export const NO_BOX: CanvasSize = { w: 0, h: 0 }
+
+export const fitViewport = (bounds: Bounds, size: CanvasSize, bottomLeftBox: CanvasSize = NO_BOX): Viewport => {
+  if (!size.w || !bounds.w || !bounds.h) return DEFAULT_VIEWPORT
+  if (!bottomLeftBox.w || !bottomLeftBox.h) return fitInto(bounds, { x: 0, y: 0, ...size })
+  const beside = fitInto(bounds, { x: bottomLeftBox.w, y: 0, w: size.w - bottomLeftBox.w, h: size.h })
+  const above = fitInto(bounds, { x: 0, y: 0, w: size.w, h: size.h - bottomLeftBox.h })
+  return beside.zoom >= above.zoom ? beside : above
 }
 
 export const centerOn = (

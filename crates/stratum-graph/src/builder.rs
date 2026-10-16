@@ -155,6 +155,7 @@ impl GraphBuilder {
             .unzip();
         let placement = place(root, &self.config.layers, &self.config.structure, &files);
         graph.containers = placement.containers;
+        graph.dir_roles = placement.dir_roles;
 
         let paths: Vec<&Utf8Path> = placement
             .modules

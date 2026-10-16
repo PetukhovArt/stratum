@@ -15,8 +15,17 @@ pub const SIBLING_ISOLATION: RuleId = RuleId::new(12);
 pub const RESTRICTED_CALLS: RuleId = RuleId::new(13);
 pub const STAGE_MIXING: RuleId = RuleId::new(14);
 pub const CONTAINER_BREADTH: RuleId = RuleId::new(15);
+pub const ZONE_BREADTH: RuleId = RuleId::new(16);
+pub const MISSING_ENTRY: RuleId = RuleId::new(17);
+pub const NO_BARREL: RuleId = RuleId::new(18);
+pub const COMPOSER_SCOPE: RuleId = RuleId::new(19);
+pub const NAMING: RuleId = RuleId::new(20);
+pub const MODULE_DOCS: RuleId = RuleId::new(21);
+pub const UNUSED_EXPORTS: RuleId = RuleId::new(22);
+pub const UNREACHABLE_MODULES: RuleId = RuleId::new(23);
+pub const SUPPRESSION: RuleId = RuleId::new(24);
 
-pub const BUILTIN: [RuleId; 15] = [
+pub const BUILTIN: [RuleId; 24] = [
     NO_CROSS_LAYER_IMPORT,
     NO_CIRCULAR_DEPS,
     PURITY,
@@ -32,6 +41,15 @@ pub const BUILTIN: [RuleId; 15] = [
     RESTRICTED_CALLS,
     STAGE_MIXING,
     CONTAINER_BREADTH,
+    ZONE_BREADTH,
+    MISSING_ENTRY,
+    NO_BARREL,
+    COMPOSER_SCOPE,
+    NAMING,
+    MODULE_DOCS,
+    UNUSED_EXPORTS,
+    UNREACHABLE_MODULES,
+    SUPPRESSION,
 ];
 
 #[must_use]

@@ -90,6 +90,7 @@ fn config_with_custom_rule() -> Config {
         project: ProjectConfig {
             extends: None,
             ignore: vec![],
+            entry_points: vec![],
         },
         layers: vec![LayerConfig {
             id: "app".into(),

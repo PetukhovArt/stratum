@@ -4,6 +4,7 @@ import { t } from '../../i18n'
 import { SEV_COLOR } from '../../render/encoding'
 import { Model, worst } from '../../render/model'
 import { go, nav, set } from '../../shell/nav'
+import { PathLabel, PathText } from '../../shell/path-text'
 import { Violation } from '../../types'
 import { layerTone, shortRule } from '../focus/paint'
 import { MAX_PATH_HOPS, moduleCycles, pairKey, SET_LIMIT, SetAnalysis, withMember, withoutMember } from './analysis'
@@ -36,8 +37,8 @@ const SelectedImport: Component<{ model: Model; from: number; to: number }> = (p
     <div class="det-section" data-testid="set-import">
       <h4>{t('set.details.import')}</h4>
       <div class="det-path">
-        {m.modules.get(props.from)?.path}
-        <br />→ {m.modules.get(props.to)?.path}
+        <PathText path={m.modules.get(props.from)?.path ?? ''} />
+        <br />→ <PathText path={m.modules.get(props.to)?.path ?? ''} />
       </div>
       <Show when={findings().length} fallback={<div class="empty">{t('set.details.noFinding')}</div>}>
         <div class="vios">
@@ -147,8 +148,11 @@ export const SetDetails: Component<{ model: Model; analysis: SetAnalysis }> = (p
                     data-freed={c.freed}
                     onClick={() => set({ sel: { kind: 'edge', from: c.from, to: c.to } })}
                   >
-                    <span class="set-nm">
-                      {m.label(c.from)} → {m.label(c.to)}
+                    <span class="set-nm set-pair">
+                      <PathLabel path={m.label(c.from)} />
+                      <span class="set-pair-to">
+                        → <PathLabel path={m.label(c.to)} />
+                      </span>
                     </span>
                     <span class="set-n">
                       {t('set.details.frees', { n: c.freed })}

@@ -4,21 +4,26 @@ import { t } from '../../i18n'
 import { CANVAS_DEFS, EDGE_DASH, EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR } from '../../render/encoding'
 import { Model } from '../../render/model'
 import { go, nav, NavState, set } from '../../shell/nav'
-import { layerTone, trunc } from '../focus/paint'
+import { ellipsizePath, monoWidth } from '../../render/labels'
+import { Bounds } from '../../render/viewport'
+import { layerTone } from '../focus/paint'
 import { pairKey, SetAnalysis } from './analysis'
 import {
   ARC_NODE,
+  badgeBox,
   CurvedLink,
   CurveScene,
   layoutArc,
   layoutRing,
   layoutSetMatrix,
+  placeBadgeBeside,
   RING_NODE,
   SET_CELL,
   SetCell,
   SetLink,
   SetMatrix,
   SetNode,
+  unionBounds,
 } from './layout'
 
 const DIM_OPACITY = 0.1
@@ -26,7 +31,7 @@ const HIT_WIDTH = 10
 const PATH_DASH = '4 3'
 const CUT_DASH = '5 3'
 const CHAIN_STROKE = 'oklch(90% 0.01 260)'
-const BADGE = { w: 124, h: 20 } as const
+const BADGE = { h: 20, font: 10, pad: 12 } as const
 const LABEL_CHARS = { ring: 24, arc: 19, matrix: 24 } as const
 const COLUMN_LABEL_ANGLE = -60
 const MATRIX_LABEL_GAP = 8
@@ -53,11 +58,30 @@ const edgeTitle = (m: Model, l: SetLink): string =>
     l.rules ? `\n${l.rules}` : ''
   }`
 
-const CutBadge: Component<{ link: CurvedLink; analysis: SetAnalysis }> = (props) => (
-  <g class="set-badge" data-testid="set-cut" data-edge={props.link.key} transform={`translate(${props.link.badge.x},${props.link.badge.y})`}>
-    <rect x={-BADGE.w / 2} y={-BADGE.h / 2} width={BADGE.w} height={BADGE.h} rx={BADGE.h / 2} />
-    <text y="3.5" text-anchor="middle">
-      {t('set.cutBadge', { freed: props.analysis.cuts[0].freed, n: props.analysis.loop?.length ?? 0 })}
+interface CutBadgeMark {
+  link: CurvedLink
+  text: string
+  box: Bounds
+}
+
+const cutBadgeOf = (scene: CurveScene, analysis: SetAnalysis): CutBadgeMark | null => {
+  const link = scene.links.find((l) => l.isCut)
+  if (!link) return null
+  const text = t('set.cutBadge', { freed: analysis.cuts[0].freed, n: analysis.loop?.length ?? 0 })
+  const size = { w: monoWidth(text, BADGE.font) + BADGE.pad * 2, h: BADGE.h }
+  return { link, text, box: badgeBox(placeBadgeBeside(scene, link, size), size) }
+}
+
+const CutBadge: Component<{ badge: CutBadgeMark }> = (props) => (
+  <g
+    class="set-badge"
+    data-testid="set-cut"
+    data-edge={props.badge.link.key}
+    transform={`translate(${props.badge.box.x},${props.badge.box.y})`}
+  >
+    <rect width={props.badge.box.w} height={BADGE.h} rx={BADGE.h / 2} />
+    <text x={props.badge.box.w / 2} y={BADGE.h / 2 + 3.5} text-anchor="middle" font-size={String(BADGE.font)}>
+      {props.badge.text}
     </text>
   </g>
 )
@@ -124,7 +148,7 @@ const NodeMark: Component<{
         <rect class="set-sw" width="4" height={props.h} rx="2" fill={layerTone(m, layer)} />
       </Show>
       <text x="12" y={props.h / 2 + 3.5}>
-        {trunc(m.label(n.id), props.chars)}
+        {ellipsizePath(m.label(n.id), props.chars)}
       </text>
       <Show when={sev}>
         {(s) => <circle data-ch="sev" cx={props.w - 10} cy={props.h / 2} r="3" fill={SEV_COLOR[s()]} />}
@@ -134,13 +158,12 @@ const NodeMark: Component<{
   )
 }
 
-const CurveMarks: Component<{ model: Model; analysis: SetAnalysis; scene: CurveScene; isArc: boolean }> = (props) => {
+const CurveMarks: Component<{ model: Model; scene: CurveScene; badge: CutBadgeMark | null; isArc: boolean }> = (props) => {
   const [hover, setHover] = createSignal<number | null>(null)
   const size = (n: SetNode) => {
     if (props.isArc) return { w: ARC_NODE.w, h: ARC_NODE.h, chars: LABEL_CHARS.arc }
     return { w: RING_NODE.w, h: n.isMember ? RING_NODE.h : RING_NODE.viaH, chars: LABEL_CHARS.ring }
   }
-  const cut = () => props.scene.links.find((l) => l.isCut)
   return (
     <g class={`set-scene${props.isArc ? ' arc' : ' ring'}`}>
       <Show when={props.isArc && props.scene.nodes.length}>
@@ -152,7 +175,7 @@ const CurveMarks: Component<{ model: Model; analysis: SetAnalysis; scene: CurveS
       <For each={props.scene.nodes}>
         {(n) => <NodeMark model={props.model} node={n} {...size(n)} setHover={setHover} />}
       </For>
-      <Show when={cut()}>{(l) => <CutBadge link={l()} analysis={props.analysis} />}</Show>
+      <Show when={props.badge}>{(b) => <CutBadge badge={b()} />}</Show>
     </g>
   )
 }
@@ -202,7 +225,7 @@ const MatrixMarks: Component<{ model: Model; matrix: SetMatrix }> = (props) => {
       </Show>
       <For each={mx().order}>
         {(id, i) => {
-          const name = trunc(props.model.label(id), LABEL_CHARS.matrix)
+          const name = ellipsizePath(props.model.label(id), LABEL_CHARS.matrix)
           const isMember = mx().members.has(id)
           return (
             <g class={`set-mx-label${isMember ? ' member' : ''}`} onClick={() => go({ view: 'focus', focus: id })}>
@@ -280,17 +303,23 @@ const layoutOf = (m: Model, a: SetAnalysis, variant: NavState['setVariant']): La
 export const SetScene: Component<SceneProps> = (props) => {
   const variant = () => nav().setVariant
   const laid = createMemo(() => layoutOf(props.model, props.analysis, variant()))
+  const badge = createMemo(() => {
+    const l = laid()
+    return l.kind === 'curves' ? cutBadgeOf(l.scene, props.analysis) : null
+  })
   const bounds = () => {
     const l = laid()
-    return l.kind === 'curves' ? l.scene.bounds : l.matrix.bounds
+    if (l.kind === 'matrix') return l.matrix.bounds
+    const b = badge()
+    return b ? unionBounds([l.scene.bounds, b.box]) : l.scene.bounds
   }
   const fitKey = createMemo(() => `${variant()}:${props.analysis.members.join(',')}`)
   return (
-    <Canvas bounds={bounds()} fitKey={fitKey()} overlay={<Legend variant={variant()} />}>
+    <Canvas bounds={bounds()} fitKey={fitKey()} legend={<Legend variant={variant()} />}>
       {(() => {
         const l = laid()
         return l.kind === 'curves' ? (
-          <CurveMarks model={props.model} analysis={props.analysis} scene={l.scene} isArc={variant() === 'arc'} />
+          <CurveMarks model={props.model} scene={l.scene} badge={badge()} isArc={variant() === 'arc'} />
         ) : (
           <MatrixMarks model={props.model} matrix={l.matrix} />
         )

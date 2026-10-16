@@ -1,5 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use rustc_hash::FxHashMap;
 use stratum_core::{ids::ContainerId, types::ContainerKind, visibility::VisibilityScope};
@@ -12,6 +12,20 @@ pub(crate) struct GraphIndex {
     pub(crate) dirs: FxHashMap<PathBuf, DirEntries>,
     pub(crate) zones: Vec<PrivateZone>,
     pub(crate) zone_containers: Vec<Option<ContainerId>>,
+    entry_stems: FxHashMap<PathBuf, String>,
+}
+
+/// What a folder inside a layer is. Placement decides it from `structure` and the file set; no
+/// rule derives a role from a folder name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DirRole {
+    LayerRoot,
+    Container(ContainerId),
+    Segment,
+    PrivateZone,
+    /// A folder without an entry file that is none of the others: its files belong to the
+    /// enclosing container.
+    Collection,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -49,13 +63,64 @@ impl GraphIndex {
             .iter()
             .map(|z| g.container_at(&z.path).map(|c| c.id))
             .collect();
+        let entry_stems = g
+            .containers
+            .values()
+            .filter_map(|c| {
+                let name = g.modules.get(&c.entry?)?.path.file_name()?;
+                Some((c.path.clone(), stem(&name.to_string_lossy())?))
+            })
+            .collect();
         Self {
             subtree_modules,
             dirs,
             zones,
             zone_containers,
+            entry_stems,
         }
     }
+}
+
+impl CompoundGraph {
+    /// The distinct things directly inside `dir`: each child folder, and the child files sharing a
+    /// stem before the first dot (`foo.ts`, `foo.test.ts` and `foo.vue` are one kind). The folder's
+    /// entry file and private zones do not count.
+    #[must_use]
+    pub fn kinds(&self, dir: &Path) -> BTreeSet<String> {
+        let mut names = self.child_names(dir);
+        if let Some(entry) = self.index().entry_stems.get(dir) {
+            names.remove(entry);
+        }
+        names
+    }
+
+    /// The size of a homogeneous folder: the things directly inside `dir` counted as in
+    /// [`Self::kinds`], entry file included.
+    #[must_use]
+    pub fn items(&self, dir: &Path) -> usize {
+        self.child_names(dir).len()
+    }
+
+    fn child_names(&self, dir: &Path) -> BTreeSet<String> {
+        let Some(entries) = self.dir_entries(dir) else {
+            return BTreeSet::new();
+        };
+        let folders = entries
+            .dirs
+            .iter()
+            .filter(|name| self.dir_roles.get(&dir.join(name)) != Some(&DirRole::PrivateZone))
+            .map(|name| format!("{name}/"));
+        let files = entries.files.iter().filter_map(|name| stem(name));
+        folders.chain(files).collect()
+    }
+}
+
+fn stem(file_name: &str) -> Option<String> {
+    file_name
+        .split('.')
+        .next()
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
 }
 
 pub(crate) type SliceImporters = FxHashMap<ContainerId, BTreeSet<ContainerId>>;

@@ -11,6 +11,7 @@ import {
   Violation,
 } from '../types'
 import { layerHue, SeverityLabel } from './encoding'
+import { disambiguate } from './labels'
 
 export interface Group {
   key: string
@@ -62,6 +63,8 @@ export interface Model {
   /** The deepest enclosing container that is not `nested`. */
   unitOf: (id: number) => number
   units: readonly Unit[]
+  /** The unit's name, or the shortest end of its path no other unit of that name shares. */
+  unitLabel: (id: number) => string
   unitEdges: readonly AggregateEdge[]
   layerEdges: readonly AggregateEdge[]
   /** Unit cycles of two or more units, largest first. */
@@ -288,6 +291,8 @@ export const buildModel = (snapshot: GraphSnapshot, violations: readonly Violati
     .map((c) => ({ id: c.id, kind: c.kind, layer: c.layer, name: c.name, path: c.path, modules: [] }))
   const unitById = new Map(units.map((u) => [u.id, u]))
   for (const m of snapshot.modules) unitById.get(unitOfContainer(m.container))?.modules.push(m.id)
+  const unitLabels = disambiguate(units.map((u) => ({ key: u.name, label: u.name, path: u.path })))
+  const unitLabelById = new Map(units.map((u, i) => [u.id, unitLabels[i]]))
 
   const unitEdges = aggregate(uniqueEdges, unitOf, findingsOnEdge)
   const unitOut = new Map<number, number[]>()
@@ -319,6 +324,7 @@ export const buildModel = (snapshot: GraphSnapshot, violations: readonly Violati
     label,
     unitOf,
     units,
+    unitLabel: (id) => unitLabelById.get(id) ?? containers.get(id)?.name ?? String(id),
     unitEdges,
     layerEdges: aggregate(uniqueEdges, (id) => moduleOf(id).layer, findingsOnEdge),
     unitSccs,
