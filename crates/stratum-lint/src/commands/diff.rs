@@ -28,7 +28,7 @@ pub fn run(root: &Utf8Path, base: &str, config_path: Option<&Utf8Path>) -> miett
     Ok(i32::from(!drift.is_empty()))
 }
 
-fn markdown(drift: &Drift, sha: &str, prefix: &str, base: &str) -> String {
+pub(crate) fn markdown(drift: &Drift, sha: &str, prefix: &str, base: &str) -> String {
     let mut lines = vec![
         if prefix.is_empty() {
             "<!-- stratum:drift -->".to_owned()
@@ -38,6 +38,20 @@ fn markdown(drift: &Drift, sha: &str, prefix: &str, base: &str) -> String {
         format!("### Stratum: architecture drift vs {sha}"),
         summary(drift),
     ];
+    let breaking = drift.breaking_imports();
+    section(
+        &mut lines,
+        "Imports that break rules",
+        breaking.iter().map(|e| {
+            let rules = e
+                .breaks
+                .iter()
+                .map(|(slug, severity)| format!("`{slug}` ({severity})"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("- `{}` -> `{}`: {rules}", e.from, e.to)
+        }),
+    );
     section(
         &mut lines,
         "Layer edges not in `depends_on`",
@@ -109,6 +123,11 @@ fn summary(drift: &Drift) -> String {
         return "No architecture drift.".into();
     }
     let counts = [
+        (
+            drift.breaking_imports().len(),
+            "import that breaks rules",
+            "imports that break rules",
+        ),
         (
             drift.layer_edges.len(),
             "layer edge not in depends_on",

@@ -1,16 +1,22 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 
 use camino::{Utf8Path, Utf8PathBuf};
+use serde::Serialize;
 use stratum_config::Config;
+use stratum_core::edge::EdgeKind;
 use stratum_core::ids::ModuleId;
+use stratum_core::severity::Severity;
 use stratum_core::types::ContainerKind;
 use stratum_graph::{CompoundGraph, find_cycles};
+use stratum_rules::RuleRegistry;
+use stratum_rules::territory::Territories;
 
 use crate::paths::relative;
 use crate::pipeline::{self, EngineError};
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct Drift {
+    pub edges: Vec<EdgeChange>,
     pub layer_edges: Vec<LayerEdgeGrowth>,
     pub slice_edges: Vec<SliceEdge>,
     pub cycles: Vec<CycleChange>,
@@ -19,17 +25,66 @@ pub struct Drift {
 }
 
 impl Drift {
+    /// An edge change counts only when it is added and breaks a rule: a rename alone
+    /// removes and adds edges.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.layer_edges.is_empty()
+        self.breaking_imports().is_empty()
+            && self.layer_edges.is_empty()
             && self.slice_edges.is_empty()
             && self.cycles.is_empty()
             && self.stages.is_empty()
             && self.fan_in.is_empty()
     }
+
+    /// Added edges with a non-empty `breaks`, the ones breaking an error rule first. An added
+    /// edge that shares an end and its `breaks` with a removed one is a moved file, not listed.
+    #[must_use]
+    pub fn breaking_imports(&self) -> Vec<&EdgeChange> {
+        let removed: HashSet<(&str, &[(String, Severity)])> = self
+            .edges
+            .iter()
+            .filter(|e| e.change == Change::Removed && !e.breaks.is_empty())
+            .flat_map(|e| {
+                [
+                    (e.from.as_str(), &e.breaks[..]),
+                    (e.to.as_str(), &e.breaks[..]),
+                ]
+            })
+            .collect();
+        let moved = |e: &EdgeChange| {
+            removed.contains(&(e.from.as_str(), &e.breaks[..]))
+                || removed.contains(&(e.to.as_str(), &e.breaks[..]))
+        };
+        let mut added: Vec<&EdgeChange> = self
+            .edges
+            .iter()
+            .filter(|e| e.change == Change::Added && !e.breaks.is_empty() && !moved(e))
+            .collect();
+        added.sort_by_key(|e| std::cmp::Reverse(e.breaks[0].1));
+        added
+    }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// `breaks` holds the rules the edge breaks on the side where it exists (the head for an
+/// added edge, the base for a removed one), worst severity first.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct EdgeChange {
+    pub from: String,
+    pub to: String,
+    pub kind: EdgeKind,
+    pub change: Change,
+    pub breaks: Vec<(String, Severity)>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Change {
+    Added,
+    Removed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct LayerEdgeGrowth {
     pub from: String,
     pub to: String,
@@ -37,20 +92,23 @@ pub struct LayerEdgeGrowth {
     pub head: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SliceEdge {
     pub from: String,
     pub to: String,
     pub example: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CycleChange {
     pub members: Vec<String>,
     pub grown_from: Option<usize>,
+    /// Head cycle through the first added edge inside `members`, closed: `[from, to, .., from]`.
+    /// Empty when no added edge is inside.
+    pub path: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct StageChange {
     pub container: String,
     pub kind: ContainerKind,
@@ -58,7 +116,7 @@ pub struct StageChange {
     pub head: u8,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct FanInGrowth {
     pub slice: String,
     pub base: usize,
@@ -81,10 +139,13 @@ pub fn drift(
     });
     let base = base.unwrap_or_else(|p| std::panic::resume_unwind(p))?;
     let head = head?;
+    let registry = pipeline::registry(&head.root, config)?;
+    let edges = edges(&base, &head, config, &registry)?;
     Ok(Drift {
+        cycles: cycles(&base, &head, &edges),
+        edges,
         layer_edges: layer_edges(&base, &head, config),
         slice_edges: slice_edges(&base, &head),
-        cycles: cycles(&base, &head),
         stages: stages(&base, &head),
         fan_in: fan_in(&base, &head),
     })
@@ -126,10 +187,23 @@ impl Side {
     }
 
     fn edges(&self) -> impl Iterator<Item = (ModuleId, ModuleId)> + '_ {
+        self.kinded_edges().map(|(a, b, _)| (a, b))
+    }
+
+    fn kinded_edges(&self) -> impl Iterator<Item = (ModuleId, ModuleId, EdgeKind)> + '_ {
         let deps = &self.graph.deps;
         deps.raw_edges()
             .iter()
-            .map(move |e| (deps[e.source()], deps[e.target()]))
+            .map(move |e| (deps[e.source()], deps[e.target()], e.weight))
+    }
+
+    fn edge_keys(&self) -> BTreeMap<(&str, &str, u8), (ModuleId, ModuleId, EdgeKind)> {
+        self.kinded_edges()
+            .map(|(a, b, kind)| {
+                let key = (self.paths[&a].as_str(), self.paths[&b].as_str(), kind as u8);
+                (key, (a, b, kind))
+            })
+            .collect()
     }
 
     fn layer_of(&self, m: ModuleId) -> Option<&str> {
@@ -205,6 +279,53 @@ impl Side {
     }
 }
 
+fn edges(
+    base: &Side,
+    head: &Side,
+    config: &Config,
+    registry: &RuleRegistry,
+) -> Result<Vec<EdgeChange>, EngineError> {
+    let before = base.edge_keys();
+    let after = head.edge_keys();
+    let mut changes = Vec::new();
+    for (side, mine, theirs, change) in [
+        (head, &after, &before, Change::Added),
+        (base, &before, &after, Change::Removed),
+    ] {
+        let only: Vec<_> = mine
+            .iter()
+            .filter(|(key, _)| !theirs.contains_key(*key))
+            .collect();
+        if only.is_empty() {
+            continue;
+        }
+        let territories = Territories::new(&side.graph, config, &side.root, registry)?;
+        changes.extend(only.into_iter().map(|(&(from, to, _), &(a, b, kind))| {
+            let mut breaks: Vec<(String, Severity)> = territories
+                .verdict(a, b)
+                .into_iter()
+                .map(|breach| {
+                    let slug = registry.by_id(breach.rule).map_or("unknown", |r| r.slug());
+                    (slug.to_owned(), breach.severity)
+                })
+                .collect();
+            breaks.sort_by(|x, y| y.1.cmp(&x.1).then_with(|| x.0.cmp(&y.0)));
+            EdgeChange {
+                from: from.to_owned(),
+                to: to.to_owned(),
+                kind,
+                change,
+                breaks,
+            }
+        }));
+    }
+    changes.sort_by(|x, y| {
+        let key = |e: &EdgeChange| (e.from.clone(), e.to.clone(), e.kind as u8, e.change as u8);
+        key(x).cmp(&key(y))
+    });
+    Ok(changes)
+}
+
 fn layer_edges(base: &Side, head: &Side, config: &Config) -> Vec<LayerEdgeGrowth> {
     let before = base.layer_edge_counts();
     let declared = |from: &str, to: &str| {
@@ -241,8 +362,9 @@ fn slice_edges(base: &Side, head: &Side) -> Vec<SliceEdge> {
         .collect()
 }
 
-fn cycles(base: &Side, head: &Side) -> Vec<CycleChange> {
+fn cycles(base: &Side, head: &Side, edges: &[EdgeChange]) -> Vec<CycleChange> {
     let before = base.cycles();
+    let mut imports: HashMap<&str, BTreeSet<&str>> = HashMap::new();
     let mut changes: Vec<CycleChange> = head
         .cycles()
         .into_iter()
@@ -257,7 +379,16 @@ fn cycles(base: &Side, head: &Side) -> Vec<CycleChange> {
                 Some(size) if members.len() > size => Some(size),
                 Some(_) => return None,
             };
+            if imports.is_empty() {
+                for (a, b) in head.edges() {
+                    imports
+                        .entry(head.paths[&a].as_str())
+                        .or_default()
+                        .insert(head.paths[&b].as_str());
+                }
+            }
             Some(CycleChange {
+                path: cycle_path(&members, &imports, edges),
                 members: members.into_iter().map(str::to_owned).collect(),
                 grown_from,
             })
@@ -265,6 +396,40 @@ fn cycles(base: &Side, head: &Side) -> Vec<CycleChange> {
         .collect();
     changes.sort_by(|a, b| a.members.cmp(&b.members));
     changes
+}
+
+fn cycle_path(
+    members: &BTreeSet<&str>,
+    imports: &HashMap<&str, BTreeSet<&str>>,
+    edges: &[EdgeChange],
+) -> Vec<String> {
+    let Some(added) = edges.iter().find(|e| {
+        e.change == Change::Added
+            && members.contains(e.from.as_str())
+            && members.contains(e.to.as_str())
+    }) else {
+        return Vec::new();
+    };
+    let (from, to) = (added.from.as_str(), added.to.as_str());
+    let mut reached_from: HashMap<&str, &str> = HashMap::new();
+    let mut queue = VecDeque::from([to]);
+    while let Some(at) = queue.pop_front() {
+        if at == from {
+            let mut back = vec![from];
+            while back[back.len() - 1] != to {
+                back.push(reached_from[back[back.len() - 1]]);
+            }
+            back.push(from);
+            return back.into_iter().rev().map(str::to_owned).collect();
+        }
+        for &next in imports.get(at).into_iter().flatten() {
+            if members.contains(next) && next != to && !reached_from.contains_key(next) {
+                reached_from.insert(next, at);
+                queue.push_back(next);
+            }
+        }
+    }
+    Vec::new()
 }
 
 fn stages(base: &Side, head: &Side) -> Vec<StageChange> {
@@ -405,8 +570,62 @@ mod tests {
                     "src/shared/utils.ts".into(),
                 ],
                 grown_from: None,
+                path: vec![
+                    "src/shared/utils.ts".into(),
+                    "src/shared/api/http.ts".into(),
+                    "src/entities/user/model.ts".into(),
+                    "src/shared/utils.ts".into(),
+                ],
             }]
         );
+    }
+
+    #[test]
+    fn added_import_of_slice_internals_breaks_public_api_at_the_head() {
+        let mut trees = exemplar_twice();
+        trees.append(
+            "src/features/checkout/index.ts",
+            "import \"@/entities/user/model\";\n",
+        );
+
+        assert_eq!(
+            trees.drift().edges,
+            [EdgeChange {
+                from: "src/features/checkout/index.ts".into(),
+                to: "src/entities/user/model.ts".into(),
+                kind: EdgeKind::Static,
+                change: Change::Added,
+                breaks: vec![("stratum/public-api".into(), Severity::Error)],
+            }]
+        );
+    }
+
+    #[test]
+    fn removed_import_carries_the_rules_it_broke_at_the_base() {
+        let mut trees = exemplar_twice();
+        trees.write("src/shared/api/http.ts", "export const http = 1;\n");
+
+        let drift = trees.drift();
+
+        let removed = &drift.edges[0];
+        assert_eq!(
+            (removed.from.as_str(), removed.to.as_str(), removed.change),
+            (
+                "src/shared/api/http.ts",
+                "src/entities/user/model.ts",
+                Change::Removed
+            ),
+            "{:?}",
+            drift.edges
+        );
+        assert!(
+            removed
+                .breaks
+                .contains(&("stratum/public-api".into(), Severity::Error)),
+            "{:?}",
+            removed.breaks
+        );
+        assert!(drift.is_empty(), "a removed import alone is no drift");
     }
 
     #[test]

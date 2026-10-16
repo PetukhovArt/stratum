@@ -51,6 +51,21 @@ fn drift_report_lists_a_new_slice_edge_and_exits_1() {
 }
 
 #[test]
+fn added_import_of_slice_internals_is_listed_with_the_rule_it_breaks() {
+    let repo = repo_with_committed_fixture_in_subdir("exemplar-stratum-app");
+    let root = repo.path().join(PROJECT_SUBDIR);
+    append(
+        &root.join("src/features/checkout/index.ts"),
+        "import \"@/entities/user/model\";\n",
+    );
+
+    let (code, stdout) = diff(&root);
+
+    assert_eq!(code, 1, "{stdout}");
+    insta::assert_snapshot!(stdout);
+}
+
+#[test]
 fn unchanged_tree_reports_no_drift_and_exits_0() {
     let repo = repo_with_committed_fixture_in_subdir("exemplar-stratum-app");
 
