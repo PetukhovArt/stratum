@@ -18,20 +18,19 @@ test('visualizer mounts SVG graph with lanes, containers, and modules', async ({
   await stubRoutes(page)
   await page.goto('/')
 
-  await expect(page.locator('.strat-app')).toBeVisible({ timeout: 15_000 })
-  await expect(page.locator('.strat-hd')).toBeVisible()
+  await expect(page.locator('.app')).toBeVisible({ timeout: 15_000 })
+  await expect(page.locator('header.hd')).toBeVisible()
 
-  const svg = page.locator('svg.strat-graph')
-  await expect(svg).toBeVisible()
-  await expect(svg.locator('g.containers')).toBeVisible()
-  await expect(svg.locator('g.modules')).toBeVisible()
+  const graph = page.locator('svg.cv g.strat-graph')
+  await expect(graph).toBeVisible()
+  await expect(graph.locator('g.containers')).toBeVisible()
+  await expect(graph.locator('g.modules')).toBeVisible()
 })
 
 test('status bar surfaces module + edge counts', async ({ page }) => {
   await stubRoutes(page)
   await page.goto('/')
-  await expect(page.locator('.strat-status')).toBeVisible({ timeout: 15_000 })
-  await expect(page.locator('.strat-status .status-l .status-info')).toHaveText(
-    /^9 modules · 5 containers · 8 edges$/,
-  )
+  await expect(page.getByTestId('status-graph')).toHaveText(/^9 modules · 8 edges · 0 violations$/, {
+    timeout: 15_000,
+  })
 })

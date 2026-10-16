@@ -1,6 +1,7 @@
 import { Component } from 'solid-js'
 import { LaneInfo } from '../../render/layout'
-import { layerColor, TONE } from '../../render/palette'
+import { layerColor } from '../../render/encoding'
+import { TONE } from '../../render/palette'
 import { DIMMED_OPACITY } from './dimming'
 
 export const Lane: Component<{ lane: LaneInfo; isDimmed: boolean; sceneWidth: number }> = (

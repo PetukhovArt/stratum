@@ -1,6 +1,7 @@
 import { Component, createMemo, For, Match, Show, Switch } from 'solid-js'
 import { containerKindOf, DesignData, DesignModule, layerOfModule, violationsOf } from '../render/design'
-import { facetInfo, layerColor, TONE } from '../render/palette'
+import { layerColor } from '../render/encoding'
+import { facetInfo, TONE } from '../render/palette'
 import { HoveredEdge, HoveredMod } from '../state'
 
 const CURSOR_OFFSET_PX = 14

@@ -1,6 +1,7 @@
 import { Component } from 'solid-js'
 import { ContainerInfo } from '../../render/layout'
-import { DEFAULT_HUE, layerColor, stageInfo, TONE } from '../../render/palette'
+import { layerColor } from '../../render/encoding'
+import { DEFAULT_HUE, stageInfo, TONE } from '../../render/palette'
 import { CountBadge } from './count-badge'
 import { DIMMED_OPACITY } from './dimming'
 

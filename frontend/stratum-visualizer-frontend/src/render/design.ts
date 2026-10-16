@@ -1,5 +1,7 @@
+import type { EdgeKindLabel, SeverityLabel } from './encoding'
+
+export type { EdgeKindLabel, SeverityLabel }
 export type ModuleKind = 'regular' | 'composer' | 'shared'
-export type SeverityLabel = 'error' | 'warning' | 'info'
 export type ContainerKindLabel = 'layer' | 'slice' | 'sub-unit' | 'nested'
 
 export type Facet =
@@ -53,7 +55,6 @@ export interface DesignModule {
   descInfo: number
 }
 
-export type EdgeKindLabel = 'static' | 'di' | 'runtime'
 
 export interface DesignEdge {
   source: string

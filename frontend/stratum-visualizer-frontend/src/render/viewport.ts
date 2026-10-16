@@ -17,18 +17,22 @@ export const zoomAround = (v: Viewport, point: { x: number; y: number }, factor:
   return { zoom, x: point.x - worldX * zoom, y: point.y - worldY * zoom }
 }
 
-export const fitViewport = (
-  bounds: { width: number; height: number },
-  size: CanvasSize,
-): Viewport => {
-  if (!size.w || !bounds.width) return DEFAULT_VIEWPORT
-  const fx = (size.w - FIT_PADDING_PX * 2) / bounds.width
-  const fy = (size.h - FIT_PADDING_PX * 2) / bounds.height
+export interface Bounds {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+export const fitViewport = (bounds: Bounds, size: CanvasSize): Viewport => {
+  if (!size.w || !bounds.w || !bounds.h) return DEFAULT_VIEWPORT
+  const fx = (size.w - FIT_PADDING_PX * 2) / bounds.w
+  const fy = (size.h - FIT_PADDING_PX * 2) / bounds.h
   const zoom = clampZoom(Math.min(fx, fy), MAX_FIT_ZOOM)
   return {
     zoom,
-    x: (size.w - bounds.width * zoom) / 2,
-    y: (size.h - bounds.height * zoom) / 2,
+    x: (size.w - bounds.w * zoom) / 2 - bounds.x * zoom,
+    y: (size.h - bounds.h * zoom) / 2 - bounds.y * zoom,
   }
 }
 

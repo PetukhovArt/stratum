@@ -1,75 +1,85 @@
 {
-  "version": 2,
+  "version": 3,
+  "project": "tiny-ts",
   "modules": [
     {
       "id": 0,
-      "path": "C:\\Users\\user\\WebstormProjects\\stratum\\.claude\\worktrees\\agent-a2a57cdf466513440\\tests\\fixtures\\tiny-ts\\src\\app\\main.ts",
+      "path": "src/app/main.ts",
       "container": 0,
       "layer": 0,
-      "purity": 2
+      "purity": 2,
+      "territory": 0
     },
     {
       "id": 1,
-      "path": "C:\\Users\\user\\WebstormProjects\\stratum\\.claude\\worktrees\\agent-a2a57cdf466513440\\tests\\fixtures\\tiny-ts\\src\\entities\\user\\User.ts",
+      "path": "src/entities/user/User.ts",
       "container": 5,
       "layer": 1,
-      "purity": 2
+      "purity": 2,
+      "territory": 0
     },
     {
       "id": 2,
-      "path": "C:\\Users\\user\\WebstormProjects\\stratum\\.claude\\worktrees\\agent-a2a57cdf466513440\\tests\\fixtures\\tiny-ts\\src\\entities\\user\\index.ts",
+      "path": "src/entities/user/index.ts",
       "container": 5,
       "layer": 1,
-      "purity": 2
+      "purity": 2,
+      "territory": 0
     },
     {
       "id": 3,
-      "path": "C:\\Users\\user\\WebstormProjects\\stratum\\.claude\\worktrees\\agent-a2a57cdf466513440\\tests\\fixtures\\tiny-ts\\src\\features\\cart\\cart.tsx",
+      "path": "src/features/cart/cart.tsx",
       "container": 6,
       "layer": 2,
-      "purity": 2
+      "purity": 2,
+      "territory": 0
     },
     {
       "id": 4,
-      "path": "C:\\Users\\user\\WebstormProjects\\stratum\\.claude\\worktrees\\agent-a2a57cdf466513440\\tests\\fixtures\\tiny-ts\\src\\features\\cart\\index.ts",
+      "path": "src/features/cart/index.ts",
       "container": 6,
       "layer": 2,
-      "purity": 2
+      "purity": 2,
+      "territory": 0
     },
     {
       "id": 5,
-      "path": "C:\\Users\\user\\WebstormProjects\\stratum\\.claude\\worktrees\\agent-a2a57cdf466513440\\tests\\fixtures\\tiny-ts\\src\\legacy\\old-helper.js",
+      "path": "src/legacy/old-helper.js",
       "container": 3,
       "layer": 3,
-      "purity": 2
+      "purity": 2,
+      "territory": 0
     },
     {
       "id": 6,
-      "path": "C:\\Users\\user\\WebstormProjects\\stratum\\.claude\\worktrees\\agent-a2a57cdf466513440\\tests\\fixtures\\tiny-ts\\src\\shared\\api\\http.ts",
+      "path": "src/shared/api/http.ts",
       "container": 4,
       "layer": 4,
-      "purity": 2
+      "purity": 2,
+      "territory": 0
     },
     {
       "id": 7,
-      "path": "C:\\Users\\user\\WebstormProjects\\stratum\\.claude\\worktrees\\agent-a2a57cdf466513440\\tests\\fixtures\\tiny-ts\\src\\shared\\ui\\Button.tsx",
+      "path": "src/shared/ui/Button.tsx",
       "container": 4,
       "layer": 4,
-      "purity": 2
+      "purity": 2,
+      "territory": 0
     },
     {
       "id": 8,
-      "path": "C:\\Users\\user\\WebstormProjects\\stratum\\.claude\\worktrees\\agent-a2a57cdf466513440\\tests\\fixtures\\tiny-ts\\src\\shared\\utils\\format.ts",
+      "path": "src/shared/utils/format.ts",
       "container": 4,
       "layer": 4,
-      "purity": 2
+      "purity": 2,
+      "territory": 0
     }
   ],
   "containers": [
     {
       "id": 0,
       "name": "app",
-      "path": "C:\\Users\\user\\WebstormProjects\\stratum\\.claude\\worktrees\\agent-a2a57cdf466513440\\tests\\fixtures\\tiny-ts\\src\\app",
+      "path": "src/app",
       "kind": "layer",
       "layer": 0,
       "parent": null,
@@ -79,7 +89,7 @@
     {
       "id": 1,
       "name": "entities",
-      "path": "C:\\Users\\user\\WebstormProjects\\stratum\\.claude\\worktrees\\agent-a2a57cdf466513440\\tests\\fixtures\\tiny-ts\\src\\entities",
+      "path": "src/entities",
       "kind": "layer",
       "layer": 1,
       "parent": null,
@@ -89,7 +99,7 @@
     {
       "id": 2,
       "name": "features",
-      "path": "C:\\Users\\user\\WebstormProjects\\stratum\\.claude\\worktrees\\agent-a2a57cdf466513440\\tests\\fixtures\\tiny-ts\\src\\features",
+      "path": "src/features",
       "kind": "layer",
       "layer": 2,
       "parent": null,
@@ -99,7 +109,7 @@
     {
       "id": 3,
       "name": "legacy",
-      "path": "C:\\Users\\user\\WebstormProjects\\stratum\\.claude\\worktrees\\agent-a2a57cdf466513440\\tests\\fixtures\\tiny-ts\\src\\legacy",
+      "path": "src/legacy",
       "kind": "layer",
       "layer": 3,
       "parent": null,
@@ -109,7 +119,7 @@
     {
       "id": 4,
       "name": "shared",
-      "path": "C:\\Users\\user\\WebstormProjects\\stratum\\.claude\\worktrees\\agent-a2a57cdf466513440\\tests\\fixtures\\tiny-ts\\src\\shared",
+      "path": "src/shared",
       "kind": "layer",
       "layer": 4,
       "parent": null,
@@ -119,7 +129,7 @@
     {
       "id": 5,
       "name": "user",
-      "path": "C:\\Users\\user\\WebstormProjects\\stratum\\.claude\\worktrees\\agent-a2a57cdf466513440\\tests\\fixtures\\tiny-ts\\src\\entities\\user",
+      "path": "src/entities/user",
       "kind": "nested",
       "layer": 1,
       "parent": 1,
@@ -129,7 +139,7 @@
     {
       "id": 6,
       "name": "cart",
-      "path": "C:\\Users\\user\\WebstormProjects\\stratum\\.claude\\worktrees\\agent-a2a57cdf466513440\\tests\\fixtures\\tiny-ts\\src\\features\\cart",
+      "path": "src/features/cart",
       "kind": "nested",
       "layer": 2,
       "parent": 2,
@@ -204,6 +214,35 @@
       "from": 5,
       "to": 6,
       "kind": "static"
+    }
+  ],
+  "zones": [],
+  "territories": [
+    {
+      "may_import_layers": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "imported_by_layers": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "max_import_purity": 2,
+      "visible_zones": [],
+      "may_not": [
+        {
+          "rule": "stratum/public-api",
+          "region": {
+            "kind": "internals"
+          }
+        }
+      ]
     }
   ]
 }

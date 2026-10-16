@@ -1,8 +1,11 @@
+import { activeCanvas } from '../canvas/canvas'
+import { VIEWS, viewById } from '../views'
+import { back, go, nav, set } from './nav'
+import { variantIndex, variantPatch } from './variants'
+
 export interface KeymapActions {
   isPaletteOpen: () => boolean
   setPaletteOpen: (isOpen: boolean) => void
-  dismiss: () => void
-  fit: () => void
   toggleLeftPanel: () => void
   toggleRightPanel: () => void
 }
@@ -10,6 +13,13 @@ export interface KeymapActions {
 const isTypingTarget = (target: EventTarget | null): boolean => {
   if (!(target instanceof HTMLElement)) return false
   return target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+}
+
+const cycleVariant = (): void => {
+  const variants = viewById(nav().view).variants
+  if (!variants) return
+  const next = (variantIndex(variants, nav()) + 1) % variants.options.length
+  set(variantPatch(variants, next))
 }
 
 const onKeyDown = (e: KeyboardEvent, actions: KeymapActions): void => {
@@ -34,18 +44,26 @@ const onKeyDown = (e: KeyboardEvent, actions: KeymapActions): void => {
     if (actions.isPaletteOpen()) {
       actions.setPaletteOpen(false)
     } else {
-      actions.dismiss()
+      back()
     }
     return
   }
-  if (isTyping || hasCommandModifier) return
+  if (isTyping || hasCommandModifier || e.altKey) return
   if (e.key === '/') {
     e.preventDefault()
     actions.setPaletteOpen(true)
+    return
   }
   if (e.key === 'f') {
-    actions.fit()
+    activeCanvas()?.fit()
+    return
   }
+  if (e.key === 'v') {
+    cycleVariant()
+    return
+  }
+  const view = VIEWS.find((v) => v.key === e.key)
+  if (view) go({ view: view.id })
 }
 
 export const bindKeymap = (actions: KeymapActions): (() => void) => {

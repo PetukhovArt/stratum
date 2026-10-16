@@ -1,5 +1,5 @@
 import { Component, Show } from 'solid-js'
-import { SEVERITY } from '../../render/palette'
+import { SEV_COLOR } from '../../render/encoding'
 
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`
 
@@ -34,10 +34,10 @@ export const CountBadge: Component<{
         />
         <text x={props.right} y={props.baselineY} class={props.class} text-anchor="end">
           <Show when={props.errors > 0}>
-            <tspan style={{ fill: SEVERITY.error.color }}>{props.errors}e </tspan>
+            <tspan style={{ fill: SEV_COLOR.error }}>{props.errors}e </tspan>
           </Show>
           <Show when={props.warnings > 0}>
-            <tspan style={{ fill: SEVERITY.warning.color }}>{props.warnings}w</tspan>
+            <tspan style={{ fill: SEV_COLOR.warning }}>{props.warnings}w</tspan>
           </Show>
         </text>
       </g>

@@ -1,14 +1,13 @@
 import { createComponent, createSignal } from 'solid-js'
 import { render } from 'solid-js/web'
 import { describe, expect, it } from 'vitest'
-import { adaptSnapshot } from '../../render/adapt'
+import { designOf, SnapshotInput } from '../../test/snapshot'
 import { computeLayout } from '../../render/layout'
 import { DEFAULT_FILTERS, Viewport } from '../../state'
-import { EdgeKind, GraphSnapshot } from '../../types'
+import { EdgeKind } from '../../types'
 import { Graph } from './graph'
 
-const snap: GraphSnapshot = {
-  version: 2,
+const snap: SnapshotInput = {
   modules: [
     { id: 1, path: 'src/a.ts', container: 10, layer: 0, purity: 1 },
     { id: 2, path: 'src/b.ts', container: 10, layer: 0, purity: 1 },
@@ -27,7 +26,7 @@ const snap: GraphSnapshot = {
 
 describe('Graph', () => {
   it('keeps every rendered module node when the viewport pans', () => {
-    const data = adaptSnapshot(snap)
+    const data = designOf(snap)
     const scene = computeLayout(data)
     const [viewport, setViewport] = createSignal<Viewport>({ x: 0, y: 0, zoom: 1 })
     const host = document.createElement('div')
@@ -50,7 +49,6 @@ describe('Graph', () => {
             return viewport()
           },
           canvasSize: { w: 2000, h: 2000 },
-          onViewportChange: setViewport,
         }),
       host,
     )

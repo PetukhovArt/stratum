@@ -11,16 +11,23 @@ export const enum Severity {
   Error = 'error',
 }
 
+export const SUPPORTED_SNAPSHOT_VERSION = 3
+
+export const CONTAINER_KINDS = ['layer', 'slice', 'sub_unit', 'nested'] as const
+export type ContainerKind = (typeof CONTAINER_KINDS)[number]
+
 export interface SnapshotModule {
   id: number
+  /** Root-relative, `/`-separated. */
   path: string
   container: number
   layer: number
   purity: number
+  /** Index into `GraphSnapshot.zones`. */
+  zone?: number | null
+  /** Index into `GraphSnapshot.territories`. */
+  territory: number
 }
-
-export const CONTAINER_KINDS = ['layer', 'slice', 'sub_unit', 'nested'] as const
-export type ContainerKind = (typeof CONTAINER_KINDS)[number]
 
 export interface SnapshotContainer {
   id: number
@@ -45,12 +52,39 @@ export interface SnapshotEdge {
   kind: EdgeKind
 }
 
+export interface SnapshotZone {
+  id: number
+  path: string
+  /** The folder whose modules may see into the zone. */
+  root: string
+}
+
+export type Region =
+  | { kind: 'siblings'; parent: number; containerKind: ContainerKind; containers: number[] }
+  | { kind: 'internals' }
+
+export interface Forbidden {
+  rule: string
+  region: Region
+}
+
+export interface Territory {
+  may_import_layers: number[]
+  imported_by_layers: number[]
+  max_import_purity: number
+  visible_zones: number[]
+  may_not: Forbidden[]
+}
+
 export interface GraphSnapshot {
-  version: number
+  version: typeof SUPPORTED_SNAPSHOT_VERSION
+  project: string
   modules: SnapshotModule[]
   containers: SnapshotContainer[]
   layers: SnapshotLayer[]
   edges: SnapshotEdge[]
+  zones: SnapshotZone[]
+  territories: Territory[]
 }
 
 export interface ViolationEdge {
@@ -69,5 +103,3 @@ export interface Violation {
   edge: ViolationEdge | null
   suggestion: string | null
 }
-
-export const SUPPORTED_SNAPSHOT_VERSION = 2

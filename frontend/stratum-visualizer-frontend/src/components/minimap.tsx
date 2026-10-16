@@ -1,6 +1,7 @@
 import { Component, createMemo, For } from 'solid-js'
 import { Scene } from '../render/layout'
-import { layerColor, SEVERITY, TONE } from '../render/palette'
+import { layerColor, SEV_COLOR } from '../render/encoding'
+import { TONE } from '../render/palette'
 import { CanvasSize, Viewport } from '../state'
 
 const MINIMAP_W = 200
@@ -67,7 +68,7 @@ export const Minimap: Component<{
                 y={p.y}
                 width={p.w}
                 height={p.h}
-                style={{ fill: p.mod.severity ? SEVERITY[p.mod.severity].color : undefined }}
+                style={{ fill: p.mod.severity ? SEV_COLOR[p.mod.severity] : undefined }}
               />
             )}
           </For>

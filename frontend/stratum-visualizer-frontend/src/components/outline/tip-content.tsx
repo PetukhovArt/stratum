@@ -1,6 +1,7 @@
 import { JSX } from 'solid-js'
 import { DesignData, DesignLayer, DesignModule, SeverityLabel, violationsOf } from '../../render/design'
-import { layerColor, SEVERITY, TONE } from '../../render/palette'
+import { layerColor, SEV_COLOR } from '../../render/encoding'
+import { TONE } from '../../render/palette'
 
 const SAMPLE_SIZE = 3
 const MONO = "'JetBrains Mono', monospace"
@@ -83,7 +84,7 @@ export const moduleViolationsTip = (data: DesignData, mod: DesignModule): JSX.El
       <div style={{ display: 'flex', 'flex-direction': 'column', gap: '6px' }}>
         {vios.map((v) => (
           <div
-            style={{ 'border-left': `2px solid ${SEVERITY[v.severity].color}`, 'padding-left': '8px' }}
+            style={{ 'border-left': `2px solid ${SEV_COLOR[v.severity]}`, 'padding-left': '8px' }}
           >
             <div class="tt-vio-rule" style={{ 'margin-bottom': '2px' }}>
               {v.rule}
@@ -113,9 +114,9 @@ export const layerCountTip = (layer: DesignLayer): JSX.Element => (
     </div>
     <div class="tt-stats" style={{ 'margin-bottom': 0 }}>
       <span>{layer.modules} modules</span>
-      {layer.errors > 0 && <span style={{ color: SEVERITY.error.color }}>{layer.errors} errors</span>}
+      {layer.errors > 0 && <span style={{ color: SEV_COLOR.error }}>{layer.errors} errors</span>}
       {layer.warnings > 0 && (
-        <span style={{ color: SEVERITY.warning.color }}>{layer.warnings} warnings</span>
+        <span style={{ color: SEV_COLOR.warning }}>{layer.warnings} warnings</span>
       )}
     </div>
   </>

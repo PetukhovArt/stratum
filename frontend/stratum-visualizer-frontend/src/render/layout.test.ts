@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { EdgeKind, GraphSnapshot } from '../types'
-import { adaptSnapshot } from './adapt'
+import { EdgeKind } from '../types'
+import { designOf, SnapshotInput } from '../test/snapshot'
 import { computeLayout } from './layout'
 
-const snap: GraphSnapshot = {
-  version: 2,
+const snap: SnapshotInput = {
   modules: [
     { id: 1, path: 'src/a.ts', container: 10, layer: 0, purity: 1 },
     { id: 2, path: 'src/b.ts', container: 10, layer: 0, purity: 1 },
@@ -23,14 +22,14 @@ const snap: GraphSnapshot = {
 
 describe('computeLayout', () => {
   it('produces non-zero scene bounds', () => {
-    const data = adaptSnapshot(snap)
+    const data = designOf(snap)
     const scene = computeLayout(data)
     expect(scene.width).toBeGreaterThan(0)
     expect(scene.height).toBeGreaterThan(0)
   })
 
   it('emits a positioned module for every design module', () => {
-    const data = adaptSnapshot(snap)
+    const data = designOf(snap)
     const scene = computeLayout(data)
     expect(Object.keys(scene.modulePos).sort()).toEqual(['m-1', 'm-2', 'm-3'].sort())
     for (const pos of Object.values(scene.modulePos)) {
@@ -40,14 +39,14 @@ describe('computeLayout', () => {
   })
 
   it('lanes wrap into separate vertical bands', () => {
-    const data = adaptSnapshot(snap)
+    const data = designOf(snap)
     const scene = computeLayout(data)
     expect(scene.lanes).toHaveLength(2)
     expect(scene.lanes[1].y).toBeGreaterThan(scene.lanes[0].y)
   })
 
   it('resolves edge endpoints onto module centres', () => {
-    const data = adaptSnapshot(snap)
+    const data = designOf(snap)
     const scene = computeLayout(data)
     expect(scene.edges).toHaveLength(1)
     const e = scene.edges[0]
@@ -58,7 +57,7 @@ describe('computeLayout', () => {
   })
 
   it('respects density tokens (compact < cozy < roomy)', () => {
-    const data = adaptSnapshot(snap)
+    const data = designOf(snap)
     const compact = computeLayout(data, { density: 'compact' })
     const cozy = computeLayout(data, { density: 'cozy' })
     const roomy = computeLayout(data, { density: 'roomy' })

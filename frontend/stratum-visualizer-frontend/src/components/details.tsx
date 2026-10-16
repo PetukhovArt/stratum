@@ -9,7 +9,8 @@ import {
   layerOfModule,
   violationsOf,
 } from '../render/design'
-import { facetInfo, layerColor, TONE } from '../render/palette'
+import { layerColor } from '../render/encoding'
+import { facetInfo, TONE } from '../render/palette'
 
 interface CycleFocus {
   focusedCycle: string | null

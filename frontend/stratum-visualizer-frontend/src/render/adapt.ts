@@ -1,4 +1,14 @@
-import { ContainerKind, EdgeKind, GraphSnapshot, Severity, SnapshotContainer, Violation } from '../types'
+import {
+  ContainerKind,
+  EdgeKind,
+  Severity,
+  SnapshotContainer,
+  SnapshotEdge,
+  SnapshotLayer,
+  SnapshotModule,
+  SUPPORTED_SNAPSHOT_VERSION,
+  Violation,
+} from '../types'
 import {
   ContainerKindLabel,
   DesignContainer,
@@ -12,15 +22,36 @@ import {
   ModuleKind,
   SeverityLabel,
 } from './design'
+import { Model } from './model'
 
-const LAYER_HUE_PALETTE = [28, 56, 145, 220, 290, 0, 100, 180, 260, 340]
-const layerHue = (idx: number): number => LAYER_HUE_PALETTE[idx % LAYER_HUE_PALETTE.length]
+interface Source {
+  modules: readonly SnapshotModule[]
+  containers: readonly SnapshotContainer[]
+  layers: readonly SnapshotLayer[]
+  edges: readonly SnapshotEdge[]
+}
 
 const CYCLE_RULE = 'stratum/no-circular-deps'
 
 const containerKey = (id: number): string => `c-${id}`
 const containerModuleKey = (id: number): string => `cn-${id}`
 const moduleKey = (id: number): string => `m-${id}`
+
+export interface DesignRef {
+  kind: 'module' | 'container'
+  id: number
+}
+
+export const designKey = (ref: DesignRef): string =>
+  ref.kind === 'module' ? moduleKey(ref.id) : containerModuleKey(ref.id)
+
+const DESIGN_KEY = /^(m|cn)-(\d+)$/
+
+export const parseDesignKey = (key: string): DesignRef | null => {
+  const match = DESIGN_KEY.exec(key)
+  if (!match) return null
+  return { kind: match[1] === 'm' ? 'module' : 'container', id: Number(match[2]) }
+}
 const layerKey = (id: number): string => `l-${id}`
 const violationKey = (idx: number): string => `v-${idx}`
 const edgeKey = (from: number, to: number): string => `${from}->${to}`
@@ -123,7 +154,7 @@ const blankModule = (
   descInfo: 0,
 })
 
-const buildModuleTree = (snapshot: GraphSnapshot): ModuleTree => {
+const buildModuleTree = (snapshot: Source): ModuleTree => {
   const snapContainers = new Map(snapshot.containers.map((c) => [c.id, c]))
   const rootOf = containerRootResolver(snapContainers)
   const modules: DesignModule[] = []
@@ -240,7 +271,7 @@ const aggregateDescendantSeverity = (tree: ModuleTree): void => {
 }
 
 const buildEdges = (
-  snapshot: GraphSnapshot,
+  snapshot: Source,
   violations: ReadonlyArray<Violation>,
   designViolations: ReadonlyArray<DesignViolation>,
 ): DesignEdge[] => {
@@ -266,7 +297,7 @@ const buildEdges = (
   })
 }
 
-const buildContainers = (snapshot: GraphSnapshot, tree: ModuleTree): DesignContainer[] => {
+const buildContainers = (snapshot: Source, tree: ModuleTree): DesignContainer[] => {
   const leafIdsByRoot = new Map<number, string[]>()
   for (const m of snapshot.modules) {
     const root = tree.rootOf(m.container)
@@ -293,14 +324,18 @@ const buildContainers = (snapshot: GraphSnapshot, tree: ModuleTree): DesignConta
     })
 }
 
-const buildLayers = (snapshot: GraphSnapshot, containers: DesignContainer[]): DesignLayer[] =>
+const buildLayers = (
+  snapshot: Source,
+  containers: DesignContainer[],
+  hueOf: (index: number) => number,
+): DesignLayer[] =>
   snapshot.layers.map((l, idx) => {
     const inLayer = containers.filter((c) => c.layer === layerKey(l.id))
     return {
       id: layerKey(l.id),
       label: l.name,
       order: idx,
-      hue: layerHue(idx),
+      hue: hueOf(idx),
       modules: inLayer.reduce((a, c) => a + c.moduleCount, 0),
       errors: inLayer.reduce((a, c) => a + c.errors, 0),
       warnings: inLayer.reduce((a, c) => a + c.warnings, 0),
@@ -322,46 +357,37 @@ const indexLayersByContainer = (
   return out
 }
 
-const SOURCE_ROOT_DIRS: ReadonlySet<string> = new Set(['src'])
-
-export const deriveProjectName = (paths: readonly string[]): string => {
-  const dirs = paths.map((p) => p.split(/[/\\]/).slice(0, -1))
-  if (dirs.length === 0) return 'project'
-  const common: string[] = []
-  for (let i = 0; dirs.every((d) => i < d.length && d[i] === dirs[0][i]); i++) {
-    common.push(dirs[0][i])
+export const adaptModel = (model: Model): DesignData => {
+  const source: Source = {
+    modules: [...model.modules.values()],
+    containers: [...model.containers.values()],
+    layers: model.layers,
+    edges: model.edges,
   }
-  const named = common.filter((p) => p !== '' && !p.endsWith(':') && !SOURCE_ROOT_DIRS.has(p))
-  return named[named.length - 1] ?? 'project'
-}
-
-export const adaptSnapshot = (
-  snapshot: GraphSnapshot,
-  violations: ReadonlyArray<Violation> = [],
-): DesignData => {
-  const tree = buildModuleTree(snapshot)
+  const tree = buildModuleTree(source)
   assignDepths(tree)
-  const designViolations = adaptViolations(violations)
+  const designViolations = adaptViolations(model.violations)
   attachViolations(tree, designViolations)
   aggregateDescendantSeverity(tree)
-  const containers = buildContainers(snapshot, tree)
-  const layers = buildLayers(snapshot, containers)
+  const containers = buildContainers(source, tree)
+  const layers = buildLayers(source, containers, model.layerHue)
 
   return {
     meta: {
-      project: deriveProjectName(snapshot.modules.map((m) => m.path)),
+      project: model.project,
       loadedAt: new Date().toISOString(),
-      snapshotVersion: snapshot.version,
+      snapshotVersion: SUPPORTED_SNAPSHOT_VERSION,
     },
     layers,
     containers,
     modules: tree.modules,
     childIndex: tree.childIndex,
     topByContainer: tree.topByContainer,
-    edges: buildEdges(snapshot, violations, designViolations),
+    edges: buildEdges(source, model.violations, designViolations),
     violations: designViolations,
     moduleById: tree.byId,
     violationById: new Map(designViolations.map((v) => [v.id, v])),
     layerByContainer: indexLayersByContainer(containers, layers),
   }
 }
+

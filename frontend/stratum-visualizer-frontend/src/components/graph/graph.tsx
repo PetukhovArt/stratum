@@ -1,15 +1,13 @@
-import { Component, createMemo, For, onCleanup, onMount, Show } from 'solid-js'
+import { Component, createMemo, For, Show } from 'solid-js'
 import { moduleMatcher } from '../../lib/filters'
 import { ancestorIds, DesignData } from '../../render/design'
 import { LaidEdge, Scene } from '../../render/layout'
-import { zoomAround } from '../../render/viewport'
 import { CanvasSize, ColorMode, Filters, HoveredEdge, HoveredMod, Viewport } from '../../state'
 import { ContainerBox } from './container-box'
 import { EdgeDirection, EdgeLine, EdgeMarkers } from './edge-line'
 import { Lane } from './lane'
 import { ModuleNode } from './module-node'
 
-const WHEEL_ZOOM_FACTOR = 1.12
 const CULL_MARGIN_PX = 200
 const MIN_RENDERED_MODULE_PX = 12
 const VIOLATIONS_ONLY_BELOW_ZOOM = 0.3
@@ -44,11 +42,9 @@ interface GraphProps {
   hoveredEdge: HoveredEdge | null
   viewport: Viewport
   canvasSize: CanvasSize
-  onViewportChange: (v: Viewport) => void
 }
 
 export const Graph: Component<GraphProps> = (props) => {
-  let svgRef!: SVGSVGElement
 
   const visibleMods = createMemo(() => buildVisibility(props.data, props.filters))
 
@@ -124,42 +120,6 @@ export const Graph: Component<GraphProps> = (props) => {
   const isEdgeDimmed = (e: LaidEdge): boolean =>
     !props.focusedCycle && highlight() !== null && edgeDirection(e) === null
 
-  let drag: { x: number; y: number; vx: number; vy: number } | null = null
-
-  const onWheel = (e: WheelEvent) => {
-    e.preventDefault()
-    const r = svgRef.getBoundingClientRect()
-    const factor = e.deltaY < 0 ? WHEEL_ZOOM_FACTOR : 1 / WHEEL_ZOOM_FACTOR
-    props.onViewportChange(
-      zoomAround(props.viewport, { x: e.clientX - r.left, y: e.clientY - r.top }, factor),
-    )
-  }
-  const onMouseDown = (e: MouseEvent) => {
-    const t = e.target as Element
-    if (t.closest('[data-mod-id]') || t.closest('[data-edge-i]')) return
-    drag = { x: e.clientX, y: e.clientY, vx: props.viewport.x, vy: props.viewport.y }
-  }
-  const onMouseMove = (e: MouseEvent) => {
-    if (!drag) return
-    props.onViewportChange({
-      ...props.viewport,
-      x: drag.vx + e.clientX - drag.x,
-      y: drag.vy + e.clientY - drag.y,
-    })
-  }
-  const onMouseUp = () => {
-    drag = null
-  }
-
-  onMount(() => {
-    svgRef.addEventListener('wheel', onWheel, { passive: false })
-    onCleanup(() => svgRef.removeEventListener('wheel', onWheel))
-  })
-
-  const transformAttr = createMemo(
-    () => `translate(${props.viewport.x} ${props.viewport.y}) scale(${props.viewport.zoom})`,
-  )
-
   const viewBounds = createMemo(() => {
     const v = props.viewport
     return {
@@ -205,14 +165,7 @@ export const Graph: Component<GraphProps> = (props) => {
   const isEdgeInteractive = () => props.scene.edges.length <= MAX_INTERACTIVE_EDGES
 
   return (
-    <svg
-      ref={svgRef}
-      class="strat-graph"
-      onMouseDown={onMouseDown}
-      onMouseMove={onMouseMove}
-      onMouseUp={onMouseUp}
-      onMouseLeave={onMouseUp}
-    >
+    <g class="strat-graph">
       <defs>
         <EdgeMarkers />
         <pattern id="shared-hatch" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
@@ -220,7 +173,7 @@ export const Graph: Component<GraphProps> = (props) => {
         </pattern>
       </defs>
 
-      <g transform={transformAttr()}>
+      <g>
         <For each={props.scene.lanes}>
           {(lane) => (
             <Lane
@@ -283,6 +236,6 @@ export const Graph: Component<GraphProps> = (props) => {
           </For>
         </g>
       </g>
-    </svg>
+    </g>
   )
 }

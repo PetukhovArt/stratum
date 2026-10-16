@@ -22,7 +22,14 @@ export class SnapshotShapeError extends Error {
   }
 }
 
-type FieldType = 'number' | 'string' | 'array' | 'number|null' | 'rank 1-4' | 'container kind'
+type FieldType =
+  | 'number'
+  | 'string'
+  | 'array'
+  | 'number|null'
+  | 'number|absent'
+  | 'rank 1-4'
+  | 'container kind'
 
 const MODULE_FIELDS: Record<string, FieldType> = {
   id: 'number',
@@ -30,6 +37,8 @@ const MODULE_FIELDS: Record<string, FieldType> = {
   container: 'number',
   layer: 'number',
   purity: 'rank 1-4',
+  zone: 'number|absent',
+  territory: 'number',
 }
 const CONTAINER_FIELDS: Record<string, FieldType> = {
   id: 'number',
@@ -43,6 +52,14 @@ const CONTAINER_FIELDS: Record<string, FieldType> = {
 }
 const LAYER_FIELDS: Record<string, FieldType> = { id: 'number', name: 'string', depends_on: 'array' }
 const EDGE_FIELDS: Record<string, FieldType> = { from: 'number', to: 'number', kind: 'string' }
+const ZONE_FIELDS: Record<string, FieldType> = { id: 'number', path: 'string', root: 'string' }
+const TERRITORY_FIELDS: Record<string, FieldType> = {
+  may_import_layers: 'array',
+  imported_by_layers: 'array',
+  max_import_purity: 'rank 1-4',
+  visible_zones: 'array',
+  may_not: 'array',
+}
 
 const CONTAINER_KIND_SET: ReadonlySet<unknown> = new Set(CONTAINER_KINDS)
 
@@ -52,6 +69,8 @@ const hasType = (value: unknown, type: FieldType): boolean => {
       return Array.isArray(value)
     case 'number|null':
       return value === null || typeof value === 'number'
+    case 'number|absent':
+      return value === undefined || value === null || typeof value === 'number'
     case 'rank 1-4':
       return Number.isInteger(value) && (value as number) >= 1 && (value as number) <= 4
     case 'container kind':
@@ -79,6 +98,17 @@ const assertRecords = (raw: Record<string, unknown>, key: string, fields: Record
   })
 }
 
+const assertIndices = (s: GraphSnapshot): void => {
+  s.modules.forEach((m, idx) => {
+    if (!s.territories[m.territory]) {
+      throw new SnapshotShapeError(`modules[${idx}].territory ${m.territory} is out of range`)
+    }
+    if (typeof m.zone === 'number' && !s.zones[m.zone]) {
+      throw new SnapshotShapeError(`modules[${idx}].zone ${m.zone} is out of range`)
+    }
+  })
+}
+
 export const parseSnapshot = (raw: unknown): GraphSnapshot => {
   if (typeof raw !== 'object' || raw === null) {
     throw new SnapshotShapeError('not an object')
@@ -87,11 +117,18 @@ export const parseSnapshot = (raw: unknown): GraphSnapshot => {
   if (record.version !== SUPPORTED_SNAPSHOT_VERSION) {
     throw new SnapshotVersionMismatchError(record.version)
   }
+  if (typeof record.project !== 'string') {
+    throw new SnapshotShapeError('`project` is not string')
+  }
   assertRecords(record, 'modules', MODULE_FIELDS)
   assertRecords(record, 'containers', CONTAINER_FIELDS)
   assertRecords(record, 'layers', LAYER_FIELDS)
   assertRecords(record, 'edges', EDGE_FIELDS)
-  return record as unknown as GraphSnapshot
+  assertRecords(record, 'zones', ZONE_FIELDS)
+  assertRecords(record, 'territories', TERRITORY_FIELDS)
+  const snapshot = record as unknown as GraphSnapshot
+  assertIndices(snapshot)
+  return snapshot
 }
 
 export const loadSnapshot = async (url: string): Promise<GraphSnapshot> => {

@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { EdgeKind, GraphSnapshot, Severity, Violation } from '../types'
-import { adaptSnapshot } from './adapt'
+import { EdgeKind, Severity, Violation } from '../types'
+import { designOf, SnapshotInput } from '../test/snapshot'
 
-const snap: GraphSnapshot = {
-  version: 2,
+const snap: SnapshotInput = {
   modules: [
     { id: 1, path: 'src/features/auth/index.ts', container: 10, layer: 0, purity: 2 },
     { id: 2, path: 'src/features/auth/_shared.ts', container: 10, layer: 0, purity: 1 },
@@ -25,25 +24,25 @@ const snap: GraphSnapshot = {
 
 describe('adaptSnapshot', () => {
   it('maps every snapshot module to a design module', () => {
-    const d = adaptSnapshot(snap)
+    const d = designOf(snap)
     expect(d.modules).toHaveLength(3)
     expect(d.modules.map((m) => m.id).sort()).toEqual(['m-1', 'm-2', 'm-3'].sort())
   })
 
   it('emits a design container for every top-level snapshot container', () => {
-    const d = adaptSnapshot(snap)
+    const d = designOf(snap)
     expect(d.containers.map((c) => c.id).sort()).toEqual(['c-10', 'c-11'].sort())
   })
 
   it('infers composer/shared/regular kind from basename', () => {
-    const d = adaptSnapshot(snap)
+    const d = designOf(snap)
     expect(d.modules.find((m) => m.id === 'm-1')?.kind).toBe('composer')
     expect(d.modules.find((m) => m.id === 'm-2')?.kind).toBe('shared')
     expect(d.modules.find((m) => m.id === 'm-3')?.kind).toBe('regular')
   })
 
   it('rewrites edges with module-key endpoints and edge-kind labels', () => {
-    const d = adaptSnapshot(snap)
+    const d = designOf(snap)
     expect(d.edges).toEqual([
       { source: 'm-1', target: 'm-3', kind: 'static', violation: null, severity: null },
       { source: 'm-2', target: 'm-3', kind: 'di', violation: null, severity: null },
@@ -51,10 +50,10 @@ describe('adaptSnapshot', () => {
   })
 
   it('lists layers in snapshot order with stable, distinct hues', () => {
-    const d = adaptSnapshot(snap)
+    const d = designOf(snap)
     expect(d.layers.map((l) => l.label)).toEqual(['features', 'shared'])
     const hues = d.layers.map((l) => l.hue)
-    expect(adaptSnapshot(snap).layers.map((l) => l.hue)).toEqual(hues)
+    expect(designOf(snap).layers.map((l) => l.hue)).toEqual(hues)
     expect(new Set(hues).size).toBe(hues.length)
   })
 
@@ -71,7 +70,7 @@ describe('adaptSnapshot', () => {
         suggestion: null,
       },
     ]
-    const d = adaptSnapshot(snap, violations)
+    const d = designOf(snap, violations)
     const m3 = d.modules.find((m) => m.id === 'm-3')!
     expect(m3.severity).toBe('error')
     expect(m3.violations).toHaveLength(1)
@@ -82,7 +81,7 @@ describe('adaptSnapshot', () => {
   })
 
   it('maps nested containers to compound modules under their root', () => {
-    const nested: GraphSnapshot = {
+    const nested: SnapshotInput = {
       ...snap,
       containers: [
         { id: 20, name: 'features', path: 'src/features', kind: 'layer', layer: 0, parent: null, stage: 2, entry: null },
@@ -91,7 +90,7 @@ describe('adaptSnapshot', () => {
       modules: [{ id: 1, path: 'src/features/auth/x.ts', container: 21, layer: 0, purity: 1 }],
       edges: [],
     }
-    const d = adaptSnapshot(nested)
+    const d = designOf(nested)
     expect(d.containers.map((c) => c.id)).toEqual(['c-20'])
     const compound = d.modules.find((m) => m.id === 'cn-21')!
     expect(compound.hasChildren).toBe(true)
@@ -101,7 +100,7 @@ describe('adaptSnapshot', () => {
   })
 
   it('shows purity on files and the backend stage on containers, never mixing the axes', () => {
-    const composed: GraphSnapshot = {
+    const composed: SnapshotInput = {
       ...snap,
       containers: [
         { id: 20, name: 'root', path: 'src/root', kind: 'layer', layer: 0, parent: null, stage: 2, entry: null },
@@ -110,7 +109,7 @@ describe('adaptSnapshot', () => {
       modules: [{ id: 1, path: 'src/root/unit/x.ts', container: 21, layer: 0, purity: 2 }],
       edges: [],
     }
-    const d = adaptSnapshot(composed)
+    const d = designOf(composed)
     expect(d.moduleById.get('m-1')!.facet).toEqual({ axis: 'purity', value: 2 })
     expect(d.moduleById.get('cn-21')!.facet).toEqual({ axis: 'stage', value: 4, kind: 'sub-unit' })
     expect(d.containers[0].stage).toBe(2)

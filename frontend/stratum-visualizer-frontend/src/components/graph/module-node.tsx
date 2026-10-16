@@ -1,6 +1,7 @@
 import { Component, Show } from 'solid-js'
 import { ModulePos } from '../../render/layout'
-import { DEFAULT_HUE, facetInfo, layerColor, SEVERITY, TONE } from '../../render/palette'
+import { layerColor, SeverityLabel, SEV_COLOR } from '../../render/encoding'
+import { DEFAULT_HUE, facetInfo, TONE } from '../../render/palette'
 import { ColorMode, HoveredMod } from '../../state'
 import { CountBadge } from './count-badge'
 import { DIMMED_OPACITY } from './dimming'
@@ -8,6 +9,11 @@ import { DIMMED_OPACITY } from './dimming'
 const SELECTED_STROKE = 'oklch(85% 0.16 65)'
 const SHARED_STROKE = 'oklch(72% 0.10 290 / .55)'
 const SHARED_DOT = 'oklch(78% 0.10 290 / .85)'
+const SEV_GLOW: Record<SeverityLabel, string> = {
+  error: 'var(--err-glow)',
+  warning: 'var(--warn-glow)',
+  info: 'var(--info-glow)',
+}
 
 export const ModuleNode: Component<{
   id: string
@@ -28,7 +34,7 @@ export const ModuleNode: Component<{
   const isShared = () => mod().kind === 'shared'
   const severity = () => {
     const s = mod().severity
-    return s ? SEVERITY[s] : null
+    return s ? { color: SEV_COLOR[s], glow: SEV_GLOW[s] } : null
   }
 
   const stroke = () => {

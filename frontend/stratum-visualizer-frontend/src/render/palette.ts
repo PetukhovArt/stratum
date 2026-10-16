@@ -1,27 +1,5 @@
-import { Facet, SeverityLabel } from './design'
-
-export interface SeverityPalette {
-  color: string
-  glow: string
-  arrow: string
-}
-
-export const SEVERITY: Record<SeverityLabel, SeverityPalette> = {
-  error: { color: 'var(--err)', glow: 'var(--err-glow)', arrow: 'arrow-error' },
-  warning: { color: 'var(--warn)', glow: 'var(--warn-glow)', arrow: 'arrow-warning' },
-  info: { color: 'var(--info)', glow: 'var(--info-glow)', arrow: 'arrow-info' },
-}
-
-export const SEVERITY_LABELS: readonly SeverityLabel[] = ['error', 'warning', 'info']
-
-export interface Tone {
-  lightness: number
-  chroma: number
-  alpha: number
-}
-
-export const layerColor = (hue: number, tone: Tone): string =>
-  `oklch(${tone.lightness}% ${tone.chroma} ${hue} / ${tone.alpha})`
+import { Facet } from './design'
+import { Tone } from './encoding'
 
 export const TONE = {
   laneFill: { lightness: 60, chroma: 0.18, alpha: 0.045 },

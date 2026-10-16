@@ -1,6 +1,6 @@
 import { Component, createMemo, For, Show } from 'solid-js'
 import { LaidEdge } from '../../render/layout'
-import { SEVERITY, SEVERITY_LABELS } from '../../render/palette'
+import { EDGE_DASH, SEV_COLOR, SEVERITY_LABELS } from '../../render/encoding'
 import { HoveredEdge } from '../../state'
 import { DIMMED_OPACITY } from './dimming'
 
@@ -12,7 +12,6 @@ const KIND_COLOR = {
   di: 'oklch(72% 0.10 200)',
   runtime: 'oklch(72% 0.10 290)',
 } as const
-const KIND_DASH = { static: undefined, di: '4 3', runtime: '1 4' } as const
 const VIOLATION_DASH = '6 4'
 const CURVE_TENSION = 0.4
 
@@ -39,7 +38,7 @@ export const EdgeMarkers: Component = () => (
   <>
     <ArrowMarker id="arrow-default" size={5} color="currentColor" />
     <For each={SEVERITY_LABELS}>
-      {(s) => <ArrowMarker id={SEVERITY[s].arrow} size={6} color={SEVERITY[s].color} />}
+      {(s) => <ArrowMarker id={`arrow-${s}`} size={6} color={SEV_COLOR[s]} />}
     </For>
     <ArrowMarker id="arrow-out" size={7} color={DIRECTION_COLOR.out} />
     <ArrowMarker id="arrow-in" size={7} color={DIRECTION_COLOR.in} />
@@ -58,7 +57,7 @@ export const EdgeLine: Component<{
   const path = createMemo(() => curvePath(props.edge))
   const severity = () => {
     const s = props.edge.severity
-    return s ? SEVERITY[s] : null
+    return s ? { color: SEV_COLOR[s], arrow: `arrow-${s}` } : null
   }
   const isConnected = () => props.direction !== null
 
@@ -128,7 +127,7 @@ export const EdgeLine: Component<{
         d={path()}
         fill="none"
         stroke-width={strokeWidth()}
-        stroke-dasharray={KIND_DASH[props.edge.kind] ?? (severity() ? VIOLATION_DASH : undefined)}
+        stroke-dasharray={EDGE_DASH[props.edge.kind] ?? (severity() ? VIOLATION_DASH : undefined)}
         opacity={opacity()}
         marker-end={marker()}
         style={{ stroke: stroke(), 'pointer-events': 'none' }}
