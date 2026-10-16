@@ -18,13 +18,16 @@ import {
   SHOW_HIDDEN,
 } from './columns'
 import { FocusCard } from './focus-card'
-import { entryOf, layerName, layerTone, rulesOf, shortRule, trunc, curve } from './paint'
+import { ellipsizePath, monoChars, monoWidth } from '../../render/labels'
+import { entryOf, layerName, layerTone, rulesOf, shortRule, curve } from './paint'
 
 const DIM_OPACITY = 0.12
 const HIT_WIDTH = 9
 const MAX_EXTRA_WIDTH = 3
 const DOTTED = '1.5 2.5'
 const DASHED = '4 3'
+const ROW_TEXT = { nameX: 20, endPad: 20, gap: 8, name: 10, rule: 9 } as const
+const COUNT_LABEL = { size: 9, inset: 10, above: 4, below: 11 } as const
 
 interface SceneCtx {
   model: Model
@@ -43,6 +46,16 @@ const selectedPairs = (): ReadonlySet<string> => {
   return new Set()
 }
 
+const countLabelAwayFromFocus = (b: Bundle): { x: number; y: number; anchor: 'start' | 'end' } => {
+  const isFarRight = Math.abs(b.x2) >= Math.abs(b.x1)
+  const [farY, nearY] = isFarRight ? [b.y2, b.y1] : [b.y1, b.y2]
+  const isCurveFromAbove = nearY < farY
+  const y = isCurveFromAbove ? farY + COUNT_LABEL.below : farY - COUNT_LABEL.above
+  return isFarRight
+    ? { x: b.x2 - COUNT_LABEL.inset, y, anchor: 'end' }
+    : { x: b.x1 + COUNT_LABEL.inset, y, anchor: 'start' }
+}
+
 const BundlePath: Component<{ bundle: Bundle; hover: Accessor<number | null>; selected: Accessor<ReadonlySet<string>> }> = (
   props,
 ) => {
@@ -57,6 +70,7 @@ const BundlePath: Component<{ bundle: Bundle; hover: Accessor<number | null>; se
   }
   const isSelected = () => b.pairs.some(([from, to]) => props.selected().has(pairKey(from, to)))
   const channel = sev ? 'sev' : 'edge'
+  const count = countLabelAwayFromFocus(b)
   return (
     <g class="fo-bundle" opacity={isLit() ? 1 : DIM_OPACITY} onClick={() => set({ sel: { kind: 'imports', pairs: b.pairs } })}>
       <path d={d} stroke="transparent" stroke-width={HIT_WIDTH} />
@@ -74,10 +88,10 @@ const BundlePath: Component<{ bundle: Bundle; hover: Accessor<number | null>; se
       <Show when={b.pairs.length > 1}>
         <text
           data-ch={channel}
-          x={(b.x1 + b.x2) / 2}
-          y={(b.y1 + b.y2) / 2 - 4}
-          font-size="9"
-          text-anchor="middle"
+          x={count.x}
+          y={count.y}
+          font-size={String(COUNT_LABEL.size)}
+          text-anchor={count.anchor}
           fill={color}
         >
           {b.pairs.length}
@@ -97,6 +111,8 @@ const Row: Component<{ ctx: SceneCtx; group: ColumnGroup; row: ColumnRow }> = (p
   const moduleSev = worst(m.findingsOf(id))
   const isEntry = entryOf(m, id).length > 0
   const firstRule = props.row.edgeFindings[0]?.rule
+  const ruleWidth = edgeSev && firstRule ? monoWidth(shortRule(firstRule), ROW_TEXT.rule) + ROW_TEXT.gap : 0
+  const nameChars = monoChars(COLUMN.width - ROW_TEXT.nameX - ROW_TEXT.endPad - ruleWidth, ROW_TEXT.name)
   const x0 = props.group.x
   return (
     <g
@@ -121,20 +137,20 @@ const Row: Component<{ ctx: SceneCtx; group: ColumnGroup; row: ColumnRow }> = (p
         </text>
       </Show>
       <text
-        x={x0 + 20}
+        x={x0 + ROW_TEXT.nameX}
         y={props.row.y + 3.5}
-        font-size="10"
+        font-size={String(ROW_TEXT.name)}
         fill={edgeSev ? 'oklch(70% 0.01 260)' : 'oklch(82% 0.006 260)'}
         text-decoration={edgeSev ? 'line-through' : undefined}
       >
-        {trunc(name, 30)}
+        {ellipsizePath(name, nameChars)}
       </text>
       <Show when={edgeSev && firstRule}>
         <text
           data-ch="sev"
-          x={x0 + COLUMN.width - 20}
+          x={x0 + COLUMN.width - ROW_TEXT.endPad}
           y={props.row.y + 3.5}
-          font-size="9"
+          font-size={String(ROW_TEXT.rule)}
           text-anchor="end"
           fill={SEV_COLOR[edgeSev!]}
         >
@@ -187,7 +203,7 @@ const GroupBox: Component<{ ctx: SceneCtx; group: ColumnGroup }> = (props) => {
           {g.isOpen ? '▾' : '▸'}
         </text>
         <text x={g.x + 20} y={g.y + 16} font-size="10.5" font-weight="600" fill="oklch(88% 0.006 260)">
-          {trunc(g.group.name, 25)}
+          {ellipsizePath(g.group.name, 25)}
         </text>
         <text x={g.x + COLUMN.width - 9} y={g.y + 16} font-size="9.5" text-anchor="end" fill="oklch(58% 0.012 260)">
           {meta}

@@ -41,7 +41,7 @@ kbd {
 .loading { padding: 24px; color: var(--tx-3); }
 
 .hd {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px;
+  display: grid; grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr); align-items: center; gap: 12px;
   height: 48px; padding: 0 14px; border-bottom: 1px solid var(--bd-1);
   background: linear-gradient(to bottom, var(--bg-1), var(--bg-0));
 }

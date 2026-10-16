@@ -6,7 +6,8 @@ import { Model, worst } from '../../render/model'
 import { go, set } from '../../shell/nav'
 import { Band, BAND, BAND_CARD_SCALE, BandLink, BandsLayout, layoutBands, Pill } from './bands'
 import { FocusCard } from './focus-card'
-import { layerTone, rulesOf, trunc, curve } from './paint'
+import { trunc } from '../../render/labels'
+import { layerTone, rulesOf, curve } from './paint'
 
 const BAR_W = 6
 const LABEL_INSET = 12

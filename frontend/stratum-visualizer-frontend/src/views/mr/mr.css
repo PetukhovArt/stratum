@@ -7,17 +7,18 @@
 .mr-card-stage { position: absolute; inset: 0; display: flex; }
 .mr-card-canvas { position: relative; flex: 1; min-width: 0; }
 .mr-md {
-  flex: 0 0 420px; display: flex; flex-direction: column; min-height: 0;
+  flex: 0 0 420px; display: flex; flex-direction: column; min-height: 0; min-width: 0;
   border-left: 1px solid var(--bd-1); background: var(--bg-1);
 }
 .mr-md-hd {
   flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px;
   padding: 8px 12px; font-size: 11px; color: var(--tx-3); border-bottom: 1px solid var(--bd-1);
 }
-.mr-md-btns { display: flex; gap: 4px; }
+.mr-md-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mr-md-btns { flex: none; display: flex; gap: 4px; }
 .mr-md-body {
   flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 10px 12px;
-  font-family: var(--mono); font-size: 10.5px; line-height: 1.5; color: var(--tx-2); white-space: pre;
+  font-family: var(--mono); font-size: 10.5px; line-height: 1.5; color: var(--tx-2); white-space: pre-wrap; overflow-wrap: anywhere;
 }
 .mr-btn {
   appearance: none; border: 1px solid var(--bd-2); background: var(--bg-2); color: var(--tx-1); border-radius: 5px;
@@ -48,7 +49,7 @@
 .mr-item:hover, .mr-item.on { border-color: var(--tx-3); }
 .mr-item-hd { display: flex; align-items: center; gap: 7px; min-width: 0; }
 .mr-item-sub { font-size: 10.5px; color: var(--tx-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mr-item-main { font-size: 11px; word-break: break-all; }
+.mr-item-main { font-size: 11px; overflow-wrap: anywhere; }
 .mr-chg {
   flex: none; white-space: nowrap; font-family: var(--mono); font-size: 9.5px; padding: 1px 5px; border-radius: 3px;
   border: 1px solid var(--bd-2); color: var(--tx-1);

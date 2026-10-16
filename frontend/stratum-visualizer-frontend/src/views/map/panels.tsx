@@ -2,6 +2,7 @@ import { Component, createMemo, createSignal, For, Show } from 'solid-js'
 import { t } from '../../i18n'
 import { Model } from '../../render/model'
 import { go, nav, set } from '../../shell/nav'
+import { PathText } from '../../shell/path-text'
 import { layerName, layerTone, shortRule } from '../focus/paint'
 import { ViewProps } from '../view-def'
 import { selectedLayerPair, selectedUnit, selectedUnitPair, toggleExpanded } from './selection'
@@ -12,7 +13,6 @@ const NEIGHBOURS = 10
 const BREAK_LIST = 12
 const PAIR_LIST = 40
 
-const unitName = (m: Model, id: number): string => m.containers.get(id)?.name ?? String(id)
 const unitPath = (m: Model, id: number): string => m.containers.get(id)?.path ?? ''
 
 const byCount = (a: UnitLink, b: UnitLink): number => b.count - a.count || a.key.localeCompare(b.key)
@@ -46,7 +46,7 @@ const UnitRows: Component<{
           onClick={() => set({ sel: { kind: 'container', id: u.unit.id } })}
         >
           <Swatch model={props.model} layer={u.unit.layer} />
-          <span class="nm">{u.unit.name}</span>
+          <span class="nm">{props.model.unitLabel(u.unit.id)}</span>
           <span class="n">{props.value(u)}</span>
         </button>
       )}
@@ -66,7 +66,7 @@ const LinkRows: Component<{ model: Model; links: readonly UnitLink[]; side: 'fro
             onClick={() => set({ sel: { kind: 'cell', level: 'unit', from: l.from, to: l.to } })}
           >
             <Swatch model={props.model} layer={props.model.containers.get(other)?.layer ?? 0} />
-            <span class="nm">{unitName(props.model, other)}</span>
+            <span class="nm">{props.model.unitLabel(other)}</span>
             <span class="n">{l.count}</span>
             <Show when={l.breaks}>
               <span class="n c-err" data-ch="sev">
@@ -135,7 +135,7 @@ const WholeGraph: Component<{ model: Model; data: MapData }> = (props) => {
                   onClick={() => set({ sel: { kind: 'cell', level: 'unit', from: l.from, to: l.to } })}
                 >
                   <span class="nm mono">
-                    {unitName(props.model, l.from)} → {unitName(props.model, l.to)}
+                    {props.model.unitLabel(l.from)} → {props.model.unitLabel(l.to)}
                   </span>
                   <span class="n">{l.count}</span>
                   <span class="n c-err" data-ch="sev">
@@ -157,7 +157,9 @@ const UnitDetails: Component<{ model: Model; info: UnitInfo }> = (props) => {
   const isExpanded = () => nav().mapExpanded.includes(u().id)
   return (
     <div data-testid="map-unit-details">
-      <div class="det-path">{u().path}</div>
+      <div class="det-path">
+        <PathText path={u().path} />
+      </div>
       <div class="map-btn-row">
         <button class="map-btn" data-testid="map-expand" onClick={() => toggleExpanded(u().id)}>
           {isExpanded() ? t('map.collapse') : t('map.expand')}
@@ -219,11 +221,11 @@ const LinkDetails: Component<{ model: Model; link: UnitLink }> = (props) => {
   return (
     <div class="det-section" data-testid="map-link">
       <h4>
-        {unitName(props.model, props.link.from)} → {unitName(props.model, props.link.to)}
+        {props.model.unitLabel(props.link.from)} → {props.model.unitLabel(props.link.to)}
       </h4>
       <div class="det-path">
-        {unitPath(props.model, props.link.from)}
-        <br />→ {unitPath(props.model, props.link.to)}
+        <PathText path={unitPath(props.model, props.link.from)} />
+        <br />→ <PathText path={unitPath(props.model, props.link.to)} />
       </div>
       <p class="map-note">
         {t('map.imports', { n: props.link.count })}
@@ -296,7 +298,9 @@ export const MapDetails: Component<ViewProps> = (props) => {
   return (
     <div class="panel panel-details">
       <div class="panel-hd">
-        <span class="panel-title">{unit()?.unit.name ?? t('map.whole')}</span>
+        <span class="panel-title"><Show when={unit()} fallback={t('map.whole')}>
+            {(u) => props.model.unitLabel(u().unit.id)}
+          </Show></span>
         <span class="panel-count">{unit()?.unit.kind ?? t('map.units', { n: props.model.units.length })}</span>
       </div>
       <div class="panel-body">

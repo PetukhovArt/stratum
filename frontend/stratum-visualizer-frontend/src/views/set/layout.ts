@@ -13,7 +13,6 @@ const RING = { minRadius: 130, perMember: 34, viaGap: 190, viaStagger: 36 } as c
 const RING_BEND = { single: 12, both: 26 } as const
 const ARROW_GAP = 3
 const ARC = { maxHeight: 320, perSpan: 40, base: 12, startY: 12, endY: 14 } as const
-const BEZIER_PEAK = 0.75
 
 export interface SetLink {
   key: string
@@ -35,13 +34,19 @@ export interface SetNode {
   isLoop: boolean
 }
 
+interface Point {
+  x: number
+  y: number
+}
+
 export interface CurvedLink extends SetLink {
   d: string
-  badge: { x: number; y: number }
+  polyline: readonly Point[]
 }
 
 export interface CurveScene {
   nodes: SetNode[]
+  nodeBoxes: Bounds[]
   links: CurvedLink[]
   bounds: Bounds
 }
@@ -89,7 +94,7 @@ const linksOf = (m: Model, a: SetAnalysis): SetLink[] => {
   })
 }
 
-const unionBounds = (boxes: readonly Bounds[]): Bounds => {
+export const unionBounds = (boxes: readonly Bounds[]): Bounds => {
   if (!boxes.length) return { x: 0, y: 0, w: 0, h: 0 }
   const x = Math.min(...boxes.map((b) => b.x))
   const y = Math.min(...boxes.map((b) => b.y))
@@ -98,7 +103,96 @@ const unionBounds = (boxes: readonly Bounds[]): Bounds => {
   return { x, y, w: right - x, h: bottom - y }
 }
 
-const point = (p: { x: number; y: number }): Bounds => ({ x: p.x, y: p.y, w: 0, h: 0 })
+const point = (p: Point): Bounds => ({ x: p.x, y: p.y, w: 0, h: 0 })
+
+const CURVE_SAMPLES = 24
+
+const sample = (at: (t: number) => Point): Point[] =>
+  Array.from({ length: CURVE_SAMPLES + 1 }, (_, i) => at(i / CURVE_SAMPLES))
+
+const quadratic = (t: number, [x0, x1, x2]: number[], [y0, y1, y2]: number[]): Point => {
+  const u = 1 - t
+  return { x: u * u * x0 + 2 * u * t * x1 + t * t * x2, y: u * u * y0 + 2 * u * t * y1 + t * t * y2 }
+}
+
+const cubic = (t: number, [x0, x1, x2, x3]: number[], [y0, y1, y2, y3]: number[]): Point => {
+  const u = 1 - t
+  const [a, b, c, d] = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t]
+  return { x: a * x0 + b * x1 + c * x2 + d * x3, y: a * y0 + b * y1 + c * y2 + d * y3 }
+}
+
+const BADGE_PLACEMENT = { gap: 4, step: 14, rings: 6, along: [0.5, 0.38, 0.62, 0.28, 0.72] } as const
+const NODE_OVERLAP_COST = 100
+
+const segmentHitsBox = (p: Point, q: Point, box: Bounds): boolean => {
+  let t0 = 0
+  let t1 = 1
+  const dx = q.x - p.x
+  const dy = q.y - p.y
+  const sides: [number, number][] = [
+    [-dx, p.x - box.x],
+    [dx, box.x + box.w - p.x],
+    [-dy, p.y - box.y],
+    [dy, box.y + box.h - p.y],
+  ]
+  for (const [step, room] of sides) {
+    if (step === 0) {
+      if (room < 0) return false
+      continue
+    }
+    const t = room / step
+    if (step < 0) t0 = Math.max(t0, t)
+    else t1 = Math.min(t1, t)
+    if (t0 > t1) return false
+  }
+  return true
+}
+
+const boxesOverlap = (a: Bounds, b: Bounds): boolean =>
+  a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+
+const placementCost = (box: Bounds, scene: CurveScene): number => {
+  let cost = 0
+  for (const l of scene.links) {
+    const crosses = l.polyline.some((q, i) => i > 0 && segmentHitsBox(l.polyline[i - 1], q, box))
+    if (crosses) cost++
+  }
+  for (const n of scene.nodeBoxes) if (boxesOverlap(box, n)) cost += NODE_OVERLAP_COST
+  return cost
+}
+
+const normalAt = (polyline: readonly Point[], t: number): { at: Point; nx: number; ny: number } => {
+  const i = Math.round(t * (polyline.length - 1))
+  const a = polyline[Math.max(0, i - 1)]
+  const b = polyline[Math.min(polyline.length - 1, i + 1)]
+  const len = Math.hypot(b.x - a.x, b.y - a.y) || 1
+  return { at: polyline[i], nx: -(b.y - a.y) / len, ny: (b.x - a.x) / len }
+}
+
+export const badgeBox = (center: Point, size: { w: number; h: number }): Bounds => ({
+  x: center.x - size.w / 2,
+  y: center.y - size.h / 2,
+  w: size.w,
+  h: size.h,
+})
+
+export const placeBadgeBeside = (scene: CurveScene, link: CurvedLink, size: { w: number; h: number }): Point => {
+  let best = { cost: Infinity, at: { x: 0, y: 0 } }
+  for (let ring = 0; ring < BADGE_PLACEMENT.rings; ring++) {
+    for (const t of BADGE_PLACEMENT.along) {
+      const { at, nx, ny } = normalAt(link.polyline, t)
+      const reach = (Math.abs(nx) * size.w) / 2 + (Math.abs(ny) * size.h) / 2 + BADGE_PLACEMENT.gap
+      for (const side of [1, -1]) {
+        const offset = side * (reach + ring * BADGE_PLACEMENT.step)
+        const center = { x: at.x + nx * offset, y: at.y + ny * offset }
+        const cost = placementCost(badgeBox(center, size), scene)
+        if (cost === 0) return center
+        if (cost < best.cost) best = { cost, at: center }
+      }
+    }
+  }
+  return best.at
+}
 
 const clip = (x1: number, y1: number, x2: number, y2: number, hw: number, hh: number): [number, number] => {
   const dx = x2 - x1
@@ -149,13 +243,11 @@ export const layoutRing = (m: Model, a: SetAnalysis): CurveScene => {
     const cy = (p.y + q.y) / 2 + ((q.x - p.x) / len) * bend
     const [x1, y1] = clip(p.x, p.y, cx, cy, hw, hh)
     const [x2, y2] = clip(q.x, q.y, cx, cy, hw + ARROW_GAP, hh + ARROW_GAP)
-    return { ...l, d: `M${x1},${y1} Q${cx},${cy} ${x2},${y2}`, badge: { x: cx, y: cy } }
+    const polyline = sample((t) => quadratic(t, [x1, cx, x2], [y1, cy, y2]))
+    return { ...l, d: `M${x1},${y1} Q${cx},${cy} ${x2},${y2}`, polyline }
   })
-  const bounds = unionBounds([
-    ...nodes.map((n) => nodeBox(n, RING_NODE.w, n.isMember ? RING_NODE.h : RING_NODE.viaH)),
-    ...links.map((l) => point(l.badge)),
-  ])
-  return { nodes, links, bounds }
+  const nodeBoxes = nodes.map((n) => nodeBox(n, RING_NODE.w, n.isMember ? RING_NODE.h : RING_NODE.viaH))
+  return { nodes, nodeBoxes, links, bounds: unionBounds([...nodeBoxes, ...links.flatMap((l) => l.polyline.map(point))]) }
 }
 
 export const layoutArc = (m: Model, a: SetAnalysis): CurveScene => {
@@ -180,13 +272,11 @@ export const layoutArc = (m: Model, a: SetAnalysis): CurveScene => {
     const x1 = i * ARC_NODE.spacing
     const x2 = j * ARC_NODE.spacing
     const d = `M${x1},${sign * ARC.startY} C${x1},${y} ${x2},${y} ${x2},${sign * ARC.endY}`
-    return { ...l, d, badge: { x: (x1 + x2) / 2, y: y * BEZIER_PEAK } }
+    const polyline = sample((t) => cubic(t, [x1, x1, x2, x2], [sign * ARC.startY, y, y, sign * ARC.endY]))
+    return { ...l, d, polyline }
   })
-  const bounds = unionBounds([
-    ...nodes.map((n) => nodeBox(n, ARC_NODE.w, ARC_NODE.h)),
-    ...links.map((l) => point(l.badge)),
-  ])
-  return { nodes, links, bounds }
+  const nodeBoxes = nodes.map((n) => nodeBox(n, ARC_NODE.w, ARC_NODE.h))
+  return { nodes, nodeBoxes, links, bounds: unionBounds([...nodeBoxes, ...links.flatMap((l) => l.polyline.map(point))]) }
 }
 
 export const layoutSetMatrix = (m: Model, a: SetAnalysis): SetMatrix => {

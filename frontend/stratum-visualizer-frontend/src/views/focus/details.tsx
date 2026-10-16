@@ -4,6 +4,7 @@ import { t } from '../../i18n'
 import { SEV_COLOR } from '../../render/encoding'
 import { Model, worst } from '../../render/model'
 import { go, nav } from '../../shell/nav'
+import { PathText } from '../../shell/path-text'
 import { Violation } from '../../types'
 import { withMember } from '../set/analysis'
 import { ViewProps } from '../view-def'
@@ -28,7 +29,7 @@ const Brief: Component<{ path: string }> = (props) => {
         <div class="det-section">
           <h4>{t('focus.details.brief')}</h4>
           <pre class="fo-brief" data-testid="focus-brief">
-            {body()}
+            <PathText path={body()} />
           </pre>
         </div>
       )}
@@ -160,7 +161,9 @@ export const FocusDetails: Component<ViewProps> = (props) => {
             {(s) => <ImportsDetail model={props.model} focus={focus()!} pairs={s().pairs} />}
           </Show>
           <div class="fo-det-title">{props.model.label(focus()!)}</div>
-          <div class="det-path">{module().path}</div>
+          <div class="det-path">
+            <PathText path={module().path} />
+          </div>
           <div class="fo-btn-row">
             <button
               class="fo-btn"

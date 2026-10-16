@@ -60,7 +60,7 @@ const Stage: Component<ViewProps> = (props) => {
         </span>
       </div>
       <div class="dsm-canvas">
-        <Canvas bounds={matrix().bounds} fitKey={matrix()} overlay={<Legend hasBlocks={matrix().blocks.length > 0} />}>
+        <Canvas bounds={matrix().bounds} fitKey={matrix()} legend={<Legend hasBlocks={matrix().blocks.length > 0} />}>
           <MatrixMarks
             model={props.model}
             matrix={matrix()}
