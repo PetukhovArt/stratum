@@ -1,0 +1,116 @@
+spec:
+  inputs:
+    stage:
+      default: test
+      description: Stage of the stratum and stratum-drift jobs.
+---
+# Stratum architecture gate for GitLab CI. Usage: ci/README.md.
+# The jobs need node >= 18 and git in the image; set image, tags, needs and the
+# like on the jobs themselves. Every request goes to this instance only
+# ($CI_API_V4_URL) and to the npm registry the job is already configured with.
+
+.stratum-install:
+  script:
+    # The project's own pin wins over the version below.
+    # `--prefix` stops npm reading the project's .npmrc, hence the copy.
+    - |
+      if [ -x node_modules/.bin/stratum-lint ]; then
+        export PATH="$PWD/node_modules/.bin:$PATH"
+      else
+        mkdir -p .stratum
+        if [ -f .npmrc ]; then cp .npmrc .stratum/.npmrc; fi
+        npm install --prefix .stratum --no-save --no-package-lock --no-audit --no-fund "@stratum-lint/cli@0.2.0"
+        export PATH="$PWD/.stratum/node_modules/.bin:$PATH"
+      fi
+      stratum-lint --version
+
+stratum:
+  stage: $[[ inputs.stage ]]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  script:
+    - !reference [.stratum-install, script]
+    - |
+      rc=
+      stratum-lint --format gitlab > gl-code-quality-report.json || rc=$?
+      stratum-lint --format agent || true
+      if [ -n "$CI_MERGE_REQUEST_DIFF_BASE_SHA" ]; then
+        case ",$CI_MERGE_REQUEST_LABELS," in
+          *,stratum:accept-debt,*)
+            echo "stratum: label stratum:accept-debt is set, baseline --check skipped"
+            ;;
+          *)
+            git fetch -q --depth=1 origin "$CI_MERGE_REQUEST_DIFF_BASE_SHA" || true
+            stratum-lint baseline --check="$CI_MERGE_REQUEST_DIFF_BASE_SHA" || rc=${rc:-$?}
+            ;;
+        esac
+      fi
+      exit "${rc:-0}"
+  artifacts:
+    when: always
+    reports:
+      codequality: gl-code-quality-report.json
+
+stratum-drift:
+  stage: $[[ inputs.stage ]]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  # Exit 1 = drift found, or the note could not be written: a warning, not a failure.
+  allow_failure:
+    exit_codes: [1]
+  script:
+    - !reference [.stratum-install, script]
+    # With STRATUM_GITLAB_TOKEN the report goes to one MR note keyed by its first line:
+    # updated when it exists, created only when there is drift.
+    - |
+      git fetch -q --depth=1 origin "$CI_MERGE_REQUEST_DIFF_BASE_SHA" || true
+      d=0
+      stratum-lint diff --base "$CI_MERGE_REQUEST_DIFF_BASE_SHA" > stratum-drift.md || d=$?
+      [ "$d" -le 1 ] || exit "$d"
+      cat stratum-drift.md
+      if [ -n "$STRATUM_GITLAB_TOKEN" ]; then
+      STRATUM_DRIFT="$d" node --input-type=module - <<'JS' || d=1
+      import { readFileSync } from 'node:fs';
+
+      const firstLine = (text) => text.split('\n', 1)[0].trim();
+      const body = readFileSync('stratum-drift.md', 'utf8');
+      const marker = firstLine(body);
+      if (!marker.startsWith('<!-- stratum:drift')) {
+        console.log('stratum: the drift report has no marker line, note skipped');
+        process.exit(0);
+      }
+      const env = process.env;
+      const notes = `${env.CI_API_V4_URL}/projects/${env.CI_PROJECT_ID}/merge_requests/${env.CI_MERGE_REQUEST_IID}/notes`;
+      const call = async (method, url, payload) => {
+        const res = await fetch(url, {
+          method,
+          headers: { 'PRIVATE-TOKEN': env.STRATUM_GITLAB_TOKEN, 'Content-Type': 'application/json' },
+          body: payload && JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error(`stratum: ${method} ${url} answered ${res.status}: ${await res.text()}`);
+        return res.json();
+      };
+      let existing;
+      for (let page = 1; !existing; page++) {
+        const batch = await call('GET', `${notes}?per_page=100&page=${page}`);
+        existing = batch.find((note) => firstLine(note.body) === marker);
+        if (batch.length < 100) break;
+      }
+      if (existing) {
+        await call('PUT', `${notes}/${existing.id}`, { body });
+        console.log(`stratum: updated MR note ${existing.id}`);
+      } else if (env.STRATUM_DRIFT === '1') {
+        const created = await call('POST', notes, { body });
+        console.log(`stratum: created MR note ${created.id}`);
+      } else {
+        console.log('stratum: no drift and no earlier note, nothing to post');
+      }
+      JS
+      fi
+      exit "$d"
+  artifacts:
+    when: always
+    expose_as: stratum drift
+    paths:
+      - stratum-drift.md

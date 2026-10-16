@@ -1,0 +1,127 @@
+name: stratum
+description: Stratum architecture gate. Annotates findings, checks the baseline ratchet and reports drift on pull requests.
+# Needs node >= 18, git and a checkout. Every request goes to this GitHub host only
+# ($GITHUB_API_URL) and to the npm registry the runner is already configured with.
+
+inputs:
+  root:
+    description: Project root inside the repository.
+    default: .
+  token:
+    description: Token for the drift comment; needs pull-requests write. Empty = job summary only.
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    # The project's own pin wins, then a stratum-lint already on PATH, then the version
+    # below. `--prefix` stops npm reading the project's .npmrc, hence the copy.
+    - name: install stratum-lint
+      shell: bash
+      env:
+        ROOT: ${{ inputs.root }}
+      run: |
+        if [ -x "$ROOT/node_modules/.bin/stratum-lint" ]; then
+          echo "$PWD/$ROOT/node_modules/.bin" >> "$GITHUB_PATH"
+        elif ! command -v stratum-lint > /dev/null; then
+          prefix="$RUNNER_TEMP/stratum"
+          mkdir -p "$prefix"
+          if [ -f "$ROOT/.npmrc" ]; then cp "$ROOT/.npmrc" "$prefix/.npmrc"; fi
+          npm install --prefix "$prefix" --no-save --no-package-lock --no-audit --no-fund "@stratum-lint/cli@0.2.0"
+          echo "$prefix/node_modules/.bin" >> "$GITHUB_PATH"
+        fi
+
+    - name: stratum gate
+      shell: bash
+      env:
+        ROOT: ${{ inputs.root }}
+        BASE: ${{ github.event.pull_request.base.sha }}
+        ACCEPT_DEBT: ${{ contains(github.event.pull_request.labels.*.name, 'stratum:accept-debt') }}
+      run: |
+        stratum-lint --version
+        rc=
+        stratum-lint "$ROOT" --format github || rc=$?
+        if [ -n "$BASE" ]; then
+          if [ "$ACCEPT_DEBT" = true ]; then
+            echo "stratum: label stratum:accept-debt is set, baseline --check skipped"
+          else
+            git fetch -q --depth=1 origin "$BASE" || true
+            stratum-lint baseline "$ROOT" --check="$BASE" || rc=${rc:-$?}
+          fi
+        fi
+        exit "${rc:-0}"
+
+    # Advisory: drift (exit 1) does not fail the step, a tool failure (exit 2) does.
+    # The report always goes to the job summary; with a token that may write, and the PR
+    # not from a fork, also to one PR comment keyed by its first line: updated when it
+    # exists, created only when there is drift.
+    - name: stratum drift
+      if: ${{ !cancelled() && github.event.pull_request.base.sha != '' }}
+      shell: bash
+      env:
+        ROOT: ${{ inputs.root }}
+        BASE: ${{ github.event.pull_request.base.sha }}
+        TOKEN: ${{ inputs.token }}
+        FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+        STRATUM_PR: ${{ github.event.pull_request.number }}
+      run: |
+        git fetch -q --depth=1 origin "$BASE" || true
+        export STRATUM_REPORT="$RUNNER_TEMP/stratum-drift.md"
+        d=0
+        stratum-lint diff "$ROOT" --base "$BASE" > "$STRATUM_REPORT" || d=$?
+        [ "$d" -le 1 ] || exit "$d"
+        cat "$STRATUM_REPORT" >> "$GITHUB_STEP_SUMMARY"
+        if [ -z "$TOKEN" ] || [ "$FORK" = true ]; then
+          echo "stratum: no token or a fork PR, the drift report is in the job summary only"
+          exit 0
+        fi
+        STRATUM_DRIFT="$d" node --input-type=module - <<'JS'
+        import { readFileSync } from 'node:fs';
+
+        const firstLine = (text) => text.split('\n', 1)[0].trim();
+        const env = process.env;
+        const body = readFileSync(env.STRATUM_REPORT, 'utf8');
+        const marker = firstLine(body);
+        if (!marker.startsWith('<!-- stratum:drift')) {
+          console.log('stratum: the drift report has no marker line, comment skipped');
+          process.exit(0);
+        }
+        const repo = `${env.GITHUB_API_URL}/repos/${env.GITHUB_REPOSITORY}`;
+        const comments = `${repo}/issues/${env.STRATUM_PR}/comments`;
+        const call = async (method, url, payload) => {
+          const res = await fetch(url, {
+            method,
+            headers: {
+              Authorization: `Bearer ${env.TOKEN}`,
+              Accept: 'application/vnd.github+json',
+              'Content-Type': 'application/json',
+            },
+            body: payload && JSON.stringify(payload),
+          });
+          if (!res.ok) {
+            throw Object.assign(new Error(`${method} ${url} answered ${res.status}: ${await res.text()}`), { status: res.status });
+          }
+          return res.json();
+        };
+        try {
+          let existing;
+          for (let page = 1; !existing; page++) {
+            const batch = await call('GET', `${comments}?per_page=100&page=${page}`);
+            existing = batch.find((comment) => firstLine(comment.body ?? '') === marker);
+            if (batch.length < 100) break;
+          }
+          if (existing) {
+            await call('PATCH', `${repo}/issues/comments/${existing.id}`, { body });
+            console.log(`stratum: updated PR comment ${existing.id}`);
+          } else if (env.STRATUM_DRIFT === '1') {
+            const created = await call('POST', comments, { body });
+            console.log(`stratum: created PR comment ${created.id}`);
+          } else {
+            console.log('stratum: no drift and no earlier comment, nothing to post');
+          }
+        } catch (error) {
+          // 403/404: the token may not write to this PR. The summary still has the report.
+          const level = error.status === 403 || error.status === 404 ? 'notice' : 'warning';
+          console.log(`::${level}::stratum: PR comment not written. ${error.message}`);
+        }
+        JS
