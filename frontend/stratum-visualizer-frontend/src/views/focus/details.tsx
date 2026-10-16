@@ -5,6 +5,7 @@ import { SEV_COLOR } from '../../render/encoding'
 import { Model, worst } from '../../render/model'
 import { go, nav } from '../../shell/nav'
 import { Violation } from '../../types'
+import { withMember } from '../set/analysis'
 import { ViewProps } from '../view-def'
 import { resolveFocus } from './focus-target'
 import { layerName, layerTone, shortRule } from './paint'
@@ -166,6 +167,9 @@ export const FocusDetails: Component<ViewProps> = (props) => {
               onClick={() => exportSvg(`focus-${props.model.label(focus()!).replace(SVG_NAME_UNSAFE, '-')}`)}
             >
               {t('focus.details.svg')}
+            </button>
+            <button class="fo-btn" data-testid="focus-add-to-set" onClick={() => go({ view: 'set', set: withMember(nav().set, focus()!) })}>
+              {t('set.addToSet')}
             </button>
           </div>
           <Brief path={module().path} />
