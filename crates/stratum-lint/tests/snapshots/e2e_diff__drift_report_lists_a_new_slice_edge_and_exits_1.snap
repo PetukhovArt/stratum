@@ -1,0 +1,13 @@
+---
+source: crates/stratum-lint/tests/e2e_diff.rs
+expression: stdout
+---
+<!-- stratum:drift web -->
+### Stratum: architecture drift vs <sha>
+1 new slice edge, 1 fan-in growth
+
+#### New slice edges (1)
+- `src/features/checkout` -> `src/features/cart`, e.g. `src/features/checkout/index.ts -> src/features/cart/index.ts`
+
+#### Slice fan-in grown (1)
+- `src/features/cart`: 0 -> 1 importing slices, new: `src/features/checkout`

@@ -73,7 +73,7 @@ impl GraphBuilder {
         }
         add_pending(&mut deps);
 
-        graph.deps = deps;
+        graph.replace_deps(deps);
         if let Some(m) = graph.modules.get_mut(&id) {
             m.purity = purity;
             m.exports = exports;

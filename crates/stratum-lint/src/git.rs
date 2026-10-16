@@ -36,7 +36,6 @@ pub fn show(root: &Utf8Path, reference: &str, rel: &str) -> miette::Result<Optio
         .map_err(|e| miette::miette!("{object} is not UTF-8: {e}"))
 }
 
-#[expect(dead_code, reason = "the diff command lands in the drift slice")]
 pub fn short_sha(root: &Utf8Path, reference: &str) -> miette::Result<String> {
     verify(root, reference)?;
     let out = run(root, &["rev-parse", "--short", &commit(reference)])?;
@@ -57,10 +56,6 @@ pub fn prefix(root: &Utf8Path) -> Option<String> {
 }
 
 /// Pathspecs that match nothing at `reference` are skipped; no pathspecs give an empty tree.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "the diff command lands in the drift slice")
-)]
 pub fn tree_at(root: &Utf8Path, reference: &str, pathspecs: &[String]) -> miette::Result<TempTree> {
     verify(root, reference)?;
     let tree = TempTree::create()?;
@@ -98,10 +93,6 @@ impl TempTree {
         Ok(Self(dir))
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "the diff command lands in the drift slice")
-    )]
     pub fn path(&self) -> &Utf8Path {
         &self.0
     }
