@@ -169,7 +169,7 @@ export const DsmDetails: Component<{ model: Model; matrix: Matrix }> = (props) =
             </div>
           </div>
           <div class="stat stat-err">
-            <div class="stat-val" data-testid="dsm-breaks">
+            <div class="stat-val" data-testid="dsm-breaks" data-ch="sev">
               {formatNumber(d().breaks)}
             </div>
             <div class="stat-lbl">{t('dsm.stat.breaks', { n: d().breaks })}</div>

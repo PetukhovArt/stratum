@@ -49,11 +49,9 @@ const ViolationList: Component<{ findings: readonly Violation[] }> = (props) => 
     <div class="vios">
       <For each={props.findings.slice(0, MAX_VIOLATIONS)}>
         {(v) => (
-          <div class={`vio vio-${v.severity}`}>
+          <div class={`vio vio-${v.severity}`} data-ch="sev">
             <div class="vio-hd">
-              <span class={`vio-sev sev-${v.severity}`} data-ch="sev">
-                {v.severity}
-              </span>
+              <span class={`vio-sev sev-${v.severity}`}>{v.severity}</span>
               <span class="vio-rule">{shortRule(v.rule)}</span>
             </div>
             <div class="vio-msg">{v.message}</div>

@@ -207,7 +207,7 @@ const judge = (runs: readonly RenderRun[], tasks: readonly TaskResult[], territo
   const byMarks = worstOf(runs, (r) => r.marks)
   const byRender = worstOf(runs, (r) => r.renderMs)
   const byPanZoom = worstOf(runs, (r) => r.panZoom?.p95 ?? 0)
-  const leaks = runs.reduce((n, r) => n + r.audit.leaks, 0)
+  const leaks = runs.reduce((n, r) => n + r.audit.leaks + r.panelAudit.leaks, 0)
   return [
     { id: 'tasks', value: `${answered.length}/${ran.length}`, isMet: answered.length === ran.length, isGate: true },
     {

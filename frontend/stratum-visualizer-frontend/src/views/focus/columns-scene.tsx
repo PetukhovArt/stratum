@@ -153,9 +153,12 @@ const GroupBox: Component<{ ctx: SceneCtx; group: ColumnGroup }> = (props) => {
   const dash = hasFindings ? DASHED : isBoxed ? DOTTED : undefined
   const closedSev = g.isOpen ? null : worst(g.ids.flatMap((id) => m.findingsOf(id)))
   const meta = groupMeta(m, g)
+  const toggle = () => props.ctx.toggle(g.key, !g.isOpen)
   return (
     <g data-testid="focus-group" data-key={g.key}>
       <rect
+        class="fo-group-box"
+        onClick={toggle}
         x={g.x}
         y={g.y}
         width={COLUMN.width}
@@ -168,8 +171,7 @@ const GroupBox: Component<{ ctx: SceneCtx; group: ColumnGroup }> = (props) => {
       <Show when={hasFindings}>
         <rect x={g.x} y={g.y} width={COLUMN.width} height={g.h} rx="6" fill={CANVAS_DEFS.hatch} pointer-events="none" />
       </Show>
-      <g class="fo-group-hd" data-testid="focus-group-head" onClick={() => props.ctx.toggle(g.key, !g.isOpen)}>
-        <rect x={g.x} y={g.y} width={COLUMN.width} height={COLUMN.groupHead} fill="transparent" />
+      <g class="fo-group-hd" data-testid="focus-group-head" onClick={toggle}>
         <text x={g.x + 9} y={g.y + 15.5} font-size="9" fill="oklch(55% 0.012 260)">
           {g.isOpen ? '▾' : '▸'}
         </text>

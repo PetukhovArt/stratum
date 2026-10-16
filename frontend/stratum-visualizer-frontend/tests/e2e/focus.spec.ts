@@ -16,9 +16,26 @@ const LEGACY_TO_HTTP = {
   suggestion: null,
 }
 
-const stubRoutes = async (page: Page, contextStatus: number) => {
+const HTTP_PATH = 'src/shared/api/http.ts'
+const INTERNALS_BEHIND_ENTRY = { rule: 'stratum/public-api', region: { kind: 'internals' } }
+
+interface FixtureSnapshot {
+  modules: { path: string; territory: number }[]
+  territories: { may_not: unknown[] }[]
+}
+
+const fixtureSnapshot = (): FixtureSnapshot => JSON.parse(readFileSync(SNAPSHOT_PATH, 'utf-8'))
+
+const withHttpForbiddenInternals = (snapshot: FixtureSnapshot): FixtureSnapshot => {
+  const http = snapshot.modules.find((m) => m.path === HTTP_PATH)!
+  const territory = { ...snapshot.territories[http.territory], may_not: [INTERNALS_BEHIND_ENTRY] }
+  http.territory = snapshot.territories.push(territory) - 1
+  return snapshot
+}
+
+const stubRoutes = async (page: Page, contextStatus: number, snapshot = fixtureSnapshot()) => {
   await page.route('**/api/snapshot', (route) =>
-    route.fulfill({ body: readFileSync(SNAPSHOT_PATH, 'utf-8'), contentType: 'application/json' }),
+    route.fulfill({ body: JSON.stringify(snapshot), contentType: 'application/json' }),
   )
   await page.route('**/api/violations', (route) =>
     route.fulfill({ body: JSON.stringify([LEGACY_TO_HTTP]), contentType: 'application/json' }),
@@ -31,7 +48,7 @@ const stubRoutes = async (page: Page, contextStatus: number) => {
 test('focus opens on the most imported module with its importers and the lint finding on the drawn edge', async ({
   page,
 }) => {
-  await stubRoutes(page, 200)
+  await stubRoutes(page, 200, withHttpForbiddenInternals(fixtureSnapshot()))
   await page.goto('/')
 
   await expect(page.getByTestId('focus-card')).toContainText('http.ts', { timeout: 15_000 })
