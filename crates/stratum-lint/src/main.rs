@@ -41,8 +41,10 @@ fn run(cli: cli::Cli) -> miette::Result<u8> {
         Some(cli::Command::Visualize {
             root,
             config,
+            base,
             no_open,
-        }) => commands::visualize::run(&root, config.as_deref(), !no_open).map(|()| 0),
+        }) => commands::visualize::run(&root, config.as_deref(), base.as_deref(), !no_open)
+            .map(|()| 0),
         Some(cli::Command::Baseline {
             root,
             out,

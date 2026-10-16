@@ -91,6 +91,9 @@ pub enum Command {
         root: Utf8PathBuf,
         #[arg(long)]
         config: Option<Utf8PathBuf>,
+        /// Also serve the drift of the working tree vs REF at /api/drift (Merge request view)
+        #[arg(long, value_name = "REF")]
+        base: Option<String>,
         /// Serve without opening the default browser (for scripted or agent runs)
         #[arg(long)]
         no_open: bool,

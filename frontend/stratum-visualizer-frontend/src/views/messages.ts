@@ -5,7 +5,6 @@ export const en = {
   'view.dsm': 'Matrix',
   'view.mr': 'Merge request',
   'view.overview': 'Overview',
-  'view.placeholder': 'This view is not built yet.',
 } as const
 
 export const ru: MessagesOf<typeof en> = {
@@ -13,5 +12,4 @@ export const ru: MessagesOf<typeof en> = {
   'view.dsm': 'Матрица',
   'view.mr': 'Merge request',
   'view.overview': 'Обзор',
-  'view.placeholder': 'Этот вид ещё не готов.',
 }

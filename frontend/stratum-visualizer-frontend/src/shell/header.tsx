@@ -2,7 +2,7 @@ import { Component, createMemo, For } from 'solid-js'
 import { lang, LANGS, setLang, t } from '../i18n'
 import { Model } from '../render/model'
 import { Severity } from '../types'
-import { VIEWS } from '../views'
+import { availableViews } from '../views'
 import { go, nav } from './nav'
 
 export const Header: Component<{ model: Model; onOpenPalette: () => void }> = (props) => {
@@ -35,7 +35,7 @@ export const Header: Component<{ model: Model; onOpenPalette: () => void }> = (p
         </span>
       </div>
       <nav class="tabs">
-        <For each={VIEWS}>
+        <For each={availableViews()}>
           {(v) => (
             <button
               class={`tab ${nav().view === v.id ? 'on' : ''}`}

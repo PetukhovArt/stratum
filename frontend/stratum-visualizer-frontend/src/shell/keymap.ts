@@ -1,5 +1,5 @@
 import { activeCanvas } from '../canvas/canvas'
-import { VIEWS, viewById } from '../views'
+import { availableViews, viewById } from '../views'
 import { back, go, nav, set } from './nav'
 import { variantIndex, variantPatch } from './variants'
 
@@ -62,7 +62,7 @@ const onKeyDown = (e: KeyboardEvent, actions: KeymapActions): void => {
     cycleVariant()
     return
   }
-  const view = VIEWS.find((v) => v.key === e.key)
+  const view = availableViews().find((v) => v.key === e.key)
   if (view) go({ view: view.id })
 }
 

@@ -60,9 +60,10 @@ stratum-lint snapshot [ROOT] [--out PATH] [--config PATH]
                                                # Graph Snapshot v3 JSON, default stratum.snapshot.json; config default ROOT/stratum.config.jsonc.
                                                # { version: 3, project, modules[{id, path, container, layer, purity, zone?, territory}],
                                                #   containers, layers, edges, zones[{id, path, root}], territories[] }; paths ROOT-relative with "/"
-stratum-lint visualize [ROOT] [--config PATH] [--no-open]
+stratum-lint visualize [ROOT] [--config PATH] [--base REF] [--no-open]
                                                # serves the Visualizer on 127.0.0.1:<random port> until Ctrl+C;
-                                               # prints "stratum-visualizer ready at <url>" to stderr; --no-open skips the browser
+                                               # prints "stratum-visualizer ready at <url>" to stderr; --no-open skips the browser;
+                                               # --base REF: the Drift vs REF at /api/drift, as `diff --base REF` computes it
 ```
 
 ### Exit codes
@@ -78,10 +79,10 @@ stratum-lint visualize [ROOT] [--config PATH] [--no-open]
 | `rules`, `context` | printed, whatever violations exist | | tool failure; `context` FILE outside ROOT |
 | `init` | config written | | tool failure; config already exists |
 | `snapshot` | snapshot written | | tool failure |
-| `visualize` | server stopped with Ctrl+C | | tool failure |
+| `visualize` | server stopped with Ctrl+C | | tool failure; unknown `--base` REF |
 | `hook` | decision printed, or nothing to say | tool failure (Claude Code's non-blocking error) | never |
 
-Tool failure: bad arguments, an invalid config (see Customization), a plugin that fails to load, an unreadable baseline, a failed `git` call for `--changed`, `--check` or `diff`, a missing `--files` path. The message goes to stderr.
+Tool failure: bad arguments, an invalid config (see Customization), a plugin that fails to load, an unreadable baseline, a failed `git` call for `--changed`, `--check`, `--base` or `diff`, a missing `--files` path. The message goes to stderr.
 An unknown REF carries the hint `git fetch --depth=1 origin <REF>`: a shallow CI clone lacks the base commit until it is fetched.
 
 ### Output rules

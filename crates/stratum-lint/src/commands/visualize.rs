@@ -18,9 +18,10 @@ use serde::Serialize;
 use stratum_core::{
     edge::Edge, ids::ModuleId, severity::Severity, violation::SourceLocation, violation::Violation,
 };
-use stratum_engine::{EngineInput, Finding};
+use stratum_engine::{Drift, EngineInput, Finding};
 
-use crate::commands::{context, lint};
+use crate::commands::{context, diff, lint};
+use crate::git;
 
 #[derive(RustEmbed)]
 #[folder = "../../frontend/stratum-visualizer-frontend/dist/"]
@@ -44,10 +45,31 @@ pub struct Api {
     findings: Vec<Finding>,
     snapshot: String,
     violations: String,
+    /// `None` without `--base`: `/api/drift` answers 404.
+    drift: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct ApiDrift<'a> {
+    base: ApiBase<'a>,
+    markdown: String,
+    /// Indices into `edges` of `Drift::breaking_imports`, in its order.
+    breaking: Vec<usize>,
+    #[serde(flatten)]
+    drift: &'a Drift,
+}
+
+#[derive(Debug, Serialize)]
+struct ApiBase<'a> {
+    #[serde(rename = "ref")]
+    reference: &'a str,
+    sha: String,
 }
 
 impl Api {
-    pub fn new(input: EngineInput) -> miette::Result<Self> {
+    /// `base` is a git ref: the drift of the working tree vs it is computed once, here.
+    pub fn new(input: EngineInput, base: Option<&str>) -> miette::Result<Self> {
+        let drift = base.map(|base| drift_json(&input, base)).transpose()?;
         let snapshot = input.snapshot().map_err(|e| miette::miette!("{e}"))?;
         let violations = input
             .rule_violations()
@@ -65,12 +87,45 @@ impl Api {
             violations: serde_json::to_string(&api_violations).into_diagnostic()?,
             input,
             findings,
+            drift,
         })
     }
 }
 
-pub fn run(root: &Utf8Path, config: Option<&Utf8Path>, open_browser: bool) -> miette::Result<()> {
-    let api = Api::new(lint::build(root, &lint::load_config(root, config)?)?)?;
+fn drift_json(input: &EngineInput, base: &str) -> miette::Result<String> {
+    let root = input.project_root.as_path();
+    let sha = git::short_sha(root, base)?;
+    let base_files = git::files_at(root, base, |rel| {
+        let path = Utf8Path::new(rel);
+        stratum_engine::is_source(path) || path.extension() == Some("json")
+    })?;
+    let drift = stratum_engine::drift(root, base_files, &input.config)
+        .map_err(|e| miette::miette!("{e}"))?;
+    let prefix = git::prefix(root).unwrap_or_default();
+    let breaking = drift
+        .breaking_imports()
+        .into_iter()
+        .filter_map(|b| drift.edges.iter().position(|e| std::ptr::eq(e, b)))
+        .collect();
+    let api = ApiDrift {
+        markdown: diff::markdown(&drift, &sha, prefix.trim_end_matches('/'), base),
+        breaking,
+        base: ApiBase {
+            reference: base,
+            sha,
+        },
+        drift: &drift,
+    };
+    serde_json::to_string(&api).into_diagnostic()
+}
+
+pub fn run(
+    root: &Utf8Path,
+    config: Option<&Utf8Path>,
+    base: Option<&str>,
+    open_browser: bool,
+) -> miette::Result<()> {
+    let api = Api::new(lint::build(root, &lint::load_config(root, config)?)?, base)?;
     let rt = Builder::new_current_thread()
         .enable_all()
         .build()
@@ -106,6 +161,19 @@ pub fn build_router(api: Arc<Api>) -> Router {
             }),
         )
         .route("/api/context", get(context_brief))
+        .route(
+            "/api/drift",
+            get(|State(api): State<Arc<Api>>| async move {
+                match &api.drift {
+                    Some(drift) => text(StatusCode::OK, "application/json", drift.clone()),
+                    None => text(
+                        StatusCode::NOT_FOUND,
+                        "text/plain; charset=utf-8",
+                        "no drift: run `stratum-lint visualize --base REF`".into(),
+                    ),
+                }
+            }),
+        )
         .fallback(get(serve_asset))
         .with_state(api)
 }

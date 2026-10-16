@@ -1,7 +1,7 @@
 import { Component, createMemo, createSignal, For, Show } from 'solid-js'
 import { t } from '../i18n'
 import { Model } from '../render/model'
-import { VIEWS } from '../views'
+import { availableViews } from '../views'
 import { go } from './nav'
 
 const MAX_ROWS = 60
@@ -15,7 +15,7 @@ interface PaletteItem {
 }
 
 const itemsOf = (model: Model): PaletteItem[] => [
-  ...VIEWS.map((v) => ({
+  ...availableViews().map((v) => ({
     key: `v-${v.id}`,
     kind: t('shell.palette.kind.view'),
     label: t(v.title),

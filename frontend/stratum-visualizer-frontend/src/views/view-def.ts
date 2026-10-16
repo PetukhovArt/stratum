@@ -22,4 +22,5 @@ export interface ViewDef {
   Outline: Component<ViewProps>
   Details: Component<ViewProps>
   variants?: Variants
+  isAvailable?: () => boolean
 }
