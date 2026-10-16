@@ -13,7 +13,7 @@ pub use config::{Config, LayerConfig, OverrideBlock, OverrideRule, ProjectConfig
 pub use error::ConfigError;
 pub use extends::config_files;
 pub use ignore::{DEFAULT_IGNORE, IgnoreSet};
-pub use overrides::{EffectiveRules, resolve_for_file};
+pub use overrides::{EffectiveRules, Overrides};
 pub use parse::{parse_file, parse_str};
 pub use presets::recommended_rules;
 pub use schema::schema;

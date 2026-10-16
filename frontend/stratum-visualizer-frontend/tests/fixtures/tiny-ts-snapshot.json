@@ -16,7 +16,7 @@
       "container": 5,
       "layer": 1,
       "purity": 2,
-      "territory": 0
+      "territory": 1
     },
     {
       "id": 2,
@@ -24,7 +24,7 @@
       "container": 5,
       "layer": 1,
       "purity": 2,
-      "territory": 0
+      "territory": 1
     },
     {
       "id": 3,
@@ -32,7 +32,7 @@
       "container": 6,
       "layer": 2,
       "purity": 2,
-      "territory": 0
+      "territory": 2
     },
     {
       "id": 4,
@@ -40,7 +40,7 @@
       "container": 6,
       "layer": 2,
       "purity": 2,
-      "territory": 0
+      "territory": 2
     },
     {
       "id": 5,
@@ -48,7 +48,7 @@
       "container": 3,
       "layer": 3,
       "purity": 2,
-      "territory": 0
+      "territory": 3
     },
     {
       "id": 6,
@@ -56,7 +56,7 @@
       "container": 4,
       "layer": 4,
       "purity": 2,
-      "territory": 0
+      "territory": 4
     },
     {
       "id": 7,
@@ -64,7 +64,7 @@
       "container": 4,
       "layer": 4,
       "purity": 2,
-      "territory": 0
+      "territory": 4
     },
     {
       "id": 8,
@@ -72,7 +72,7 @@
       "container": 4,
       "layer": 4,
       "purity": 2,
-      "territory": 0
+      "territory": 4
     }
   ],
   "containers": [
@@ -220,29 +220,58 @@
   "territories": [
     {
       "may_import_layers": [
-        0,
-        1,
-        2,
-        3,
+        0
+      ],
+      "imported_by_layers": [
+        0
+      ],
+      "max_import_purity": 2,
+      "visible_zones": [],
+      "may_not": []
+    },
+    {
+      "may_import_layers": [
+        1
+      ],
+      "imported_by_layers": [
+        1
+      ],
+      "max_import_purity": 2,
+      "visible_zones": [],
+      "may_not": []
+    },
+    {
+      "may_import_layers": [
+        2
+      ],
+      "imported_by_layers": [
+        2
+      ],
+      "max_import_purity": 2,
+      "visible_zones": [],
+      "may_not": []
+    },
+    {
+      "may_import_layers": [
+        3
+      ],
+      "imported_by_layers": [
+        3
+      ],
+      "max_import_purity": 2,
+      "visible_zones": [],
+      "may_not": []
+    },
+    {
+      "may_import_layers": [
         4
       ],
       "imported_by_layers": [
-        0,
-        1,
-        2,
-        3,
         4
       ],
       "max_import_purity": 2,
       "visible_zones": [],
-      "may_not": [
-        {
-          "rule": "stratum/public-api",
-          "region": {
-            "kind": "internals"
-          }
-        }
-      ]
+      "may_not": []
     }
   ]
 }

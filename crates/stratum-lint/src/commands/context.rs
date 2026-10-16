@@ -6,17 +6,17 @@ use camino::{Utf8Path, Utf8PathBuf};
 use serde::Serialize;
 use stratum_core::{
     ids::LayerId,
+    purity::Purity,
     severity::Severity,
     types::{Container, ContainerKind, Layer, Module},
     visibility::VisibilityScope,
 };
-use stratum_engine::{CONFIG_FILE, EngineInput, paths};
+use stratum_engine::{CONFIG_FILE, EngineInput, Finding, paths};
 use stratum_graph::{CompoundGraph, direct_dependencies, direct_dependents};
 use stratum_rules::territory::{PlannedSlice, Region, Site, Territories};
 
 use crate::{cli::BriefFormat, commands::lint};
 
-const DEFAULT_PURITY: u8 = 2;
 const SHOWN_PER_LIST: usize = 2;
 
 #[derive(Debug, Serialize)]
@@ -92,12 +92,9 @@ pub fn run(
         Some(r) => absolutize(r)?,
         None => discover_root(&file_abs)?,
     };
-    let rel = file_abs.strip_prefix(&root).map_err(|_| {
-        miette::miette!("{file_abs} is outside the project root {root}; pass --root")
-    })?;
-    let rel = Utf8PathBuf::from(rel.as_str().replace('\\', "/"));
+    let rel = relative_to(&file_abs, &root)?;
     let input = lint::build(&root, &lint::load_config(&root, config_path)?)?;
-    let brief = brief(&input, &file_abs, &rel)?;
+    let brief = brief(&input, None, &file_abs, &rel)?;
     match format {
         BriefFormat::Agent => print!("{}", render_agent(&brief)),
         BriefFormat::Json => {
@@ -108,7 +105,31 @@ pub fn run(
     Ok(0)
 }
 
-fn brief(input: &EngineInput, file_abs: &Utf8Path, rel: &Utf8Path) -> miette::Result<Brief> {
+/// `context REL --format agent` for a root-relative `rel`, over `findings` the caller computed once.
+pub fn agent_brief(input: &EngineInput, findings: &[Finding], rel: &str) -> miette::Result<String> {
+    let file_abs = absolutize(&input.project_root.join(rel))?;
+    let rel = relative_to(&file_abs, &input.project_root)?;
+    Ok(render_agent(&brief(
+        input,
+        Some(findings),
+        &file_abs,
+        &rel,
+    )?))
+}
+
+fn relative_to(file_abs: &Utf8Path, root: &Utf8Path) -> miette::Result<Utf8PathBuf> {
+    let rel = file_abs.strip_prefix(root).map_err(|_| {
+        miette::miette!("{file_abs} is outside the project root {root}; pass --root")
+    })?;
+    Ok(Utf8PathBuf::from(rel.as_str().replace('\\', "/")))
+}
+
+fn brief(
+    input: &EngineInput,
+    findings: Option<&[Finding]>,
+    file_abs: &Utf8Path,
+    rel: &Utf8Path,
+) -> miette::Result<Brief> {
     let graph = &input.graph;
     let layers: Vec<Layer> = graph.layers.values().cloned().collect();
     let file = Path::new(file_abs.as_str());
@@ -163,7 +184,7 @@ fn brief(input: &EngineInput, file_abs: &Utf8Path, rel: &Utf8Path) -> miette::Re
         .iter()
         .map(|z| input.relative(&graph.private_zones()[z.index()].path))
         .collect();
-    brief.purity = Some(module.map_or(DEFAULT_PURITY, |m| m.purity.rank()));
+    brief.purity = Some(module.map_or(Purity::DEFAULT, |m| m.purity).rank());
     brief.max_import_purity = Some(territory.max_import_purity);
     brief.visibility = Some(module.map_or_else(
         || visibility_name(input, &visibility_at(input, file_abs)),
@@ -201,7 +222,7 @@ fn brief(input: &EngineInput, file_abs: &Utf8Path, rel: &Utf8Path) -> miette::Re
         })
         .collect();
     if let Some(m) = module {
-        fill_from_graph(&mut brief, input, m)?;
+        fill_from_graph(&mut brief, input, findings, m)?;
     }
     Ok(brief)
 }
@@ -244,13 +265,25 @@ fn fill_containers(
         .or_else(|| chain.first().map(|c| container_brief(input, c)));
 }
 
-fn fill_from_graph(brief: &mut Brief, input: &EngineInput, m: &Module) -> miette::Result<()> {
+fn fill_from_graph(
+    brief: &mut Brief,
+    input: &EngineInput,
+    findings: Option<&[Finding]>,
+    m: &Module,
+) -> miette::Result<()> {
     let graph = &input.graph;
     brief.imports = direct_dependencies(graph, m.id).len();
     brief.dependents = direct_dependents(graph, m.id).len();
     let here = input.relative(&m.path);
     let mut seen_imports = BTreeSet::new();
-    for f in lint::findings(input)? {
+    let computed;
+    let findings = if let Some(f) = findings {
+        f
+    } else {
+        computed = lint::findings(input)?;
+        &computed
+    };
+    for f in findings {
         let from_here = f.edge.as_ref().is_some_and(|e| e.from == here);
         let touches = f.file == here || (f.edge.is_none() && f.members.contains(&here));
         if !(from_here || touches) {
@@ -266,9 +299,9 @@ fn fill_from_graph(brief: &mut Brief, input: &EngineInput, m: &Module) -> miette
             }
         }
         brief.violations.push(FileViolation {
-            rule: f.rule,
+            rule: f.rule.clone(),
             severity: f.severity,
-            message: f.message,
+            message: f.message.clone(),
             on_import: from_here,
         });
     }
@@ -299,7 +332,7 @@ fn render_agent(b: &Brief) -> String {
         out,
         "{}{note}: layer {layer}, purity {}, visibility {}",
         b.file,
-        b.purity.unwrap_or(DEFAULT_PURITY),
+        b.purity.unwrap_or(Purity::DEFAULT.rank()),
         b.visibility.as_deref().unwrap_or("public"),
     );
     if let Some(c) = &b.container {
@@ -319,7 +352,7 @@ fn render_agent(b: &Brief) -> String {
         out,
         "may import: layers {}; modules at purity <= {}",
         b.may_import_layers.join(", "),
-        b.max_import_purity.unwrap_or(DEFAULT_PURITY)
+        b.max_import_purity.unwrap_or(Purity::DEFAULT.rank())
     );
     if !b.private_zones.is_empty() {
         let _ = writeln!(

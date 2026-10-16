@@ -16,8 +16,8 @@ pub use cycles::{Cycle, find_cycles};
 pub use graph::{CompoundGraph, PrivateZone};
 pub use index::DirEntries;
 pub use snapshot::{
-    CURRENT_SNAPSHOT_VERSION, GraphSnapshot, SnapshotContainer, SnapshotEdge, SnapshotLayer,
-    SnapshotModule, snapshot_of,
+    GraphSnapshot, SnapshotContainer, SnapshotEdge, SnapshotLayer, SnapshotModule, SnapshotZone,
+    snapshot_of,
 };
 pub use stratum_parser_ts::Overlay;
 pub use topo::{direct_dependencies, direct_dependents};

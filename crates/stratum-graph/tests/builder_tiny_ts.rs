@@ -50,27 +50,7 @@ fn tiny_ts_graph_snapshot() {
         tracked_calls: std::collections::HashSet::new(),
     };
     let graph = GraphBuilder::new(cfg).build().unwrap();
-    let mut snap = snapshot_of(&graph);
-
-    // Strip absolute, machine-specific prefix from module paths and normalize
-    // Windows separators so the snapshot is portable.
-    let prefix_with_ext = root.as_str().to_string();
-    let prefix_no_ext = prefix_with_ext
-        .strip_prefix(r"\\?\")
-        .map_or_else(|| prefix_with_ext.clone(), str::to_string);
-    let portable = |path: &str| {
-        [&prefix_with_ext, &prefix_no_ext]
-            .into_iter()
-            .find_map(|p| path.strip_prefix(p.as_str()))
-            .map_or(path, |s| s.trim_start_matches(['/', '\\']))
-            .replace('\\', "/")
-    };
-    for m in &mut snap.modules {
-        m.path = portable(&m.path);
-    }
-    for c in &mut snap.containers {
-        c.path = portable(&c.path);
-    }
+    let snap = snapshot_of(&graph, &root);
 
     insta::assert_yaml_snapshot!("tiny_ts_graph", snap);
 }

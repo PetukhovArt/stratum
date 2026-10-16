@@ -6,6 +6,7 @@ use camino::Utf8Path;
 use stratum_config::{Config, ConfigError};
 use stratum_core::{
     ids::{ContainerId, LayerId, ModuleId, RuleId},
+    purity::Purity,
     severity::Severity,
     stage::Stage,
     types::{Container, ContainerKind, Module},
@@ -19,7 +20,6 @@ use crate::ids::{NO_CROSS_LAYER_IMPORT, PUBLIC_API, PURITY, SIBLING_ISOLATION, V
 use crate::registry::{DynRule, RuleRegistry};
 use crate::severity::{EffectiveSeverities, slashed, under};
 
-const PLANNED_PURITY: u8 = 2;
 const IMPUREST: u8 = 4;
 
 /// Index of a zone in [`CompoundGraph::private_zones`].
@@ -185,7 +185,7 @@ impl<'a> Territories<'a> {
                 .collect()
         });
         let max_import_purity = if on(PURITY) {
-            module.map_or(PLANNED_PURITY, |m| m.purity.rank())
+            module.map_or(Purity::DEFAULT, |m| m.purity).rank()
         } else {
             IMPUREST
         };

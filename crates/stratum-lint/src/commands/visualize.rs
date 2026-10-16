@@ -1,8 +1,10 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::{
     Router,
     body::Body,
+    extract::{Query, State},
     http::{StatusCode, Uri, header},
     response::Response,
     routing::get,
@@ -10,14 +12,15 @@ use axum::{
 use camino::Utf8Path;
 use miette::IntoDiagnostic;
 use rust_embed::RustEmbed;
-use stratum_graph::snapshot_of;
 use tokio::runtime::Builder;
 
 use serde::Serialize;
-use stratum_core::{edge::Edge, ids::ModuleId, severity::Severity, violation::SourceLocation};
-use stratum_engine::EngineInput;
+use stratum_core::{
+    edge::Edge, ids::ModuleId, severity::Severity, violation::SourceLocation, violation::Violation,
+};
+use stratum_engine::{EngineInput, Finding};
 
-use crate::commands::lint;
+use crate::commands::{context, lint};
 
 #[derive(RustEmbed)]
 #[folder = "../../frontend/stratum-visualizer-frontend/dist/"]
@@ -35,73 +38,102 @@ struct ApiViolation {
     suggestion: Option<String>,
 }
 
-pub fn run(root: &Utf8Path, config: Option<&Utf8Path>, open_browser: bool) -> miette::Result<()> {
-    let input = lint::build(root, &lint::load_config(root, config)?)?;
-    let snap = snapshot_of(&input.graph);
-    let snap_json = serde_json::to_string(&snap).into_diagnostic()?;
-    let violations_json = serde_json::to_string(&api_violations(&input)?).into_diagnostic()?;
+#[derive(Debug)]
+pub struct Api {
+    input: EngineInput,
+    findings: Vec<Finding>,
+    snapshot: String,
+    violations: String,
+}
 
+impl Api {
+    pub fn new(input: EngineInput) -> miette::Result<Self> {
+        let snapshot = input.snapshot().map_err(|e| miette::miette!("{e}"))?;
+        let violations = input
+            .rule_violations()
+            .map_err(|e| miette::miette!("{e}"))?;
+        let findings = violations
+            .iter()
+            .map(|v| input.finding(v.clone()))
+            .collect();
+        let api_violations: Vec<ApiViolation> = violations
+            .into_iter()
+            .map(|v| api_violation(&input, v))
+            .collect();
+        Ok(Self {
+            snapshot: serde_json::to_string(&snapshot).into_diagnostic()?,
+            violations: serde_json::to_string(&api_violations).into_diagnostic()?,
+            input,
+            findings,
+        })
+    }
+}
+
+pub fn run(root: &Utf8Path, config: Option<&Utf8Path>, open_browser: bool) -> miette::Result<()> {
+    let api = Api::new(lint::build(root, &lint::load_config(root, config)?)?)?;
     let rt = Builder::new_current_thread()
         .enable_all()
         .build()
         .into_diagnostic()?;
-    rt.block_on(serve(snap_json, violations_json, open_browser))
+    rt.block_on(serve(api, open_browser))
 }
 
-fn api_violations(input: &EngineInput) -> miette::Result<Vec<ApiViolation>> {
-    let violations = input
-        .rule_violations()
-        .map_err(|e| miette::miette!("{e}"))?;
-    Ok(violations
-        .into_iter()
-        .map(|v| ApiViolation {
-            rule: input.slug_of(v.rule).to_owned(),
-            severity: v.severity,
-            file: input.relative(&v.file),
-            location: v.location,
-            modules: v.modules,
-            edge: v.edge,
-            message: v.message,
-            suggestion: v.suggestion,
-        })
-        .collect())
+fn api_violation(input: &EngineInput, v: Violation) -> ApiViolation {
+    ApiViolation {
+        rule: input.slug_of(v.rule).to_owned(),
+        severity: v.severity,
+        file: input.relative(&v.file),
+        location: v.location,
+        modules: v.modules,
+        edge: v.edge,
+        message: v.message,
+        suggestion: v.suggestion,
+    }
 }
 
-pub fn build_router(snapshot: &Arc<String>, violations: &Arc<String>) -> Router {
-    let snap = Arc::clone(snapshot);
-    let snapshot_route = get(move || {
-        let snap = Arc::clone(&snap);
-        async move {
-            Response::builder()
-                .header(header::CONTENT_TYPE, "application/json")
-                .body(Body::from(snap.as_ref().clone()))
-                .unwrap_or_else(|_| internal_error())
-        }
-    });
-    let vio = Arc::clone(violations);
-    let violations_route = get(move || {
-        let vio = Arc::clone(&vio);
-        async move {
-            Response::builder()
-                .header(header::CONTENT_TYPE, "application/json")
-                .body(Body::from(vio.as_ref().clone()))
-                .unwrap_or_else(|_| internal_error())
-        }
-    });
+pub fn build_router(api: Arc<Api>) -> Router {
     Router::new()
-        .route("/api/snapshot", snapshot_route)
-        .route("/api/violations", violations_route)
+        .route(
+            "/api/snapshot",
+            get(|State(api): State<Arc<Api>>| async move {
+                text(StatusCode::OK, "application/json", api.snapshot.clone())
+            }),
+        )
+        .route(
+            "/api/violations",
+            get(|State(api): State<Arc<Api>>| async move {
+                text(StatusCode::OK, "application/json", api.violations.clone())
+            }),
+        )
+        .route("/api/context", get(context_brief))
         .fallback(get(serve_asset))
+        .with_state(api)
 }
 
-async fn serve(
-    snapshot_json: String,
-    violations_json: String,
-    open_browser: bool,
-) -> miette::Result<()> {
-    let snapshot = Arc::new(snapshot_json);
-    let violations = Arc::new(violations_json);
-    let app = build_router(&snapshot, &violations);
+async fn context_brief(
+    State(api): State<Arc<Api>>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    const PLAIN: &str = "text/plain; charset=utf-8";
+    let Some(rel) = query.get("path") else {
+        return text(StatusCode::BAD_REQUEST, PLAIN, "missing ?path=".into());
+    };
+    match context::agent_brief(&api.input, &api.findings, rel) {
+        Ok(brief) => text(StatusCode::OK, PLAIN, brief),
+        Err(e) => text(StatusCode::BAD_REQUEST, PLAIN, e.to_string()),
+    }
+}
+
+fn text(status: StatusCode, mime: &str, body: String) -> Response {
+    Response::builder()
+        .status(status)
+        .header(header::CONTENT_TYPE, mime)
+        .body(Body::from(body))
+        .unwrap_or_else(|_| internal_error())
+}
+
+async fn serve(api: Api, open_browser: bool) -> miette::Result<()> {
+    let app = build_router(Arc::new(api));
 
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
         .await

@@ -56,7 +56,10 @@ stratum-lint context <FILE> [--root ROOT] [--format agent|json] [--config PATH]
                                                # ROOT default: nearest ancestor of FILE with stratum.config.jsonc, else package.json, else cwd
 stratum-lint hook [--max N]                    # reads a Claude Code hook event from stdin; --max default 10 after an edit, 20 on Stop
 stratum-lint init [ROOT]                       # writes ROOT/stratum.config.jsonc from zero-config inference
-stratum-lint snapshot [ROOT] [--out PATH]      # Graph Snapshot JSON, default stratum.snapshot.json; reads ROOT/stratum.config.jsonc
+stratum-lint snapshot [ROOT] [--out PATH] [--config PATH]
+                                               # Graph Snapshot v3 JSON, default stratum.snapshot.json; config default ROOT/stratum.config.jsonc.
+                                               # { version: 3, project, modules[{id, path, container, layer, purity, zone?, territory}],
+                                               #   containers, layers, edges, zones[{id, path, root}], territories[] }; paths ROOT-relative with "/"
 stratum-lint visualize [ROOT] [--config PATH] [--no-open]
                                                # serves the Visualizer on 127.0.0.1:<random port> until Ctrl+C;
                                                # prints "stratum-visualizer ready at <url>" to stderr; --no-open skips the browser
