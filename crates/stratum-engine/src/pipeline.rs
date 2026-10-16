@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use camino::{Utf8Path, Utf8PathBuf};
-use stratum_config::{Config, ConfigError, IgnoreSet};
+use stratum_config::{Config, ConfigError, EntryPoints, IgnoreSet};
 use stratum_core::{
     ids::{LayerId, ModuleId, RuleId},
     purity::Purity,
@@ -28,6 +28,10 @@ pub enum EngineError {
     Plugin(#[from] PluginLoadError),
     #[error("{0}")]
     Baseline(#[from] BaselineError),
+    #[error(
+        "`project.entry_points` glob {0:?} matches no module: an entry point is a source file inside a layer that `project.ignore` does not ignore"
+    )]
+    EntryPointUnmatched(String),
 }
 
 #[derive(Debug)]
@@ -175,7 +179,14 @@ pub(crate) fn graph(
         });
         builder = builder.with_overlay(Overlay::new(files));
     }
-    let graph = builder.build()?;
+    let mut graph = builder.build()?;
+    let modules = graph
+        .modules
+        .values()
+        .map(|m| (m.id, relative(&m.path, &root_abs)));
+    graph.entry_points = EntryPoints::new(config)?
+        .select(modules)
+        .map_err(|glob| EngineError::EntryPointUnmatched(glob.to_owned()))?;
     Ok((root_abs, graph, builder))
 }
 

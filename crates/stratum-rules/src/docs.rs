@@ -151,7 +151,7 @@ pub fn builtin(slug: &str) -> Option<RuleDoc> {
             ],
         ),
         "stratum/unused-exports" => (
-            "Reports an export that no module reachable from `project.entry_points` imports. Names are followed through `export { x } from` and `export * from`; an entry point's own exports count as used, and so does a `.vue` default export that is imported. Needs `project.entry_points`: enabling the rule without them is a config error. Blind spots: importers in files outside the layers or ignored by `project.ignore` (such as tests) are invisible, and so are non-literal dynamic imports.",
+            "Reports an export that no module reachable from `project.entry_points` imports. Names are followed through `export { x } from` and `export * from`; an entry point's own exports count as used, and so does a `.vue` default export that is imported. Exports of unreachable modules are left to `stratum/unreachable-modules`. Needs `project.entry_points`: enabling the rule without them is a config error. Blind spots: importers in files outside the layers or ignored by `project.ignore` (such as tests) are invisible, and so are non-literal dynamic imports.",
             "An export nobody takes widens a module's interface for no caller and keeps code alive that nothing runs.",
             "Delete the export, and the code when nothing else uses it, or make it module-private. If it is reached in a way Stratum cannot see, add the importing file to `project.entry_points`.",
             &[],

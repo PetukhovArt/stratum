@@ -119,3 +119,33 @@ fn a_cycle_through_an_ignored_file_is_not_reported() {
     assert_eq!(cycle_count_with_ignore(&[]), 1);
     assert_eq!(cycle_count_with_ignore(&["src/generated"]), 0);
 }
+
+fn lint_with_entry_points(entry_points: &[&str]) -> assert_cmd::assert::Assert {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    std::fs::create_dir_all(root.join("src/app")).unwrap();
+    std::fs::write(root.join("src/app/main.ts"), "export const main = 1;\n").unwrap();
+    std::fs::write(root.join("src/boot.ts"), "import './app/main';\n").unwrap();
+    let config = serde_json::json!({
+        "version": 1,
+        "project": { "entry_points": entry_points },
+        "layers": [{ "id": "app", "path": "src/app", "depends_on": [] }],
+        "rules": { "stratum/unreachable-modules": { "severity": "error" } },
+    });
+    std::fs::write(root.join("stratum.config.jsonc"), config.to_string()).unwrap();
+    Command::cargo_bin("stratum-lint")
+        .unwrap()
+        .arg("--no-baseline")
+        .arg(root)
+        .assert()
+}
+
+#[test]
+fn an_entry_glob_matching_no_module_exits_2() {
+    lint_with_entry_points(&["src/app/main.ts"]).success();
+    lint_with_entry_points(&["src/app/main.ts", "src/boot.ts"])
+        .code(2)
+        .stderr(predicate::str::contains(
+            "\"src/boot.ts\" matches no module",
+        ));
+}

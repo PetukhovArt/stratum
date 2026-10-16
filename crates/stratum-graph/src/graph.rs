@@ -29,6 +29,7 @@ pub struct CompoundGraph {
     pub layers: IndexMap<LayerId, Layer>,
     pub deps: DiGraph<ModuleId, EdgeKind>,
     pub node_index: rustc_hash::FxHashMap<ModuleId, NodeIndex>,
+    pub entry_points: Vec<ModuleId>,
     /// Built on first read from module paths, visibility and containers. Incremental updates
     /// change none of these; a change to them needs a new graph, or the index goes stale.
     index: OnceLock<GraphIndex>,
@@ -45,6 +46,7 @@ impl CompoundGraph {
             layers: IndexMap::new(),
             deps: DiGraph::new(),
             node_index: rustc_hash::FxHashMap::default(),
+            entry_points: Vec::new(),
             index: OnceLock::new(),
             slice_importers: OnceLock::new(),
         }

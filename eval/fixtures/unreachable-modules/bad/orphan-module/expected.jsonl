@@ -1,0 +1,1 @@
+{"rule":"stratum/unreachable-modules","severity":"warning","file":"src/app/old-invoice.ts","line":1}

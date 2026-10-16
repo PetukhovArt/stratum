@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "project": {
+    "entry_points": ["src/app/main.ts"]
+  },
+  "layers": [
+    {
+      "id": "app",
+      "path": "src/app",
+      "depends_on": []
+    }
+  ],
+  "rules": {
+    "stratum/unused-exports": {
+      "severity": "warning"
+    }
+  }
+}

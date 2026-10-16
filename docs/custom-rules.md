@@ -136,6 +136,22 @@ The configured severity is a cap: a rule may report a finding at a lower severit
 Globs relative to ROOT. An ignored file is not walked, parsed or put in the graph, and an import of it makes no edge, like an import of a package. A matching directory is skipped whole, so nothing under it can be un-ignored.
 Built-in defaults come first in every config, zero-config included: `**/node_modules`, `**/dist`, `**/out`, `**/build`, `**/coverage`, `**/.git`, `**/*.d.ts`. The last matching glob wins; `!glob` un-ignores.
 
+## `project.entry_points`: `unused-exports` and `unreachable-modules`
+
+```jsonc
+"project": { "entry_points": ["src/main.ts", "src/**/*.stories.ts", "src/workers/*.worker.ts"] }
+```
+
+Globs relative to ROOT naming the files the program starts from: the scripts of your HTML pages, workers, Storybook stories, whatever a bundler or runtime loads by path. Each glob must match at least one module (a source file inside a layer, not ignored); one that matches none stops the run with exit code 2 and names the glob.
+
+- `unreachable-modules` follows every import from the entry points, static, dynamic, type-only or side-effect, and reports each module it never reaches.
+- `unused-exports` reports an export of a reachable module that no reachable module imports. A name imported from a barrel is followed through `export { x } from` and `export * from` to the module that declares it; a re-export alone uses nothing. A namespace import, `require()`, `import()` or `import.meta.glob()` uses every export of its target. Entry points' exports count as used, and so does the default export of an imported `.vue` file. Exports of unreachable modules are left to `unreachable-modules`.
+
+Blind spots: the graph only holds modules, so it cannot see importers outside it:
+
+- Files outside the layers or ignored by `project.ignore` (tests, an Electron main process outside `src`) do not count as importers. What only they use looks dead. List those targets in `entry_points`, or accept the findings.
+- Non-literal dynamic imports (`` import(`./pages/${name}.vue`) ``) are not followed. Neither is a worker started with `new Worker(new URL("./x.worker.ts", import.meta.url))`; list worker files in `entry_points`.
+
 ## `stratum/import-policy`: import boundaries without scripting
 
 `options` is a list of policies. An import is reported once, with the message of the first policy that denies it.

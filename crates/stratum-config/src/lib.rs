@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 pub mod config;
+mod entry_points;
 pub mod error;
 mod extends;
 mod ignore;
@@ -10,6 +11,7 @@ mod presets;
 pub mod schema;
 
 pub use config::{Config, LayerConfig, OverrideBlock, OverrideRule, ProjectConfig, RuleConfig};
+pub use entry_points::EntryPoints;
 pub use error::ConfigError;
 pub use extends::config_files;
 pub use ignore::{DEFAULT_IGNORE, IgnoreSet};

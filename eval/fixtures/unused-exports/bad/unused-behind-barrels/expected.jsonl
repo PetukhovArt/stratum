@@ -1,0 +1,4 @@
+{"rule":"stratum/unused-exports","severity":"warning","file":"src/app/format.ts","line":5}
+{"rule":"stratum/unused-exports","severity":"warning","file":"src/app/billing/invoice.ts","line":5}
+{"rule":"stratum/unused-exports","severity":"warning","file":"src/app/billing/index.ts","line":2}
+{"rule":"stratum/unused-exports","severity":"warning","file":"src/app/billing/refund.ts","line":1}

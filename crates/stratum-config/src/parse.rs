@@ -5,7 +5,7 @@ use jsonc_parser::{ParseOptions, parse_to_serde_value};
 use serde_json::Value;
 use stratum_core::severity::Severity;
 
-use crate::{Config, ConfigError, IgnoreSet, extends, overrides};
+use crate::{Config, ConfigError, EntryPoints, IgnoreSet, extends, overrides};
 
 /// Parse a JSONC string into a [`Config`], resolving `project.extends`
 /// (paths relative to `path`'s directory, or `stratum:*` presets).
@@ -30,6 +30,7 @@ pub fn parse_str(path: &Utf8Path, text: &str) -> Result<Config, ConfigError> {
     check_layer_refs(path, &config)?;
     check_entry_points(path, &config)?;
     IgnoreSet::new(&config)?;
+    EntryPoints::new(&config)?;
     overrides::validate(&config)?;
     Ok(config)
 }

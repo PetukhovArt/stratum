@@ -7,6 +7,7 @@ pub mod cycles;
 pub mod graph;
 mod index;
 pub mod metrics;
+pub mod ownership;
 mod placement;
 pub mod snapshot;
 pub mod topo;

@@ -1,5 +1,5 @@
 use stratum_core::{ids::RuleId, severity::Severity, violation::Violation};
-use stratum_graph::CompoundGraph;
+use stratum_graph::{CompoundGraph, ownership};
 
 use crate::ids::UNUSED_EXPORTS;
 use crate::rule::{EmptyOptions, Rule};
@@ -24,11 +24,27 @@ impl Rule for UnusedExports {
 
     fn check(
         &self,
-        _graph: &CompoundGraph,
+        graph: &CompoundGraph,
         _scope: ProjectScope,
         _options: &EmptyOptions,
-        _severity: Severity,
+        severity: Severity,
     ) -> Vec<Violation> {
-        vec![]
+        ownership::unused_exports(graph)
+            .into_iter()
+            .filter_map(|(id, decl)| Some((graph.modules.get(&id)?, decl)))
+            .map(|(m, decl)| Violation {
+                rule: self.id(),
+                severity,
+                message: format!(
+                    "Export `{}` is imported by no module reachable from the entry points",
+                    decl.name
+                ),
+                file: m.path.clone(),
+                location: decl.location,
+                modules: vec![m.id],
+                edge: None,
+                fix: None,
+            })
+            .collect()
     }
 }
