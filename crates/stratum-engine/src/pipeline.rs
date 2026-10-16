@@ -14,6 +14,7 @@ use stratum_plugins_rhai::{LoadError as PluginLoadError, PLUGIN_ID_FLOOR};
 use stratum_rules::{DynRule, RuleRegistry};
 
 use crate::baseline::BaselineError;
+use crate::docs;
 use crate::finding::{EdgeRef, Finding};
 use crate::paths::{canonicalize, relative, relative_in_text};
 use crate::suppression::{self, Analysis};
@@ -146,6 +147,7 @@ pub(crate) fn graph(
     graph.entry_points = EntryPoints::new(config)?
         .select(modules)
         .map_err(|glob| EngineError::EntryPointUnmatched(glob.to_owned()))?;
+    graph.nav_docs = docs::read(&graph, &root_abs, config);
     Ok((root_abs, graph, builder))
 }
 

@@ -213,7 +213,18 @@ Slice isolation and entry-only access need no policy: declare `slices: true` and
 }
 ```
 
-A plain identifier callee matches, and so does a local alias of an imported listed name (`import { inject as i }`, then `i()`). Member calls such as `x.inject()` do not. The parser collects calls only when the `rules` entry has options and the rule is on there or in some override.
+A plain identifier callee matches, and so does a local alias of an imported listed name (`import { inject as i }`, then `i()`) or `ns.inject()` on a namespace import. `obj.name` in `calls` matches a member call on the identifier `obj`, `*.name` any member call. The parser collects calls only when the `rules` entry has options and the rule is on there or in some override.
+
+## `stratum/module-docs`: navigation docs that follow the folders
+
+```jsonc
+"stratum/module-docs": { "severity": "warning", "options": { "nav_file": "_index.md" } }
+```
+
+Inert until `nav_file` names the navigation doc each unit holds (`requires_key` is the frontmatter key, default `requires`). The engine reads the file from every folder inside a layer, so docs outside the layers (a root architecture doc) are never required to exist.
+
+- A layer root, a container (slice, sub-unit, nested container) and a private zone must hold the `nav_file`. A segment or collection folder must not: it is a bucket, not a unit, and its content belongs to the doc of the folder that owns it.
+- `requires` lists what the doc presupposes, as paths relative to ROOT of folders or of their docs, in any of the YAML forms `requires: a`, `requires: [a, b]` or a `- a` block list. A path outside the layers is fine, and so is a folder inside the requiring one (or the reverse). Reported: a required folder whose code imports the requiring folder, and a required sibling container. Documents follow imports.
 
 ## Rhai rules
 

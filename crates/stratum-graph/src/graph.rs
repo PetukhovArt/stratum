@@ -30,6 +30,8 @@ pub struct CompoundGraph {
     pub deps: DiGraph<ModuleId, EdgeKind>,
     pub node_index: rustc_hash::FxHashMap<ModuleId, NodeIndex>,
     pub entry_points: Vec<ModuleId>,
+    /// Navigation docs by folder ; empty unless `stratum/module-docs` sets `nav_file`.
+    pub nav_docs: BTreeMap<PathBuf, NavDoc>,
     /// Built on first read from module paths, visibility and containers. Incremental updates
     /// change none of these; a change to them needs a new graph, or the index goes stale.
     index: OnceLock<GraphIndex>,
@@ -47,6 +49,7 @@ impl CompoundGraph {
             deps: DiGraph::new(),
             node_index: rustc_hash::FxHashMap::default(),
             entry_points: Vec::new(),
+            nav_docs: BTreeMap::new(),
             index: OnceLock::new(),
             slice_importers: OnceLock::new(),
         }
@@ -166,6 +169,12 @@ pub struct PrivateZone {
     pub path: PathBuf,
     pub root: PathBuf,
     pub files: Vec<ModuleId>,
+}
+
+/// A folder's navigation doc, read by the engine ; `requires` holds folders, not doc files.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct NavDoc {
+    pub requires: Vec<PathBuf>,
 }
 
 impl Default for CompoundGraph {

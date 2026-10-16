@@ -65,7 +65,7 @@ pub fn builtin(slug: &str) -> Option<RuleDoc> {
             &[],
         ),
         "stratum/restricted-calls" => (
-            "Reports a call to a listed function name outside the files matched by `allow`, at the call's line. A plain identifier callee matches, and so does a local alias of an imported listed name (`import { inject as i }`, then `i()`). Member calls such as `x.inject()` do not.",
+            "Reports a call to a listed function name outside the files matched by `allow`, at the call's line. A plain identifier callee matches, and so does a local alias of an imported listed name (`import { inject as i }`, then `i()`), and so does `ns.inject()` on a namespace import. An entry `obj.name` matches a member call on `obj`, `*.name` any member call.",
             "Some functions (DI `inject`/`provide`, global state setters) must be called from one designated place so that the wiring stays in one spot.",
             "Call the wrapper the policy's message names, or move the call into a file matched by `allow`.",
             &[
@@ -143,12 +143,12 @@ pub fn builtin(slug: &str) -> Option<RuleDoc> {
             ],
         ),
         "stratum/module-docs" => (
-            "Checks navigation docs against the folder tree. It reports nothing while `nav_file` is unset. Reported: a collection or container folder without a `nav_file`, a `nav_file` inside a segment folder, and a `nav_file` whose `requires_key` frontmatter names modules that disagree with the direction of the folder's real imports.",
-            "Navigation docs let an agent or a newcomer find code without reading it; one that is missing, misplaced or contradicts the imports misleads.",
-            "Add the nav file to the folder, move it out of the segment into the folder that owns it, or correct its `requires` list to the real imports.",
+            "Checks navigation docs against the folder tree. It reports nothing while `nav_file` is unset. Reported: a layer root, a container (slice, sub-unit, nested container) or a private zone without a `nav_file`; a `nav_file` inside a segment or collection folder, which are no units; and a `requires_key` entry in a folder's `nav_file` frontmatter that goes against the imports: the required folder imports the requiring one, or both are sibling containers. A required folder inside the requiring one (or the reverse), or outside the layers (a root architecture doc), is fine.",
+            "Navigation docs let an agent or a newcomer find code without reading it. Documents should depend in the direction code may import, or the docs describe links the code must not have.",
+            "Add the nav file to the folder, merge a segment's or collection's nav file into the one of the folder that owns it, or drop the `requires` entry and move the shared part down into a folder both may depend on.",
             &[
                 "nav_file: file name of a folder's navigation doc; the rule is inert without it (unset)",
-                "requires_key: frontmatter key listing the modules the folder requires (\"requires\")",
+                "requires_key: frontmatter key listing what the doc presupposes, as paths relative to the project root of folders or of their docs; inline `[a, b]`, scalar and `- a` block forms are read (\"requires\")",
             ],
         ),
         "stratum/unused-exports" => (

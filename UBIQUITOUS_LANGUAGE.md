@@ -93,6 +93,7 @@
 | **Gate** | The check that fails on new error-severity **Violations**, run by the caller: an agent harness or pre-commit on the changed files (`stratum-lint --changed --format agent`), CI on the whole project (a **CI Template**). | check run |
 | **Brief** | What `stratum-lint context` prints for one file, existing or planned: its **Layer**, **Purity**, **Container** with **Stage** and **Entry**, visible **Private Zones**, what it may and may not import, and its current **Violations**. | context dump, file report |
 | **Territory** | What one file, existing or planned, may import and who may import it: the **Layers** it may import and is imported by, the highest **Purity** it may import, the **Private Zones** it sees, and the regions a **Rule** forbids (sibling **Slices** or **Sub-units**, files behind another **Container**'s **Entry**). Derived from the **Config** with each file's **Overrides** applied; a rule that is off for the file forbids nothing. The **Brief** and the **Graph Snapshot** both carry it. | permissions, import scope, allowed set |
+| **Navigation Doc** | The doc named by `stratum/module-docs`'s `nav_file` that a folder holds as its entry to the documentation: expected in a layer root, a **Container** and a private zone, never in a segment or collection. Its frontmatter `requires` lists the folders (or their docs) it presupposes; each must follow the direction of imports. | index doc, README |
 
 ## Tooling components
 

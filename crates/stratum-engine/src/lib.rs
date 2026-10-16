@@ -3,6 +3,7 @@
 
 pub mod baseline;
 pub mod config;
+mod docs;
 pub mod drift;
 pub mod finding;
 pub mod paths;

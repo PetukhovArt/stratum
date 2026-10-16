@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "structure": { "segments": ["model"], "private": ["_shared"] },
+  "layers": [
+    { "id": "app", "path": "src/app", "depends_on": ["lib"] },
+    { "id": "lib", "path": "src/lib", "depends_on": [] }
+  ],
+  "rules": {
+    "stratum/container-breadth": { "severity": "off" },
+    "stratum/module-docs": { "severity": "warning", "options": { "nav_file": "_index.md" } }
+  }
+}
