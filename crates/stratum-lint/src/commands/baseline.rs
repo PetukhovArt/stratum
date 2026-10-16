@@ -38,7 +38,11 @@ pub fn check(root: &Utf8Path, out: Option<&Utf8Path>, reference: &str) -> miette
         Some(out) => (out.to_path_buf(), slash_path_under(root, out)?),
         None => (lint::default_baseline_path(root), BASELINE_FILE.to_owned()),
     };
-    let head = Baseline::load(&head_path).map_err(|e| miette::miette!("{e}"))?;
+    let Some(head) = Baseline::load_if_exists(&head_path).map_err(|e| miette::miette!("{e}"))?
+    else {
+        println!("No baseline at {head_path}; nothing to check");
+        return Ok(0);
+    };
     let Some(text) = git::show(root, reference, &rel)? else {
         println!(
             "Baseline {rel} is introduced: absent at {reference}, {} accepted violations",

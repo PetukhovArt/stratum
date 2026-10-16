@@ -110,6 +110,20 @@ fn a_baseline_absent_at_the_ref_is_introduced() {
 }
 
 #[test]
+fn no_baseline_anywhere_passes() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().to_path_buf();
+    copy_dir(&fixture("tiny-ts-violations"), &root);
+    git(&root, &["init", "-q"]);
+    commit_all(&root);
+
+    let (code, stdout, stderr) = check(&root, "HEAD");
+
+    assert_eq!(code, Some(0), "{stdout}{stderr}");
+    assert!(stdout.contains("nothing to check"), "{stdout}");
+}
+
+#[test]
 fn an_unknown_ref_is_a_tool_failure_that_hints_a_shallow_fetch() {
     let (_repo, root) = repo_with_baseline_at_head("");
 
