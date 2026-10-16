@@ -26,7 +26,7 @@ const STAGE_REGION = '.stage-region'
 const PANELS = '.panel-slot'
 
 export interface RenderRun {
-  view: 'focus' | 'dsm'
+  view: 'focus' | 'dsm' | 'map'
   variant: string
   scenario: string
   renderMs: number
@@ -140,7 +140,29 @@ const DSM_SCENARIOS: readonly Scenario[] = [
   { view: 'dsm', variant: 'partitioned', scenario: 'unit level', patch: { view: 'dsm', dsmLevel: 'unit' } },
 ]
 
-const auditPanels = (colours: ReadonlySet<string>): ChannelAudit => {
+const mapScenarios = (m: Model): Scenario[] => {
+  const lanes = { view: 'map' as const, variant: 'lanes' }
+  const whole = { view: 'map', mapVariant: 'lanes', mapExpanded: [], sel: null } as const
+  const [largest] = [...m.units].sort((a, b) => b.modules.length - a.modules.length || a.id - b.id)
+  const expanded: Scenario[] = largest
+    ? [
+        {
+          ...lanes,
+          scenario: `expanded: ${largest.path} (${largest.modules.length} modules)`,
+          patch: { ...whole, mapGate: 'rules', mapExpanded: [largest.id] },
+        },
+      ]
+    : []
+  return [
+    { ...lanes, scenario: 'gate: rule breaks', patch: { ...whole, mapGate: 'rules' } },
+    { ...lanes, scenario: 'gate: ≥ 12 imports', patch: { ...whole, mapGate: 'top' } },
+    { ...lanes, scenario: `gate: all ${m.unitEdges.length}`, patch: { ...whole, mapGate: 'all' } },
+    ...expanded,
+    { view: 'map', variant: 'layers', scenario: 'layer graph', patch: { view: 'map', mapVariant: 'layers', sel: null } },
+  ]
+}
+
+const auditPanels =(colours: ReadonlySet<string>): ChannelAudit => {
   const audits = [...document.querySelectorAll(PANELS)].map((panel) => auditChannel(panel, colours))
   return {
     checked: audits.reduce((n, a) => n + a.checked, 0),
@@ -244,7 +266,9 @@ export const runBench = (): BenchResult => {
   const colours = severityColours()
   const tally = new TerritoryTally(m.violations)
   const tasks = runTasks(hooks, m, subjects)
-  const runs = [...focusScenarios(m, subjects), ...DSM_SCENARIOS].map((sc) => measureRun(hooks, sc, colours, tally))
+  const runs = [...focusScenarios(m, subjects), ...DSM_SCENARIOS, ...mapScenarios(m)].map((sc) =>
+    measureRun(hooks, sc, colours, tally),
+  )
   const territory = tally.result()
   const targets = judge(runs, tasks, territory)
   const result: BenchResult = {

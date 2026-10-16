@@ -177,7 +177,7 @@ export const partitionedOrder = (
   return { order, blocks }
 }
 
-const isBreak = (v: Violation): boolean => BREAK_RULES.has(v.rule)
+export const isBreak = (v: Violation): boolean => BREAK_RULES.has(v.rule)
 const isCrossLayer = (v: Violation): boolean => v.rule === CROSS_LAYER_RULE
 
 const layerRuns = (layers: readonly number[]): LayerRun[] => {

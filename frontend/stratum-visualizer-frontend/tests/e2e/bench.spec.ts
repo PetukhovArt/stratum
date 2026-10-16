@@ -52,7 +52,7 @@ test('the bench answers every phase-1 question and meets every gate', async ({ p
 
   const ran = result.tasks.filter((t) => t.status === 'run')
   expect(ran.map((t) => t.id).sort()).toEqual(
-    ['importers-in-layer', 'layer-pairs-against', 'may-import', 'may-not-import', 'unit-cycles'].sort(),
+    ['fan-in-hotspot', 'importers-in-layer', 'layer-pairs-against', 'may-import', 'may-not-import', 'unit-cycles'].sort(),
   )
   expect(ran.filter((t) => !t.isAnswerShown || t.actions.length > 3)).toEqual([])
   expect(result.runs.length).toBeGreaterThan(2)

@@ -1,6 +1,6 @@
 import { createSignal } from 'solid-js'
 
-export const VIEW_IDS = ['focus', 'dsm', 'mr', 'overview', 'bench'] as const
+export const VIEW_IDS = ['focus', 'dsm', 'mr', 'map', 'bench'] as const
 export type ViewId = (typeof VIEW_IDS)[number]
 
 export type Selection =
@@ -10,6 +10,11 @@ export type Selection =
   | { kind: 'cell'; level: 'layer' | 'unit'; from: number; to: number }
   | { kind: 'imports'; pairs: readonly (readonly [from: number, to: number])[] }
 
+export const MAP_VARIANTS = ['lanes', 'layers'] as const
+export type MapVariant = (typeof MAP_VARIANTS)[number]
+export const MAP_GATES = ['rules', 'top', 'all'] as const
+export type MapGate = (typeof MAP_GATES)[number]
+
 export interface NavState {
   view: ViewId
   focus: number | null
@@ -18,6 +23,9 @@ export interface NavState {
   focusVariant: 'columns' | 'bands'
   dsmLevel: 'layer' | 'unit'
   mrVariant: 'region' | 'card'
+  mapVariant: MapVariant
+  mapGate: MapGate
+  mapExpanded: readonly number[]
   sel: Selection | null
 }
 
@@ -34,6 +42,9 @@ const DEFAULT_STATE: NavState = {
   focusVariant: 'columns',
   dsmLevel: 'layer',
   mrVariant: 'region',
+  mapVariant: 'lanes',
+  mapGate: 'rules',
+  mapExpanded: [],
   sel: null,
 }
 
@@ -56,6 +67,11 @@ const restore = (): NavState => {
     focusVariant: oneOf(raw.focusVariant, ['columns', 'bands'] as const, d.focusVariant),
     dsmLevel: oneOf(raw.dsmLevel, ['layer', 'unit'] as const, d.dsmLevel),
     mrVariant: oneOf(raw.mrVariant, ['region', 'card'] as const, d.mrVariant),
+    mapVariant: oneOf(raw.mapVariant, MAP_VARIANTS, d.mapVariant),
+    mapGate: oneOf(raw.mapGate, MAP_GATES, d.mapGate),
+    mapExpanded: Array.isArray(raw.mapExpanded)
+      ? raw.mapExpanded.filter((x): x is number => typeof x === 'number')
+      : d.mapExpanded,
     sel: null,
   }
 }

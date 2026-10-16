@@ -8,7 +8,7 @@ export interface ViewProps {
   isViolationsUnavailable: boolean
 }
 
-type VariantKey = 'focusVariant' | 'dsmLevel' | 'mrVariant'
+type VariantKey = 'focusVariant' | 'dsmLevel' | 'mrVariant' | 'mapVariant'
 
 export type Variants = {
   [K in VariantKey]: { key: K; options: readonly { id: NavState[K]; title: MessageKey }[] }
