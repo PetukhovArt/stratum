@@ -30,7 +30,7 @@ Rules at `error` in `stratum:fsd` need a `bad` case for each way they fire: the 
 The private project is read-only here. Never write inside it, never commit its source or names.
 
 1. From a scratch directory (`$TMPDIR`), list commits that touched `src`: `git -C <private-repo> log --format=%H -n 500 -- src`.
-2. For each commit `c`: `stratum-lint <private-repo> --config <private.config.jsonc> diff --base c^ > $TMPDIR/eval/c.md`. `diff` reads the base from git objects only. Outputs stay in `$TMPDIR`.
+2. For each commit `c`: `stratum-lint diff <private-repo> --base c^ --config <private.config.jsonc> > $TMPDIR/eval/c.md`. `diff` reads the base from git objects only. Outputs stay in `$TMPDIR`.
 3. Imports that broke a rule at `c^` and are gone in the working tree are candidates: a real mistake someone made and later removed. An eslint-boundaries suppressions file in the project is a second source of the same kind.
 4. For each candidate, read the commit with `git -C <private-repo> show c`, and write the case from the shape of the mistake, not from the code.
 
@@ -43,6 +43,6 @@ This repository is public and MIT; the source it was mined from is not. Before a
 - Keep the structure that matters (layers, depth, direction of imports), nothing else.
 - Check with `git grep` for any word of the source that could have leaked.
 
-## Not here yet
+## Reused elsewhere
 
-`--files F` equivalence with a filtered full run, and warm versus cold results after edits, belong to the budget and equivalence slice; they will reuse these fixtures.
+`crates/stratum-lint/tests/e2e_equivalence.rs` runs every case here (and the `tiny-*` fixtures) to check that `--files F` equals the full run filtered to F. Time and memory budgets are `stratum-budget check`, not these fixtures.

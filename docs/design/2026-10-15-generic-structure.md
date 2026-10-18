@@ -1,15 +1,15 @@
 # Generic structure: containers, stage, purity
 
-Status: implemented, 2026-10-15, in slices S0–S5 (8dded36 to c7cb60a). Written as a proposal against base `main` f003638 (`project.ignore` merged); the line references below point at that base and have since moved. Source: a private architecture convention for evolving folder structure.
+Status: implemented, 2026-10-15, in slices S0–S5. Written as a proposal against a base where `project.ignore` had just merged; the line references below point at that base and have since moved.
 
 Deviations from this proposal:
-- `stage-mixing` reads `Container.segment_dirs`, recorded by placement, instead of segment names injected into its options by the runner; the rule takes no options (3d92cdd).
+- `stage-mixing` reads `Container.segment_dirs`, recorded by placement, instead of segment names injected into its options by the runner; the rule takes no options.
 - The runner caps severity instead of overwriting it: rules run at `error` and each finding is clamped to the configured severity, so a rule may downgrade its own findings. `container-breadth` reports private-zone folders at `info` at most.
-- An entry file directly in a sliced layer's root is the layer's entry, never a file slice (b21fbe6).
+- An entry file directly in a sliced layer's root is the layer's entry, never a file slice.
 - `slice-fan-in` is scoped per slice (`Scope = ContainerId` over `Slice` containers), not per module.
 - Snapshot v2 containers carry `kind` and `entry` as well as `path` and `stage`.
 - The `context` brief also names the enclosing slice and adds a `may not import` line built from the active `sibling-isolation` and `public-api` rules.
-- Zero-config applies `stratum:recommended` with `public-api`, `sibling-isolation` and `container-breadth` off, because without declared layers and structure they flood the first run (c7cb60a).
+- Zero-config applies `stratum:recommended` with `public-api`, `sibling-isolation` and `container-breadth` off, because without declared layers and structure they flood the first run.
 
 ## 0. Current code
 

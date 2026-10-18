@@ -33,6 +33,8 @@ This document walks through cutting a `stratum-lint` / `stratum-lsp` release. Tr
 
 After the GitHub Release exists:
 
+No release job updates the tap or the bucket: both are bumped by hand with the scripts below. Releases build three targets (Linux x64, Windows x64, macOS arm64), so Homebrew serves macOS arm64 and Linux x64 and Scoop serves Windows x64.
+
 1. **Homebrew tap** — `scripts/bump_homebrew.sh vX.Y.Z /path/to/homebrew-stratum-tap` recomputes the `sha256` per artefact and commits to the tap. Then `cd /path/to/homebrew-stratum-tap && git push`.
 2. **Scoop bucket** — `scripts/bump_scoop.sh vX.Y.Z /path/to/scoop-stratum-bucket`, then push.
 
@@ -73,7 +75,7 @@ npm i -g --ignore-scripts @petukhovart/stratum-lint
 stratum-lint --help
 command -v stratum-lsp
 
-# Homebrew (macOS)
+# Homebrew (macOS arm64 or Linux x64)
 brew tap petukhovart/stratum
 brew install stratum-lint
 stratum-lint --help

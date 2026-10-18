@@ -3,6 +3,7 @@ mod check;
 mod generate;
 mod peak;
 
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -36,8 +37,8 @@ enum Command {
         /// stratum-lint to measure, instead of a fresh release build
         #[arg(long)]
         bin: Option<PathBuf>,
-        #[arg(long, default_value_t = 20)]
-        runs: usize,
+        #[arg(long, default_value = "20")]
+        runs: NonZeroUsize,
     },
 }
 
@@ -47,7 +48,7 @@ fn run(cli: Cli) -> Result<bool> {
             generate::generate(&dir, modules)?;
             Ok(true)
         }
-        Command::Check { project, bin, runs } => check::check(project, bin, runs),
+        Command::Check { project, bin, runs } => check::check(project, bin, runs.get()),
     }
 }
 

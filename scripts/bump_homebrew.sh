@@ -9,8 +9,6 @@ cd "$TAP_DIR"
 
 declare -A urls=(
   [macos-arm]="https://github.com/PetukhovArt/stratum/releases/download/${TAG}/stratum-lint-aarch64-apple-darwin.tar.gz"
-  [macos-x64]="https://github.com/PetukhovArt/stratum/releases/download/${TAG}/stratum-lint-x86_64-apple-darwin.tar.gz"
-  [linux-arm]="https://github.com/PetukhovArt/stratum/releases/download/${TAG}/stratum-lint-aarch64-unknown-linux-gnu.tar.gz"
   [linux-x64]="https://github.com/PetukhovArt/stratum/releases/download/${TAG}/stratum-lint-x86_64-unknown-linux-gnu.tar.gz"
 )
 
@@ -31,23 +29,15 @@ class StratumLint < Formula
   license "MIT"
 
   on_macos do
-    if Hardware::CPU.arm?
-      url "${urls[macos-arm]}"
-      sha256 "${hashes[macos-arm]}"
-    else
-      url "${urls[macos-x64]}"
-      sha256 "${hashes[macos-x64]}"
-    end
+    depends_on arch: :arm64
+    url "${urls[macos-arm]}"
+    sha256 "${hashes[macos-arm]}"
   end
 
   on_linux do
-    if Hardware::CPU.arm?
-      url "${urls[linux-arm]}"
-      sha256 "${hashes[linux-arm]}"
-    else
-      url "${urls[linux-x64]}"
-      sha256 "${hashes[linux-x64]}"
-    end
+    depends_on arch: :x86_64
+    url "${urls[linux-x64]}"
+    sha256 "${hashes[linux-x64]}"
   end
 
   def install

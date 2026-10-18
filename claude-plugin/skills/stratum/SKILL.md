@@ -13,14 +13,14 @@ Run `stratum-lint context <file> --format agent` before you create, move or rena
 
 ## Before finishing
 
-Run `stratum-lint [ROOT] --changed --format agent` once the source edits of the change are done: it reports the new violations in the files changed since `HEAD`, untracked included. The change is finished at exit 0; on exit 1, fix and rerun. For one file mid-change, `--files <file>` gives the same report scoped to it.
+Run `stratum-lint [ROOT] --changed --format agent` once the source edits of the change are done: it reports the new violations in the files changed since `HEAD`, untracked included. The change is finished at exit 0 or 3; on exit 1, fix and rerun. For one file mid-change, `--files <file>` gives the same report scoped to it.
 
 ## Reading a report
 
 - Line 1 is the summary. A clean run is that one line: done.
 - Each group is one rule slug with a count and a few example `file:line` sites. Fix by group: the examples show the pattern, then find every site of it.
 - `N baselined` is accepted legacy debt, outside this change. `M fixed - run "stratum-lint baseline --prune"` means your work shrank the debt.
-- Exit 0 clean, 1 error-severity violations remain, 2 tool or config failure: read the message and fix the config or arguments.
+- Exit 0 clean, 1 error-severity violations remain, 2 tool or config failure (read the message and fix the config or arguments), 3 no errors but the baseline holds entries your change fixed: a success, run `stratum-lint baseline --prune` as a separate change.
 
 Run `stratum-lint explain <slug> --format agent` only for a slug you have not met in this session. `stratum-lint rules --format agent` lists every rule, plugin rules included.
 

@@ -9,11 +9,17 @@ pub struct Run {
     pub code: i32,
 }
 
+/// Unix `ru_maxrss` includes waited-for descendants; Windows
+/// `PeakWorkingSetSize` counts the child process alone, so peaks differ across platforms.
 pub fn run_draining_stdout(cmd: &mut Command) -> io::Result<Run> {
     let start = Instant::now();
     let mut child = cmd.stdout(Stdio::piped()).stderr(Stdio::null()).spawn()?;
-    if let Some(mut out) = child.stdout.take() {
-        io::copy(&mut out, &mut io::sink())?;
+    if let Some(mut out) = child.stdout.take()
+        && let Err(e) = io::copy(&mut out, &mut io::sink())
+    {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(e);
     }
     let (code, peak_bytes) = wait(&mut child)?;
     Ok(Run {
@@ -62,8 +68,11 @@ fn wait(child: &mut Child) -> io::Result<(i32, u64)> {
     // writes only through the two out-pointers; reaping the child here is tolerated by `Child`.
     let usage = unsafe {
         let mut usage: libc::rusage = std::mem::zeroed();
-        if libc::wait4(pid, &raw mut status, 0, &raw mut usage) < 0 {
-            return Err(io::Error::last_os_error());
+        while libc::wait4(pid, &raw mut status, 0, &raw mut usage) < 0 {
+            let err = io::Error::last_os_error();
+            if err.kind() != io::ErrorKind::Interrupted {
+                return Err(err);
+            }
         }
         usage
     };

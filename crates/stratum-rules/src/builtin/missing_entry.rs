@@ -63,11 +63,11 @@ impl Rule for MissingEntry {
 }
 
 fn lacks_entry(graph: &CompoundGraph, role: DirRole) -> bool {
-    match role {
-        DirRole::Collection => true,
-        DirRole::Container(id) => graph.containers.get(&id).is_some_and(|c| c.entry.is_none()),
-        DirRole::LayerRoot | DirRole::Segment { .. } | DirRole::PrivateZone => false,
+    if !role.needs_entry() {
+        return false;
     }
+    role.container()
+        .is_none_or(|id| graph.containers.get(&id).is_some_and(|c| c.entry.is_none()))
 }
 
 fn internal_structure(graph: &CompoundGraph, dir: &Path) -> Vec<String> {
@@ -78,10 +78,10 @@ fn internal_structure(graph: &CompoundGraph, dir: &Path) -> Vec<String> {
         .dirs
         .iter()
         .filter(|name| {
-            matches!(
-                graph.dir_roles.get(&dir.join(name)),
-                Some(DirRole::Segment { .. } | DirRole::PrivateZone)
-            )
+            graph
+                .dir_roles
+                .get(&dir.join(name))
+                .is_some_and(|role| role.is_internal_structure())
         })
         .cloned()
         .collect()

@@ -37,6 +37,74 @@ pub enum DirRole {
     Collection,
 }
 
+impl DirRole {
+    #[must_use]
+    pub const fn is_container(self) -> bool {
+        match self {
+            Self::LayerRoot | Self::Container(_) => true,
+            Self::Segment { .. } | Self::PrivateZone | Self::Collection => false,
+        }
+    }
+
+    #[must_use]
+    pub const fn is_layer_root(self) -> bool {
+        match self {
+            Self::LayerRoot => true,
+            Self::Container(_) | Self::Segment { .. } | Self::PrivateZone | Self::Collection => {
+                false
+            }
+        }
+    }
+
+    #[must_use]
+    pub const fn is_private_zone(self) -> bool {
+        match self {
+            Self::PrivateZone => true,
+            Self::LayerRoot | Self::Container(_) | Self::Segment { .. } | Self::Collection => false,
+        }
+    }
+
+    #[must_use]
+    pub const fn is_segment_or_collection(self) -> bool {
+        match self {
+            Self::Segment { .. } | Self::Collection => true,
+            Self::LayerRoot | Self::Container(_) | Self::PrivateZone => false,
+        }
+    }
+
+    #[must_use]
+    pub const fn is_internal_structure(self) -> bool {
+        match self {
+            Self::Segment { .. } | Self::PrivateZone => true,
+            Self::LayerRoot | Self::Container(_) | Self::Collection => false,
+        }
+    }
+
+    #[must_use]
+    pub const fn needs_entry(self) -> bool {
+        match self {
+            Self::Container(_) | Self::Collection => true,
+            Self::LayerRoot | Self::Segment { .. } | Self::PrivateZone => false,
+        }
+    }
+
+    #[must_use]
+    pub const fn expects_nav_doc(self) -> bool {
+        match self {
+            Self::LayerRoot | Self::Container(_) | Self::PrivateZone => true,
+            Self::Segment { .. } | Self::Collection => false,
+        }
+    }
+
+    #[must_use]
+    pub const fn container(self) -> Option<ContainerId> {
+        match self {
+            Self::Container(id) => Some(id),
+            Self::LayerRoot | Self::Segment { .. } | Self::PrivateZone | Self::Collection => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DirEntries {
     pub files: Vec<String>,
@@ -142,7 +210,7 @@ impl CompoundGraph {
             if inside.is_some_and(|other| dir.starts_with(other)) {
                 continue;
             }
-            if matches!(role, DirRole::Container(_) | DirRole::LayerRoot) {
+            if role.is_container() {
                 inside = Some(dir);
             } else {
                 out.push((dir.as_path(), *role));
@@ -164,7 +232,12 @@ impl CompoundGraph {
         let folders = entries
             .dirs
             .iter()
-            .filter(|name| self.dir_roles.get(&dir.join(name)) != Some(&DirRole::PrivateZone))
+            .filter(|name| {
+                !self
+                    .dir_roles
+                    .get(&dir.join(name))
+                    .is_some_and(|role| role.is_private_zone())
+            })
             .map(|name| format!("{name}/"));
         folders.chain(self.child_stems(dir)).collect()
     }

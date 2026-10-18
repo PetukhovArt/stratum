@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "structure": {
+    "private": ["_shared"]
+  },
+  "layers": [
+    { "id": "modules", "path": "src/modules", "depends_on": [], "slices": true }
+  ],
+  "rules": {
+    "stratum/visibility-scope": { "severity": "error" },
+    "stratum/public-api": { "severity": "off" },
+    "stratum/sibling-isolation": { "severity": "off" },
+    "stratum/container-breadth": { "severity": "off" }
+  }
+}

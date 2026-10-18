@@ -10,7 +10,7 @@ Binaries: `stratum-lint` (CLI, visualizer server) and `stratum-lsp` (stdio langu
 
 - npm (all platforms): `npm install -g @petukhovart/stratum-lint` (ships both binaries)
 - Windows: `scoop bucket add stratum https://github.com/PetukhovArt/scoop-stratum-bucket`, then `scoop install stratum-lint`
-- macOS / Linux: `brew tap petukhovart/stratum`, then `brew install stratum-lint`
+- macOS (Apple silicon) / Linux (x64): `brew tap petukhovart/stratum`, then `brew install stratum-lint` (the tap is bumped by hand after a release)
 - From source: `cargo install --path crates/stratum-lint` and `cargo install --path crates/stratum-lsp`
 
 ## AI harness integration

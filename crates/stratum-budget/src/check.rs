@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use crate::Result;
 use crate::budgets::{self, Budget};
@@ -24,16 +24,12 @@ struct Measured {
 }
 
 pub fn check(project: Option<PathBuf>, bin: Option<PathBuf>, runs: usize) -> Result<bool> {
-    if runs == 0 {
-        return Err("--runs must be at least 1".into());
-    }
     let budgets = budgets::from_harness_doc()?;
     let bin = match bin {
         Some(bin) => bin,
         None => build_release_lint()?,
     };
     let scratch = tempfile::tempdir()?;
-    let generated = project.is_none();
     let project = if let Some(project) = project {
         project
     } else {
@@ -49,15 +45,12 @@ pub fn check(project: Option<PathBuf>, bin: Option<PathBuf>, runs: usize) -> Res
         return Err(format!("no .ts files under {}", project.display()).into());
     }
     let file = relative(&project, &sources[sources.len() / 2]);
-    if generated {
-        let step = (sources.len() / TOUCHED_FILES).max(1);
-        for path in sources.iter().step_by(step).take(TOUCHED_FILES) {
-            let mut text = fs::read_to_string(path)?;
-            text.push_str("// touched\n");
-            fs::write(path, text)?;
-        }
-        std::thread::sleep(CACHE_TRUST_WINDOW);
+    let step = (sources.len() / TOUCHED_FILES).max(1);
+    let mut touched = Touched::default();
+    for path in sources.iter().step_by(step).take(TOUCHED_FILES) {
+        touched.touch(path)?;
     }
+    std::thread::sleep(CACHE_TRUST_WINDOW);
 
     let warm = scratch.path().join("warm");
     expect_lint_ran(&peak::run_draining_stdout(&mut lint(
@@ -108,6 +101,34 @@ pub fn check(project: Option<PathBuf>, bin: Option<PathBuf>, runs: usize) -> Res
         passed &= report(scenario.scope, &measured, budget);
     }
     Ok(passed)
+}
+
+#[derive(Default)]
+struct Touched(Vec<(PathBuf, Vec<u8>, SystemTime)>);
+
+impl Touched {
+    fn touch(&mut self, path: &Path) -> Result<()> {
+        let mut bytes = fs::read(path)?;
+        let modified = fs::metadata(path)?.modified()?;
+        self.0.push((path.to_owned(), bytes.clone(), modified));
+        bytes.extend_from_slice(b"// touched\n");
+        fs::write(path, bytes)?;
+        Ok(())
+    }
+}
+
+impl Drop for Touched {
+    fn drop(&mut self) {
+        for (path, original, modified) in &self.0 {
+            if fs::write(path, original).is_err() {
+                eprintln!("stratum-budget: could not restore {}", path.display());
+                continue;
+            }
+            if let Ok(file) = fs::File::options().write(true).open(path) {
+                let _ = file.set_modified(*modified);
+            }
+        }
+    }
 }
 
 fn report(scope: &str, m: &Measured, budget: &Budget) -> bool {

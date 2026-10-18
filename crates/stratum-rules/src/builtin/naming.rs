@@ -6,7 +6,7 @@ use stratum_core::{
     types::{Container, ContainerKind},
     violation::Violation,
 };
-use stratum_graph::{CompoundGraph, DirRole};
+use stratum_graph::CompoundGraph;
 
 use super::folder::at_folder;
 use crate::ids::NAMING;
@@ -40,18 +40,18 @@ impl Rule for Naming {
     ) -> Vec<Violation> {
         let mut out = Vec::new();
         for (dir, role) in &graph.dir_roles {
-            if *role == DirRole::LayerRoot {
+            if role.is_layer_root() {
                 continue;
             }
             let Some(name) = dir.file_name().map(|n| n.to_string_lossy().into_owned()) else {
                 continue;
             };
-            let entry = match role {
-                DirRole::Container(id) => graph.containers.get(id).and_then(|c| c.entry),
-                _ => None,
-            };
+            let entry = role
+                .container()
+                .and_then(|id| graph.containers.get(&id))
+                .and_then(|c| c.entry);
             if options.folder_case == Some(FolderCase::Kebab)
-                && *role != DirRole::PrivateZone
+                && !role.is_private_zone()
                 && !is_kebab(&name)
             {
                 out.extend(finding(
