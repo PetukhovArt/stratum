@@ -12,7 +12,7 @@ Fast enough to run on every edit, written for AI coding agents and CI.
 [![License: MIT](https://img.shields.io/badge/license-MIT-66c29a)](LICENSE)
 [![Part of jig](https://img.shields.io/badge/part%20of-jig-e0a85c)](https://github.com/PetukhovArt/jig)
 
-<img src="docs/assets/visualizer-focus.webp" alt="Stratum visualizer: a module, everything that imports it and everything it imports, with its layer rules" width="100%" />
+<a href="docs/assets/visualizer-focus.webp"><img src="docs/assets/visualizer-focus.webp" alt="Stratum visualizer: a module, everything that imports it and everything it imports, with its layer rules" width="100%" /></a>
 
 </div>
 
@@ -45,8 +45,8 @@ warning stratum/no-cross-layer-import (1) - stratum-lint explain stratum/no-cros
 
 <table>
 <tr>
-<td width="50%"><img src="docs/assets/visualizer-violation.webp" alt="A module with two violations and their rules" /></td>
-<td width="50%"><img src="docs/assets/visualizer-matrix.webp" alt="Layer dependency matrix with a rule break above the diagonal" /></td>
+<td width="50%"><a href="docs/assets/visualizer-violation.webp"><img src="docs/assets/visualizer-violation.webp" alt="A module with two violations and their rules" /></a></td>
+<td width="50%"><a href="docs/assets/visualizer-matrix.webp"><img src="docs/assets/visualizer-matrix.webp" alt="Layer dependency matrix with a rule break above the diagonal" /></a></td>
 </tr>
 <tr>
 <td align="center"><sub>Every violation, with the rule and the layers the module may import</sub></td>
