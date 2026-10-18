@@ -45,27 +45,27 @@ impl Rule for ModuleDocs {
         for (dir, role) in &graph.dir_roles {
             let name = label(graph, dir);
             let has_doc = graph.nav_docs.contains_key(dir);
-            let violation = match role {
-                DirRole::LayerRoot | DirRole::Container(_) | DirRole::PrivateZone if !has_doc => {
-                    report(
-                        dir,
-                        format!("Folder '{name}' has no navigation doc '{nav}'"),
-                        format!(
-                            "Add '{nav}' to '{name}': what it holds, its public surface and links to its parts."
-                        ),
-                    )
-                }
-                DirRole::Segment { .. } | DirRole::Collection if has_doc => report(
+            let violation = if role.expects_nav_doc() && !has_doc {
+                report(
+                    dir,
+                    format!("Folder '{name}' has no navigation doc '{nav}'"),
+                    format!(
+                        "Add '{nav}' to '{name}': what it holds, its public surface and links to its parts."
+                    ),
+                )
+            } else if !role.expects_nav_doc() && has_doc {
+                report(
                     dir,
                     format!(
-                        "Navigation doc '{nav}' sits in '{name}', a {}",
+                        "Navigation doc '{nav}' sits in '{name}', a {}, which is no unit",
                         kind_of(*role)
                     ),
                     format!(
                         "Move its content into the navigation doc of the folder that owns '{name}' and delete '{nav}' here."
                     ),
-                ),
-                _ => None,
+                )
+            } else {
+                None
             };
             found.extend(violation);
         }
@@ -76,8 +76,11 @@ impl Rule for ModuleDocs {
 
 fn kind_of(role: DirRole) -> &'static str {
     match role {
-        DirRole::Segment { .. } => "segment folder, which is no unit",
-        _ => "collection folder, which is no unit",
+        DirRole::LayerRoot => "layer root",
+        DirRole::Container(_) => "container",
+        DirRole::Segment { .. } => "segment folder",
+        DirRole::PrivateZone => "private zone",
+        DirRole::Collection => "collection folder",
     }
 }
 

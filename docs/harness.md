@@ -186,19 +186,23 @@ Every graph built from disk (`lint`, `baseline`, `context`, `snapshot`, `visuali
 - Guarantees: the findings are the same in every format, byte for byte apart from `elapsed_ms` and `summary.cache`, whatever the cache holds; a cache that cannot be read or written never fails a run; writes go to a temporary file renamed over the old one; cache files of this kind untouched for 30 days are deleted on write. Overlay text never enters it: `diff --base` builds without the cache, and the LSP Server's unsaved buffers stay in memory. Rules always run on the whole graph, so `--files F` reports what a full run reports for F.
 - Known gap: a file created outside the walked folders that changes how an import inside them resolves (e.g. a new package in `node_modules` without a lock file change) is not seen until one of the files above changes.
 
+### Cycles
+
+`stratum/no-circular-deps` reports one finding per import cycle (a strongly connected group of modules), not one per import. The finding sits on the first member by path, at its first import inside the cycle; its message gives the member count and a greedy estimate of how many imports close it. Its `fix` lists at most 3 break candidates, best first (ties by path), each as `a.ts:12 -> b.ts (frees M of N)`: removing that import frees M of the cycle's N modules. A cycle finding has no `edge`; `--files F` and `--changed` report it when F is a member of the cycle.
+
 ### Sample output
 
 From `tests/fixtures/tiny-ts-violations`, `stratum-lint --format agent`, exit 1:
 
 ```
-stratum: 3 errors, 2 warnings, 1 info, 0.00s
+stratum: 3 errors, 2 warnings, 1 info, 0.01s
 error stratum/purity (2) - stratum-lint explain stratum/purity
   src/features/cart/index.ts:2 -> src/features/cart/cart.tsx  Module at purity 2 imports from purity 3: purer code cannot depend on impurer code
   src/shared/api/http.ts:2 -> src/features/cart/cart.tsx  Module at purity 1 imports from purity 3: purer code cannot depend on impurer code
   fix: Move shared logic into a module at or below the lower purity, or inject the impure dependency at composition root.
 error stratum/no-circular-deps (1) - stratum-lint explain stratum/no-circular-deps
-  src/features/cart/boom.ts:1  Circular dependency: boom.ts -> circle.ts
-  fix: Break the cycle by extracting the shared piece into a lower-purity module or by inverting one of the dependencies.
+  src/features/cart/boom.ts:1  Import cycle of 2 modules through boom.ts; about 1 imports close it
+  fix: Break it at one of: `src/features/cart/boom.ts:1 -> src/features/cart/circle.ts` (frees 2 of 2), `src/features/cart/circle.ts:1 -> src/features/cart/boom.ts` (frees 2 of 2); extract the shared piece into a lower module or invert the dependency
 warning stratum/no-cross-layer-import (1) - stratum-lint explain stratum/no-cross-layer-import
   src/shared/api/http.ts:2 -> src/features/cart/cart.tsx  Module imports from layer 'features' which 'shared' does not depend on
   fix: Move the imported symbol into a layer 'shared' may reach, or add 'features' to 'shared'.depends_on if the dependency is legitimate.
@@ -224,8 +228,9 @@ warning stratum/no-cross-layer-import (1) - stratum-lint explain stratum/no-cros
 `rules --format json`: `{ "version": 1, "rules": [{ slug, severity, default_severity, summary }] }`, every registered rule including those that are off. The agent format lists active rules only, after a `N active rules (M off: ...)` line:
 
 ```
-12 active rules (3 off: stratum/slice-fan-in, stratum/restricted-calls, stratum/stage-mixing)
+18 active rules (6 off: stratum/slice-fan-in, stratum/restricted-calls, stratum/stage-mixing, stratum/container-breadth, stratum/unused-exports, stratum/unreachable-modules)
 error   stratum/no-cross-layer-import  A module may import only from its own layer and from the layers listed in its layer's `depends_on`.
+error   stratum/no-circular-deps  Reports every import cycle: two or more modules that reach each other through imports, or a module importing itself.
 ...
 ```
 

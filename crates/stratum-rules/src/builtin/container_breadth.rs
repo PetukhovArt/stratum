@@ -7,7 +7,7 @@ use stratum_core::{
     types::{Container, ContainerKind},
     violation::Violation,
 };
-use stratum_graph::{CompoundGraph, DirRole};
+use stratum_graph::CompoundGraph;
 
 use super::folder::{at_folder, relative};
 use crate::ids::CONTAINER_BREADTH;
@@ -50,7 +50,7 @@ impl Rule for ContainerBreadth {
             found.extend(single_file(graph, &c.path, c.entry));
         }
         for (dir, role) in graph.folders_below(scope) {
-            if matches!(role, DirRole::Segment { .. } | DirRole::Collection) {
+            if role.is_segment_or_collection() {
                 found.extend(homogeneous(graph, c, dir, options));
                 found.extend(single_file(graph, dir, None));
             }

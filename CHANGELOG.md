@@ -109,6 +109,12 @@ package version; a bump requires a coordinated frontend release.
 - `stratum-core`'s unused Salsa placeholder database and `stratum-plugins-rhai`'s unused `watch_plugins`.
 - Visualizer: the single-graph overview of 0.2.0-rc.1 (fractal pack layout) is replaced by the Container map, and with it go the facet bar, the colour modes and stage / purity filters, the path glob filter, the violators-only filter, the minimap, the overview legend, hover tooltips with violation lists, the per-layer and per-container visibility toggles and cycle focus.
 
+### Release gate and docs
+
+- `stratum-budget check`: `--runs 0` is rejected by the argument parser instead of panicking; with `--project` the "Changed" scenario touches up to 20 files and restores their bytes and mtime afterwards; the measured process is always waited for or killed, and the unix wait retries on EINTR.
+- Eval fixtures for `visibility-scope`, `sibling-isolation` and `suppression`; the `--files` equivalence test also covers the `tiny-*` fixtures.
+- Release docs and the Homebrew formula and script name only the built targets (Linux x64, Windows x64, macOS arm64); `dist-workspace.toml` no longer declares a Homebrew installer or publish job nothing ran. The agent docs list exit 3.
+
 ## 0.1.0 — 2026-05-18
 
 First public release. Phases 0–10 of the implementation roadmap.

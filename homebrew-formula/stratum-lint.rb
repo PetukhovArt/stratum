@@ -9,23 +9,15 @@ class StratumLint < Formula
   license "MIT"
 
   on_macos do
-    if Hardware::CPU.arm?
-      url "https://github.com/PetukhovArt/stratum/releases/download/v0.1.0/stratum-lint-aarch64-apple-darwin.tar.gz"
-      sha256 "FILL_AT_RELEASE"
-    else
-      url "https://github.com/PetukhovArt/stratum/releases/download/v0.1.0/stratum-lint-x86_64-apple-darwin.tar.gz"
-      sha256 "FILL_AT_RELEASE"
-    end
+    depends_on arch: :arm64
+    url "https://github.com/PetukhovArt/stratum/releases/download/v0.1.0/stratum-lint-aarch64-apple-darwin.tar.gz"
+    sha256 "FILL_AT_RELEASE"
   end
 
   on_linux do
-    if Hardware::CPU.arm?
-      url "https://github.com/PetukhovArt/stratum/releases/download/v0.1.0/stratum-lint-aarch64-unknown-linux-gnu.tar.gz"
-      sha256 "FILL_AT_RELEASE"
-    else
-      url "https://github.com/PetukhovArt/stratum/releases/download/v0.1.0/stratum-lint-x86_64-unknown-linux-gnu.tar.gz"
-      sha256 "FILL_AT_RELEASE"
-    end
+    depends_on arch: :x86_64
+    url "https://github.com/PetukhovArt/stratum/releases/download/v0.1.0/stratum-lint-x86_64-unknown-linux-gnu.tar.gz"
+    sha256 "FILL_AT_RELEASE"
   end
 
   def install

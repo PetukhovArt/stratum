@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "layers": [
+    { "id": "app", "path": "src/app", "depends_on": ["features"] },
+    { "id": "features", "path": "src/features", "depends_on": [], "slices": true }
+  ],
+  "rules": {
+    "stratum/sibling-isolation": { "severity": "error" },
+    "stratum/container-breadth": { "severity": "off" }
+  }
+}

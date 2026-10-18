@@ -58,6 +58,10 @@ fn sources(dir: &Path, root: &Path, out: &mut Vec<String>) {
 fn case_dirs() -> Vec<PathBuf> {
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../eval/fixtures");
     let mut dirs = vec![fixture("exemplar-stratum-app")];
+    dirs.extend(sorted_subdirs(&fixture(".")).into_iter().filter(|p| {
+        p.file_name()
+            .is_some_and(|n| n.to_string_lossy().starts_with("tiny-"))
+    }));
     for rule in sorted_subdirs(&fixtures) {
         for kind in ["bad", "good"] {
             dirs.extend(sorted_subdirs(&rule.join(kind)));
@@ -79,15 +83,23 @@ fn sorted_subdirs(dir: &Path) -> Vec<PathBuf> {
     dirs
 }
 
-/// The scope's own test rebuilt from output: `--format json` carries the edge, and a finding
-/// without one (a cycle) names its members in its message or fix.
+fn cut_ends(row: &Value) -> impl Iterator<Item = &str> {
+    row["fix"]
+        .as_str()
+        .unwrap_or_default()
+        .split('`')
+        .skip(1)
+        .step_by(2)
+        .flat_map(|cut| cut.split(" -> "))
+        .map(|end| end.rsplit_once(':').map_or(end, |(path, _)| path))
+}
+
 fn touches(file: &str, row: &Value, violation: &Value) -> bool {
-    let text = |key: &str| row[key].as_str().unwrap_or_default();
     let edge = &violation["edge"];
     row["file"] == file
         || edge["from"] == file
         || edge["to"] == file
-        || (edge.is_null() && (text("message").contains(file) || text("fix").contains(file)))
+        || (edge.is_null() && cut_ends(row).any(|end| end == file))
 }
 
 #[test]
