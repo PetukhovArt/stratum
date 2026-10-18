@@ -20,7 +20,11 @@ jobs:
       - name: cargo dist plan
         run: |
           mkdir -p target/distrib
-          cargo dist plan --tag ${{ github.ref_name }} --output-format=json > target/distrib/dist-manifest.json
+          if ! cargo dist plan --tag ${{ github.ref_name }} --output-format=json > target/distrib/dist-manifest.json 2> plan.err; then
+            cat plan.err
+            echo "::error title=cargo dist plan::$(tr '\n' ' ' < plan.err | cut -c1-900)"
+            exit 1
+          fi
       - uses: actions/upload-artifact@v5
         with:
           name: dist-manifest
