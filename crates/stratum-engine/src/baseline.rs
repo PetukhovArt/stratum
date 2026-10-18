@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
@@ -77,6 +77,8 @@ struct Entry {
     fingerprint: Fingerprint,
     #[serde(default = "one", skip_serializing_if = "is_one")]
     count: usize,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    touches: BTreeSet<String>,
 }
 
 const fn one() -> usize {
@@ -95,7 +97,29 @@ struct File {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Baseline(BTreeMap<Fingerprint, usize>);
+pub struct Baseline(BTreeMap<Fingerprint, Accepted>);
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct Accepted {
+    count: usize,
+    touches: BTreeSet<String>,
+}
+
+impl Accepted {
+    fn add(&mut self, count: usize, touches: impl IntoIterator<Item = String>) {
+        self.count += count;
+        self.touches.extend(touches);
+    }
+}
+
+fn touched_besides_anchor(f: &Finding) -> impl Iterator<Item = String> + '_ {
+    f.edge
+        .iter()
+        .flat_map(|e| [&e.from, &e.to])
+        .chain(&f.members)
+        .filter(|file| **file != f.file)
+        .cloned()
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Growth {
@@ -106,8 +130,9 @@ pub struct Growth {
 
 #[derive(Debug, Default)]
 pub struct Matched {
-    pub baselined: Vec<bool>,
-    fixed: Vec<(String, usize)>,
+    pub new: Vec<Finding>,
+    pub baselined: Vec<Finding>,
+    fixed: Vec<(Vec<String>, usize)>,
 }
 
 impl Matched {
@@ -116,11 +141,12 @@ impl Matched {
         self.fixed.iter().map(|(_, n)| n).sum()
     }
 
+    /// Fixed entries whose anchor file, edge endpoints or members `in_scope` accepts.
     #[must_use]
     pub fn fixed_where(&self, in_scope: impl Fn(&str) -> bool) -> usize {
         self.fixed
             .iter()
-            .filter(|(file, _)| in_scope(file))
+            .filter(|(files, _)| files.iter().any(|file| in_scope(file)))
             .map(|(_, n)| n)
             .sum()
     }
@@ -129,9 +155,11 @@ impl Matched {
 impl Baseline {
     #[must_use]
     pub fn from_findings<'a>(findings: impl IntoIterator<Item = &'a Finding>) -> Self {
-        let mut map = BTreeMap::new();
+        let mut map = BTreeMap::<_, Accepted>::new();
         for f in findings {
-            *map.entry(Fingerprint::of(f)).or_insert(0) += 1;
+            map.entry(Fingerprint::of(f))
+                .or_default()
+                .add(1, touched_besides_anchor(f));
         }
         Self(map)
     }
@@ -155,10 +183,12 @@ impl Baseline {
                 found: file.version,
             });
         }
-        let mut map = BTreeMap::new();
+        let mut map = BTreeMap::<_, Accepted>::new();
         for mut e in file.violations {
             e.fingerprint.message = without_numbers(&e.fingerprint.message);
-            *map.entry(e.fingerprint).or_insert(0) += e.count;
+            map.entry(e.fingerprint)
+                .or_default()
+                .add(e.count, e.touches);
         }
         Ok(Self(map))
     }
@@ -177,9 +207,10 @@ impl Baseline {
             violations: self
                 .0
                 .iter()
-                .map(|(fingerprint, &count)| Entry {
+                .map(|(fingerprint, accepted)| Entry {
                     fingerprint: fingerprint.clone(),
-                    count,
+                    count: accepted.count,
+                    touches: accepted.touches.clone(),
                 })
                 .collect(),
         };
@@ -197,7 +228,7 @@ impl Baseline {
 
     #[must_use]
     pub fn len(&self) -> usize {
-        self.0.values().sum()
+        self.0.values().map(|a| a.count).sum()
     }
 
     #[must_use]
@@ -205,36 +236,43 @@ impl Baseline {
         self.0.is_empty()
     }
 
+    fn count(&self, fingerprint: &Fingerprint) -> usize {
+        self.0.get(fingerprint).map_or(0, |a| a.count)
+    }
+
     /// Each entry absorbs at most its `count` findings; `fixed` counts the unabsorbed rest.
     #[must_use]
-    pub fn matches(&self, findings: &[Finding]) -> Matched {
-        let mut budget = self.0.clone();
-        let baselined = findings
-            .iter()
-            .map(|f| match budget.get_mut(&Fingerprint::of(f)) {
+    pub fn apply(&self, findings: Vec<Finding>) -> Matched {
+        let mut budget: BTreeMap<&Fingerprint, usize> =
+            self.0.iter().map(|(fp, a)| (fp, a.count)).collect();
+        let mut matched = Matched::default();
+        for f in findings {
+            match budget.get_mut(&Fingerprint::of(&f)) {
                 Some(n) if *n > 0 => {
                     *n -= 1;
-                    true
+                    matched.baselined.push(f);
                 }
-                _ => false,
+                _ => matched.new.push(f),
+            }
+        }
+        matched.fixed = budget
+            .into_iter()
+            .filter(|(_, n)| *n > 0)
+            .map(|(fp, n)| {
+                let touches = self.0.get(fp).map(|a| &a.touches).into_iter().flatten();
+                let files = std::iter::once(&fp.file).chain(touches).cloned().collect();
+                (files, n)
             })
             .collect();
-        Matched {
-            baselined,
-            fixed: budget
-                .into_iter()
-                .filter(|(_, n)| *n > 0)
-                .map(|(fingerprint, n)| (fingerprint.file, n))
-                .collect(),
-        }
+        matched
     }
 
     #[must_use]
     pub fn grown_since(&self, base: &Self) -> Vec<Growth> {
         self.0
             .iter()
-            .filter_map(|(fingerprint, &head)| {
-                let base = base.0.get(fingerprint).copied().unwrap_or(0);
+            .filter_map(|(fingerprint, accepted)| {
+                let (head, base) = (accepted.count, base.count(fingerprint));
                 (head > base).then(|| Growth {
                     fingerprint: fingerprint.clone(),
                     base,
@@ -251,9 +289,12 @@ impl Baseline {
         Self(
             self.0
                 .iter()
-                .filter_map(|(fp, &n)| {
-                    let keep = n.min(current.0.get(fp).copied().unwrap_or(0));
-                    (keep > 0).then(|| (fp.clone(), keep))
+                .filter_map(|(fp, accepted)| {
+                    let count = accepted.count.min(current.count(fp));
+                    (count > 0).then(|| {
+                        let touches = accepted.touches.clone();
+                        (fp.clone(), Accepted { count, touches })
+                    })
                 })
                 .collect(),
         )
@@ -283,8 +324,11 @@ mod tests {
     #[test]
     fn a_second_identical_violation_is_new_and_line_shifts_stay_baselined() {
         let base = Baseline::from_findings(&[finding("a.ts", 3)]);
-        let m = base.matches(&[finding("a.ts", 40), finding("a.ts", 41)]);
-        assert_eq!(m.baselined, vec![true, false]);
+        let m = base.apply(vec![finding("a.ts", 40), finding("a.ts", 41)]);
+        assert_eq!(
+            (m.baselined[0].location.line, m.new[0].location.line),
+            (40, 41)
+        );
         assert_eq!(m.fixed(), 0);
     }
 
@@ -296,8 +340,8 @@ mod tests {
         };
         let base =
             Baseline::from_findings(&[with_message("Depth ratio 0.33 below 3.0 (limit 5).")]);
-        let m = base.matches(&[with_message("Depth ratio 0.25 below 3.0 (limit 5).")]);
-        assert_eq!(m.baselined, vec![true]);
+        let m = base.apply(vec![with_message("Depth ratio 0.25 below 3.0 (limit 5).")]);
+        assert_eq!((m.baselined.len(), m.new.len()), (1, 0));
         assert_eq!(m.fixed(), 0);
     }
 
@@ -318,11 +362,11 @@ mod tests {
             }],
         });
         std::fs::write(&path, entry.to_string()).unwrap();
-        let m = Baseline::load(&path).unwrap().matches(&[Finding {
+        let m = Baseline::load(&path).unwrap().apply(vec![Finding {
             message: "Depth ratio 0.25 below 3.0 (limit 5).".into(),
             ..finding("a.ts", 1)
         }]);
-        assert_eq!(m.baselined, vec![true]);
+        assert_eq!((m.baselined.len(), m.new.len()), (1, 0));
         assert_eq!(m.fixed(), 0);
     }
 

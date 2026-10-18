@@ -102,12 +102,7 @@ impl Project {
     pub fn diagnostics(&self) -> Result<DiagnosticsByFile, EngineError> {
         let mut findings = self.input.violations()?;
         if let Some(baseline) = &self.baseline {
-            let baselined = baseline.matches(&findings).baselined;
-            findings = findings
-                .into_iter()
-                .zip(baselined)
-                .filter_map(|(f, baselined)| (!baselined).then_some(f))
-                .collect();
+            findings = baseline.apply(findings).new;
         }
         Ok(diagnostics::group(
             self.input.project_root.as_std_path(),

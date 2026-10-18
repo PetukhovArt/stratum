@@ -2,10 +2,12 @@ use camino::{Utf8Path, Utf8PathBuf};
 use stratum_config::{Config, LayerConfig, ProjectConfig};
 use walkdir::WalkDir;
 
-const NEEDS_DECLARED_STRUCTURE: [&str; 3] = [
+const NEEDS_DECLARED_STRUCTURE: [&str; 5] = [
     "stratum/public-api",
     "stratum/sibling-isolation",
     "stratum/container-breadth",
+    "stratum/zone-breadth",
+    "stratum/missing-entry",
 ];
 
 #[must_use]
