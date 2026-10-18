@@ -171,7 +171,7 @@ mod tests {
                 id,
                 Module {
                     id,
-                    path: PathBuf::from(format!("C:/work/web/{path}")),
+                    path: PathBuf::from(format!("C:/repo/{path}")),
                     container: ContainerId::new(0),
                     layer: LayerId::new(0),
                     purity: Purity::new(2).unwrap(),

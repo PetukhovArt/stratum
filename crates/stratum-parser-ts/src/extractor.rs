@@ -65,7 +65,7 @@ pub struct RawSuppression {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExtractedData {
     pub imports: Vec<RawImport>,
-    /// `@stratum-purity N` annotation (Phase 5). `None` if absent.
+    /// `@stratum-purity N` annotation. `None` if absent.
     #[serde(default)]
     pub purity: Option<Purity>,
     #[serde(default)]

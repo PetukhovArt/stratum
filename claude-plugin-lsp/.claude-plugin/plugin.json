@@ -9,6 +9,6 @@
   },
   "homepage": "https://github.com/PetukhovArt/stratum",
   "repository": "https://github.com/PetukhovArt/stratum",
-  "license": "MIT OR Apache-2.0",
+  "license": "MIT",
   "keywords": ["architecture", "lint", "typescript", "vue", "lsp"]
 }

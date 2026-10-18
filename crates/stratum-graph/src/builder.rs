@@ -58,8 +58,8 @@ pub enum BuildError {
 
 /// Configuration for graph construction.
 ///
-/// The zero-config flow (Phase 5+) will synthesize `layers` from `src/*` automatically;
-/// Phase 2 requires them upfront.
+/// The zero-config flow synthesizes `layers` from `src/*` automatically;
+/// this builder requires them upfront.
 #[derive(Debug, Clone)]
 pub struct BuildConfig {
     pub project_root: Utf8PathBuf,

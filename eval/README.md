@@ -25,14 +25,14 @@ Rules at `error` in `stratum:fsd` need a `bad` case for each way they fire: the 
 3. Copy the lines you meant to pin into `expected.jsonl`, dropping `v`, `tool`, `message` and `fix`. If a line you did not mean appears, the case is not minimal; fix the case, not the expectation.
 4. Add the matching `good` case: the same project with the fix applied.
 
-## Mining real mistakes from private-project
+## Mining real mistakes from a private project
 
-private-project is proprietary and read-only here. Never write inside it, never commit its source or names.
+The private project is read-only here. Never write inside it, never commit its source or names.
 
-1. From a scratch directory (`%TEMP%`), list commits that touched `src`: `git -C <private-project> log --format=%H -n 500 -- src`.
-2. For each commit `c`: `stratum-lint <private-project> --config docs/examples/private-project.stratum.config.jsonc diff --base c^ > %TEMP%/eval/c.md`. `diff` reads the base from git objects only. Outputs stay in `%TEMP%`.
-3. Imports that broke a rule at `c^` and are gone in the working tree are candidates: a real mistake someone made and later removed. `eslint-boundaries-suppressions.json` in private-project is a second source of the same kind.
-4. For each candidate, read the commit with `git -C <private-project> show c`, and write the case from the shape of the mistake, not from the code.
+1. From a scratch directory (`$TMPDIR`), list commits that touched `src`: `git -C <private-repo> log --format=%H -n 500 -- src`.
+2. For each commit `c`: `stratum-lint <private-repo> --config <private.config.jsonc> diff --base c^ > $TMPDIR/eval/c.md`. `diff` reads the base from git objects only. Outputs stay in `$TMPDIR`.
+3. Imports that broke a rule at `c^` and are gone in the working tree are candidates: a real mistake someone made and later removed. An eslint-boundaries suppressions file in the project is a second source of the same kind.
+4. For each candidate, read the commit with `git -C <private-repo> show c`, and write the case from the shape of the mistake, not from the code.
 
 ### Minimize and rename into a neutral domain
 

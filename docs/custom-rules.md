@@ -187,7 +187,41 @@ Globs are matched against paths relative to ROOT; `*` stays within one path segm
 ```
 
 Only imports that resolve to files inside a layer are in the graph: bare package imports (`vue`) cannot be denied, and type-only imports count as imports.
-Slice isolation and entry-only access need no policy: declare `slices: true` and use `stratum/sibling-isolation` and `stratum/public-api`. A full translation of an eslint-plugin-boundaries setup: [`examples/private-project.stratum.config.jsonc`](examples/private-project.stratum.config.jsonc).
+Slice isolation and entry-only access need no policy: declare `slices: true` and use `stratum/sibling-isolation` and `stratum/public-api`. A config translated from an eslint-plugin-boundaries setup (billing, catalog and invoices are slices under `src/features`; the rest maps to `entry_points`, `import-policy`, `overrides` and `restricted-calls`):
+
+```jsonc
+{
+  "version": 1,
+  "layers": [
+    { "id": "features", "path": "src/features", "depends_on": ["shared"], "slices": true },
+    { "id": "shared",   "path": "src/shared",   "depends_on": [] }
+  ],
+  "project": { "entry_points": ["src/main.ts", "src/**/*.stories.ts", "src/workers/*.worker.ts"] },
+  "overrides": [
+    { "files": ["src/legacy/**"], "rules": { "stratum/no-cross-layer-import": { "severity": "off" } } }
+  ],
+  "rules": {
+    "stratum/sibling-isolation": { "severity": "error" },
+    "stratum/public-api": { "severity": "error" },
+    "stratum/import-policy": {
+      "severity": "error",
+      "options": [{
+        "from": ["src/features/**"],
+        "except_from": ["**/*.stories.ts"],
+        "slice": "src/features/*",
+        "deny": ["src/features/*/**"],
+        "allow": ["src/features/*/index.ts"],
+        "message": "Import a slice through its index",
+        "fix": "Import from `src/features/<slice>/index.ts`"
+      }]
+    },
+    "stratum/restricted-calls": {
+      "severity": "warning",
+      "options": [{ "calls": ["fetch"], "allow": ["src/shared/api/**"], "message": "Use the api client" }]
+    }
+  }
+}
+```
 
 ## `stratum/restricted-calls`: calls allowed only in chosen files
 

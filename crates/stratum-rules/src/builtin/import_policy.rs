@@ -417,8 +417,8 @@ mod tests {
             LayerId::new(0),
             Layer {
                 id: LayerId::new(0),
-                name: "renderer".into(),
-                path: PathBuf::from("src/renderer"),
+                name: "web".into(),
+                path: PathBuf::from("src/web"),
                 depends_on: vec![],
                 slices: false,
             },
@@ -431,7 +431,7 @@ mod tests {
                 id,
                 Module {
                     id,
-                    path: PathBuf::from(format!("C:/work/web/{path}")),
+                    path: PathBuf::from(format!("C:/repo/{path}")),
                     container: ContainerId::new(0),
                     layer: LayerId::new(0),
                     purity: Purity::new(2).unwrap(),
@@ -457,18 +457,18 @@ mod tests {
     fn cross_slice_import_is_denied_while_same_slice_and_allowed_entry_pass() {
         let g = graph(
             &[
-                "src/renderer/features/auth/ui/Login.vue",
-                "src/renderer/features/auth/model/session.ts",
-                "src/renderer/features/cart/model/cart.ts",
-                "src/renderer/features/cart/index.ts",
+                "src/web/features/auth/ui/Login.vue",
+                "src/web/features/auth/model/session.ts",
+                "src/web/features/cart/model/cart.ts",
+                "src/web/features/cart/index.ts",
             ],
             &[(0, 1), (0, 2), (0, 3)],
         );
         let options: ImportPolicyOptions = serde_json::from_value(serde_json::json!([{
-            "from": ["src/renderer/features/**"],
-            "deny": ["src/renderer/features/**"],
-            "allow": ["src/renderer/features/*/index.ts"],
-            "slice": "src/renderer/features/*",
+            "from": ["src/web/features/**"],
+            "deny": ["src/web/features/**"],
+            "allow": ["src/web/features/*/index.ts"],
+            "slice": "src/web/features/*",
             "message": "A feature does not import another feature",
             "fix": "Import the feature's index.ts",
         }]))
@@ -477,7 +477,7 @@ mod tests {
         assert_eq!(v.len(), 1, "{v:?}");
         assert_eq!(
             v[0].message,
-            "A feature does not import another feature (src/renderer/features/cart/model/cart.ts)"
+            "A feature does not import another feature (src/web/features/cart/model/cart.ts)"
         );
         assert_eq!(v[0].fix.as_deref(), Some("Import the feature's index.ts"));
     }

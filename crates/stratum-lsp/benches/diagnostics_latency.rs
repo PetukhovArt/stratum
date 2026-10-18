@@ -1,4 +1,4 @@
-// Phase 7 exit gate: diagnostics-after-edit < 100 ms on tiny-ts.
+// Target: diagnostics-after-edit < 100 ms on tiny-ts.
 // Measures the cost of one full pipeline rebuild + violation conversion,
 // which is what `did_change` triggers after debounce.
 #![allow(clippy::unwrap_used)]

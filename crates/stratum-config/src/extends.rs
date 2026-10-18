@@ -180,13 +180,13 @@ mod tests {
             { "id": "shared", "path": "src/shared" },
         ]});
         let child = json!({ "layers": [
-            { "id": "app", "path": "src/renderer/app" },
+            { "id": "app", "path": "src/web/app" },
             { "id": "core", "path": "src/core" },
         ]});
         assert_eq!(
             merge(parent, child)["layers"],
             json!([
-                { "id": "app", "path": "src/renderer/app", "depends_on": ["shared"] },
+                { "id": "app", "path": "src/web/app", "depends_on": ["shared"] },
                 { "id": "shared", "path": "src/shared" },
                 { "id": "core", "path": "src/core" },
             ])

@@ -1,6 +1,6 @@
 # Stratum
 
-An architecture linter for TypeScript, JavaScript and Vue, built as the architecture check of an AI coding harness. It builds the project's dependency graph and checks it against units you configure: layers, slices inside layers, and the folder names that mark entries, segments and private zones. No folder name is hard-coded; FSD is one preset among others.
+An architecture linter for TypeScript, JavaScript and Vue, built for AI coding agents and CI. It builds the project's dependency graph and checks it against units you configure: layers, slices inside layers, and the folder names that mark entries, segments and private zones. Folder names come from your config or a preset (the `stratum:recommended` preset treats `_shared` as a private zone); FSD is one preset among others.
 
 Source files: `.ts .tsx .mts .cts .js .jsx .mjs .cjs .vue` (Vue: `<script>` and `<script setup>` blocks).
 
@@ -66,7 +66,7 @@ stratum-lint visualize                                   # architecture views in
 - `overrides` change severity only. Unknown keys, slugs or options fail the run with exit 2.
 - `.rhai` scripts add project-specific rules without rebuilding Stratum.
 
-Full reference: [docs/custom-rules.md](docs/custom-rules.md). A real-world config translated from eslint-plugin-boundaries: [docs/examples/private-project.stratum.config.jsonc](docs/examples/private-project.stratum.config.jsonc).
+Full reference: [docs/custom-rules.md](docs/custom-rules.md). It also shows a config translated from eslint-plugin-boundaries.
 
 ## Rules
 

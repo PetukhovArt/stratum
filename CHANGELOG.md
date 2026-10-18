@@ -101,7 +101,7 @@ package version; a bump requires a coordinated frontend release.
 
 ### Performance
 
-- Cold lint: the walk is pruned to layer directories, files are read, parsed and resolved in parallel with a reused parse arena, and rule passes are linear (private-project warm run 1.8 s → 0.31 s).
+- Cold lint: the walk is pruned to layer directories, files are read, parsed and resolved in parallel with a reused parse arena, and rule passes are linear (warm run 1.8 s → 0.31 s on a ~4K-module project).
 - The directory walk runs in parallel and takes size and mtime from the directory entries; `import-policy` matches every module against all policies once per run instead of per import; `--changed` (REF = HEAD) runs one `git status` instead of `git diff` + `git ls-files`, and for other REFs runs the two in parallel.
 
 ### Removed

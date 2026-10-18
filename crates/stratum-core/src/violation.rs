@@ -25,6 +25,6 @@ pub struct Violation {
     pub location: SourceLocation,
     pub modules: Vec<ModuleId>,
     pub edge: Option<Edge>,
-    /// Human-readable advice — never an auto-applied fix (PRD decision #10).
+    /// Human-readable advice — never an auto-applied fix.
     pub fix: Option<String>,
 }

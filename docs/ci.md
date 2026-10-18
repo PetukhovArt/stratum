@@ -18,7 +18,7 @@ Neither the templates nor the binary reach a public host: the templates talk onl
 
 ## GitLab
 
-1. Import or fork the stratum repository into the company GitLab, tags included: consumers reference it as `<group>/stratum`.
+1. Import or fork the stratum repository into your GitLab, tags included: consumers reference it as `<group>/stratum`.
 2. In the consuming project, `include: project: <group>/stratum` with `ref: v0.2.0` and `file: ci/gitlab/templates/stratum.yml` ([snippet](../ci/README.md#gitlab)). Jobs `stratum` (gate, Code Quality widget) and `stratum-drift` (advisory) appear in MR pipelines; `stratum` also runs on the default branch.
 3. Set `image:` / `tags:` on both jobs if the default runner lacks node >= 18 and git.
 4. MR note with the drift report: add the masked CI/CD variable `STRATUM_GITLAB_TOKEN`, a project access token with the `api` scope. Without it the report is only the "stratum drift" artifact on the MR.

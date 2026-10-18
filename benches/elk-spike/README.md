@@ -1,8 +1,8 @@
-# ELK Layout Spike (Phase 0)
+# ELK Layout Spike
 
 Synthetic-graph benchmark for ELK.js compound-graph layout latency.
-Validates PRD risk R5 ("ELK.js layout latency on >2K compound nodes")
-before Phase 8 starts.
+It checks whether ELK.js can lay out more than 2K compound nodes fast enough
+for the visualizer's initial view.
 
 ## Run
 
@@ -16,8 +16,8 @@ Output goes to `results/elk-bench-<timestamp>.json`.
 
 ## Gate
 
-The script exits non-zero if average 2K-node layout exceeds 3 seconds
-(PRD US-9 budget). If that happens, Phase 8 must change scope:
+The script exits non-zero if average 2K-node layout exceeds 3 seconds.
+If that happens, the visualizer has to change scope:
 
 - Lower the sliced-view threshold from 2K to whatever ELK can handle smoothly.
 - OR replace ELK with dagre-wasm / custom Sugiyama / graphviz-wasm.
@@ -32,13 +32,12 @@ The script exits non-zero if average 2K-node layout exceeds 3 seconds
 | 2026-05-18 | 5000 | 113925 | 100402 | 126640 | FAIL |
 | 2026-05-18 | 10000 | — | — | — | (abandoned — at 5K scaling ~114s, 10K would exceed 30 min) |
 
-## Phase 8 scope decision
+## Scope decision
 
 ELK.js does not meet the 2K budget. 2K-node layout averaged ~13 s (budget: 3 s, 4× over).
 Even 1K nodes averaged ~3.8 s, implying a real ceiling of ~500–700 nodes in the browser.
 
-Phase 8 scope amended: sliced-view threshold lowered to ≤ 500 visible nodes.
-Alternatives to evaluate before Phase 8 starts (tracked in ADR 0001):
+The sliced-view threshold was lowered to ≤ 500 visible nodes. Alternatives considered:
 - **dagre-wasm** — port of dagre to WASM, handles hierarchical layouts
 - **graphviz-wasm** — svg output, needs a re-render step for interaction
 - **Custom Sugiyama in Rust/WASM** — most control, highest implementation cost

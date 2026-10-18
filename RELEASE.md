@@ -22,7 +22,7 @@ This document walks through cutting a `stratum-lint` / `stratum-lsp` release. Tr
 5. `.github/workflows/release.yml` fires. Watch the run:
    - `plan` job runs `cargo dist plan`.
    - `build` job runs `cargo dist build` per target on the right runner.
-   - Each artifact must stay under 25 MB (CI ceiling; PRD target is 20 MB).
+   - Each artifact must stay under 25 MB (CI ceiling; the target is 20 MB).
    - `publish` job uploads to the GitHub Release for the tag.
    - `publish-npm` job runs `scripts/npm-pack.mjs` on the archives and publishes each `@petukhovart/stratum-lint-<platform>-<arch>`, then the launcher `@petukhovart/stratum-lint` (secret `NPM_TOKEN`, `--provenance`; a version with `-` goes to the `next` dist-tag).
 6. Verify the GitHub Release lists the archive of every target in `dist-workspace.toml`, and npm lists the new version of the launcher and of each platform package.

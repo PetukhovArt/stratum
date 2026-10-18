@@ -24,7 +24,6 @@ target
 .claude
 .CLAUDE.md
 .CLAUDE.local.md
-_hot.md
 
 # Cargo workspace
 /target/

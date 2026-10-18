@@ -17,7 +17,7 @@ cat > stratum-lint.json <<EOF
   "version": "${VERSION}",
   "description": "Stratum architectural linter",
   "homepage": "https://github.com/PetukhovArt/stratum",
-  "license": "MIT|Apache-2.0",
+  "license": "MIT",
   "architecture": {
     "64bit": {
       "url": "${URL}",

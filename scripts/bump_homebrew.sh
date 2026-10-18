@@ -28,7 +28,7 @@ class StratumLint < Formula
   desc "Stratum architectural linter"
   homepage "https://github.com/PetukhovArt/stratum"
   version "${VERSION}"
-  license any_of: ["MIT", "Apache-2.0"]
+  license "MIT"
 
   on_macos do
     if Hardware::CPU.arm?

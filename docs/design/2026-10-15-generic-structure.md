@@ -1,6 +1,6 @@
 # Generic structure: containers, stage, purity
 
-Status: implemented, 2026-10-15, in slices S0–S5 (8dded36 to c7cb60a). Written as a proposal against base `main` f003638 (`project.ignore` merged); the line references below point at that base and have since moved. Sources: folder-structure `fsd-spec.md` section "Linting" (~836-949) and `folder-structure-architecture/*.html`.
+Status: implemented, 2026-10-15, in slices S0–S5 (8dded36 to c7cb60a). Written as a proposal against base `main` f003638 (`project.ignore` merged); the line references below point at that base and have since moved. Source: a private architecture convention for evolving folder structure.
 
 Deviations from this proposal:
 - `stage-mixing` reads `Container.segment_dirs`, recorded by placement, instead of segment names injected into its options by the runner; the rule takes no options (3d92cdd).
@@ -16,7 +16,7 @@ Deviations from this proposal:
 - There is one container per layer. Its id is the layer id and its parent is `None` (`crates/stratum-graph/src/builder.rs:128-140`), and every module gets that container (`builder.rs:167`). Slices do not exist in the model.
 - Folder names are hardcoded: `/entities/` and `/features/` (`crates/stratum-rules/src/builtin/cross_entity_pattern.rs:122,131`), `/index.ts` (`:88`) and `/_shared/` (`visibility_scope.rs:87`). Every module is `Public` (`crates/stratum-engine/src/pipeline.rs:67`), so `visibility-scope` never fires.
 - `Stage` is a purity rank (`crates/stratum-core/src/stage.rs:4-35`) that comes from `// @stratum-stage N` (`crates/stratum-parser-ts/src/annotations.rs:6`) and defaults to 2 (`pipeline.rs:66`).
-- The visualizer reads the snapshot field `module.stage`, which holds purity, but displays it with folder-structure labels (`frontend/.../render/adapt.ts:150`, `components/Header.tsx:126-172`). It also computes the evolution stage itself from the folder tree (`adapt.ts:223-275`). These are two different meanings under one field.
+- The visualizer reads the snapshot field `module.stage`, which holds purity, but displays it with the evolution-stage labels (`frontend/.../render/adapt.ts:150`, `components/Header.tsx:126-172`). It also computes the evolution stage itself from the folder tree (`adapt.ts:223-275`). These are two different meanings under one field.
 - Container-based metrics compare `Module.container` (`crates/stratum-graph/src/metrics/miller.rs:15`, `promotion.rs:18`, `depth_ratio.rs:24`). `depth-ratio` keeps its own copy of the container size (`crates/stratum-rules/src/builtin/depth_ratio.rs:72`).
 
 ## 1. Usage first
@@ -100,10 +100,10 @@ What metrics measure now:
 check-yagni, one line per option:
 - `entries`: the user asked for it, and `public-api.ts` naming exists. Kept.
 - `segments`: has two real values, `[]` and the FSD list. Kept.
-- `private`: the spec says `shared/` (spec:566) and the HTML says `_shared/` (iso:119). Kept.
+- `private`: the convention text is inconsistent between `shared/` and `_shared/`. Kept `_shared`.
 - `slices`: four FSD layers are true and the rest are false. Kept as a bool. The glob form lost because no value other than `*` is in sight.
 - `sibling-isolation.allow`: dropped. An `overrides` block that sets severity `off` per importer glob covers entity cross-imports.
-- `container-breadth`'s second limit for homogeneous folders (folder-structure ~20): dropped, because a collection folder is not a container and is never checked.
+- `container-breadth`'s second limit for homogeneous folders (about 20 in the convention): dropped, because a collection folder is not a container and is never checked.
 - A configurable default purity: dropped. It stays 2 (`pipeline.rs:66`).
 
 ## 4. Rules
@@ -123,7 +123,7 @@ Rule details:
 - **Kind.** Child files collapse by the stem before the first dot, so `foo.ts`, `foo.test.ts` and `foo.vue` count as one kind. Each child folder counts as one kind. The entry file and private zones do not count.
 - **`restricted-calls` options.** A list of `{calls: [string], allow: [glob], message?: string}` with forward-slash globs relative to the root, following the `import-policy` precedent (`import_policy.rs:41-54`).
 - **Severity.** Slugs keep the `stratum/` prefix. `stage-mixing` stays off in recommended because with no segments it never fires. One edge can trip both `public-api` and `sibling-isolation`; the two stay independent.
-- **`explain`.** Each new slug gets a `RuleDoc` (`crates/stratum-rules/src/docs.rs:11-67`) with what, why, fix and options. The `why` text cites folder-structure: outside only via `index.ts` (bas:228); a private zone is visible to direct siblings only (iso:148).
+- **`explain`.** Each new slug gets a `RuleDoc` (`crates/stratum-rules/src/docs.rs:11-67`) with what, why, fix and options. The `why` text states the convention: outside only via `index.ts`; a private zone is visible to direct siblings only.
 - **`context`.** The `Brief` (`crates/stratum-lint/src/commands/context.rs:27-43`) changes:
   - `stage` becomes `purity` and `max_import_stage` becomes `max_import_purity`;
   - `container` becomes `{path, kind, stage, entry}`;
@@ -168,7 +168,7 @@ Rule details:
   - in `adapt.ts`, `:150` becomes `purity`, `:122` takes `c.stage`, and `computeStage`/`containerStage` (`:223-275`) are deleted;
   - `state.ts:27` `colorMode` becomes `'layer'|'stage'|'purity'`, with stage for containers and purity for modules;
   - `Header.tsx:126-172` becomes a purity filter with purity labels;
-  - `Panels.tsx:73-86` keeps its folder-structure labels for containers only. (Panels.tsx was later split; the details panel shows the stage as a facet chip.)
+  - `Panels.tsx:73-86` keeps its evolution-stage labels for containers only. (Panels.tsx was later split; the details panel shows the stage as a facet chip.)
 - [x] Docs: `docs/visualizer.md:47,71,85`, the `UBIQUITOUS_LANGUAGE.md` rows (section 8), and a new CHANGELOG entry. The historical plans under `docs/superpowers/` were deleted afterwards; git keeps them.
 - [x] Baseline fingerprints keyed by the old slug go stale. That is accepted, because there are no users yet.
 
@@ -191,8 +191,8 @@ Rule details:
 ## 8. Glossary edits (`UBIQUITOUS_LANGUAGE.md`, in the file's current table format)
 
 - **Purity** (replaces the Stage row at :43): rank 1-4, where rank `s` may import rank `t` only when `t <= s`. Avoid: stage, rank. Set by `@stratum-purity`.
-- **Stage** (redefined): the folder-structure evolution stage of a container: 1 file, 2 flat folder, 3 segmented, 4 composed of sub-units. Computed from the tree and never annotated. Avoid: phase, level.
-- **Container** (redefined at :17): a unit of structure. It is a layer root, a slice, a sub-unit or a nested container, and it has a path, a stage and an optional entry. Avoid: unit, box, group. folder-structure's "module" is a Container, not a Module (flagged ambiguity).
+- **Stage** (redefined): the evolution stage of a container: 1 file, 2 flat folder, 3 segmented, 4 composed of sub-units. Computed from the tree and never annotated. Avoid: phase, level.
+- **Container** (redefined at :17): a unit of structure. It is a layer root, a slice, a sub-unit or a nested container, and it has a path, a stage and an optional entry. Avoid: unit, box, group. Some conventions call a Container a "module"; here a Module is one file (flagged ambiguity).
 - **Slice**: a container at the first level of a layer declared `slices: true`. It may be a file. Avoid: feature, package.
 - **Sub-unit**: an entry-bearing folder directly under a container. It is isolated from its siblings and makes its parent stage 4. Avoid: sub-feature, submodule.
 - **Segment**: a folder named in `structure.segments`, which groups a container's files by purpose. It is never a container. Avoid: layer folder.
@@ -227,8 +227,8 @@ Rule details:
 - S0 -> S1 -> {S2..S5}.
 
 **Open:**
-- Miller for private-zone folders (folder-structure spec:927, "dumping ground"). They are not containers, so `container-breadth` skips them.
-- The stage-4 composer-cleanliness check (spec:925).
+- Miller for private-zone folders (the convention calls them a "dumping ground"). They are not containers, so `container-breadth` skips them.
+- The stage-4 composer-cleanliness check.
 - Callees of the form `x.inject(...)`.
 - Whether `index.vue` belongs in the default `entries`.
 
@@ -239,5 +239,5 @@ Rule details:
 - We accept that an unsliced layer root does not isolate its entry-bearing children, in exchange for no noise in kit-style layers.
 
 **Alternatives that lost:**
-- Declaring every unit by glob (`containers: "*/*"` per layer). It lost on depth: users would hand-maintain what entry files already say, and nested sub-units would need one glob per depth, which is the ESLint-boundaries trap at spec:847.
+- Declaring every unit by glob (`containers: "*/*"` per layer). It lost on depth: users would hand-maintain what entry files already say, and nested sub-units would need one glob per depth.
 - Folding call checks into `import-policy`. It lost on locality.

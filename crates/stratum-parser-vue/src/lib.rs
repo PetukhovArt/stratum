@@ -1,6 +1,6 @@
 //! Vue SFC extractor for Stratum tooling.
 //!
-//! MVP scope (PRD decision D8): `<script>` and `<script setup>` blocks only.
+//! Scope: `<script>` and `<script setup>` blocks only.
 //! No template parsing, no macro expansion. `defineProps`/`Emits`/`Expose`/`Model`
 //! are read only to count the component's exports.
 

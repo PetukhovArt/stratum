@@ -42,7 +42,7 @@ pub fn builtin(slug: &str) -> Option<RuleDoc> {
         ),
         "stratum/visibility-scope" => (
             "A module inside a private-zone folder (named in `structure.private`; `stratum:recommended` sets `_shared`) may be imported only by modules under that folder's parent. When zones nest, the innermost one decides. Every other module is public.",
-            "A private zone holds what a folder's own children share; folder-structure makes it visible to direct siblings only (iso:148), so outside code cannot grow a dependency on those internals.",
+            "A private zone holds what a folder's own children share; by convention it is visible to its direct siblings only, so outside code cannot grow a dependency on those internals.",
             "Import through the entry of the container that owns the zone, move the importer under the zone's parent, or move the code out of the zone if it is meant to be shared.",
             &[],
         ),
@@ -54,7 +54,7 @@ pub fn builtin(slug: &str) -> Option<RuleDoc> {
         ),
         "stratum/public-api" => (
             "An import from outside a container (a slice, sub-unit or nested container; layers are exempt) must target that container's entry file (`structure.entries`, e.g. `index.ts`). The outermost container that holds the target but not the importer is checked. When that container has no entry file, the message says so.",
-            "folder-structure lets the outside reach a unit only through its `index.ts` (bas:228); a deep import binds the importer to internals, so every internal move becomes a breaking change.",
+            "By convention the outside reaches a unit only through its entry (`index.ts`); a deep import binds the importer to internals, so every internal move becomes a breaking change.",
             "Import from the container's entry, export the needed name from the entry, or add an entry file if the container has none.",
             &[],
         ),

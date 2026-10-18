@@ -1,5 +1,5 @@
 // Baseline 2026-05-18 on i5-12600K: ~2.8 ms/iter for 8 modules + 7 edges.
-// PRD success metric: cold lint 10K files < 5s — extrapolation, not gated here.
+// Target: cold lint of 10K files in under 5 s; extrapolated from this bench, not gated here.
 
 use std::path::PathBuf;
 

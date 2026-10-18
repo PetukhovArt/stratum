@@ -1,6 +1,6 @@
 # Calibration
 
-Defaults of the metric rules come from sweeps on one large real project (3,802 modules, 6 layers, the `stratum:fsd` preset), counted from `--format json`. The rule is: no metric rule is ever `error`, and a default is the knee of its curve, not the point that silences the rule.
+Defaults of the metric rules come from sweeps on one large real project (~4K modules, 6 layers, the `stratum:fsd` preset), counted from `--format json`. The rule is: no metric rule is ever `error`, and a default is the knee of its curve, not the point that silences the rule.
 
 ## Sweeps
 

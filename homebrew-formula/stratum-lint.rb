@@ -6,7 +6,7 @@ class StratumLint < Formula
   desc "Stratum architectural linter — compound-DAG layer checks for TS/Vue"
   homepage "https://github.com/PetukhovArt/stratum"
   version "0.1.0"
-  license any_of: ["MIT", "Apache-2.0"]
+  license "MIT"
 
   on_macos do
     if Hardware::CPU.arm?

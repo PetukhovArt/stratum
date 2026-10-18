@@ -147,10 +147,10 @@ mod tests {
         let path = Utf8PathBuf::from("inline");
         let text = r#"{ "$schema": "./stratum.schema.json", "version": 1,
             "project": { "extends": "stratum:fsd" },
-            "layers": [{ "id": "features", "path": "src/renderer/features" }] }"#;
+            "layers": [{ "id": "features", "path": "src/web/features" }] }"#;
         let cfg = parse_str(&path, text).unwrap();
         let features = cfg.layers.iter().find(|l| l.id == "features").unwrap();
-        assert_eq!(features.path, "src/renderer/features");
+        assert_eq!(features.path, "src/web/features");
         assert_eq!(features.depends_on, vec!["entities", "shared"]);
         assert_eq!(cfg.layers.len(), 6);
         assert!(features.slices);

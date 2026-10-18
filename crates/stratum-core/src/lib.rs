@@ -2,7 +2,7 @@
 //!
 //! Stratum primitives ([`Layer`], [`Purity`], [`VisibilityScope`],
 //! [`Container`], [`EdgeKind`]) are first-class types, not configuration
-//! over generic primitives (PRD decision D1).
+//! over generic primitives.
 
 #![forbid(unsafe_code)]
 

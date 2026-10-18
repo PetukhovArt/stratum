@@ -1,6 +1,6 @@
 # Stratum CI templates
 
-Two adapters around the same sequence: lint with findings in the CI's own format, `baseline --check` against the merge base, and on merge requests an advisory drift report (`stratum-lint diff --base`). They need no outbound internet: the only hosts they talk to are the CI instance itself and the npm registry the job already uses.
+Two adapters around the same sequence: lint with findings in the CI's own format, `baseline --check` against the merge base, and on merge requests an advisory drift report (`stratum-lint diff --base`). The GitHub action needs bash (the default on all GitHub runners); the GitLab template needs a POSIX shell executor. They need no outbound internet: the only hosts they talk to are the CI instance itself and the npm registry the job already uses.
 
 `stratum-lint` comes from the project's `node_modules/.bin` when the project pins `@petukhovart/stratum-lint`. Otherwise the template installs the version it was tagged with into `.stratum/` from the job's npm registry config (env, user `.npmrc`, project `.npmrc`).
 

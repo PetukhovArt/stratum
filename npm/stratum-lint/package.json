@@ -2,7 +2,7 @@
   "name": "@petukhovart/stratum-lint",
   "version": "0.0.0",
   "description": "Stratum architecture linter for TypeScript, JavaScript and Vue: stratum-lint CLI and stratum-lsp language server.",
-  "license": "MIT OR Apache-2.0",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/PetukhovArt/stratum.git"

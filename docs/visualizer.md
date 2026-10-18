@@ -26,27 +26,24 @@
 
 | Метрика | Бюджет | Текущее (на 2026-10-16) |
 |---|---|---|
-| Первая отрисовка вида | ≤ 100 ms (в отчёт стенда) | ≤ 30.7 ms на private-project |
-| Отрисованных меток на сцене | ≤ 1 500 | ≤ 1 483 на private-project |
-| p95 обновления при пане/зуме | ≤ 16,7 ms | ≤ 7.5 ms на private-project |
+| Первая отрисовка вида | ≤ 100 ms (в отчёт стенда) | ≤ 30.7 ms на большом реальном проекте |
+| Отрисованных меток на сцене | ≤ 1 500 | ≤ 1 483 на большом реальном проекте |
+| p95 обновления при пане/зуме | ≤ 16,7 ms | ≤ 7.5 ms на большом реальном проекте |
 | Bundle (без sourcemaps) | < 1.5 MB | 385 KB |
-| Cold lint feeding `visualize` | < 5 s на ~3K файлов | 3.18 s на private-project (2026-05-19) |
+| Cold lint feeding `visualize` | < 5 s на ~3K файлов | 3.18 s на большом реальном проекте |
 
-Первые три строки меряет **Bench** (`9`) на private-project, см. ниже.
+Первые три строки меряет **Bench** (`9`) на большом реальном проекте, см. ниже.
 
-## Test target — private-project
+## Test target — большой реальный проект
 
-**Основной полигон для проверки визуализатора — private-project** (Electron + Vue/React renderer, ~3.8K модулей, ~14K рёбер), конфиг — `docs/examples/private-project.stratum.config.jsonc`. Это репрезентативный реальный проект, на нём ловятся проблемы, которых нет на tiny-ts: широкие графы, циклы, перформанс отрисовки.
+Визуализатор проверяют на большом реальном проекте (~4K модулей, ~14K рёбер, закрытый). На нём ловятся проблемы, которых нет на tiny-ts: широкие графы, циклы, перформанс отрисовки. Репозитория проекта здесь нет, цифры в таблице выше сняты на нём.
 
-Перед релизом любой существенной фичи рендера или раскладки:
+Проверка после существенной правки рендера или раскладки:
 
-1. `stratum-lint visualize <private-project> --config docs/examples/private-project.stratum.config.jsonc --base <REF> --no-open` — стартует, снапшот грузится без ошибки версии, есть вкладка Merge request.
+1. `stratum-lint visualize <project> --base <REF> --no-open` — стартует, снапшот грузится без ошибки версии, есть вкладка Merge request.
 2. `BENCH_URL=<url> npx playwright test tests/e2e/bench.spec.ts` — стенд проходит все пороги (`isPassing`).
-3. Конфиг покрывает все «настоящие» слои: renderer FSD (core/shared/entities/features/pages/app) **+ electron/main + electron/preload + src/shared-platform + src/shared-api + legacy** (visualization-only, permissive `depends_on`).
 
-Цифры первого замера — в `docs/integration/2026-05-19-private-project-smoke.md` (снимок на 2026-05-19, до переписывания на виды).
-
-Tiny-ts (`tests/fixtures/tiny-ts`) остаётся unit/CI-фикстурой; private-project — **acceptance gate**, без зелёного прогона на нём фича не уходит в релиз.
+Tiny-ts (`tests/fixtures/tiny-ts`) остаётся unit/CI-фикстурой.
 
 ## Что есть
 
@@ -92,7 +89,7 @@ Tiny-ts (`tests/fixtures/tiny-ts`) остаётся unit/CI-фикстурой; 
 
 ### P3 — позже / опционально
 
-- [ ] **Server-side layout для огромных графов** (> 5K модулей). Раскладки видов проверены на private-project (~3.8K модулей).
+- [ ] **Server-side layout для огромных графов** (> 5K модулей). Раскладки видов проверены на большом реальном проекте (~4K модулей).
 - [x] **Агрегация** — Container map показывает юниты и связки, модули — по двойному клику на юните.
 - [ ] **Multi-snapshot** — открыть несколько проектов в одной вкладке, видеть зависимости между ними (если они есть через workspace/monorepo links).
 - [ ] **Voice-over / a11y** — keyboard navigation по графу, screen-reader для outline.
@@ -117,7 +114,5 @@ Tiny-ts (`tests/fixtures/tiny-ts`) остаётся unit/CI-фикстурой; 
 
 ## Referenced docs
 
-- `docs/integration/2026-05-19-private-project-smoke.md` — первые цифры на private-project.
-- `docs/examples/private-project.stratum.config.jsonc` — конфиг тестового проекта (renderer FSD + electron + shared + legacy).
 - `RELEASE.md` — Snapshot version policy.
 - `UBIQUITOUS_LANGUAGE.md` — глоссарий (Graph Snapshot, Compound DAG, Container, Stage, Purity, Module, Layer, Territory, Drift).

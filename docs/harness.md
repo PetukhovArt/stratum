@@ -1,6 +1,6 @@
 # Stratum as a harness tool
 
-Stratum is the **architecture validation** tool of an AI harness: deterministic, fast, token-cheap.
+Stratum is an **architecture validation** tool for AI coding agents and CI: deterministic, fast, token-cheap.
 The model brings judgement; Stratum brings facts about the dependency graph.
 
 Integration surfaces, in order of preference:
@@ -261,5 +261,5 @@ Everything an architecture rule does is configurable without forking: layers and
 
 Invalid config fails loudly, with exit 2 in every command that loads it and `window/showMessage` in the LSP: unknown keys (`project.root` included), unknown rule slugs, bad options (the message names slug and key), a `depends_on` naming an undeclared layer, bad `ignore` / `overrides[].files` globs, `options` or `script` in an override, an unknown preset, extends cycles.
 
-Reference: [custom-rules.md](custom-rules.md); a real-world config: [examples/private-project.stratum.config.jsonc](examples/private-project.stratum.config.jsonc).
+Reference: [custom-rules.md](custom-rules.md), which includes a config translated from eslint-plugin-boundaries.
 Built-in rule docs (`explain`, `rules`) live in `crates/stratum-rules/src/docs.rs`.

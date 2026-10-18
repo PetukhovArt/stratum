@@ -5,7 +5,7 @@
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
 | **Compound DAG** | The in-memory model: a nesting tree of **Containers**, a dependency graph of **Edges**, and **Visibility Scopes** over the same set of **Modules**. | compound graph, architecture graph, dep graph |
-| **Module** | One source file (`.ts .tsx .mts .cts .js .jsx .mjs .cjs .vue`) that is a node in the **Compound DAG**. Carries `id`, `path`, `container` (the innermost **Container** that encloses it), `layer`, `purity`, `visibility`, `exports`, `calls`. Not folder-structure's "module": that one is a **Container**. | file, component, unit |
+| **Module** | One source file (`.ts .tsx .mts .cts .js .jsx .mjs .cjs .vue`) that is a node in the **Compound DAG**. Carries `id`, `path`, `container` (the innermost **Container** that encloses it), `layer`, `purity`, `visibility`, `exports`, `calls`. Not a folder-level "module": that is a **Container**. | file, component, unit |
 | **Exports** | The names a **Module** exposes to importers: distinct top-level export names (types included; overloads and merged declarations once; `export default` / `export =` as `default`) plus 1 per opaque `export * from`. CommonJS `module.exports` is not counted. For an **SFC**: the plain `<script>` exports plus the `<script setup>` macro members (see **Vue MVP Scope**). Read by `deep-module` and **Depth Ratio**. | public API, export count, surface |
 | **Import** | An `import`, `export … from`, `require()` or dynamic `import()` of another file in a **Module**'s source. The parser records it as a **Raw Import**; resolved to a **Module** inside a **Layer**, it becomes an **Edge**. | dependency, link, reference |
 | **Raw Import** | An **Import** as the parser emits it, before resolution: literal `specifier`, byte **Source Span**, **Edge** kind and a `type_only` flag. | unresolved import, pre-edge |
@@ -38,8 +38,8 @@
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Container** | A unit of structure: a **Layer** root, a **Slice**, a **Sub-unit** or a nested container (an entry-bearing folder under a **Segment** or **Collection Folder**, or directly under a layer without slices). Has a `path`, a `kind`, a **Stage** and an optional **Entry**; its `parent` chain ends at the layer's container. Derived from the folder tree, never declared. folder-structure calls it a "module". | unit, box, group |
-| **Stage** | The folder-structure evolution stage of a **Container**: 1 a single file, 2 a flat folder, 3 a folder split into **Segments**, 4 a folder composed of **Sub-units**. Computed from the folder tree, never annotated. Not **Purity**. | phase, level |
+| **Container** | A unit of structure: a **Layer** root, a **Slice**, a **Sub-unit** or a nested container (an entry-bearing folder under a **Segment** or **Collection Folder**, or directly under a layer without slices). Has a `path`, a `kind`, a **Stage** and an optional **Entry**; its `parent` chain ends at the layer's container. Derived from the folder tree, never declared. Some conventions call such a unit a "module". | unit, box, group |
+| **Stage** | The evolution stage of a **Container**: 1 a single file, 2 a flat folder, 3 a folder split into **Segments**, 4 a folder composed of **Sub-units**. Computed from the folder tree, never annotated. Not **Purity**. | phase, level |
 | **Slice** | A **Container** at the first level of a **Layer** declared `slices: true`: each direct child folder or source file, except the layer's own **Entry**. A file slice has **Stage** 1 and is its own **Entry**. In FSD, `features/cart` is a slice. | feature, package |
 | **Sub-unit** | An entry-bearing folder directly under a **Slice**, **Sub-unit** or nested **Container**. Isolated from its siblings; it makes its parent **Stage** 4. | sub-feature, submodule |
 | **Segment** | A folder named in `structure.segments` that groups a **Container**'s files by purpose (FSD: `model`, `ui`, `api`). Never a **Container**, even with an **Entry** file; it makes its parent **Stage** 3. | layer folder |
@@ -159,8 +159,8 @@
 - **"import"**: the statement in source is an **Import**, its parsed form a **Raw Import**, its resolved form an **Edge**. User-facing names keep the word "import" for **Edges** (`no-cross-layer-import`, `import-policy`, Rhai `m.imports`, "imports: N modules" in a **Brief**); in prose about the graph say **Edge**.
 - **"span"** vs **"location"**: a **Source Span** is a byte range used inside the parser; a **Source Location** is a 1-based `line:column` pointer used inside a **Violation**. Do not use the words interchangeably.
 - **"fan-out"**: `miller-limit` used to say "fan-out" while counting importers. Importers of a module are its **fan-in** (**Miller Fan-in**); its own imports are its fan-out, which no built-in rule caps.
-- **"stage"** used to mean the purity rank (`@stratum-stage`, `stratum/stage-purity`). It now means only the folder-structure evolution **Stage** of a **Container**; the rank is **Purity**.
-- **"module"** in folder-structure is a folder-level unit: a **Container**. In Stratum a **Module** is one file.
+- **"stage"** used to mean the purity rank (`@stratum-stage`, `stratum/stage-purity`). It now means only the evolution **Stage** of a **Container**; the rank is **Purity**.
+- **"module"** in some conventions is a folder-level unit: a **Container**. In Stratum a **Module** is one file.
 - **"container"** used to mean the **Visualizer**'s per-layer box. It now means any unit of structure; a layer root is one kind of **Container**. A DI container (see **DI edge**) is unrelated.
 - **"slice"**: a **Slice** is a **Container** of a `slices: true` **Layer**. The `slice` key of an **Import Policy** is a glob of directories inside which imports are allowed; it predates **Slices** and does not need them.
 - **"scope"** covers a **Rule Scope**, a **Visibility Scope** and a **Report Scope**. Always qualify it.
