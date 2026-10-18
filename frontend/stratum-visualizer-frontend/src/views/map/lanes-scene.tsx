@@ -3,14 +3,14 @@ import { BudgetNote } from '../../canvas/budget-note'
 import { Canvas } from '../../canvas/canvas'
 import { t } from '../../i18n'
 import { CANVAS_DEFS, EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR } from '../../render/encoding'
-import { Model } from '../../render/model'
+import { edgeKey, Model, worst } from '../../render/model'
 import { go, nav, set } from '../../shell/nav'
 import { trunc } from '../../render/labels'
 import { entryOf, layerName, layerTone } from '../focus/paint'
 import { Curve, defaultCurves, GRID, Lane, LANES, layoutLanes, UnitBox } from './layout'
 import { MapLegend } from './legend'
 import { selectedUnit, selectedUnitPair, toggleExpanded } from './selection'
-import { linkKey, mapDataOf, MapData } from './units'
+import { mapDataOf, MapData } from './units'
 
 const EDGE_WIDTH = { base: 0.8, max: 4, perLog: 0.8, highlight: 1.2 } as const
 const EDGE_OPACITY = { focused: 0.9, broken: 0.85, base: 0.18, range: 0.5, perImport: 1 / 60 } as const
@@ -176,7 +176,7 @@ const UnitMark: Component<{
         {(cells) => (
           <For each={cells()}>
             {(cell) => {
-              const sev = props.model.worst(props.model.findingsOf(cell.id))
+              const sev = worst(props.model.findingsOf(cell.id))
               return (
                 <rect
                   class="map-cell"
@@ -217,7 +217,7 @@ export const LanesScene: Component<{ model: Model }> = (props) => {
   const focusUnit = () => hover() ?? selectedUnit()
   const pairKey = () => {
     const p = selectedUnitPair()
-    return p ? linkKey(p.from, p.to) : null
+    return p ? edgeKey(p.from, p.to) : null
   }
   const byDefault = createMemo(() => defaultCurves(layout(), data(), nav().mapGate, expanded(), pairKey()))
   const visible = createMemo(() => {

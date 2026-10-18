@@ -2,12 +2,12 @@ import { Accessor, Component, createMemo, createSignal, For, Show } from 'solid-
 import { Canvas } from '../../canvas/canvas'
 import { t } from '../../i18n'
 import { CANVAS_DEFS, EDGE_DASH, EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR } from '../../render/encoding'
-import { Model } from '../../render/model'
+import { edgeKey, Model, worst } from '../../render/model'
 import { go, nav, NavState, set } from '../../shell/nav'
 import { ellipsizePath, monoWidth } from '../../render/labels'
 import { Bounds } from '../../render/viewport'
 import { layerTone } from '../focus/paint'
-import { pairKey, SetAnalysis } from './analysis'
+import { SetAnalysis } from './analysis'
 import {
   ARC_NODE,
   badgeBox,
@@ -43,7 +43,7 @@ interface SceneProps {
 
 const selectedKey = (): string | null => {
   const sel = nav().sel
-  return sel?.kind === 'edge' ? pairKey(sel.from, sel.to) : null
+  return sel?.kind === 'edge' ? edgeKey(sel.from, sel.to) : null
 }
 
 const pickEdge = (l: SetLink) => set({ sel: { kind: 'edge', from: l.from, to: l.to } })
@@ -127,7 +127,7 @@ const NodeMark: Component<{
   const m = props.model
   const n = props.node
   const layer = m.modules.get(n.id)!.layer
-  const sev = m.worst(m.findingsOf(n.id))
+  const sev = worst(m.findingsOf(n.id))
   return (
     <g
       class={`set-node${n.isMember ? ' member' : ' via'}${n.isLoop ? ' loop' : ''}`}

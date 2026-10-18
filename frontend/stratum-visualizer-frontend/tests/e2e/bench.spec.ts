@@ -67,12 +67,12 @@ test('the bench answers every phase-1 question and meets every gate', async ({ p
   test.setTimeout(BENCH_TIMEOUT_MS)
   if (!BENCH_URL) await serveTinyTs(page)
   await page.goto(BENCH_URL ?? '/')
-  await page.waitForFunction(() => window.__stratum !== undefined && window.__benchRun !== undefined, null, {
+  await page.waitForFunction(() => window.__stratumBench !== undefined, null, {
     timeout: 60_000,
   })
   await page.waitForLoadState('networkidle')
 
-  const result = await page.evaluate(() => window.__benchRun!())
+  const result = await page.evaluate(() => window.__stratumBench!.run())
   console.log(JSON.stringify(result, null, 2))
 
   const ran = result.tasks.filter((t) => t.status === 'run')

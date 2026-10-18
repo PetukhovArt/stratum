@@ -1,12 +1,11 @@
 import { Bounds } from '../../render/viewport'
 import { SeverityLabel } from '../../render/encoding'
 import { ellipsizePath, monoWidth } from '../../render/labels'
-import { AggregateEdge, Model, sccs, worst } from '../../render/model'
-import { Violation } from '../../types'
+import { AggregateEdge, edgeKey, Model, sccs, worst } from '../../render/model'
+import { CROSS_LAYER_RULE, Violation } from '../../types'
 
 export type MatrixLevel = 'layer' | 'unit'
 
-const CROSS_LAYER_RULE = 'stratum/no-cross-layer-import'
 const SIBLING_RULE = 'stratum/sibling-isolation'
 const BREAK_RULES: ReadonlySet<string> = new Set([CROSS_LAYER_RULE, SIBLING_RULE])
 
@@ -66,7 +65,6 @@ export interface Matrix {
   bounds: Bounds
 }
 
-const cellKey = (from: number, to: number): string => `${from}>${to}`
 
 const compareBy =
   <T>(...keys: ((x: T) => number | string)[]) =>
@@ -247,7 +245,7 @@ export const layoutMatrix = (m: Model, level: MatrixLevel): Matrix => {
     const isRuleBreak = findings.some(isBreak)
     const marking = findings.filter(nodes.marks)
     if (!isRuleBreak && !marking.length) continue
-    const key = cellKey(from, to)
+    const key = edgeKey(from, to)
     const acc = breaks.get(key) ?? { count: 0, found: [] }
     if (isRuleBreak) acc.count++
     acc.found.push(...marking)
@@ -255,7 +253,7 @@ export const layoutMatrix = (m: Model, level: MatrixLevel): Matrix => {
   }
 
   const cells: MatrixCell[] = nodes.edges.map((e) => {
-    const key = cellKey(e.from, e.to)
+    const key = edgeKey(e.from, e.to)
     const row = index.get(e.from)!
     const col = index.get(e.to)!
     const found = breaks.get(key)

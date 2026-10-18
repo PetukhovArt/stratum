@@ -1,7 +1,7 @@
 import { Component, createMemo, For, Show } from 'solid-js'
 import { lang, t } from '../../i18n'
 import { layerColor } from '../../render/encoding'
-import { Model } from '../../render/model'
+import { Model, worst } from '../../render/model'
 import { go, nav, set } from '../../shell/nav'
 import { PathText } from '../../shell/path-text'
 import { cellOf, Matrix, MatrixCell, matrixOf, pairCells } from './layout'
@@ -73,7 +73,7 @@ const UnitCell: Component<{ model: Model; cell: MatrixCell }> = (props) => {
       <div class="dsm-rows">
         <For each={pairs().slice(0, LIST_LIMIT)}>
           {(e) => {
-            const sev = props.model.worst(props.model.findingsOnEdge(e.from, e.to))
+            const sev = worst(props.model.findingsOnEdge(e.from, e.to))
             return (
               <button
                 class="dsm-row"

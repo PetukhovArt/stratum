@@ -2,7 +2,7 @@ import { Component, createMemo, For, Show } from 'solid-js'
 import { Canvas } from '../../canvas/canvas'
 import { t } from '../../i18n'
 import { CANVAS_DEFS, EDGE_DASH, LAYER_TONE } from '../../render/encoding'
-import { Model } from '../../render/model'
+import { edgeKey, Model } from '../../render/model'
 import { go, nav, set } from '../../shell/nav'
 import { EdgeMark, GroupBox, layoutRegion, RegionLayout } from './layout'
 import { ellipsizePath, trunc } from '../../render/labels'
@@ -18,7 +18,7 @@ const STAGE_STROKE = 'oklch(92% 0.01 260)'
 
 const selectedKey = (): string | null => {
   const sel = nav().sel
-  return sel?.kind === 'edge' ? `${sel.from}>${sel.to}` : null
+  return sel?.kind === 'edge' ? edgeKey(sel.from, sel.to) : null
 }
 
 const stageText = (review: Review, container: number | null, fallback: number | undefined): string => {

@@ -1,8 +1,8 @@
 import { SeverityLabel } from '../../render/encoding'
-import { Model } from '../../render/model'
+import { edgeKey, Model, worst } from '../../render/model'
 import { Bounds } from '../../render/viewport'
 import { EdgeKind } from '../../types'
-import { bestCut, pairKey, SetAnalysis } from './analysis'
+import { bestCut, SetAnalysis } from './analysis'
 
 export const RING_NODE = { w: 184, h: 30, viaH: 24 } as const
 export const ARC_NODE = { w: 120, h: 22, spacing: 132 } as const
@@ -69,16 +69,16 @@ export interface SetMatrix {
 const chainKeys = (a: SetAnalysis): Set<string> => {
   const keys = new Set<string>()
   const chain = a.chain ?? []
-  for (let i = 0; i < chain.length - 1; i++) keys.add(pairKey(chain[i], chain[i + 1]))
+  for (let i = 0; i < chain.length - 1; i++) keys.add(edgeKey(chain[i], chain[i + 1]))
   return keys
 }
 
 const linksOf = (m: Model, a: SetAnalysis): SetLink[] => {
   const chain = chainKeys(a)
   const cut = bestCut(a)
-  const cutKey = cut ? pairKey(cut.from, cut.to) : null
+  const cutKey = cut ? edgeKey(cut.from, cut.to) : null
   return a.edges.map((e) => {
-    const key = pairKey(e.from, e.to)
+    const key = edgeKey(e.from, e.to)
     const findings = m.findingsOnEdge(e.from, e.to)
     return {
       key,
@@ -89,7 +89,7 @@ const linksOf = (m: Model, a: SetAnalysis): SetLink[] => {
       isChain: chain.has(key),
       isCut: key === cutKey,
       rules: [...new Set(findings.map((v) => v.rule))].sort().join(' '),
-      worst: m.worst(findings),
+      worst: worst(findings),
     }
   })
 }
@@ -231,14 +231,14 @@ const nodeBox = (n: SetNode, w: number, h: number): Bounds => ({ x: n.x - w / 2,
 export const layoutRing = (m: Model, a: SetAnalysis): CurveScene => {
   const nodes = ringNodes(m, a)
   const at = new Map(nodes.map((n) => [n.id, n]))
-  const keys = new Set(a.edges.map((e) => pairKey(e.from, e.to)))
+  const keys = new Set(a.edges.map((e) => edgeKey(e.from, e.to)))
   const hw = RING_NODE.w / 2
   const hh = RING_NODE.h / 2
   const links = linksOf(m, a).map((l): CurvedLink => {
     const p = at.get(l.from)!
     const q = at.get(l.to)!
     const len = Math.hypot(q.x - p.x, q.y - p.y) || 1
-    const bend = keys.has(pairKey(l.to, l.from)) ? RING_BEND.both : RING_BEND.single
+    const bend = keys.has(edgeKey(l.to, l.from)) ? RING_BEND.both : RING_BEND.single
     const cx = (p.x + q.x) / 2 - ((q.y - p.y) / len) * bend
     const cy = (p.y + q.y) / 2 + ((q.x - p.x) / len) * bend
     const [x1, y1] = clip(p.x, p.y, cx, cy, hw, hh)

@@ -1,6 +1,6 @@
 import { Component, createMemo, createSignal, For, Show } from 'solid-js'
 import { t } from '../../i18n'
-import { Model } from '../../render/model'
+import { Model, worst } from '../../render/model'
 import { go, nav, set } from '../../shell/nav'
 import { PathText } from '../../shell/path-text'
 import { layerName, layerTone, shortRule } from '../focus/paint'
@@ -243,7 +243,7 @@ const LinkDetails: Component<{ model: Model; link: UnitLink }> = (props) => {
       <div class="map-rows">
         <For each={pairs().slice(0, PAIR_LIST)}>
           {(e) => {
-            const sev = props.model.worst(e.findings)
+            const sev = worst(e.findings)
             return (
               <button
                 class="map-row"

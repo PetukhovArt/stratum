@@ -1,4 +1,4 @@
-import { Model, sccs } from '../../render/model'
+import { edgeKey, Model, sccs } from '../../render/model'
 
 export const MAX_PATH_HOPS = 4
 export const VIA_LIMIT = 24
@@ -31,7 +31,6 @@ export interface SetAnalysis {
   order: readonly number[]
 }
 
-export const pairKey = (from: number, to: number): string => `${from}>${to}`
 
 const byLayerThenPath = (m: Model) => (a: number, b: number) =>
   m.modules.get(a)!.layer - m.modules.get(b)!.layer || m.modules.get(a)!.path.localeCompare(m.modules.get(b)!.path)
@@ -155,7 +154,7 @@ export const analyzeSet = (m: Model, ids: readonly number[]): SetAnalysis => {
   const pathEdges = new Map<string, SetEdge>()
   for (const p of paths) {
     for (let i = 0; i < p.length - 1; i++) {
-      pathEdges.set(pairKey(p[i], p[i + 1]), { from: p[i], to: p[i + 1], isPath: true })
+      pathEdges.set(edgeKey(p[i], p[i + 1]), { from: p[i], to: p[i + 1], isPath: true })
     }
   }
   const via = [...new Set(paths.flatMap((p) => p.slice(1, -1)))]

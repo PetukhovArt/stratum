@@ -2,14 +2,14 @@ import { Component, createMemo, createSignal, For, Show } from 'solid-js'
 import { Canvas } from '../../canvas/canvas'
 import { t } from '../../i18n'
 import { CANVAS_DEFS, EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR } from '../../render/encoding'
-import { Model } from '../../render/model'
+import { edgeKey, Model } from '../../render/model'
 import { set } from '../../shell/nav'
 import { trunc } from '../../render/labels'
 import { layerName, layerTone, shortRule } from '../focus/paint'
 import { LAYER_NODE, LayerCurve, LayerNode, layoutLayers } from './layout'
 import { MapLegend } from './legend'
 import { selectedLayerPair } from './selection'
-import { linkKey, mapDataOf, MapData } from './units'
+import { mapDataOf, MapData } from './units'
 
 const EDGE_WIDTH = { base: 0.8, max: 5, perLog: 0.6, highlight: 1.2 } as const
 const EDGE_OPACITY = { finding: 0.9, undeclared: 0.75, base: 0.25, range: 0.5, perImport: 1 / 800 } as const
@@ -25,7 +25,7 @@ const LayerEdge: Component<{ curve: LayerCurve; model: Model }> = (props) => {
   const link = props.curve.link
   const isHighlighted = () => {
     const p = selectedLayerPair()
-    return p !== null && linkKey(p.from, p.to) === link.key
+    return p !== null && edgeKey(p.from, p.to) === link.key
   }
   const opacity = () => {
     if (link.worst || isHighlighted()) return EDGE_OPACITY.finding

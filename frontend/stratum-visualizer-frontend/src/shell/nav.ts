@@ -112,19 +112,3 @@ export const back = (): void => {
   setHistory(past.slice(0, -1))
   commit(previous)
 }
-
-export interface NavHooks {
-  go: typeof go
-  set: typeof set
-  get: () => NavState
-}
-
-declare global {
-  interface Window {
-    __stratum?: NavHooks
-  }
-}
-
-export const exposeNav = (): void => {
-  window.__stratum = { go, set, get: state }
-}

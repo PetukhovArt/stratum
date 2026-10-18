@@ -1,10 +1,10 @@
-import { Component, For, Show } from 'solid-js'
+import { Component, For, onCleanup, Show } from 'solid-js'
 import { t } from '../../i18n'
 import { ViewDef, ViewProps } from '../view-def'
 import './bench.css'
-import { attachModel, BenchResult, exposeBench, lastResult, RenderRun, runBench, TARGET, TaskResult } from './run'
+import { attachModel, BenchResult, installBenchHook, lastResult, RenderRun, runBench, TARGET, TaskResult } from './run'
 
-exposeBench()
+installBenchHook()
 
 const fixed = (x: number | null | undefined, digits = 1): string => (x === null || x === undefined ? '—' : x.toFixed(digits))
 
@@ -129,7 +129,7 @@ const Results: Component<{ result: BenchResult }> = (props) => (
 )
 
 const Stage: Component<ViewProps> = (props) => {
-  attachModel(props.model)
+  onCleanup(attachModel(props.model))
   return (
     <div class="bench" data-testid="bench-stage">
       <div class="bn-bar">

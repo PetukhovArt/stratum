@@ -1,11 +1,10 @@
-import { Model, sccs } from '../../render/model'
+import { edgeKey, Model, sccs } from '../../render/model'
 import { NavPatch } from '../../shell/nav'
-import { SnapshotLayer } from '../../types'
+import { CROSS_LAYER_RULE, SnapshotLayer } from '../../types'
 import { DriftReport, driftReport } from '../mr/drift'
-import { analyzeSet, bestCut, moduleCycles, pairKey, SET_LIMIT } from '../set/analysis'
+import { analyzeSet, bestCut, moduleCycles, SET_LIMIT } from '../set/analysis'
 import { Subjects } from './subjects'
 
-const CROSS_LAYER_RULE = 'stratum/no-cross-layer-import'
 const STRIP = '[data-testid="territory-strip"]'
 const BLOCK_STROKE = 2
 
@@ -145,7 +144,7 @@ const crossLayerPairs = (m: Model): string[] => {
     if (v.rule !== CROSS_LAYER_RULE || !v.edge) continue
     const from = layerOf(v.edge.from)
     const to = layerOf(v.edge.to)
-    if (from !== undefined && to !== undefined && from !== to) pairs.add(`${from}>${to}`)
+    if (from !== undefined && to !== undefined && from !== to) pairs.add(edgeKey(from, to))
   }
   return [...pairs].sort()
 }
@@ -223,7 +222,7 @@ const MR_BREAKS = {
 const breakingKeys = (m: Model, drift: DriftReport): string[] =>
   drift.breaking.map((i) => {
     const e = drift.edges[i]
-    return `${m.byPath.get(e.from)}>${m.byPath.get(e.to)}`
+    return edgeKey(m.byPath.get(e.from)!, m.byPath.get(e.to)!)
   })
 
 const mrBreaksTask = (m: Model, drift: DriftReport): TaskDef => {
@@ -266,7 +265,7 @@ const cycleCutTask = (m: Model): TaskDef => {
     }
   }
   const cut = bestCut(analyzeSet(m, cycle))
-  const key = cut ? pairKey(cut.from, cut.to) : null
+  const key = cut ? edgeKey(cut.from, cut.to) : null
   const pick: Step = { label: `pick the ${cycle.length}-module cycle`, patch: { view: 'set', set: [...cycle] } }
   return {
     ...base,

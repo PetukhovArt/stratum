@@ -14,6 +14,7 @@ import { t } from '../i18n'
 import { CANVAS_DEFS, HATCH_STROKE } from '../render/encoding'
 import { Bounds, DEFAULT_VIEWPORT, fitViewport, NO_BOX, zoomAround } from '../render/viewport'
 import { CanvasSize, Viewport } from '../state'
+import { activeCanvas, registerCanvas } from './active'
 
 const WHEEL_ZOOM_FACTOR = 1.12
 const BUTTON_ZOOM_FACTOR = 1.25
@@ -30,18 +31,6 @@ export interface CanvasApi {
   rect: Accessor<DOMRect | null>
 }
 
-interface CanvasHandle {
-  get: () => Viewport
-  set: (v: Viewport) => void
-  fit: () => void
-}
-
-declare global {
-  interface Window {
-    __cv?: CanvasHandle
-  }
-}
-
 const CanvasContext = createContext<CanvasApi>()
 
 export const useCanvas = (): CanvasApi => {
@@ -49,10 +38,6 @@ export const useCanvas = (): CanvasApi => {
   if (!api) throw new Error('useCanvas() outside <Canvas>')
   return api
 }
-
-let activeSvg: SVGSVGElement | null = null
-
-export const activeCanvas = (): CanvasHandle | undefined => window.__cv
 
 const sizeOf = (rect: DOMRect | null): CanvasSize => (rect ? { w: rect.width, h: rect.height } : { w: 0, h: 0 })
 const sameSize = (a: CanvasSize, b: CanvasSize): boolean => a.w === b.w && a.h === b.h
@@ -127,15 +112,12 @@ export const Canvas: Component<{
     measure()
     svg.addEventListener('wheel', onWheel, { passive: false })
     svg.addEventListener('click', swallowClickAfterDrag, true)
-    const handle: CanvasHandle = { get: viewport, set: setViewport, fit }
-    window.__cv = handle
-    activeSvg = svg
+    const unregister = registerCanvas({ svg, get: viewport, set: setViewport, fit })
     onCleanup(() => {
+      unregister()
       ro.disconnect()
       svg.removeEventListener('wheel', onWheel)
       svg.removeEventListener('click', swallowClickAfterDrag, true)
-      if (window.__cv === handle) delete window.__cv
-      if (activeSvg === svg) activeSvg = null
     })
   })
 
@@ -212,8 +194,9 @@ const svgEl = (name: string, attrs: Record<string, string | number>): SVGElement
 }
 
 export const exportSvg = (name: string): void => {
-  if (!activeSvg) return
-  const clone = activeSvg.cloneNode(true) as SVGSVGElement
+  const canvas = activeCanvas()
+  if (!canvas) return
+  const clone = canvas.svg.cloneNode(true) as SVGSVGElement
   const group = clone.querySelector('g[data-bounds]')
   if (!group) return
   const [x, y, w, h] = (group.getAttribute('data-bounds') ?? '').split(' ').map(Number)

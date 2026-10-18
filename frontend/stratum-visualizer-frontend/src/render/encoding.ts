@@ -1,7 +1,11 @@
+import { Severity } from '../types'
+
 export type SeverityLabel = 'error' | 'warning' | 'info'
 export type EdgeKindLabel = 'static' | 'di' | 'runtime'
 
 export const SEVERITY_LABELS: readonly SeverityLabel[] = ['error', 'warning', 'info']
+
+export const SEVERITY_RANK: Record<`${Severity}`, number> = { off: 0, info: 1, warning: 2, error: 3 }
 
 export const SEV_COLOR: Record<SeverityLabel, string> = {
   error: 'oklch(64% 0.18 25)',

@@ -1,3 +1,4 @@
+import { activeCanvas } from '../../canvas/active'
 import { SEV_COLOR, SEVERITY_LABELS } from '../../render/encoding'
 
 const DRAWN_MARKS = 'rect,path,line,circle,ellipse,text,polygon,polyline'
@@ -97,7 +98,7 @@ export const countCrossings = (edges: readonly SVGGeometryElement[]): number | n
 
 /** Milliseconds per viewport change: synchronous commit plus forced layout, paint excluded. */
 export const measurePanZoom = (): PanZoom | null => {
-  const cv = window.__cv
+  const cv = activeCanvas()
   if (!cv) return null
   const start = cv.get()
   const durations: number[] = []

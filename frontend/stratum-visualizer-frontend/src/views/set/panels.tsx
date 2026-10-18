@@ -2,12 +2,12 @@ import { Component, createMemo, createSignal, For, Show } from 'solid-js'
 import { exportSvg } from '../../canvas/canvas'
 import { t } from '../../i18n'
 import { SEV_COLOR } from '../../render/encoding'
-import { Model, worst } from '../../render/model'
+import { edgeKey, Model, worst } from '../../render/model'
 import { go, nav, set } from '../../shell/nav'
 import { PathLabel, PathText } from '../../shell/path-text'
 import { Violation } from '../../types'
 import { layerTone, shortRule } from '../focus/paint'
-import { MAX_PATH_HOPS, moduleCycles, pairKey, SET_LIMIT, SetAnalysis, withMember, withoutMember } from './analysis'
+import { MAX_PATH_HOPS, moduleCycles, SET_LIMIT, SetAnalysis, withMember, withoutMember } from './analysis'
 
 const MAX_CUTS = 6
 const MAX_PATHS = 20
@@ -142,9 +142,9 @@ export const SetDetails: Component<{ model: Model; analysis: SetAnalysis }> = (p
               <For each={a().cuts.slice(0, MAX_CUTS)}>
                 {(c) => (
                   <div
-                    class={`set-row${edgeSel() && pairKey(edgeSel()!.from, edgeSel()!.to) === pairKey(c.from, c.to) ? ' on' : ''}`}
+                    class={`set-row${edgeSel() && edgeKey(edgeSel()!.from, edgeSel()!.to) === edgeKey(c.from, c.to) ? ' on' : ''}`}
                     data-testid="set-cut-row"
-                    data-edge={pairKey(c.from, c.to)}
+                    data-edge={edgeKey(c.from, c.to)}
                     data-freed={c.freed}
                     onClick={() => set({ sel: { kind: 'edge', from: c.from, to: c.to } })}
                   >

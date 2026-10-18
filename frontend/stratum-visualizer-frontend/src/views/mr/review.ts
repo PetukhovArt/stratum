@@ -1,5 +1,5 @@
-import { SeverityLabel } from '../../render/encoding'
-import { Model } from '../../render/model'
+import { SEVERITY_RANK, SeverityLabel } from '../../render/encoding'
+import { edgeKey, Model } from '../../render/model'
 import { EdgeKind, SnapshotContainer } from '../../types'
 import { CycleChange, DriftReport, EdgeChange, StageChange } from './drift'
 
@@ -54,10 +54,6 @@ export interface Review {
 /** Counted in module boxes + edges + change badges. */
 export const MARK_BUDGET = 1300
 const BADGE_MARKS = 1
-
-const SEVERITY_RANK: Record<SeverityLabel, number> = { error: 3, warning: 2, info: 1 }
-
-const edgeKey = (from: number, to: number): string => `${from}>${to}`
 
 const isWorse = (a: SeverityLabel, b: SeverityLabel | null): boolean => !b || SEVERITY_RANK[a] > SEVERITY_RANK[b]
 

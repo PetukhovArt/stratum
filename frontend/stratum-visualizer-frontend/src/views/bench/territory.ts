@@ -1,3 +1,4 @@
+import { edgeKey } from '../../render/model'
 import { Violation } from '../../types'
 
 export type DrawnPairs = ReadonlyMap<string, readonly (readonly [from: number, to: number])[]>
@@ -18,7 +19,6 @@ export interface TerritoryAgreement {
 
 const MISS_SAMPLES = 5
 
-const pairKey = (from: number, to: number): string => `${from}>${to}`
 
 const ratio = (part: number, whole: number): number | null => (whole ? part / whole : null)
 
@@ -37,7 +37,7 @@ export class TerritoryTally {
   constructor(violations: readonly Violation[]) {
     for (const v of violations) {
       if (!v.edge) continue
-      const key = pairKey(v.edge.from, v.edge.to)
+      const key = edgeKey(v.edge.from, v.edge.to)
       const rules = this.lintRules.get(key) ?? new Set<string>()
       rules.add(v.rule)
       this.lintRules.set(key, rules)
@@ -53,7 +53,7 @@ export class TerritoryTally {
     }
     for (const key of new Set([...drawn.keys(), ...shown.keys()])) {
       const pairs = drawn.get(key) ?? []
-      const linted = new Set(pairs.flatMap(([a, b]) => [...(this.lintRules.get(pairKey(a, b)) ?? [])]))
+      const linted = new Set(pairs.flatMap(([a, b]) => [...(this.lintRules.get(edgeKey(a, b)) ?? [])]))
       const onEdge = shown.get(key) ?? new Set<string>()
       for (const rule of new Set([...linted, ...onEdge])) {
         this.count(`${scene} ${key}`, rule, onEdge.has(rule), linted.has(rule))

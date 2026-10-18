@@ -1,4 +1,4 @@
-import { activeCanvas } from '../canvas/canvas'
+import { activeCanvas } from '../canvas/active'
 import { availableViews, viewById } from '../views'
 import { back, go, nav, set } from './nav'
 import { variantIndex, variantPatch } from './variants'

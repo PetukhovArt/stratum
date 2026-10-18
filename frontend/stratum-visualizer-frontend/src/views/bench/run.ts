@@ -1,11 +1,11 @@
 import { createSignal } from 'solid-js'
 import { SCENE_MARK_BUDGET } from '../../render/budget'
-import { Model } from '../../render/model'
-import { NavHooks, NavPatch } from '../../shell/nav'
+import { edgeKey, Model } from '../../render/model'
+import { go, nav, NavPatch } from '../../shell/nav'
 import { layoutBands } from '../focus/bands'
 import { layoutColumns } from '../focus/columns'
 import { driftReport } from '../mr/drift'
-import { analyzeSet, moduleCycles, pairKey, SET_LIMIT } from '../set/analysis'
+import { analyzeSet, moduleCycles, SET_LIMIT } from '../set/analysis'
 import {
   auditChannel,
   boundsSize,
@@ -86,8 +86,7 @@ interface Scenario {
 
 declare global {
   interface Window {
-    __benchRun?: () => BenchResult
-    __bench?: BenchResult
+    __stratumBench?: { run: () => BenchResult }
   }
 }
 
@@ -96,14 +95,11 @@ export { lastResult }
 
 let benchModel: Model | null = null
 
-export const attachModel = (m: Model): void => {
+export const attachModel = (m: Model): (() => void) => {
   benchModel = m
-}
-
-const navHooks = (): NavHooks => {
-  const hooks = window.__stratum
-  if (!hooks) throw new Error('The bench needs window.__stratum: the app has not mounted yet')
-  return hooks
+  return () => {
+    if (benchModel === m) benchModel = null
+  }
 }
 
 const NO_EXPANSION = new Map<string, boolean>()
@@ -169,7 +165,7 @@ const setScenarios = (m: Model, s: Subjects): Scenario[] => {
         drawn: {
           scene: `set:${variant}:${label}`,
           pairs: () =>
-            drawnPairsOf(analyzeSet(m, ids).edges.map((e) => ({ key: pairKey(e.from, e.to), pairs: [[e.from, e.to]] }))),
+            drawnPairsOf(analyzeSet(m, ids).edges.map((e) => ({ key: edgeKey(e.from, e.to), pairs: [[e.from, e.to]] }))),
         },
       }),
     ),
@@ -217,11 +213,11 @@ const auditPanels = (colours: ReadonlySet<string>): ChannelAudit => {
   }
 }
 
-const measureRun = (hooks: NavHooks, sc: Scenario, colours: ReadonlySet<string>, tally: TerritoryTally): RenderRun => {
-  hooks.go({ view: 'bench' })
+const measureRun = (sc: Scenario, colours: ReadonlySet<string>, tally: TerritoryTally): RenderRun => {
+  go({ view: 'bench' })
   forceLayout()
   const t0 = performance.now()
-  hooks.go(sc.patch)
+  go(sc.patch)
   forceLayout()
   const renderMs = performance.now() - t0
   const svg = stageSvg()
@@ -243,12 +239,12 @@ const measureRun = (hooks: NavHooks, sc: Scenario, colours: ReadonlySet<string>,
   }
 }
 
-const runTasks = (hooks: NavHooks, m: Model, s: Subjects): TaskResult[] => {
+const runTasks = (m: Model, s: Subjects): TaskResult[] => {
   const ran = TASK_BLOCKS.flatMap((block) => block(m, s)).map((task): TaskResult => {
     if ('skip' in task) return { ...task, status: 'skipped' }
-    hooks.go({ view: 'bench' })
+    go({ view: 'bench' })
     const t0 = performance.now()
-    for (const step of task.steps) hooks.go(step.patch)
+    for (const step of task.steps) go(step.patch)
     forceLayout()
     const { steps, isAnswerShown, ...rest } = task
     return {
@@ -310,15 +306,14 @@ const judge = (runs: readonly RenderRun[], tasks: readonly TaskResult[], territo
 }
 
 export const runBench = (): BenchResult => {
-  const hooks = navHooks()
-  const keep = hooks.get()
-  hooks.go({ view: 'bench' })
+  const keep = nav()
+  go({ view: 'bench' })
   const m = benchModel
   if (!m) throw new Error('The bench view did not mount')
   const subjects = pickSubjects(m)
   const colours = severityColours()
   const tally = new TerritoryTally(m.violations)
-  const tasks = runTasks(hooks, m, subjects)
+  const tasks = runTasks(m, subjects)
   const mrScenarios = driftReport() ? MR_SCENARIOS : []
   const runs = [
     ...focusScenarios(m, subjects),
@@ -326,7 +321,7 @@ export const runBench = (): BenchResult => {
     ...mrScenarios,
     ...setScenarios(m, subjects),
     ...mapScenarios(m),
-  ].map((sc) => measureRun(hooks, sc, colours, tally))
+  ].map((sc) => measureRun(sc, colours, tally))
   const territory = tally.result()
   const targets = judge(runs, tasks, territory)
   const result: BenchResult = {
@@ -338,12 +333,12 @@ export const runBench = (): BenchResult => {
     targets,
     isPassing: targets.every((t) => t.isMet || !t.isGate),
   }
-  hooks.go({ ...keep, view: 'bench' })
-  window.__bench = result
+  go({ ...keep, view: 'bench' })
   setLastResult(result)
   return result
 }
 
-export const exposeBench = (): void => {
-  window.__benchRun = runBench
+/** The only global of the bench: tests/e2e/bench.spec.ts runs the bench through it, no app code reads it. */
+export const installBenchHook = (): void => {
+  window.__stratumBench = { run: runBench }
 }

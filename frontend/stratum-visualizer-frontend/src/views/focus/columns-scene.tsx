@@ -3,7 +3,7 @@ import { BudgetNote } from '../../canvas/budget-note'
 import { Canvas } from '../../canvas/canvas'
 import { t } from '../../i18n'
 import { CANVAS_DEFS, EDGE_DASH, EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR } from '../../render/encoding'
-import { Model, worst } from '../../render/model'
+import { edgeKey, Model, worst } from '../../render/model'
 import { go, nav, set } from '../../shell/nav'
 import { Territory } from '../../types'
 import {
@@ -37,12 +37,11 @@ interface SceneCtx {
   toggle: (key: string, isOpen: boolean) => void
 }
 
-const pairKey = (a: number, b: number): string => `${a}>${b}`
 
 const selectedPairs = (): ReadonlySet<string> => {
   const sel = nav().sel
-  if (sel?.kind === 'imports') return new Set(sel.pairs.map(([a, b]) => pairKey(a, b)))
-  if (sel?.kind === 'edge') return new Set([pairKey(sel.from, sel.to)])
+  if (sel?.kind === 'imports') return new Set(sel.pairs.map(([a, b]) => edgeKey(a, b)))
+  if (sel?.kind === 'edge') return new Set([edgeKey(sel.from, sel.to)])
   return new Set()
 }
 
@@ -68,7 +67,7 @@ const BundlePath: Component<{ bundle: Bundle; hover: Accessor<number | null>; se
     const h = props.hover()
     return h === null || b.touches.has(h)
   }
-  const isSelected = () => b.pairs.some(([from, to]) => props.selected().has(pairKey(from, to)))
+  const isSelected = () => b.pairs.some(([from, to]) => props.selected().has(edgeKey(from, to)))
   const channel = sev ? 'sev' : 'edge'
   const count = countLabelAwayFromFocus(b)
   return (

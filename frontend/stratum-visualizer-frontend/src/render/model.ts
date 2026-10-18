@@ -10,7 +10,7 @@ import {
   Territory,
   Violation,
 } from '../types'
-import { layerHue, SeverityLabel } from './encoding'
+import { layerHue, SEVERITY_RANK, SeverityLabel } from './encoding'
 import { disambiguate } from './labels'
 
 export interface Group {
@@ -70,15 +70,12 @@ export interface Model {
   /** Unit cycles of two or more units, largest first. */
   unitSccs: readonly (readonly number[])[]
   layerHue: (index: number) => number
-  worst: (violations: readonly Violation[]) => SeverityLabel | null
 }
-
-const SEVERITY_RANK: Record<string, number> = { error: 3, warning: 2, info: 1 }
 
 export const worst = (violations: readonly Violation[]): SeverityLabel | null => {
   let best: SeverityLabel | null = null
   for (const v of violations) {
-    const rank = SEVERITY_RANK[v.severity] ?? 0
+    const rank = SEVERITY_RANK[v.severity]
     if (rank > (best ? SEVERITY_RANK[best] : 0)) {
       best = v.severity as SeverityLabel
     }
@@ -144,7 +141,7 @@ export const sccs = <T>(nodes: Iterable<T>, adj: (node: T) => Iterable<T>): T[][
 const GENERIC_BASENAME =
   /^(index|types|utils|config|actions|mutations|getters|routes|store|strategy|settings|converters|constants|helpers)\./
 
-const edgeKey = (from: number, to: number): string => `${from}>${to}`
+export const edgeKey = (from: number, to: number): string => `${from}>${to}`
 
 const push = <K, V>(map: Map<K, V[]>, key: K, value: V): void => {
   const list = map.get(key)
@@ -329,6 +326,5 @@ export const buildModel = (snapshot: GraphSnapshot, violations: readonly Violati
     layerEdges: aggregate(uniqueEdges, (id) => moduleOf(id).layer, findingsOnEdge),
     unitSccs,
     layerHue: (index) => layerHue(index, snapshot.layers.length),
-    worst,
   }
 }

@@ -10,7 +10,7 @@ import { buildModel, Model } from '../render/model'
 import { viewById, ViewDef } from '../views'
 import { Header } from './header'
 import { bindKeymap } from './keymap'
-import { exposeNav, nav, set } from './nav'
+import { nav, set } from './nav'
 import { Palette } from './palette'
 import { StatusBar } from './status-bar'
 import { variantIndex, variantPatch } from './variants'
@@ -53,7 +53,6 @@ const Layout: Component<{ model: Model; isViolationsUnavailable: boolean }> = (p
   const view = createMemo(() => viewById(nav().view))
 
   onMount(() => {
-    exposeNav()
     const unbind = bindKeymap({
       isPaletteOpen,
       setPaletteOpen,

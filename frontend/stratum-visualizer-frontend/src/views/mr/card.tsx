@@ -2,7 +2,7 @@ import { Component, createMemo, createSignal, For } from 'solid-js'
 import { Canvas, exportSvg } from '../../canvas/canvas'
 import { t } from '../../i18n'
 import { SEV_COLOR } from '../../render/encoding'
-import { Model } from '../../render/model'
+import { edgeKey, Model } from '../../render/model'
 import { nav, set } from '../../shell/nav'
 import { DriftReport } from './drift'
 import { describeItems } from './items'
@@ -39,7 +39,7 @@ const CardSvg: Component<{ model: Model; review: Review; drift: DriftReport }> =
   const c = () => props.review.counts
   const selectedKey = () => {
     const sel = nav().sel
-    return sel?.kind === 'edge' ? `${sel.from}>${sel.to}` : null
+    return sel?.kind === 'edge' ? edgeKey(sel.from, sel.to) : null
   }
   const summary = () =>
     [
