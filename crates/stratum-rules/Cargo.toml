@@ -20,12 +20,12 @@ petgraph.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 globset.workspace = true
+rustc-hash.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
 criterion.workspace = true
 indexmap.workspace = true
-rustc-hash.workspace = true
 
 [[bench]]
 name = "run_all_latency"

@@ -25,7 +25,7 @@ struct Agreement {
 
 fn build(root: &Utf8Path, config: Option<&Utf8Path>) -> EngineInput {
     let loaded = stratum_engine::config::load(root, config).unwrap();
-    pipeline::build(root, &loaded.config).unwrap()
+    pipeline::build(root, &loaded).unwrap()
 }
 
 fn edge_findings(input: &EngineInput) -> HashMap<(ModuleId, ModuleId), Breaches> {

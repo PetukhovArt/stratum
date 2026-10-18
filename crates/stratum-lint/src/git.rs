@@ -4,16 +4,74 @@ use std::process::{Command, Stdio};
 use camino::Utf8Path;
 
 pub fn changed_files(root: &Utf8Path, reference: &str) -> miette::Result<Vec<String>> {
-    verify(root, reference)?;
-    let mut files = lines(&run(
-        root,
-        &["diff", "--name-only", "--relative", "-z", reference, "--"],
-    )?);
-    files.extend(lines(&run(
-        root,
-        &["ls-files", "--others", "--exclude-standard", "-z"],
-    )?));
+    if reference == "HEAD" {
+        return changed_since_head(root);
+    }
+    let (verified, diff, untracked) = std::thread::scope(|s| {
+        let verified = s.spawn(|| verify(root, reference));
+        let diff = s.spawn(|| {
+            run(
+                root,
+                &["diff", "--name-only", "--relative", "-z", reference, "--"],
+            )
+        });
+        let untracked = run(root, &["ls-files", "--others", "--exclude-standard", "-z"]);
+        (joined(verified), joined(diff), untracked)
+    });
+    verified?;
+    let mut files = lines(&diff?);
+    files.extend(lines(&untracked?));
     Ok(files)
+}
+
+/// Porcelain paths are relative to the work tree top, not to `root`:
+/// <https://git-scm.com/docs/git-status#_porcelain_format_version_1>.
+fn changed_since_head(root: &Utf8Path) -> miette::Result<Vec<String>> {
+    let (head, status) = std::thread::scope(|s| {
+        let head = s.spawn(|| {
+            git(root)
+                .args(["rev-parse", "--show-prefix", "--verify", "--quiet"])
+                .arg(commit("HEAD"))
+                .output()
+                .map_err(spawn_error)
+        });
+        let status = run(
+            root,
+            &["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+        );
+        (joined(head), status)
+    });
+    let head = head?;
+    if !head.status.success() {
+        return verify(root, "HEAD").map(|()| Vec::new());
+    }
+    let prefix = String::from_utf8_lossy(&head.stdout)
+        .lines()
+        .next()
+        .unwrap_or_default()
+        .to_owned();
+    Ok(status_paths(&lines(&status?))
+        .filter_map(|path| path.strip_prefix(prefix.as_str()).map(str::to_owned))
+        .collect())
+}
+
+/// With `-z`, a rename or copy entry `XY to` is followed by a bare `from` entry (git-status docs).
+fn status_paths(entries: &[String]) -> impl Iterator<Item = &str> {
+    let mut source_next = false;
+    entries.iter().filter_map(move |entry| {
+        if std::mem::take(&mut source_next) {
+            return None;
+        }
+        let (code, path) = (entry.get(..2)?, entry.get(3..)?);
+        source_next = code.contains(['R', 'C']);
+        Some(path)
+    })
+}
+
+fn joined<T>(handle: std::thread::ScopedJoinHandle<'_, miette::Result<T>>) -> miette::Result<T> {
+    handle
+        .join()
+        .unwrap_or_else(|_| Err(miette::miette!("git worker panicked")))
 }
 
 /// `None` when `rel` (relative to `root`) does not exist at `reference`.

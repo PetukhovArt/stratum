@@ -1,8 +1,13 @@
-use std::collections::BTreeSet;
+use std::ffi::OsStr;
+use std::path::Path;
+use std::sync::OnceLock;
 
-use globset::{GlobBuilder, GlobMatcher, GlobSet, GlobSetBuilder};
+use globset::{Candidate, GlobBuilder, GlobSet, GlobSetBuilder};
 use serde::Deserialize;
 
+use rustc_hash::FxHashMap;
+use stratum_core::ids::LayerId;
+use stratum_core::types::Module;
 use stratum_core::{
     ids::{ModuleId, RuleId},
     severity::Severity,
@@ -17,23 +22,17 @@ use crate::paths::project_relative;
 use crate::rule::Rule;
 
 const DEFAULT_MESSAGE: &str = "Import denied by import-policy";
+const MAX_WORKERS: usize = 8;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct ImportPolicy;
 
 #[derive(Debug, Default, Clone, Deserialize)]
-#[serde(transparent)]
-pub struct ImportPolicyOptions(pub Vec<Policy>);
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(try_from = "PolicySpec")]
-pub struct Policy {
-    from: GlobSet,
-    except_from: GlobSet,
-    deny: GlobSet,
-    allow: GlobSet,
-    slice: Option<GlobMatcher>,
-    message: String,
+#[serde(try_from = "Vec<PolicySpec>")]
+pub struct ImportPolicyOptions {
+    matcher: Matcher,
+    messages: Vec<String>,
+    table: OnceLock<Option<Table>>,
 }
 
 #[derive(Deserialize)]
@@ -51,21 +50,62 @@ struct PolicySpec {
     message: Option<String>,
 }
 
-impl TryFrom<PolicySpec> for Policy {
+#[derive(Debug, Clone, Copy)]
+enum Role {
+    From,
+    ExceptFrom,
+    Deny,
+    Allow,
+}
+
+const ROLES: usize = 4;
+
+#[derive(Debug, Clone, Default)]
+struct Matcher {
+    policies: usize,
+    all: GlobSet,
+    roles: Vec<usize>,
+    slices: GlobSet,
+    slice_policy: Vec<usize>,
+}
+
+impl TryFrom<Vec<PolicySpec>> for ImportPolicyOptions {
     type Error = String;
 
-    fn try_from(spec: PolicySpec) -> Result<Self, String> {
+    fn try_from(specs: Vec<PolicySpec>) -> Result<Self, String> {
+        let mut all = GlobSetBuilder::new();
+        let mut roles = Vec::new();
+        let mut slices = GlobSetBuilder::new();
+        let mut slice_policy = Vec::new();
+        let mut messages = Vec::with_capacity(specs.len());
+        for (i, spec) in specs.into_iter().enumerate() {
+            for (role, patterns) in [
+                (Role::From, &spec.from),
+                (Role::ExceptFrom, &spec.except_from),
+                (Role::Deny, &spec.deny),
+                (Role::Allow, &spec.allow),
+            ] {
+                for p in patterns {
+                    all.add(glob(p)?);
+                    roles.push(i * ROLES + role as usize);
+                }
+            }
+            if let Some(p) = &spec.slice {
+                slices.add(glob(p)?);
+                slice_policy.push(i);
+            }
+            messages.push(spec.message.unwrap_or_else(|| DEFAULT_MESSAGE.into()));
+        }
         Ok(Self {
-            from: glob_set(&spec.from)?,
-            except_from: glob_set(&spec.except_from)?,
-            deny: glob_set(&spec.deny)?,
-            allow: glob_set(&spec.allow)?,
-            slice: spec
-                .slice
-                .as_deref()
-                .map(|p| glob(p).map(|g| g.compile_matcher()))
-                .transpose()?,
-            message: spec.message.unwrap_or_else(|| DEFAULT_MESSAGE.into()),
+            matcher: Matcher {
+                policies: messages.len(),
+                all: all.build().map_err(|e| e.to_string())?,
+                roles,
+                slices: slices.build().map_err(|e| e.to_string())?,
+                slice_policy,
+            },
+            messages,
+            table: OnceLock::new(),
         })
     }
 }
@@ -85,27 +125,152 @@ pub(crate) fn glob_set(patterns: &[String]) -> Result<GlobSet, String> {
     builder.build().map_err(|e| e.to_string())
 }
 
-impl Policy {
-    fn governs(&self, from: &str) -> bool {
-        self.from.is_match(from) && !self.except_from.is_match(from)
+#[derive(Debug, Clone, Default)]
+struct Rows {
+    governs: Vec<bool>,
+    denies: Vec<bool>,
+    slice_roots: Vec<Option<usize>>,
+    paths: Vec<String>,
+}
+
+#[derive(Default)]
+struct Scratch {
+    hits: Vec<usize>,
+    matched: Vec<bool>,
+}
+
+impl Matcher {
+    fn push_row(
+        &self,
+        path: String,
+        slice_row: &[Option<usize>],
+        scratch: &mut Scratch,
+        rows: &mut Rows,
+    ) {
+        self.all
+            .matches_candidate_into(&Candidate::new(&path), &mut scratch.hits);
+        scratch.matched.clear();
+        scratch.matched.resize(self.policies * ROLES, false);
+        for &h in &scratch.hits {
+            scratch.matched[self.roles[h]] = true;
+        }
+        for p in 0..self.policies {
+            let role = |r: Role| scratch.matched[p * ROLES + r as usize];
+            rows.governs
+                .push(role(Role::From) && !role(Role::ExceptFrom));
+            rows.denies.push(role(Role::Deny) && !role(Role::Allow));
+        }
+        rows.slice_roots.extend_from_slice(slice_row);
+        rows.paths.push(path);
     }
 
-    fn denies_import_of(&self, from: &str, to: &str) -> bool {
-        self.deny.is_match(to) && !self.allow.is_match(to) && !self.same_slice(from, to)
+    fn slice_row(&self, dir: &str) -> Vec<Option<usize>> {
+        let mut row = vec![None; self.policies];
+        if self.slice_policy.is_empty() || dir.is_empty() {
+            return row;
+        }
+        let ends = dir
+            .match_indices('/')
+            .map(|(end, _)| end)
+            .chain([dir.len()]);
+        for end in ends {
+            for s in self.slices.matches(&dir[..end]) {
+                row[self.slice_policy[s]].get_or_insert(end);
+            }
+        }
+        row
     }
 
-    fn same_slice(&self, from: &str, to: &str) -> bool {
-        self.slice.as_ref().is_some_and(|slice| {
-            let root = slice_root(slice, from);
-            root.is_some() && root == slice_root(slice, to)
+    fn row_of(
+        &self,
+        graph: &CompoundGraph,
+        module: &Module,
+        scratch: &mut Scratch,
+        rows: &mut Rows,
+    ) {
+        let (dir, name) = split_relative(graph, module);
+        let slice_row = self.slice_row(&dir);
+        self.push_row(joined(&dir, &name), &slice_row, scratch, rows);
+    }
+
+    fn first_denying(&self, rows: &Rows, from: usize, to: usize) -> Option<usize> {
+        let (f, t) = (from * self.policies, to * self.policies);
+        (0..self.policies).find(|&p| {
+            rows.governs[f + p]
+                && rows.denies[t + p]
+                && !rows.slice_roots[f + p].is_some_and(|len| {
+                    rows.slice_roots[t + p] == Some(len)
+                        && rows.paths[from][..len] == rows.paths[to][..len]
+                })
         })
     }
 }
 
-fn slice_root<'a>(slice: &GlobMatcher, path: &'a str) -> Option<&'a str> {
-    path.match_indices('/')
-        .map(|(i, _)| &path[..i])
-        .find(|dir| slice.is_match(dir))
+type DirRow = (String, Vec<Option<usize>>);
+
+#[derive(Debug, Clone)]
+struct Table {
+    graph: usize,
+    modules: usize,
+    rows: Rows,
+}
+
+impl Table {
+    fn of(graph: &CompoundGraph, matcher: &Matcher) -> Option<Self> {
+        let modules: Vec<&Module> = graph.modules.values().collect();
+        let workers = std::thread::available_parallelism()
+            .map_or(1, std::num::NonZeroUsize::get)
+            .clamp(1, MAX_WORKERS);
+        let chunk = modules.len().div_ceil(workers).max(1);
+        let rows_of = |part: &[&Module]| {
+            let mut rows = Rows::default();
+            let mut scratch = Scratch::default();
+            let mut dirs: FxHashMap<(LayerId, &OsStr), DirRow> = FxHashMap::default();
+            for m in part {
+                let parent = m.path.parent().map_or(OsStr::new(""), Path::as_os_str);
+                let name = m.path.file_name().map(OsStr::to_string_lossy);
+                let (Some(name), false) = (name, parent.is_empty()) else {
+                    matcher.row_of(graph, m, &mut scratch, &mut rows);
+                    continue;
+                };
+                let (dir, slice_row) = dirs.entry((m.layer, parent)).or_insert_with(|| {
+                    let dir = project_relative(graph, m.layer, Path::new(parent));
+                    let slice_row = matcher.slice_row(&dir);
+                    (dir, slice_row)
+                });
+                matcher.push_row(joined(dir, &name), slice_row, &mut scratch, &mut rows);
+            }
+            rows
+        };
+        let parts: Vec<Rows> = std::thread::scope(|s| {
+            let handles: Vec<_> = modules
+                .chunks(chunk)
+                .map(|part| s.spawn(move || rows_of(part)))
+                .collect();
+            handles
+                .into_iter()
+                .map(|h| h.join().ok())
+                .collect::<Vec<_>>()
+        })
+        .into_iter()
+        .collect::<Option<_>>()?;
+        let mut rows = Rows::default();
+        for part in parts {
+            rows.governs.extend(part.governs);
+            rows.denies.extend(part.denies);
+            rows.slice_roots.extend(part.slice_roots);
+            rows.paths.extend(part.paths);
+        }
+        Some(Self {
+            graph: std::ptr::from_ref(graph).addr(),
+            modules: graph.modules.len(),
+            rows,
+        })
+    }
+
+    fn built_for(&self, graph: &CompoundGraph) -> bool {
+        self.graph == std::ptr::from_ref(graph).addr() && self.modules == graph.modules.len()
+    }
 }
 
 impl Rule for ImportPolicy {
@@ -151,14 +316,26 @@ impl Rule for ImportPolicy {
         options: &ImportPolicyOptions,
         severity: Severity,
     ) -> Vec<Violation> {
-        if options.0.is_empty() {
+        if options.messages.is_empty() {
             return Vec::new();
         }
-        let mut seen = BTreeSet::new();
+        let table = options
+            .table
+            .get_or_init(|| Table::of(graph, &options.matcher))
+            .as_ref()
+            .filter(|t| t.built_for(graph));
+        let mut seen = Vec::new();
         edge_violations(graph, scope, self.id(), severity, |to| {
-            seen.insert(to)
-                .then(|| judge(graph, scope, to, options))
-                .flatten()
+            if seen.contains(&to) {
+                return None;
+            }
+            seen.push(to);
+            let Some(table) = table else {
+                return judge(graph, scope, to, options);
+            };
+            let (from, to) = (index_of(graph, scope)?, index_of(graph, to)?);
+            let policy = options.matcher.first_denying(&table.rows, from, to)?;
+            Some(denied(&options.messages[policy], &table.rows.paths[to]))
         })
     }
 }
@@ -169,21 +346,48 @@ pub(crate) fn judge(
     to: ModuleId,
     options: &ImportPolicyOptions,
 ) -> Option<Finding> {
-    let rel = |id| {
+    let mut rows = Rows::default();
+    let mut scratch = Scratch::default();
+    for id in [from, to] {
         let m = graph.modules.get(&id)?;
-        Some(project_relative(graph, m.layer, &m.path))
-    };
-    let from = rel(from)?;
-    let to = rel(to)?;
-    let policy = options
-        .0
-        .iter()
-        .filter(|p| p.governs(&from))
-        .find(|p| p.denies_import_of(&from, &to))?;
-    Some(Finding {
-        message: format!("{} ({to})", policy.message),
+        options.matcher.row_of(graph, m, &mut scratch, &mut rows);
+    }
+    let policy = options.matcher.first_denying(&rows, 0, 1)?;
+    Some(denied(&options.messages[policy], &rows.paths[1]))
+}
+
+fn split_relative(graph: &CompoundGraph, module: &Module) -> (String, String) {
+    let path = project_relative(graph, module.layer, &module.path);
+    match path.rsplit_once('/') {
+        Some((dir, name)) => (dir.to_owned(), name.to_owned()),
+        None => (String::new(), path),
+    }
+}
+
+fn joined(dir: &str, name: &str) -> String {
+    if dir.is_empty() {
+        return name.to_owned();
+    }
+    let mut path = String::with_capacity(dir.len() + 1 + name.len());
+    path.push_str(dir);
+    path.push('/');
+    path.push_str(name);
+    path
+}
+
+fn index_of(graph: &CompoundGraph, id: ModuleId) -> Option<usize> {
+    let dense = usize::try_from(id.raw()).ok()?;
+    match graph.modules.get_index(dense) {
+        Some((&at, _)) if at == id => Some(dense),
+        _ => graph.modules.get_index_of(&id),
+    }
+}
+
+fn denied(message: &str, to: &str) -> Finding {
+    Finding {
+        message: format!("{message} ({to})"),
         fix: None,
-    })
+    }
 }
 
 #[cfg(test)]

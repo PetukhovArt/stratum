@@ -45,7 +45,7 @@ fn bench_run_all_tiny_ts_violations(c: &mut Criterion) {
         default_purity: Purity::new(2).unwrap(),
         structure: stratum_core::structure::Structure::default(),
     };
-    let graph = GraphBuilder::new(cfg).build().unwrap();
+    let (graph, _) = GraphBuilder::new(cfg).build().unwrap();
     c.bench_function("run_all_tiny_ts_violations", |b| {
         b.iter(|| {
             let v = stratum_rules::run_all(&graph, &config, &root).unwrap();

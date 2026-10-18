@@ -49,7 +49,7 @@ fn tiny_ts_graph_snapshot() {
         default_purity: Purity::new(2).unwrap(),
         structure: stratum_core::structure::Structure::default(),
     };
-    let graph = GraphBuilder::new(cfg).build().unwrap();
+    let (graph, _) = GraphBuilder::new(cfg).build().unwrap();
     let snap = snapshot_of(&graph, &root);
 
     insta::assert_yaml_snapshot!("tiny_ts_graph", snap);

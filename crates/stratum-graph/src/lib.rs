@@ -11,7 +11,7 @@ mod placement;
 pub mod snapshot;
 pub mod topo;
 
-pub use builder::{BuildConfig, BuildError, GraphBuilder};
+pub use builder::{BuildConfig, BuildError, CacheState, CacheStats, GraphBuilder};
 pub use cycles::{Cycle, find_cycles};
 pub use graph::{CompoundGraph, PrivateZone};
 pub use index::{DirEntries, DirRole};

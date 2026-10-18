@@ -18,6 +18,7 @@ fn main() -> ExitCode {
 }
 
 fn run(cli: cli::Cli) -> miette::Result<u8> {
+    stratum_engine::cache::init(cli.cache_dir);
     match cli.command {
         Some(cli::Command::Init { root }) => commands::init::run(&root).map(|()| 0),
         Some(cli::Command::Snapshot { root, out, config }) => {

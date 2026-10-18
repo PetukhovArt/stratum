@@ -21,7 +21,7 @@ stratum-graph = { path = "../stratum-graph" }
 stratum-rules = { path = "../stratum-rules" }
 stratum-config = { path = "../stratum-config" }
 stratum-engine = { path = "../stratum-engine" }
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 miette = { workspace = true }
 camino.workspace = true
 serde.workspace = true

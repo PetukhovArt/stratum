@@ -175,7 +175,8 @@ impl Side {
         config: &Config,
         overlay: Vec<(String, Option<String>)>,
     ) -> Result<Self, EngineError> {
-        let (root, graph, _) = pipeline::graph(root, config, overlay)?;
+        let (root, graph, _, _) =
+            pipeline::graph(root, config, pipeline::Source::Overlaid(overlay))?;
         let paths = graph
             .modules
             .values()

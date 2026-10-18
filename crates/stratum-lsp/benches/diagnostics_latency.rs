@@ -17,7 +17,10 @@ fn fixture_root() -> Utf8PathBuf {
 
 fn bench_recompute_tiny_ts_violations(c: &mut Criterion) {
     let root = fixture_root();
-    let config = config::infer(&root);
+    let config = config::LoadedConfig {
+        config: config::infer(&root),
+        source: config::ConfigSource::Inferred,
+    };
     c.bench_function("lsp_recompute_tiny_ts_violations", |b| {
         b.iter(|| {
             let input = pipeline::build(&root, &config).unwrap();
