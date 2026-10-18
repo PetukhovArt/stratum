@@ -180,5 +180,10 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           while read -r tarball; do
-            npm publish "./npm-out/$(basename "$tarball")" --access public --provenance
+            if ! npm publish "./npm-out/$(basename "$tarball")" --access public --provenance > publish.log 2>&1; then
+              cat publish.log
+              echo "::error title=npm publish $(basename "$tarball")::$(grep -E 'npm (error|ERR)' publish.log | head -8 | tr '\n' ' ' | cut -c1-900)"
+              exit 1
+            fi
+            cat publish.log
           done < npm-out.txt
