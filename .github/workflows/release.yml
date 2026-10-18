@@ -180,5 +180,5 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           while read -r tarball; do
-            npm publish "npm-out/$(basename "$tarball")" --access public --provenance
+            npm publish "./npm-out/$(basename "$tarball")" --access public --provenance
           done < npm-out.txt
