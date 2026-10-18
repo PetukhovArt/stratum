@@ -2,6 +2,7 @@
 #![allow(clippy::missing_errors_doc)]
 
 pub mod baseline;
+pub mod cache;
 pub mod config;
 mod docs;
 pub mod drift;

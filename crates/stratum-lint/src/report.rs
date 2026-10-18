@@ -21,6 +21,8 @@ pub struct Summary {
     pub elapsed: Duration,
     #[serde(skip)]
     pub fixed_in_scope: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache: Option<stratum_graph::CacheStats>,
 }
 
 #[allow(clippy::trivially_copy_pass_by_ref)]

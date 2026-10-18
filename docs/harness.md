@@ -43,6 +43,8 @@ stratum-lint [lint] [ROOT]                     # ROOT defaults to "."
     [--changed[=REF]]                          # files changed vs REF (default HEAD) + untracked; the "=" is required
     [--baseline PATH | --no-baseline]          # default: ROOT/stratum.baseline.json if it exists
     [--watch]                                  # re-lint on file changes (200 ms debounce) until interrupted
+    [--cache-dir DIR]                          # any command; Graph Cache directory (env STRATUM_CACHE_DIR),
+                                               # default: the OS user cache dir + "stratum"; see Graph cache
 stratum-lint baseline [ROOT] [--config PATH] [--out PATH] [--prune]
                                                # accept current violations (default ROOT/stratum.baseline.json); --prune only drops fixed ones
 stratum-lint baseline [ROOT] [--out PATH] --check[=REF]
@@ -173,6 +175,17 @@ Baseline file (`stratum.baseline.json`): `{ "version": 1, "violations": [{ rule,
 
 Measured on a generated project of 4,000 modules, on Windows and macOS, before each release. For scale, a real 3,800-module project cold: full run p95 314 ms / 22 MB, `--files` p95 304 ms / 22 MB. Call `--changed=<base>` with the `=`.
 
+### Graph cache
+
+Every graph built from disk (`lint`, `baseline`, `context`, `snapshot`, `visualize`, and the LSP Server's full rebuilds) goes through one cache file per project and config: `DIR/stratum-<hash of ROOT and config path>.graph`. DIR is `--cache-dir`, else `STRATUM_CACHE_DIR`, else the OS user cache directory + `stratum` (`%LOCALAPPDATA%\stratum`, `~/Library/Caches/stratum`, `$XDG_CACHE_HOME/stratum`); with none of them the cache is off. To run without it, point `--cache-dir` at an empty temporary directory.
+
+- What it holds: per module, the parsed facts (imports with their names, exports, tracked calls, suppressions, purity) and the modules each import resolved to.
+- When a file is parsed again: its size or mtime changed, or it was changed within 2 s before the cache was written; then its content hash decides, and an equal hash keeps the facts.
+- When every import is resolved again: the set of module paths changed, or a ROOT-level `*.json`, `pnpm-lock.yaml` or `yarn.lock`, or any `tsconfig*.json`, `jsconfig*.json` or `package.json` in the walked folders changed. An edited file re-resolves only its own imports.
+- When the whole file is dropped: another `stratum-lint` binary or other tracked calls wrote it, or it is corrupt (a checksum or decode failure counts as a missing file).
+- Guarantees: the findings are the same in every format, byte for byte apart from `elapsed_ms` and `summary.cache`, whatever the cache holds; a cache that cannot be read or written never fails a run; writes go to a temporary file renamed over the old one; cache files of this kind untouched for 30 days are deleted on write. Overlay text never enters it: `diff --base` builds without the cache, and the LSP Server's unsaved buffers stay in memory. Rules always run on the whole graph, so `--files F` reports what a full run reports for F.
+- Known gap: a file created outside the walked folders that changes how an import inside them resolves (e.g. a new package in `node_modules` without a lock file change) is not seen until one of the files above changes.
+
 ### Sample output
 
 From `tests/fixtures/tiny-ts-violations`, `stratum-lint --format agent`, exit 1:
@@ -204,7 +217,7 @@ warning stratum/no-cross-layer-import (1) - stratum-lint explain stratum/no-cros
   ...
 ```
 
-`--format json` (version 2): `{ "version": 2, "summary": { errors, warnings, infos, baselined, fixed, suppressed, scope_files, zero_config, elapsed_ms }, "violations": [{ rule, severity, message, file, location: { line, column }, edge: { from, to, kind } | null, suggestion (the finding's fix, never empty) }] }`. `scope_files` is `null` without `--files` / `--changed`; `kind` is `static`, `di` or `runtime`.
+`--format json` (version 2): `{ "version": 2, "summary": { errors, warnings, infos, baselined, fixed, suppressed, scope_files, zero_config, elapsed_ms, cache: { state, reparsed } }, "violations": [{ rule, severity, message, file, location: { line, column }, edge: { from, to, kind } | null, suggestion (the finding's fix, never empty) }] }`. `scope_files` is `null` without `--files` / `--changed`; `kind` is `static`, `di` or `runtime`. `cache` (see [Graph cache](#graph-cache)) is absent when the scope is empty and no graph was built; `state` is `warm`, `cold` or `off`, `reparsed` the number of modules parsed from their text in this run.
 
 `--format sarif` (SARIF 2.1.0) uses slugs as `ruleId` and ROOT-relative `uri` with `uriBaseId: "%SRCROOT%"`.
 

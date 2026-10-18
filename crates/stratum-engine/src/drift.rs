@@ -7,7 +7,7 @@ use stratum_core::edge::EdgeKind;
 use stratum_core::ids::ModuleId;
 use stratum_core::severity::Severity;
 use stratum_core::types::ContainerKind;
-use stratum_graph::{CompoundGraph, GraphBuilder, find_cycles};
+use stratum_graph::{CacheStats, CompoundGraph, GraphBuilder, find_cycles};
 use stratum_rules::RuleRegistry;
 use stratum_rules::territory::Territories;
 
@@ -144,8 +144,10 @@ pub fn drift(
     config: &Config,
 ) -> Result<Drift, EngineError> {
     let (base, head) = std::thread::scope(|s| {
-        let base = s.spawn(|| pipeline::graph_without_entry_points(root, config, base));
-        let head = pipeline::graph(root, config, Vec::new());
+        let base = s.spawn(|| {
+            pipeline::graph_without_entry_points(root, config, pipeline::Source::Overlaid(base))
+        });
+        let head = pipeline::graph(root, config, pipeline::Source::Overlaid(Vec::new()));
         (base.join(), head)
     });
     let base = Side::new(base.unwrap_or_else(|p| std::panic::resume_unwind(p))?);
@@ -170,8 +172,8 @@ struct Side {
 }
 
 impl Side {
-    fn new(built: (Utf8PathBuf, CompoundGraph, GraphBuilder)) -> Self {
-        let (root, graph, _) = built;
+    fn new(built: (Utf8PathBuf, CompoundGraph, CacheStats, GraphBuilder)) -> Self {
+        let (root, graph, _, _) = built;
         let paths = graph
             .modules
             .values()

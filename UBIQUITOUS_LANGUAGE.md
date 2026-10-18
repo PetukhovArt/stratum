@@ -110,6 +110,7 @@
 | **Language Extractor** | One parser per language (`LanguageExtractor`): it turns a source file into **Extracted Data**. One handles `.ts .mts .cts .tsx .js .jsx .mjs .cjs`, one handles `.vue`. | parser adapter, frontend |
 | **Extracted Data** | What a **Language Extractor** produces for one file: **Raw Imports**, the **Purity** annotation, **Exports**, and calls to tracked names. | parser result, extraction output |
 | **Path Resolver** | Resolves a **Raw Import**'s specifier from one file's directory to an absolute path, honouring `tsconfig.json` `paths` aliases. | module resolver, tsconfig resolver |
+| **Graph Cache** | The on-disk file, one per project root and **Config**, holding each module's **Extracted Data** and resolved import targets between runs, so a build re-parses only changed files. It never changes a **Violation**; a stale or corrupt one counts as absent. Not the **Graph Snapshot**. | build cache, parse cache, daemon |
 
 ## Extensibility
 

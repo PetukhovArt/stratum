@@ -62,7 +62,7 @@ impl Project {
                 .map(|(_, script)| script),
         );
         let baseline = Baseline::load_if_exists(&root.join(BASELINE_FILE))?;
-        let (input, builder) = pipeline::build_with_builder(root, &loaded.config)?;
+        let (input, builder) = pipeline::build_with_builder(root, &loaded)?;
         let modules = input
             .graph
             .modules

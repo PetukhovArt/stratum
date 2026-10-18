@@ -102,7 +102,7 @@ fn bench_cold_lint_tiny_ts(c: &mut Criterion) {
                 default_purity: Purity::new(2).unwrap(),
                 structure: stratum_core::structure::Structure::default(),
             };
-            let graph = GraphBuilder::new(cfg).build().unwrap();
+            let (graph, _) = GraphBuilder::new(cfg).build().unwrap();
             let g = Arc::new(graph);
             let violations = stratum_rules::run_all(&g, &config, &root).unwrap();
             criterion::black_box(violations);

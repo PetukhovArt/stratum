@@ -33,6 +33,10 @@ pub struct Cli {
     #[arg(default_value = ".")]
     pub root: Utf8PathBuf,
 
+    /// Graph Cache directory (default: the OS user cache dir + stratum)
+    #[arg(long, global = true, value_name = "DIR", env = "STRATUM_CACHE_DIR")]
+    pub cache_dir: Option<Utf8PathBuf>,
+
     #[command(flatten)]
     pub lint: LintArgs,
 }

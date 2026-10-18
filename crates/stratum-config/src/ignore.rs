@@ -55,10 +55,12 @@ impl IgnoreSet {
                 prefix.push('/');
             }
             prefix.push_str(component.as_str());
-            self.globs
-                .matches(&prefix)
-                .last()
-                .is_some_and(|&i| !self.negated[i])
+            self.globs.is_match(&prefix)
+                && self
+                    .globs
+                    .matches(&prefix)
+                    .last()
+                    .is_some_and(|&i| !self.negated[i])
         })
     }
 }

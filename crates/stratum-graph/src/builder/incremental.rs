@@ -136,7 +136,7 @@ mod tests {
         let mut tracked = TrackedCalls::default();
         tracked.insert("inject").unwrap();
         let builder = tiny_ts(tracked);
-        let mut graph = builder.build().unwrap();
+        let (mut graph, _) = builder.build().unwrap();
         let id = module_ending(&graph, "format.ts");
         assert!(graph.modules[&id].calls.is_empty());
         let index_before = graph.index().clone();
@@ -156,7 +156,7 @@ mod tests {
     #[test]
     fn a_multi_line_import_is_located_at_its_import_keyword() {
         let builder = tiny_ts(TrackedCalls::default());
-        let mut graph = builder.build().unwrap();
+        let (mut graph, _) = builder.build().unwrap();
         let from = module_ending(&graph, "format.ts");
         let to = module_ending(&graph, "http.ts");
 

@@ -68,6 +68,7 @@ package version; a bump requires a coordinated frontend release.
 - Exit code 3 of `lint`: no error in scope, but the baseline holds an entry fixed in scope (stale baseline); prune it with `baseline --prune` in a change of its own. Precedence 2, 1, 3, 0. `--no-baseline` never returns 3. Both CI Templates treat 3 as a pass.
 - Inline suppression `// stratum-ignore <slug>[, <slug>] -- <reason>` (next line only), checked by `stratum/suppression`: a missing reason or an unknown slug is an error and suppresses nothing, a directive that hides nothing is a warning. Applied before the baseline. `--format json` summary gains `suppressed`, the agent summary `, N suppressed`; `jsonl`, `gitlab` and `github` omit suppressed findings, `sarif` keeps them with `suppressions`.
 - `docs/harness.md` budgets table and `eval/` fixtures (`eval/README.md`) with the runner `crates/stratum-lint/tests/eval.rs`.
+- Graph Cache: every graph built from disk (lint, baseline, context, snapshot, visualize, the LSP Server's full rebuilds) reuses the parsed facts and resolved imports of unchanged files from `DIR/stratum-<hash>.graph`. `--cache-dir DIR` on every command (env `STRATUM_CACHE_DIR`), default the OS user cache dir + `stratum`. Findings do not depend on what the cache holds. The `--format json` summary gains `cache: { state: "warm" | "cold" | "off", reparsed }`. See `docs/harness.md#graph-cache`.
 
 ### Changed
 
@@ -100,6 +101,7 @@ package version; a bump requires a coordinated frontend release.
 ### Performance
 
 - Cold lint: the walk is pruned to layer directories, files are read, parsed and resolved in parallel with a reused parse arena, and rule passes are linear (private-project warm run 1.8 s → 0.31 s).
+- The directory walk runs in parallel and takes size and mtime from the directory entries; `import-policy` matches every module against all policies once per run instead of per import; `--changed` (REF = HEAD) runs one `git status` instead of `git diff` + `git ls-files`, and for other REFs runs the two in parallel.
 
 ### Removed
 

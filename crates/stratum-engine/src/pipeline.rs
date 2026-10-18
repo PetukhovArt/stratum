@@ -9,11 +9,12 @@ use stratum_core::{
     types::Layer,
     violation::Violation,
 };
-use stratum_graph::{BuildConfig, CompoundGraph, GraphBuilder, Overlay};
+use stratum_graph::{BuildConfig, CacheStats, CompoundGraph, GraphBuilder, Overlay};
 use stratum_plugins_rhai::{LoadError as PluginLoadError, PLUGIN_ID_FLOOR};
 use stratum_rules::{DynRule, RuleRegistry};
 
 use crate::baseline::BaselineError;
+use crate::config::{ConfigSource, LoadedConfig};
 use crate::docs;
 use crate::finding::{EdgeRef, Finding};
 use crate::paths::{canonicalize, relative, relative_in_text};
@@ -41,6 +42,7 @@ pub struct EngineInput {
     pub config: Arc<Config>,
     pub project_root: Utf8PathBuf,
     pub registry: Arc<RuleRegistry>,
+    pub cache: CacheStats,
 }
 
 impl EngineInput {
@@ -112,20 +114,28 @@ impl EngineInput {
     }
 }
 
-pub fn build(root: &Utf8Path, config: &Config) -> Result<EngineInput, EngineError> {
-    build_with_builder(root, config).map(|(input, _)| input)
+pub fn build(root: &Utf8Path, loaded: &LoadedConfig) -> Result<EngineInput, EngineError> {
+    build_with_builder(root, loaded).map(|(input, _)| input)
 }
 
 pub fn build_with_builder(
     root: &Utf8Path,
-    config: &Config,
+    loaded: &LoadedConfig,
 ) -> Result<(EngineInput, GraphBuilder), EngineError> {
-    let (root_abs, graph, builder) = graph(root, config, Vec::new())?;
+    let config = &loaded.config;
+    let identity = match &loaded.source {
+        ConfigSource::File(path) => canonicalize(path)
+            .unwrap_or_else(|_| path.clone())
+            .into_string(),
+        ConfigSource::Inferred => "zero-config".to_owned(),
+    };
+    let (root_abs, graph, cache, builder) = graph(root, config, Source::Disk { identity })?;
     let registry = registry(&root_abs, config)?;
 
     Ok((
         EngineInput {
             graph: Arc::new(graph),
+            cache,
             config: Arc::new(config.clone()),
             project_root: root_abs,
             registry: Arc::new(registry),
@@ -134,12 +144,17 @@ pub fn build_with_builder(
     ))
 }
 
+pub(crate) enum Source {
+    Disk { identity: String },
+    Overlaid(Vec<(String, Option<String>)>),
+}
+
 pub(crate) fn graph(
     root: &Utf8Path,
     config: &Config,
-    overlay: Vec<(String, Option<String>)>,
-) -> Result<(Utf8PathBuf, CompoundGraph, GraphBuilder), EngineError> {
-    let (root_abs, mut graph, builder) = graph_without_entry_points(root, config, overlay)?;
+    source: Source,
+) -> Result<(Utf8PathBuf, CompoundGraph, CacheStats, GraphBuilder), EngineError> {
+    let (root_abs, mut graph, cache, builder) = graph_without_entry_points(root, config, source)?;
     let modules = graph
         .modules
         .values()
@@ -148,14 +163,14 @@ pub(crate) fn graph(
         .select(modules)
         .map_err(|glob| EngineError::EntryPointUnmatched(glob.to_owned()))?;
     graph.nav_docs = docs::read(&graph, &root_abs, config);
-    Ok((root_abs, graph, builder))
+    Ok((root_abs, graph, cache, builder))
 }
 
 pub(crate) fn graph_without_entry_points(
     root: &Utf8Path,
     config: &Config,
-    overlay: Vec<(String, Option<String>)>,
-) -> Result<(Utf8PathBuf, CompoundGraph, GraphBuilder), EngineError> {
+    source: Source,
+) -> Result<(Utf8PathBuf, CompoundGraph, CacheStats, GraphBuilder), EngineError> {
     let root_abs = canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
     let layers: Vec<Layer> = config
         .layers
@@ -188,17 +203,24 @@ pub(crate) fn graph_without_entry_points(
     let mut builder = GraphBuilder::new(build_cfg)
         .with_extractor(Box::new(vue))
         .with_ignore(move |rel| ignore.is_ignored(rel));
-    if !overlay.is_empty() {
-        let files = overlay.into_iter().map(|(rel, text)| {
-            let path = rel
-                .split('/')
-                .fold(root_abs.as_std_path().to_path_buf(), |p, c| p.join(c));
-            (path, text)
-        });
-        builder = builder.with_overlay(Overlay::new(files));
+    match source {
+        Source::Disk { identity } => {
+            builder =
+                builder.with_cache_dir(crate::cache::dir().map(Utf8Path::to_path_buf), &identity);
+        }
+        Source::Overlaid(overlay) if !overlay.is_empty() => {
+            let files = overlay.into_iter().map(|(rel, text)| {
+                let path = rel
+                    .split('/')
+                    .fold(root_abs.as_std_path().to_path_buf(), |p, c| p.join(c));
+                (path, text)
+            });
+            builder = builder.with_overlay(Overlay::new(files));
+        }
+        Source::Overlaid(_) => {}
     }
-    let graph = builder.build()?;
-    Ok((root_abs, graph, builder))
+    let (graph, cache) = builder.build()?;
+    Ok((root_abs, graph, cache, builder))
 }
 
 pub fn registry(root: &Utf8Path, config: &Config) -> Result<RuleRegistry, EngineError> {

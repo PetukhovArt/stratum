@@ -53,7 +53,7 @@ fn bench_build_tiny_ts(c: &mut Criterion) {
     };
     c.bench_function("build_tiny_ts_cold", |b| {
         b.iter(|| {
-            let g = GraphBuilder::new(cfg.clone()).build().unwrap();
+            let g = GraphBuilder::new(cfg.clone()).build().unwrap().0;
             criterion::black_box(g);
         });
     });

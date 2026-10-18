@@ -12,7 +12,7 @@ mod placement;
 pub mod snapshot;
 pub mod topo;
 
-pub use builder::{BuildConfig, BuildError, GraphBuilder};
+pub use builder::{BuildConfig, BuildError, CacheState, CacheStats, GraphBuilder};
 pub use cycles::{Breaks, Cut, Cycle, break_candidates, find_cycles};
 pub use graph::{CompoundGraph, NavDoc, PrivateZone};
 pub use index::{DirEntries, DirRole};

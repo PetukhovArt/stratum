@@ -63,9 +63,9 @@ fn gate(root: &Utf8Path, args: &LintArgs) -> miette::Result<Report> {
         return Ok(Report::new(Vec::new(), Vec::new(), summary));
     }
 
-    let analysis = build(root, &loaded)?
-        .analyze()
-        .map_err(|e| miette::miette!("{e}"))?;
+    let input = build(root, &loaded)?;
+    summary.cache = Some(input.cache);
+    let analysis = input.analyze().map_err(|e| miette::miette!("{e}"))?;
     let in_scope = |f: &Finding| scope.as_ref().is_none_or(|s| s.touches(f));
     let matched = baseline.unwrap_or_default().matches(&analysis.findings);
     summary.fixed = matched.fixed();
@@ -96,7 +96,7 @@ pub fn load_config(root: &Utf8Path, path: Option<&Utf8Path>) -> miette::Result<L
 }
 
 pub fn build(root: &Utf8Path, loaded: &LoadedConfig) -> miette::Result<EngineInput> {
-    pipeline::build(root, &loaded.config).map_err(|e| miette::miette!("{e}"))
+    pipeline::build(root, loaded).map_err(|e| miette::miette!("{e}"))
 }
 
 pub fn findings(input: &EngineInput) -> miette::Result<Vec<Finding>> {
