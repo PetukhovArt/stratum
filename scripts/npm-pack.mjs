@@ -1,8 +1,7 @@
 #!/usr/bin/env node
-// Builds the npm tarballs from cargo-dist output: one platform package per target in
-// dist-manifest.json, then the launcher from npm/stratum-lint pinned to them.
-// Usage: node scripts/npm-pack.mjs <dist-dir> <out-dir>
-// <dist-dir> holds dist-manifest.json and the archives it lists (target/distrib).
+// Builds the npm tarballs from the release archives: one platform package per
+// `stratum-lint-<target>.{tar.gz,zip}`, then the launcher from npm/stratum-lint pinned to them.
+// Usage: node scripts/npm-pack.mjs <archives-dir> <version> <out-dir>
 // Prints the tarball paths in publish order: platform packages first, launcher last.
 
 import { spawnSync } from 'node:child_process'
@@ -19,13 +18,13 @@ const NPM_PLATFORMS = {
   'x86_64-unknown-linux-gnu': { os: 'linux', cpu: 'x64', libc: 'glibc' },
 }
 
-const [distDir, outDir] = process.argv.slice(2).map((arg) => arg && path.resolve(arg))
-if (!distDir || !outDir) {
-  die('usage: node scripts/npm-pack.mjs <dist-dir> <out-dir>')
+const [archivesArg, version, outArg] = process.argv.slice(2)
+if (!archivesArg || !version || !outArg) {
+  die('usage: node scripts/npm-pack.mjs <archives-dir> <version> <out-dir>')
 }
-
-const manifest = readJson(path.join(distDir, 'dist-manifest.json'))
-const version = singleVersion(manifest)
+const archivesDir = path.resolve(archivesArg)
+const outDir = path.resolve(outArg)
+fs.mkdirSync(outDir, { recursive: true })
 const launcherManifest = readJson(path.join(launcherSource, 'package.json'))
 const binaries = Object.keys(launcherManifest.bin)
 
@@ -35,7 +34,7 @@ fs.mkdirSync(workDir, { recursive: true })
 
 const platformTarballs = []
 const optionalDependencies = {}
-for (const [triple, archives] of archivesByTarget(manifest)) {
+for (const [triple, archive] of archivesByTarget()) {
   const platform = NPM_PLATFORMS[triple] ?? die(`no npm os/cpu mapping for target ${triple}; add it to NPM_PLATFORMS`)
   const name = `${launcherManifest.name}-${platform.os}-${platform.cpu}`
   if (name in optionalDependencies) {
@@ -43,15 +42,8 @@ for (const [triple, archives] of archivesByTarget(manifest)) {
   }
   const packageDir = path.join(workDir, name.replace('/', '__'))
   fs.mkdirSync(path.join(packageDir, 'bin'), { recursive: true })
-  for (const archive of archives) {
-    copyExecutables(archive, packageDir)
-  }
   const ext = platform.os === 'win32' ? '.exe' : ''
-  for (const binary of binaries) {
-    if (!fs.existsSync(path.join(packageDir, 'bin', binary + ext))) {
-      die(`${triple}: the archives hold no ${binary}${ext}, which the launcher runs`)
-    }
-  }
+  copyExecutables(archive, binaries.map((binary) => binary + ext), packageDir)
   writeJson(path.join(packageDir, 'package.json'), {
     name,
     version,
@@ -83,47 +75,26 @@ const launcherTarball = pack(launcherDir)
 fs.rmSync(workDir, { recursive: true, force: true })
 console.log([...platformTarballs, launcherTarball].join('\n'))
 
-function singleVersion({ releases }) {
-  const versions = new Set(releases.map((release) => release.app_version))
-  if (versions.size !== 1) {
-    die(`dist-manifest.json releases disagree on the version: ${[...versions].join(', ')}`)
-  }
-  return [...versions][0]
-}
-
-function archivesByTarget({ artifacts }) {
+function archivesByTarget() {
   const byTarget = new Map()
-  for (const artifact of Object.values(artifacts)) {
-    if (artifact.kind !== 'executable-zip') {
-      continue
+  for (const file of fs.readdirSync(archivesDir)) {
+    const match = file.match(/^stratum-lint-(.+)\.(tar\.gz|zip)$/)
+    if (match) {
+      byTarget.set(match[1], path.join(archivesDir, file))
     }
-    if (artifact.target_triples?.length !== 1) {
-      die(`${artifact.name}: expected exactly one target triple, got ${artifact.target_triples}`)
-    }
-    const executables = (artifact.assets ?? []).filter((asset) => asset.kind === 'executable')
-    if (executables.length === 0) {
-      die(`${artifact.name}: dist-manifest.json lists no executable assets`)
-    }
-    const [triple] = artifact.target_triples
-    const archive = { file: path.join(distDir, artifact.name), executables }
-    byTarget.set(triple, [...(byTarget.get(triple) ?? []), archive])
   }
   if (byTarget.size === 0) {
-    die('dist-manifest.json lists no executable archives')
+    die(`${archivesDir} holds no stratum-lint-<target>.tar.gz or .zip`)
   }
   return byTarget
 }
 
-function copyExecutables({ file, executables }, packageDir) {
-  if (!fs.existsSync(file)) {
-    die(`${file} is missing: every target in dist-manifest.json needs its built archive`)
-  }
+function copyExecutables(file, fileNames, packageDir) {
   const extractDir = path.join(workDir, '.extract', path.basename(file))
   fs.mkdirSync(extractDir, { recursive: true })
   extract(file, extractDir)
-  for (const { path: assetPath } of executables) {
-    const fileName = path.basename(assetPath)
-    const found = findFile(extractDir, fileName) ?? die(`${file} holds no ${fileName}`)
+  for (const fileName of fileNames) {
+    const found = findFile(extractDir, fileName) ?? die(`${file} holds no ${fileName}, which the launcher runs`)
     const target = path.join(packageDir, 'bin', fileName)
     fs.copyFileSync(found, target)
     fs.chmodSync(target, 0o755)

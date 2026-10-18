@@ -6,28 +6,25 @@ This document walks through cutting a `stratum-lint` / `stratum-lsp` release. Tr
 
 1. Workspace is clean: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`.
 2. Frontend builds: `cd frontend/stratum-visualizer-frontend && npm install && npm run build`. `dist/` exists and is under 1.5 MB (CI gate).
-3. Local `cargo dist plan` succeeds (`cargo install cargo-dist --locked` if missing).
-4. Performance budget: run `cargo run --release -p stratum-budget -- check` on Windows and on macOS; it must pass on both (budgets: [docs/harness.md](docs/harness.md#budgets), method: [docs/calibration.md](docs/calibration.md#budget-project)). The maintainer runs the macOS one.
-5. Pick the new semantic version `X.Y.Z`. Pre-releases use `X.Y.Z-rc.N`.
+3. Performance budget: run `cargo run --release -p stratum-budget -- check` on Windows and on macOS; it must pass on both (budgets: [docs/harness.md](docs/harness.md#budgets), method: [docs/calibration.md](docs/calibration.md#budget-project)). The maintainer runs the macOS one.
+4. Optional dry run: start the `release` workflow by hand (`workflow_dispatch`). It builds every target and packs the npm tarballs, and publishes nothing.
 
 ## Cut the release
 
-1. Bump versions:
-   - Every `crates/*/Cargo.toml`'s `version = ...`. The npm packages take theirs from cargo-dist's `dist-manifest.json`.
-   - The `@petukhovart/stratum-lint@X.Y.Z` pin in `ci/github/action.yml` and `ci/gitlab/templates/stratum.yml`.
-   - `claude-plugin/.claude-plugin/plugin.json` and `claude-plugin-lsp/.claude-plugin/plugin.json` `version`.
-2. Update `CHANGELOG.md` — move "Unreleased" content under the new version + date.
-3. Commit: `chore(release): vX.Y.Z`.
-4. Tag the commit: `git tag vX.Y.Z && git push origin main vX.Y.Z`.
-5. `.github/workflows/release.yml` fires. Watch the run:
-   - `plan` job runs `cargo dist plan`.
-   - `build` job runs `cargo dist build` per target on the right runner.
-   - Each artifact must stay under 25 MB (CI ceiling; the target is 20 MB).
-   - `publish` job uploads to the GitHub Release for the tag.
-   - `publish-npm` job runs `scripts/npm-pack.mjs` on the archives and publishes each `@petukhovart/stratum-lint-<platform>-<arch>`, then the launcher `@petukhovart/stratum-lint` (secret `NPM_TOKEN`, `--provenance`; a version with `-` goes to the `next` dist-tag).
-6. Verify the GitHub Release lists the archive of every target in `dist-workspace.toml`, and npm lists the new version of the launcher and of each platform package.
+A version bump landing on `main` is the release. Versions follow SemVer; while 0.x, a minor bump carries new features or breaking changes and a patch only fixes. There are no pre-release versions: the dry run above replaces them.
 
-`release.yml` is written by hand, not by `dist generate` (`allow-dirty = ["ci"]` lets cargo-dist accept it). Never run `dist generate` or `dist init` with CI enabled: it overwrites the file and drops `publish-npm`. A target added to `dist-workspace.toml` also needs its row in the `build` matrix; `npm-pack.mjs` fails before publishing when an archive in the manifest is missing, and names a triple it has no npm `os`/`cpu` for.
+1. Bump the version: every `crates/*/Cargo.toml`, both `claude-plugin*/.claude-plugin/plugin.json` and the `@petukhovart/stratum-lint@X.Y.Z` pin in `ci/github/action.yml` and `ci/gitlab/templates/stratum.yml`. `node scripts/check-version.mjs` fails until all of them agree.
+2. In `CHANGELOG.md`, rename `## Unreleased` to `## X.Y.Z (YYYY-MM-DD)` and open a new empty `## Unreleased` above it. `node scripts/release-notes.mjs X.Y.Z` prints what becomes the release notes.
+3. Commit `chore(release): X.Y.Z` and push to `main`.
+4. `.github/workflows/release.yml` runs:
+   - `gate` checks the versions agree and that `vX.Y.Z` is not tagged yet, and that the changelog section exists;
+   - `build` runs `cargo build --release` per target and packs `stratum-lint-<target>.tar.gz` / `.zip` with both binaries; each binary must stay under 25 MB;
+   - `npm-pack` turns the archives into the platform packages and the launcher (`scripts/npm-pack.mjs`);
+   - `release` tags the commit `vX.Y.Z` and writes the GitHub Release with the changelog section as notes and the archives attached;
+   - `npm` publishes each `@petukhovart/stratum-lint-<platform>-<arch>`, then the launcher (secret `NPM_TOKEN`, `--provenance`).
+5. Verify the GitHub Release lists the archive of every target, and npm lists the new version of the launcher and of each platform package.
+
+A target added to the `build` matrix also needs its npm `os`/`cpu` in `NPM_PLATFORMS` (`scripts/npm-pack.mjs`), which fails before publishing on a triple it does not know.
 
 ## Downstream package updates
 
@@ -42,10 +39,10 @@ No release job updates the tap or the bucket: both are bumped by hand with the s
 
 ### npm packages, before tagging
 
-Install must work with `--ignore-scripts` and with no host but the registry. With the archives and `dist-manifest.json` in `target/distrib` (from `cargo dist build`, or a release run's artifacts):
+Install must work with `--ignore-scripts` and with no host but the registry. With the `stratum-lint-<target>` archives in a folder (a dry run's `archive-*` artifacts):
 
 ```bash
-node scripts/npm-pack.mjs target/distrib target/npm
+node scripts/npm-pack.mjs <archives-dir> X.Y.Z target/npm
 dir=$(mktemp -d) && cd "$dir" && npm init -y > /dev/null
 # launcher + this platform's package; --offline proves no registry or GitHub fetch happens
 npm install --offline --ignore-scripts --no-audit --no-fund \

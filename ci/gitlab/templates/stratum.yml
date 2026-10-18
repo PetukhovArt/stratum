@@ -19,7 +19,7 @@ spec:
       else
         mkdir -p .stratum
         if [ -f .npmrc ]; then cp .npmrc .stratum/.npmrc; fi
-        npm install --prefix .stratum --no-save --no-package-lock --no-audit --no-fund "@petukhovart/stratum-lint@0.2.0-rc.1"
+        npm install --prefix .stratum --no-save --no-package-lock --no-audit --no-fund "@petukhovart/stratum-lint@0.2.0"
         export PATH="$PWD/.stratum/node_modules/.bin:$PATH"
       fi
       stratum-lint --version

@@ -1,51 +1,78 @@
 name: release
 
 on:
+  # A version bump landing on main is the release: this workflow builds it, tags it, writes the
+  # GitHub release from CHANGELOG.md and publishes npm. A tag pushed with GITHUB_TOKEN starts no
+  # workflow, so the tag records what shipped instead of triggering it. A tag pushed by hand
+  # re-releases that commit.
   push:
+    branches: [main]
     tags: ['v*']
+  # Dry run: the whole build matrix and the npm packing, nothing published.
+  workflow_dispatch:
 
 permissions:
   contents: write
 
-env:
-  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
-  plan:
-    runs-on: ubuntu-latest
+  gate:
+    runs-on: ubuntu-24.04
     outputs:
-      tag: ${{ github.ref_name }}
+      version: ${{ steps.decide.outputs.version }}
+      build: ${{ steps.decide.outputs.build }}
+      release: ${{ steps.decide.outputs.release }}
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
-      - name: install cargo-dist
-        run: cargo install cargo-dist --locked --version 0.20.0
-      - name: cargo dist plan
-        run: |
-          mkdir -p target/distrib
-          if ! cargo dist plan -v debug --tag ${{ github.ref_name }} --output-format=json > target/distrib/dist-manifest.json 2> plan.err; then
-            cat plan.err
-            echo "::error title=cargo dist plan::$(grep -E 'exec|ERROR|WARN|×|─▶' plan.err | tail -12 | tr '\n' ' ' | cut -c1-1800)"
-            exit 1
-          fi
-      - uses: actions/upload-artifact@v5
         with:
-          name: dist-manifest
-          path: target/distrib/dist-manifest.json
+          fetch-depth: 0
+      - name: one version everywhere
+        run: node scripts/check-version.mjs
+      - id: decide
+        shell: bash
+        run: |
+          version=$(node scripts/check-version.mjs --print)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          case "$GITHUB_REF" in
+            refs/tags/v*)
+              [ "${GITHUB_REF_NAME#v}" = "$version" ] ||
+                { echo "::error::tag $GITHUB_REF_NAME != workspace version $version"; exit 1; }
+              build=true; release=true ;;
+            refs/heads/main)
+              if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+                echo "v$version is already released"
+                build=false; release=false
+              else
+                echo "v$version is new: releasing"
+                build=true; release=true
+              fi ;;
+            *) build=true; release=false ;;
+          esac
+          [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && { build=true; release=false; }
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+      - name: release notes exist
+        if: steps.decide.outputs.release == 'true'
+        run: node scripts/release-notes.mjs "${{ steps.decide.outputs.version }}" > /dev/null
 
   build:
-    needs: plan
+    needs: gate
+    if: needs.gate.outputs.build == 'true'
+    name: build (${{ matrix.target }})
     strategy:
       fail-fast: false
       matrix:
         include:
           - target: x86_64-pc-windows-msvc
-            os: windows-latest
+            runner: windows-latest
           - target: aarch64-apple-darwin
-            os: macos-14
+            runner: macos-14
           - target: x86_64-unknown-linux-gnu
-            os: ubuntu-22.04 # glibc 2.35: runs on Debian bookworm (node:22) and newer
-    runs-on: ${{ matrix.os }}
+            runner: ubuntu-22.04 # glibc 2.35: runs on Debian bookworm (node:22) and newer
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -59,68 +86,99 @@ jobs:
         run: |
           npm install --no-audit --no-fund
           npm run build
-      - name: install cargo-dist
-        run: cargo install cargo-dist --locked --version 0.20.0
-      - name: cargo dist build
-        run: cargo dist build --target ${{ matrix.target }} --tag ${{ github.ref_name }}
-      - name: artifact size budget
+      - name: build
+        run: cargo build --release --target ${{ matrix.target }} -p stratum-lint -p stratum-lsp
+      - name: package
         shell: bash
         run: |
-          mapfile -t bins < <(find target/distrib -maxdepth 2 -type f \( -name 'stratum-lint*' -o -name 'stratum-lsp*' \))
-          for bin in "${bins[@]}"; do
+          dir=target/${{ matrix.target }}/release
+          name=stratum-lint-${{ matrix.target }}
+          if [ "${{ runner.os }}" = Windows ]; then
+            7z a -tzip "$name.zip" "./$dir/stratum-lint.exe" "./$dir/stratum-lsp.exe" README.md LICENSE CHANGELOG.md
+          else
+            tar -czf "$name.tar.gz" -C "$dir" stratum-lint stratum-lsp -C "$GITHUB_WORKSPACE" README.md LICENSE CHANGELOG.md
+          fi
+          for bin in "$dir"/stratum-lint* "$dir"/stratum-lsp*; do
+            case "$bin" in *.d|*.pdb) continue ;; esac
             size=$(stat -f%z "$bin" 2>/dev/null || stat -c%s "$bin")
-            echo "$bin → $size bytes"
-            if [ "$size" -gt 26214400 ]; then
-              echo "::error::$bin exceeds the 25MB CI ceiling"
-              exit 1
-            fi
+            echo "$bin: $size bytes"
+            [ "$size" -le 26214400 ] || { echo "::error::$bin exceeds the 25MB ceiling"; exit 1; }
           done
       - uses: actions/upload-artifact@v5
         with:
-          name: dist-${{ matrix.target }}
-          path: target/distrib/
+          name: archive-${{ matrix.target }}
+          path: stratum-lint-${{ matrix.target }}.*
 
-  publish:
-    needs: build
-    runs-on: ubuntu-latest
+  npm-pack:
+    needs: [gate, build]
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: actions/download-artifact@v5
         with:
-          path: target/distrib
-          merge-multiple: true
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          files: target/distrib/**
-          generate_release_notes: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
-
-  publish-npm:
-    needs: publish
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v5
-        with:
-          path: target/distrib
+          pattern: archive-*
+          path: archives
           merge-multiple: true
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
-          registry-url: 'https://registry.npmjs.org'
       - name: pack npm packages
-        run: node scripts/npm-pack.mjs target/distrib target/npm > target/npm-publish-order.txt
+        run: node scripts/npm-pack.mjs archives "${{ needs.gate.outputs.version }}" npm-out > npm-out.txt
+      - uses: actions/upload-artifact@v5
+        with:
+          name: npm-tarballs
+          path: |
+            npm-out/*.tgz
+            npm-out.txt
+
+  release:
+    needs: [gate, build, npm-pack]
+    if: needs.gate.outputs.release == 'true'
+    runs-on: ubuntu-24.04
+    env:
+      VERSION: ${{ needs.gate.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: archive-*
+          path: archives
+          merge-multiple: true
+      - name: release notes
+        run: node scripts/release-notes.mjs "$VERSION" > RELEASE_NOTES.md
+      - name: tag this version
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/v$VERSION" -f sha="$GITHUB_SHA"
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.gate.outputs.version }}
+          name: v${{ needs.gate.outputs.version }}
+          body_path: RELEASE_NOTES.md
+          files: archives/*
+
+  npm:
+    needs: [gate, release]
+    if: needs.gate.outputs.release == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: npm-tarballs
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+      # Platform packages first: a launcher whose optionalDependencies do not resolve yet is a
+      # broken install for anyone installing in between.
       - name: publish platform packages, then the launcher
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          TAG: ${{ github.ref_name }}
         run: |
-          dist_tag=latest
-          case "$TAG" in *-*) dist_tag=next ;; esac
           while read -r tarball; do
-            npm publish "$tarball" --access public --provenance --tag "$dist_tag"
-          done < target/npm-publish-order.txt
+            npm publish "npm-out/$(basename "$tarball")" --access public --provenance
+          done < npm-out.txt
