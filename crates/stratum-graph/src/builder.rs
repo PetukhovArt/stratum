@@ -387,11 +387,8 @@ impl GraphBuilder {
                 .map(|_| {
                     s.spawn(|| {
                         let mut out = Vec::new();
-                        loop {
-                            let Some(&i) = largest_first.get(next.fetch_add(1, Ordering::Relaxed))
-                            else {
-                                break;
-                            };
+                        while let Some(&i) = largest_first.get(next.fetch_add(1, Ordering::Relaxed))
+                        {
                             out.push((i, self.scan(paths[i], job.priors[i], job, &large_file)));
                         }
                         out

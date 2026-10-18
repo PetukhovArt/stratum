@@ -67,7 +67,7 @@ fn jsonl_line_has_exactly_the_contract_fields_in_order() {
     let parsed: Value = serde_json::from_str(line).unwrap();
     assert_eq!(parsed.as_object().unwrap().len(), 8);
     assert!(line.contains(r#","fix":""#));
-    assert!(!parsed["fix"].as_str().unwrap().is_empty());
+    assert_ne!(parsed["fix"].as_str().unwrap(), "");
 }
 
 #[test]

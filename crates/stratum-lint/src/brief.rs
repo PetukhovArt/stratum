@@ -281,10 +281,12 @@ fn fill_from_graph(
             on_import: from_here,
         });
     }
-    brief.violations.sort_by(|a, b| b.severity.cmp(&a.severity));
+    brief
+        .violations
+        .sort_by_key(|v| std::cmp::Reverse(v.severity));
     brief
         .violating_imports
-        .sort_by(|a, b| b.severity.cmp(&a.severity));
+        .sort_by_key(|v| std::cmp::Reverse(v.severity));
     Ok(())
 }
 
