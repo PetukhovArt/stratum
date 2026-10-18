@@ -1,76 +1,86 @@
+<div align="center">
+
+<img src="docs/assets/logo.svg" width="72" alt="" />
+
 # Stratum
 
-An architecture linter for TypeScript, JavaScript and Vue, built for AI coding agents and CI. It builds the project's dependency graph and checks it against units you configure: layers, slices inside layers, and the folder names that mark entries, segments and private zones. Folder names come from your config or a preset (the `stratum:recommended` preset treats `_shared` as a private zone); FSD is one preset among others.
+**A universal architecture linter for TypeScript, JavaScript and Vue.**<br/>
+Fast enough to run on every edit, written for AI coding agents and CI.
 
-Source files: `.ts .tsx .mts .cts .js .jsx .mjs .cjs .vue` (Vue: `<script>` and `<script setup>` blocks).
+[![CI](https://github.com/PetukhovArt/stratum/actions/workflows/ci.yml/badge.svg)](https://github.com/PetukhovArt/stratum/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@petukhovart/stratum-lint?label=npm&color=7aa2e0)](https://www.npmjs.com/package/@petukhovart/stratum-lint)
+[![License: MIT](https://img.shields.io/badge/license-MIT-66c29a)](LICENSE)
+[![Part of jig](https://img.shields.io/badge/part%20of-jig-e0a85c)](https://github.com/PetukhovArt/jig)
 
-Binaries: `stratum-lint` (CLI, visualizer server) and `stratum-lsp` (stdio language server).
+<img src="docs/assets/visualizer-focus.webp" alt="Stratum visualizer: a module, everything that imports it and everything it imports, with its layer rules" width="100%" />
 
-## Install
+</div>
 
-- npm (all platforms): `npm install -g @petukhovart/stratum-lint` (ships both binaries)
+## Why Stratum
+
+- **Any architecture.** Layers, slices, segments and private zones come from your config or a preset (`stratum:recommended`, `stratum:fsd`). No folder name is wired in.
+- **24 rules out of the box.** Cross-layer imports, cycles, public API bypass, sibling coupling, import policies, restricted calls, folder structure, unused exports and unreachable modules. Custom rules in Rhai, no rebuild.
+- **Every finding says what to do.** Each one carries a `fix`, so an agent repairs it without asking.
+- **Fast.** Rust, a graph cache and a git-aware scope: about 0.15 s for the changed files of a 4,000-module project. Works offline.
+- **Adopt on a legacy codebase.** `baseline` accepts what exists today; later runs report only new violations, and `diff --base main` shows what a merge request changes.
+- **See it.** `stratum-lint visualize` opens the dependency graph, the layer matrix and the container map in the browser.
+
+## Quick start
+
+```sh
+npm install -g @petukhovart/stratum-lint
+stratum-lint init                         # write a config inferred from your folders
+stratum-lint --changed --format agent     # check what you changed
+```
+
+```text
+stratum: 9 errors, 2 warnings, 27 info, 0.08s
+error stratum/public-api (1) - stratum-lint explain stratum/public-api
+  src/features/checkout/model/discount.ts:1 -> src/features/add-to-cart/model/use-add-to-cart.ts  Import of `src/features/add-to-cart/model/use-add-to-cart.ts` reaches inside `src/features/add-to-cart`
+  fix: Import from `src/features/add-to-cart` through its entry `src/features/add-to-cart/index.ts`, exporting the name there if it is missing.
+warning stratum/no-cross-layer-import (1) - stratum-lint explain stratum/no-cross-layer-import
+  src/shared/lib/analytics.ts:1 -> src/entities/user/index.ts  Module imports from layer 'entities' which 'shared' does not depend on
+  fix: Move the imported symbol into a layer 'shared' may reach, or add 'entities' to 'shared'.depends_on if the dependency is legitimate.
+```
+
+<table>
+<tr>
+<td width="50%"><img src="docs/assets/visualizer-violation.webp" alt="A module with two violations and their rules" /></td>
+<td width="50%"><img src="docs/assets/visualizer-matrix.webp" alt="Layer dependency matrix with a rule break above the diagonal" /></td>
+</tr>
+<tr>
+<td align="center"><sub>Every violation, with the rule and the layers the module may import</sub></td>
+<td align="center"><sub>Layer matrix: imports against the order sit above the diagonal</sub></td>
+</tr>
+</table>
+
+## Part of jig
+
+Stratum is the architecture gate of **[jig](https://github.com/PetukhovArt/jig)**, a harness for AI coding agents. jig runs Stratum after each edit and blocks the end of a turn while new errors remain. Stratum works on its own too:
+
+| Where | How |
+|---|---|
+| Claude Code | the [`stratum` plugin](claude-plugin/README.md); optional warm diagnostics through [`stratum-lsp`](claude-plugin-lsp/README.md) |
+| Codex, Cursor, other agents | paste [docs/agents-snippet.md](docs/agents-snippet.md) into `AGENTS.md` |
+| GitLab, GitHub CI | native report formats and a baseline check: [docs/ci.md](docs/ci.md) |
+| Any tool | the JSONL contract and exit codes: [docs/harness.md](docs/harness.md) |
+
+<details>
+<summary><b>Install</b></summary>
+
+- npm, all platforms: `npm install -g @petukhovart/stratum-lint` (ships `stratum-lint` and `stratum-lsp`)
 - Windows: `scoop bucket add stratum https://github.com/PetukhovArt/scoop-stratum-bucket`, then `scoop install stratum-lint`
-- macOS (Apple silicon) / Linux (x64): `brew tap petukhovart/stratum`, then `brew install stratum-lint` (the tap is bumped by hand after a release)
+- macOS (Apple silicon), Linux (x64): `brew tap petukhovart/stratum`, then `brew install stratum-lint`
 - From source: `cargo install --path crates/stratum-lint` and `cargo install --path crates/stratum-lsp`
 
-## AI harness integration
+Source files: `.ts .tsx .mts .cts .js .jsx .mjs .cjs .vue` (Vue: `<script>` and `<script setup>`).
 
-- **Claude Code**: the `stratum` plugin is a skill that tells the agent when to run the CLI: `stratum-lint context` before placing a file, `stratum-lint --changed --format agent` before finishing. Stratum ships no hooks: wire the gate into your harness, pre-commit or CI. The optional `stratum-lsp` plugin adds warm LSP diagnostics, for projects without `typescript-lsp` only. See [claude-plugin](claude-plugin/README.md) and [claude-plugin-lsp](claude-plugin-lsp/README.md).
-- **Codex, Cursor, other harnesses**: paste [docs/agents-snippet.md](docs/agents-snippet.md) into `AGENTS.md`, and launch `stratum-lsp` over stdio if the harness takes an LSP server.
-- The CLI and LSP contract, exit codes and output shapes: [docs/harness.md](docs/harness.md).
-- **CI** (GitLab, GitHub, offline): [docs/ci.md](docs/ci.md).
+</details>
 
-```
-stratum-lint context src/features/cart/model/store.ts   # where a file sits, what it may import
-stratum-lint --changed --format agent                    # end-of-turn gate: exit 1 on new errors
-stratum-lint baseline                                    # accept current violations; later runs report only new ones
-stratum-lint visualize                                   # architecture views in the browser
-```
+<details>
+<summary><b>Rules</b></summary>
 
-## Configuration
-
-`stratum.config.jsonc` at the project root. Without it (zero-config), every `src/*` folder becomes a layer and the rules that need declared structure (`public-api`, `sibling-isolation`, `container-breadth`) stay off; `stratum-lint init` writes the inferred config.
-
-```jsonc
-{
-  "$schema": "./stratum.schema.json",
-  "version": 1,
-  "project": {
-    "extends": "stratum:recommended",               // or "stratum:fsd", or a relative file
-    "ignore": ["**/__tests__/**", "**/*.test.ts"]   // out of the graph, on top of node_modules, dist, ...
-  },
-  "structure": { "segments": ["model", "ui", "api", "lib"], "private": ["_local"] },
-  "layers": [
-    { "id": "app",      "path": "src/app",      "depends_on": ["features", "shared"] },
-    { "id": "features", "path": "src/features", "depends_on": ["shared"], "slices": true },
-    { "id": "shared",   "path": "src/shared" }
-  ],
-  "rules": {
-    "stratum/public-api": { "severity": "error" },
-    "stratum/import-policy": { "severity": "error", "options": [
-      { "from": ["src/shared/**"], "deny": ["src/shared/legacy/**"], "message": "legacy is frozen" }
-    ] },
-    "stratum/restricted-calls": { "severity": "error", "options": [
-      { "calls": ["inject", "provide"], "allow": ["**/_local/*-scope.ts"], "message": "Use useXxxScope()" }
-    ] },
-    "custom/no-legacy-imports": { "severity": "warning", "script": "./rules/no_legacy_imports.rhai" }
-  },
-  "overrides": [
-    { "files": ["src/app/**"], "rules": { "stratum/purity": { "severity": "off" } } }
-  ]
-}
-```
-
-- `layers`: a module belongs to the layer with the longest matching `path`; `depends_on` lists the layers it may import. With `slices: true`, each direct child of the layer is a slice.
-- `structure`: `entries` (default `index.ts`, `index.tsx`, `index.js`, `index.jsx`, `index.vue`) make a folder a container with one public entry; `segments` group a container's files by purpose; `private` folders (`stratum:recommended` sets `_shared`) are visible only under their parent.
-- `overrides` change severity only. Unknown keys, slugs or options fail the run with exit 2.
-- `.rhai` scripts add project-specific rules without rebuilding Stratum.
-
-Full reference: [docs/custom-rules.md](docs/custom-rules.md). It also shows a config translated from eslint-plugin-boundaries.
-
-## Rules
-
-`stratum-lint rules` lists the active ones with their severity; `stratum-lint explain <slug>` prints what, why, fix and options.
+`stratum-lint rules` lists the active ones; `stratum-lint explain <slug>` prints what, why, fix and options.
 
 | Rule | Reports |
 |---|---|
@@ -99,8 +109,10 @@ Full reference: [docs/custom-rules.md](docs/custom-rules.md). It also shows a co
 | `stratum/deep-module` | A module exporting more than `max_exports` names. |
 | `stratum/depth-ratio` | A module whose ratio of modules in its slice (else its layer) to its exports is below `min_ratio`. |
 
-## More
+</details>
 
-- [docs/visualizer.md](docs/visualizer.md): the Visualizer, requirements and wishlist.
-- [UBIQUITOUS_LANGUAGE.md](UBIQUITOUS_LANGUAGE.md): the glossary.
-- [CHANGELOG.md](CHANGELOG.md), [RELEASE.md](RELEASE.md).
+## Docs
+
+[Configuration](docs/configuration.md) · [Rules and options](docs/custom-rules.md) · [Visualizer](docs/visualizer.md) · [Agent contract](docs/harness.md) · [CI](docs/ci.md) · [Glossary](UBIQUITOUS_LANGUAGE.md) · [Changelog](CHANGELOG.md)
+
+MIT © Artem Petukhov

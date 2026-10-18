@@ -2,6 +2,8 @@
 
 npm package for the [Stratum](https://github.com/PetukhovArt/stratum) architecture linter: the `stratum-lint` CLI and the `stratum-lsp` stdio language server.
 
+![Stratum visualizer](https://raw.githubusercontent.com/PetukhovArt/stratum/main/docs/assets/visualizer-focus.webp)
+
 ```
 npm install -g @petukhovart/stratum-lint
 ```
