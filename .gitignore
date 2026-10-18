@@ -37,8 +37,6 @@ benches/elk-spike/results/
 # Frontend
 frontend/**/node_modules/
 frontend/**/dist/assets/
-frontend/**/test-results/
-frontend/**/playwright-report/
 .tmp/
 
 # IDEs

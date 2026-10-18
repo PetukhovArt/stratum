@@ -41,7 +41,7 @@
 Проверка после существенной правки рендера или раскладки:
 
 1. `stratum-lint visualize <project> --base <REF> --no-open` — стартует, снапшот грузится без ошибки версии, есть вкладка Merge request.
-2. `BENCH_URL=<url> npx playwright test tests/e2e/bench.spec.ts` — стенд проходит все пороги (`isPassing`).
+2. Вид **Bench** (`9`), кнопка «Run bench» — стенд проходит все пороги.
 
 Tiny-ts (`tests/fixtures/tiny-ts`) остаётся unit/CI-фикстурой.
 
@@ -67,7 +67,7 @@ Tiny-ts (`tests/fixtures/tiny-ts`) остаётся unit/CI-фикстурой.
 - [x] `v` переключает вариант вида (Columns/Bands, слой/юнит, регион/карточка, Lanes/Layer graph, Ring/Arc/Set matrix). Состояние навигации (вид, фокус, варианты, гейт рёбер карты, раскрытые юниты, набор) хранится в `localStorage`, выделение — нет.
 - [x] **Палитра** (Ctrl+K, Ctrl+P, `/`): виды и модули по подстроке пути, до 60 строк; модуль открывается в Module focus.
 - [x] Язык интерфейса `EN | RU` в шапке, выбор в `localStorage`. Шрифты (Inter Tight, JetBrains Mono, латиница и кириллица) в бандле, без сети.
-- [x] **Bench** (`9`): прогоняет канонические вопросы для Module focus, Matrix, Merge request, Container map и Module set (ответ ищется в DOM по `data-testid`, ≤ 3 действия) и замеры отрисовки (время, метки ≤ 1 500, p95 пана/зума ≤ 16,7 мс, цвета severity только на метках severity, правила на рёбрах против линтера, карточка MR ≤ 800×600). Без `/api/drift` вопрос MR пропускается, а не проваливается. Хуки: `window.__stratum` (`go`, `set`, `get`) — навигация, `window.__benchRun()` — синхронный прогон, `window.__bench` — последний результат. `BENCH_URL=<url> npx playwright test tests/e2e/bench.spec.ts` гоняет стенд на живом `visualize`; без `BENCH_URL` — на tiny-ts с заглушками API.
+- [x] **Bench** (`9`): прогоняет канонические вопросы для Module focus, Matrix, Merge request, Container map и Module set (ответ ищется в DOM по `data-testid`, ≤ 3 действия) и замеры отрисовки (время, метки ≤ 1 500, p95 пана/зума ≤ 16,7 мс, цвета severity только на метках severity, правила на рёбрах против линтера, карточка MR ≤ 800×600). Без `/api/drift` вопрос MR пропускается, а не проваливается. Запускается кнопкой «Run bench» на живом `visualize`.
 - [x] Счётчики в шапке: модули, рёбра, ошибки, предупреждения.
 - [x] CI: bundle-size budget (без sourcemaps), unit + Playwright smoke.
 

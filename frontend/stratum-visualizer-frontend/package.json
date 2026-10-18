@@ -8,7 +8,6 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -17,7 +16,6 @@
     "solid-js": "^1.8.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.45.0",
     "@types/node": "^25.9.0",
     "happy-dom": "^14.0.0",
     "typescript": "^5.4.0",

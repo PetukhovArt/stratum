@@ -84,12 +84,6 @@ interface Scenario {
   drawn?: { scene: string; pairs: () => DrawnPairs }
 }
 
-declare global {
-  interface Window {
-    __stratumBench?: { run: () => BenchResult }
-  }
-}
-
 const [lastResult, setLastResult] = createSignal<BenchResult | null>(null)
 export { lastResult }
 
@@ -338,7 +332,3 @@ export const runBench = (): BenchResult => {
   return result
 }
 
-/** The only global of the bench: tests/e2e/bench.spec.ts runs the bench through it, no app code reads it. */
-export const installBenchHook = (): void => {
-  window.__stratumBench = { run: runBench }
-}

@@ -2,9 +2,8 @@ import { Component, For, onCleanup, Show } from 'solid-js'
 import { t } from '../../i18n'
 import { ViewDef, ViewProps } from '../view-def'
 import './bench.css'
-import { attachModel, BenchResult, installBenchHook, lastResult, RenderRun, runBench, TARGET, TaskResult } from './run'
+import { attachModel, BenchResult, lastResult, RenderRun, runBench, TARGET, TaskResult } from './run'
 
-installBenchHook()
 
 const fixed = (x: number | null | undefined, digits = 1): string => (x === null || x === undefined ? '—' : x.toFixed(digits))
 
