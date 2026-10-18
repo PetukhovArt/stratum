@@ -8,7 +8,7 @@
 Fast enough to run on every edit, written for AI coding agents and CI.
 
 [![CI](https://github.com/PetukhovArt/stratum/actions/workflows/ci.yml/badge.svg)](https://github.com/PetukhovArt/stratum/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/@petukhovart/stratum-lint?label=npm&color=7aa2e0)](https://www.npmjs.com/package/@petukhovart/stratum-lint)
+[![npm](https://img.shields.io/npm/v/@petukhovart/stratum-lint/next?label=npm&color=7aa2e0)](https://www.npmjs.com/package/@petukhovart/stratum-lint)
 [![License: MIT](https://img.shields.io/badge/license-MIT-66c29a)](LICENSE)
 [![Part of jig](https://img.shields.io/badge/part%20of-jig-e0a85c)](https://github.com/PetukhovArt/jig)
 

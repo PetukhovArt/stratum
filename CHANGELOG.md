@@ -9,7 +9,7 @@ The **Graph Snapshot** version is the on-wire contract between `stratum-lint`
 (`snapshot`, `visualize`) and the Visualizer. It is tracked separately from the
 package version; a bump requires a coordinated frontend release.
 
-## Unreleased
+## 0.2.0-rc.1 — 2026-10-18
 
 ### Breaking
 

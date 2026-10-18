@@ -28,12 +28,11 @@ fn strip_verbatim(path: &Path) -> PathBuf {
     ))
 }
 
-#[cfg(test)]
+#[cfg(all(test, windows))]
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
-    #[cfg(windows)]
     #[test]
     fn decodes_percent_encoded_drive_colon() {
         let uri = Url::parse("file:///c%3A/Users/x/project").unwrap();
@@ -41,7 +40,6 @@ mod tests {
         assert_eq!(path_key(&path), "c:/users/x/project");
     }
 
-    #[cfg(windows)]
     #[test]
     fn canonical_and_uri_paths_share_a_key() {
         let canonical = Path::new(r"\\?\C:\Users\X\src\a.ts");
