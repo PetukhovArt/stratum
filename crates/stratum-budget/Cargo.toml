@@ -1,0 +1,42 @@
+[package]
+name = "stratum-budget"
+version = "0.2.0-rc.1"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Release gate: measures stratum-lint against the budgets in docs/harness.md."
+publish = false
+
+[package.metadata.dist]
+dist = false
+
+# Same table as the workspace's, except `unsafe` is denied rather than forbidden:
+# the one memory syscall lives in `peak.rs` behind an explicit allow.
+[lints.rust]
+unsafe_code = "deny"
+missing_debug_implementations = "warn"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "warn"
+unimplemented = "warn"
+
+[[bin]]
+name = "stratum-budget"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+tempfile = "3"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_ProcessStatus"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

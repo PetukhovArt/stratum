@@ -7,7 +7,8 @@ This document walks through cutting a `stratum-lint` / `stratum-lsp` release. Tr
 1. Workspace is clean: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`.
 2. Frontend builds: `cd frontend/stratum-visualizer-frontend && npm install && npm run build`. `dist/` exists and is under 1.5 MB (CI gate).
 3. Local `cargo dist plan` succeeds (`cargo install cargo-dist --locked` if missing).
-4. Pick the new semantic version `X.Y.Z`. Pre-releases use `X.Y.Z-rc.N`.
+4. Performance budget: run `cargo run --release -p stratum-budget -- check` on Windows and on macOS; it must pass on both (budgets: [docs/harness.md](docs/harness.md#budgets), method: [docs/calibration.md](docs/calibration.md#budget-project)). The maintainer runs the macOS one.
+5. Pick the new semantic version `X.Y.Z`. Pre-releases use `X.Y.Z-rc.N`.
 
 ## Cut the release
 

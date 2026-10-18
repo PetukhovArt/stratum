@@ -173,7 +173,7 @@ Baseline file (`stratum.baseline.json`): `{ "version": 1, "violations": [{ rule,
 | Full, cold | whole project, empty cache | 1,500 ms | 300 MB |
 <!-- budgets:end -->
 
-Measured on a generated project of 4,000 modules, on Windows and macOS, before each release. For scale, a real 3,800-module project cold: full run p95 314 ms / 22 MB, `--files` p95 304 ms / 22 MB. Call `--changed=<base>` with the `=`.
+Measured on a generated project of 4,000 modules (`stratum-budget generate`), on Windows and macOS, by `stratum-budget check` before each release. For scale, a real ~4K-module private project (3,800 modules, Windows, with the graph cache): full cold p95 ~361 ms / 39 MB, full warm ~177 ms / 23 MB, warm `--files` ~141 ms / 23 MB, `--changed` with no changed files ~120 ms. See [calibration.md](calibration.md#budget-project). Call `--changed=<base>` with the `=`.
 
 ### Graph cache
 

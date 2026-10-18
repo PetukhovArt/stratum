@@ -69,6 +69,7 @@ package version; a bump requires a coordinated frontend release.
 - Inline suppression `// stratum-ignore <slug>[, <slug>] -- <reason>` (next line only), checked by `stratum/suppression`: a missing reason or an unknown slug is an error and suppresses nothing, a directive that hides nothing is a warning. Applied before the baseline. `--format json` summary gains `suppressed`, the agent summary `, N suppressed`; `jsonl`, `gitlab` and `github` omit suppressed findings, `sarif` keeps them with `suppressions`.
 - `docs/harness.md` budgets table and `eval/` fixtures (`eval/README.md`) with the runner `crates/stratum-lint/tests/eval.rs`.
 - Graph Cache: every graph built from disk (lint, baseline, context, snapshot, visualize, the LSP Server's full rebuilds) reuses the parsed facts and resolved imports of unchanged files from `DIR/stratum-<hash>.graph`. `--cache-dir DIR` on every command (env `STRATUM_CACHE_DIR`), default the OS user cache dir + `stratum`. Findings do not depend on what the cache holds. The `--format json` summary gains `cache: { state: "warm" | "cold" | "off", reparsed }`. See `docs/harness.md#graph-cache`.
+- `stratum-budget` (internal, not published): `generate` writes a deterministic 4,000-module project, `check` measures `stratum-lint` p50/p95 and peak RSS in the four scenarios of the `docs/harness.md` budgets table and exits 1 over budget; run before each release. `--files` and warm-versus-cold equivalence tests in `crates/stratum-lint/tests/e2e_equivalence.rs`.
 
 ### Changed
 
