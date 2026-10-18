@@ -193,10 +193,12 @@ Slice isolation and entry-only access need no policy: declare `slices: true` and
 {
   "version": 1,
   "layers": [
+    { "id": "app",      "path": "src/app",      "depends_on": ["features", "shared"] },
     { "id": "features", "path": "src/features", "depends_on": ["shared"], "slices": true },
-    { "id": "shared",   "path": "src/shared",   "depends_on": [] }
+    { "id": "shared",   "path": "src/shared",   "depends_on": [] },
+    { "id": "legacy",   "path": "src/legacy",   "depends_on": ["features", "shared"] }
   ],
-  "project": { "entry_points": ["src/main.ts", "src/**/*.stories.ts", "src/workers/*.worker.ts"] },
+  "project": { "entry_points": ["src/app/main.ts", "src/**/*.stories.ts", "src/app/workers/*.worker.ts"] },
   "overrides": [
     { "files": ["src/legacy/**"], "rules": { "stratum/no-cross-layer-import": { "severity": "off" } } }
   ],
