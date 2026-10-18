@@ -7,21 +7,52 @@ pub fn changed_files(root: &Utf8Path, reference: &str) -> miette::Result<Vec<Str
     if reference == "HEAD" {
         return changed_since_head(root);
     }
+    Ok(changes(root, reference)?
+        .into_iter()
+        .map(|change| change.path)
+        .collect())
+}
+
+struct Change {
+    path: String,
+    absent_at_reference: bool,
+}
+
+/// Paths relative to `root` whose working-tree state differs from `reference`, untracked ones
+/// included. Renames count as a deletion plus an addition.
+fn changes(root: &Utf8Path, reference: &str) -> miette::Result<Vec<Change>> {
     let (verified, diff, untracked) = std::thread::scope(|s| {
         let verified = s.spawn(|| verify(root, reference));
         let diff = s.spawn(|| {
             run(
                 root,
-                &["diff", "--name-only", "--relative", "-z", reference, "--"],
+                &[
+                    "diff",
+                    "--name-status",
+                    "--no-renames",
+                    "--relative",
+                    "-z",
+                    reference,
+                    "--",
+                ],
             )
         });
         let untracked = run(root, &["ls-files", "--others", "--exclude-standard", "-z"]);
         (joined(verified), joined(diff), untracked)
     });
     verified?;
-    let mut files = lines(&diff?);
-    files.extend(lines(&untracked?));
-    Ok(files)
+    let mut changes: Vec<Change> = lines(&diff?)
+        .chunks_exact(2)
+        .map(|pair| Change {
+            absent_at_reference: pair[0].starts_with('A'),
+            path: pair[1].clone(),
+        })
+        .collect();
+    changes.extend(lines(&untracked?).into_iter().map(|path| Change {
+        path,
+        absent_at_reference: true,
+    }));
+    Ok(changes)
 }
 
 /// Porcelain paths are relative to the work tree top, not to `root`:
@@ -77,6 +108,10 @@ fn joined<T>(handle: std::thread::ScopedJoinHandle<'_, miette::Result<T>>) -> mi
 /// `None` when `rel` (relative to `root`) does not exist at `reference`.
 pub fn show(root: &Utf8Path, reference: &str, rel: &str) -> miette::Result<Option<String>> {
     verify(root, reference)?;
+    show_verified(root, reference, rel)
+}
+
+fn show_verified(root: &Utf8Path, reference: &str, rel: &str) -> miette::Result<Option<String>> {
     let object = format!("{reference}:./{rel}");
     let exists = git(root)
         .args(["cat-file", "-e", &object])
@@ -119,45 +154,42 @@ pub fn files_at(
     reference: &str,
     keep: impl Fn(&str) -> bool,
 ) -> miette::Result<Vec<(String, Option<String>)>> {
-    verify(root, reference)?;
-    let status = lines(&run(
-        root,
-        &[
-            "diff",
-            "--name-status",
-            "--no-renames",
-            "--relative",
-            "-z",
-            reference,
-            "--",
-        ],
-    )?);
-    let mut absent = Vec::new();
-    let mut present = Vec::new();
-    for pair in status.chunks_exact(2) {
-        let (code, path) = (&pair[0], &pair[1]);
-        if keep(path) {
-            if code.starts_with('A') {
-                absent.push(path.clone());
-            } else {
-                present.push(path.clone());
-            }
-        }
-    }
-    let untracked = lines(&run(
-        root,
-        &["ls-files", "--others", "--exclude-standard", "-z"],
-    )?);
-    absent.extend(untracked.into_iter().filter(|p| keep(p)));
+    let (absent, present): (Vec<Change>, Vec<Change>) = changes(root, reference)?
+        .into_iter()
+        .filter(|change| keep(&change.path))
+        .partition(|change| change.absent_at_reference);
+    let present: Vec<String> = present.into_iter().map(|change| change.path).collect();
     let texts = blobs(root, reference, &present)?;
     Ok(present
         .into_iter()
         .zip(texts)
-        .chain(absent.into_iter().map(|p| (p, None)))
+        .chain(absent.into_iter().map(|change| (change.path, None)))
         .collect())
 }
 
+/// `cat-file --batch` reads one object name per line
+/// (<https://git-scm.com/docs/git-cat-file#_batch_output>), so a path with a line break
+/// goes through `git cat-file` on its own.
 fn blobs(root: &Utf8Path, reference: &str, rels: &[String]) -> miette::Result<Vec<Option<String>>> {
+    let single_line = |rel: &String| !rel.contains(['\n', '\r']);
+    let batchable: Vec<&String> = rels.iter().filter(|rel| single_line(rel)).collect();
+    let mut batched = batch(root, reference, &batchable)?.into_iter();
+    rels.iter()
+        .map(|rel| {
+            if single_line(rel) {
+                Ok(batched.next().flatten())
+            } else {
+                show_verified(root, reference, rel)
+            }
+        })
+        .collect()
+}
+
+fn batch(
+    root: &Utf8Path,
+    reference: &str,
+    rels: &[&String],
+) -> miette::Result<Vec<Option<String>>> {
     if rels.is_empty() {
         return Ok(Vec::new());
     }
@@ -179,16 +211,21 @@ fn blobs(root: &Utf8Path, reference: &str, rels: &[String]) -> miette::Result<Ve
                 }
             }
         });
-        read_batch(BufReader::new(stdout), rels.len())
+        let read = read_batch(BufReader::new(stdout), rels.len());
+        if read.is_err() {
+            child.kill().ok();
+        }
+        read
     });
     let out = child.wait_with_output().map_err(spawn_error)?;
+    let read = read.map_err(|e| miette::miette!("Could not read git cat-file output: {e}"))?;
     if !out.status.success() {
         return Err(miette::miette!(
             "git cat-file --batch failed: {}",
             String::from_utf8_lossy(&out.stderr).trim()
         ));
     }
-    read.map_err(|e| miette::miette!("Could not read git cat-file output: {e}"))
+    Ok(read)
 }
 
 fn read_batch(mut out: impl BufRead, count: usize) -> std::io::Result<Vec<Option<String>>> {

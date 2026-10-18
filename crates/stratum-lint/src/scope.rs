@@ -4,7 +4,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 
 use stratum_engine::{Finding, paths};
 
-use crate::git;
+use crate::{cwd::absolutize, git};
 
 #[derive(Debug, Clone, Default)]
 pub struct Scope(BTreeSet<String>);
@@ -19,14 +19,13 @@ impl Scope {
         if files.is_empty() && changed.is_none() {
             return Ok(None);
         }
-        let cwd = std::env::current_dir().map_err(|e| miette::miette!("current dir: {e}"))?;
         let mut set: BTreeSet<String> = files
             .iter()
             .map(|f| {
-                [cwd.join(f), root_abs.join(f).into_std_path_buf()]
+                [absolutize(f)?, absolutize(&root_abs.join(f))?]
                     .into_iter()
-                    .find_map(|p| p.canonicalize().ok())
-                    .map(|abs| paths::relative(&abs, root_abs))
+                    .find(|abs| abs.exists())
+                    .map(|abs| paths::relative(abs.as_std_path(), root_abs))
                     .ok_or_else(|| {
                         miette::miette!("--files: {f} not found in the current directory or ROOT")
                     })

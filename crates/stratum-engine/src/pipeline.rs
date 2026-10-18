@@ -18,7 +18,7 @@ use crate::config::{ConfigSource, LoadedConfig};
 use crate::docs;
 use crate::finding::{EdgeRef, Finding};
 use crate::paths::{canonicalize, relative, relative_in_text};
-use crate::suppression::{self, Analysis};
+use crate::suppression::{self, Analysis, Reported, Suppressed};
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
@@ -56,12 +56,25 @@ impl EngineInput {
     }
 
     pub fn analyze(&self) -> Result<Analysis, ConfigError> {
-        let findings = self
+        let (findings, suppressed) = self.reported()?;
+        Ok(Analysis {
+            findings,
+            suppressed,
+        })
+    }
+
+    /// `analyze`'s findings, each with the violation it came from (graph ids instead of paths).
+    pub fn analyze_violations(&self) -> Result<Vec<(Violation, Finding)>, ConfigError> {
+        self.reported().map(|(kept, _)| kept)
+    }
+
+    fn reported<T: Reported>(&self) -> Result<(Vec<T>, Vec<Suppressed>), ConfigError> {
+        let reported = self
             .rule_violations()?
             .into_iter()
-            .map(|v| self.finding(v))
+            .map(|v| T::of(self, v))
             .collect();
-        suppression::apply(self, findings)
+        suppression::apply(self, reported)
     }
 
     pub fn violations(&self) -> Result<Vec<Finding>, ConfigError> {

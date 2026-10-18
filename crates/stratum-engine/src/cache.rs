@@ -19,11 +19,12 @@ pub fn dir() -> Option<&'static Utf8Path> {
 }
 
 fn resolve(flag: Option<Utf8PathBuf>) -> Option<Utf8PathBuf> {
-    flag.or_else(|| {
-        std::env::var(CACHE_DIR_ENV)
-            .ok()
-            .filter(|dir| !dir.is_empty())
-            .map(Utf8PathBuf::from)
-    })
-    .or_else(|| Utf8PathBuf::from_path_buf(dirs::cache_dir()?.join("stratum")).ok())
+    flag.filter(|dir| !dir.as_str().is_empty())
+        .or_else(|| {
+            std::env::var(CACHE_DIR_ENV)
+                .ok()
+                .filter(|dir| !dir.is_empty())
+                .map(Utf8PathBuf::from)
+        })
+        .or_else(|| Utf8PathBuf::from_path_buf(dirs::cache_dir()?.join("stratum")).ok())
 }

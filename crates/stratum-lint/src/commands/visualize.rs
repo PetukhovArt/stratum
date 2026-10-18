@@ -20,7 +20,8 @@ use stratum_core::{
 };
 use stratum_engine::{Drift, EngineInput, Finding};
 
-use crate::commands::{context, diff, lint};
+use crate::brief;
+use crate::commands::{diff, lint};
 
 #[derive(RustEmbed)]
 #[folder = "../../frontend/stratum-visualizer-frontend/dist/"]
@@ -35,7 +36,7 @@ struct ApiViolation {
     location: SourceLocation,
     modules: Vec<ModuleId>,
     edge: Option<Edge>,
-    fix: Option<String>,
+    fix: String,
 }
 
 #[derive(Debug)]
@@ -70,17 +71,12 @@ impl Api {
     pub fn new(input: EngineInput, base: Option<&str>) -> miette::Result<Self> {
         let drift = base.map(|base| drift_json(&input, base)).transpose()?;
         let snapshot = input.snapshot().map_err(|e| miette::miette!("{e}"))?;
-        let violations = input
-            .rule_violations()
-            .map_err(|e| miette::miette!("{e}"))?;
-        let findings = violations
-            .iter()
-            .map(|v| input.finding(v.clone()))
-            .collect();
-        let api_violations: Vec<ApiViolation> = violations
+        let (api_violations, findings): (Vec<ApiViolation>, Vec<Finding>) = input
+            .analyze_violations()
+            .map_err(|e| miette::miette!("{e}"))?
             .into_iter()
-            .map(|v| api_violation(&input, v))
-            .collect();
+            .map(|(v, f)| (api_violation(v, f.clone()), f))
+            .unzip();
         Ok(Self {
             snapshot: serde_json::to_string(&snapshot).into_diagnostic()?,
             violations: serde_json::to_string(&api_violations).into_diagnostic()?,
@@ -119,16 +115,16 @@ pub fn run(
     rt.block_on(serve(api, open_browser))
 }
 
-fn api_violation(input: &EngineInput, v: Violation) -> ApiViolation {
+fn api_violation(v: Violation, f: Finding) -> ApiViolation {
     ApiViolation {
-        rule: input.slug_of(v.rule).to_owned(),
-        severity: v.severity,
-        file: input.relative(&v.file),
-        location: v.location,
+        rule: f.rule,
+        severity: f.severity,
+        file: f.file,
+        location: f.location,
         modules: v.modules,
         edge: v.edge,
-        message: v.message,
-        fix: v.fix,
+        message: f.message,
+        fix: f.fix,
     }
 }
 
@@ -172,7 +168,7 @@ async fn context_brief(
     let Some(rel) = query.get("path") else {
         return text(StatusCode::BAD_REQUEST, PLAIN, "missing ?path=".into());
     };
-    match context::agent_brief(&api.input, &api.findings, rel) {
+    match brief::agent_brief(&api.input, &api.findings, rel) {
         Ok(brief) => text(StatusCode::OK, PLAIN, brief),
         Err(e) => text(StatusCode::BAD_REQUEST, PLAIN, e.to_string()),
     }

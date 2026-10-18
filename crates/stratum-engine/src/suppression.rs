@@ -42,13 +42,48 @@ impl Directive<'_> {
     }
 }
 
-pub(crate) fn apply(input: &EngineInput, findings: Vec<Finding>) -> Result<Analysis, ConfigError> {
+pub(crate) trait Reported: Sized {
+    fn of(input: &EngineInput, v: Violation) -> Self;
+    fn finding(&self) -> &Finding;
+    fn into_finding(self) -> Finding;
+}
+
+impl Reported for Finding {
+    fn of(input: &EngineInput, v: Violation) -> Self {
+        input.finding(v)
+    }
+
+    fn finding(&self) -> &Finding {
+        self
+    }
+
+    fn into_finding(self) -> Finding {
+        self
+    }
+}
+
+impl Reported for (Violation, Finding) {
+    fn of(input: &EngineInput, v: Violation) -> Self {
+        let finding = input.finding(v.clone());
+        (v, finding)
+    }
+
+    fn finding(&self) -> &Finding {
+        &self.1
+    }
+
+    fn into_finding(self) -> Finding {
+        self.1
+    }
+}
+
+pub(crate) fn apply<T: Reported>(
+    input: &EngineInput,
+    reported: Vec<T>,
+) -> Result<(Vec<T>, Vec<Suppressed>), ConfigError> {
     let directives = directives(input);
     if directives.is_empty() {
-        return Ok(Analysis {
-            findings,
-            suppressed: Vec::new(),
-        });
+        return Ok((reported, Vec::new()));
     }
 
     let mut at_line: HashMap<(&str, u32), Vec<usize>> = HashMap::new();
@@ -60,9 +95,10 @@ pub(crate) fn apply(input: &EngineInput, findings: Vec<Finding>) -> Result<Analy
     }
 
     let mut used = vec![false; directives.len()];
-    let mut kept = Vec::with_capacity(findings.len());
+    let mut kept = Vec::with_capacity(reported.len());
     let mut suppressed = Vec::new();
-    for finding in findings {
+    for item in reported {
+        let finding = item.finding();
         let hit = at_line
             .get(&(finding.file.as_str(), finding.location.line))
             .into_iter()
@@ -73,17 +109,17 @@ pub(crate) fn apply(input: &EngineInput, findings: Vec<Finding>) -> Result<Analy
             Some(i) => {
                 used[i] = true;
                 let reason = directives[i].at.reason.clone().unwrap_or_default();
-                suppressed.push(Suppressed { finding, reason });
+                suppressed.push(Suppressed {
+                    finding: item.into_finding(),
+                    reason,
+                });
             }
-            None => kept.push(finding),
+            None => kept.push(item),
         }
     }
 
     kept.extend(problems(input, &directives, &used)?);
-    Ok(Analysis {
-        findings: kept,
-        suppressed,
-    })
+    Ok((kept, suppressed))
 }
 
 fn directives(input: &EngineInput) -> Vec<Directive<'_>> {
@@ -121,11 +157,11 @@ fn problems_of(input: &EngineInput, at: &Suppression) -> Vec<String> {
     problems
 }
 
-fn problems(
+fn problems<T: Reported>(
     input: &EngineInput,
     directives: &[Directive<'_>],
     used: &[bool],
-) -> Result<Vec<Finding>, ConfigError> {
+) -> Result<Vec<T>, ConfigError> {
     let Some(rule) = input.registry.by_slug(SLUG) else {
         return Ok(Vec::new());
     };
@@ -163,16 +199,19 @@ fn problems(
         let Some(module) = input.graph.modules.get(&d.module) else {
             continue;
         };
-        out.push(input.finding(Violation {
-            rule: SUPPRESSION,
-            severity: severity.clamp(Severity::Info, cap),
-            message,
-            file: module.path.clone(),
-            location: d.at.location,
-            modules: vec![d.module],
-            edge: None,
-            fix: None,
-        }));
+        out.push(T::of(
+            input,
+            Violation {
+                rule: SUPPRESSION,
+                severity: severity.clamp(Severity::Info, cap),
+                message,
+                file: module.path.clone(),
+                location: d.at.location,
+                modules: vec![d.module],
+                edge: None,
+                fix: None,
+            },
+        ));
     }
     Ok(out)
 }

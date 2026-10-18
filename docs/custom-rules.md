@@ -102,7 +102,7 @@ A parent may extend further; a cycle is an error. Merge, child over parent:
 | `stratum/unreachable-modules` | off | off | off | none |
 | `stratum/suppression` | error | error | error | none |
 | `stratum/slice-fan-in` | off | off | warning | `max_fan_in` (5) |
-| `stratum/miller-limit` | warning | info | info | `max_children` (20) |
+| `stratum/miller-limit` | info | info | info | `max_children` (20) |
 | `stratum/promotion-pressure` | info | | | `threshold` (5) |
 | `stratum/deep-module` | info | | | `max_exports` (20) |
 | `stratum/depth-ratio` | info | info | info | `min_ratio` (1.0) |

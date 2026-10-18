@@ -131,6 +131,27 @@ fn exit_3_only_when_a_fixed_entry_is_in_scope() {
 }
 
 #[test]
+fn exit_3_when_the_scope_holds_a_member_of_a_fixed_cycle_other_than_its_anchor() {
+    let dir = project_with_accepted_baseline();
+    edit(
+        dir.path(),
+        "src/features/cart/circle.ts",
+        "import \"./boom\";\n",
+        "",
+    );
+    let out = stratum(
+        dir.path(),
+        &[
+            "--format",
+            "agent",
+            "--files",
+            "src/features/cart/circle.ts",
+        ],
+    );
+    assert_eq!(out.status.code(), Some(3), "{}", stdout(&out));
+}
+
+#[test]
 fn exit_3_never_with_no_baseline_and_an_error_wins() {
     let dir = project_with_accepted_baseline();
     drop_import_of_cart(dir.path());

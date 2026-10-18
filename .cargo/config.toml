@@ -1,0 +1,4 @@
+# `cargo test` and `cargo run` keep the Graph Cache inside the build directory, out of the
+# user's OS cache directory.
+[env]
+STRATUM_CACHE_DIR = { value = "target/stratum-cache", relative = true }

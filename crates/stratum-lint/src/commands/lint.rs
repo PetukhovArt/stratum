@@ -67,21 +67,12 @@ fn gate(root: &Utf8Path, args: &LintArgs) -> miette::Result<Report> {
     summary.cache = Some(input.cache);
     let analysis = input.analyze().map_err(|e| miette::miette!("{e}"))?;
     let in_scope = |f: &Finding| scope.as_ref().is_none_or(|s| s.touches(f));
-    let matched = baseline.unwrap_or_default().matches(&analysis.findings);
+    let matched = baseline.unwrap_or_default().apply(analysis.findings);
     summary.fixed = matched.fixed();
     summary.fixed_in_scope =
         matched.fixed_where(|file| scope.as_ref().is_none_or(|s| s.covers(file)));
-    let mut kept = Vec::new();
-    for (f, baselined) in analysis.findings.into_iter().zip(matched.baselined) {
-        if !in_scope(&f) {
-            continue;
-        }
-        if baselined {
-            summary.baselined += 1;
-        } else {
-            kept.push(f);
-        }
-    }
+    summary.baselined = matched.baselined.iter().filter(|f| in_scope(f)).count();
+    let kept = matched.new.into_iter().filter(|f| in_scope(f)).collect();
     let suppressed = analysis
         .suppressed
         .into_iter()
