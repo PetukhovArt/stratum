@@ -83,7 +83,7 @@ A parent may extend further; a cycle is an error. Merge, child over parent:
 | Slug | Default | recommended | fsd | Options (default) |
 |---|---|---|---|---|
 | `stratum/no-cross-layer-import` | error | warning | warning | none |
-| `stratum/no-circular-deps` | error | error | error | none |
+| `stratum/no-circular-deps` | error | error | error | `ignore_type_only` (false), `ignore_dynamic` (false) |
 | `stratum/purity` | error | warning | warning | none |
 | `stratum/visibility-scope` | error | error | error | none |
 | `stratum/public-api` | warning | warning | error | none |

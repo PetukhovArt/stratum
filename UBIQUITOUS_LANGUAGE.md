@@ -12,8 +12,8 @@
 | **Edge** | A resolved, typed dependency from one **Module** to another, made from an **Import**. Kinds: `static`, `di`, `runtime`. | arrow, line, connection |
 | **Static edge** | An **Edge** from a compile-time `import`, an `export … from` or a `require()`. | static import |
 | **DI edge** | An **Edge** wired through a composition root or DI container. No parser emits it yet. | injection, wiring |
-| **Runtime edge** | An **Edge** established at runtime. Emitted today for dynamic `import()`. | event link, dynamic dep |
-| **Type-only Import** | A **Raw Import** marked `type_only` (`import type { X } from '...'`). It still becomes an ordinary **Edge**; no rule distinguishes it yet. | erased import, types-only |
+| **Runtime edge** | An **Edge** established at runtime. Emitted today for dynamic `import()` and `import.meta.glob()`. `no-circular-deps` skips it with `ignore_dynamic`. | event link, dynamic dep |
+| **Type-only Import** | A **Raw Import** marked `type_only` (`import type { X } from '...'`, `export type … from`), or one whose imported names are all marked `type`. It still becomes an ordinary **Edge**; only `no-circular-deps` with `ignore_type_only` skips it. | erased import, types-only |
 | **Cycle** | A strongly-connected component in the dependency graph, found via Tarjan SCC. | loop, recursion |
 | **Graph Snapshot** | The versioned, deterministic JSON shape of the **Compound DAG**: `version`, `project`, `modules`, `containers`, `layers`, `edges`, `zones` (the **Private Zones**) and `territories` (each distinct **Territory** once; a module points at its own by index). Paths are root-relative. Written by `stratum-lint snapshot`, served by `stratum-lint visualize` to the **Visualizer**. Version 3; a bump needs a coordinated frontend release. | snapshot file, dump, graph file |
 | **Source Location** | A 1-based `line:column` pointer carried inside a **Violation**. Distinct from a **Source Span**. | position, line/col |

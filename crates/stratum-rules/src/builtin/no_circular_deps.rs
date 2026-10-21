@@ -1,14 +1,18 @@
 use std::path::Path;
 
+use rustc_hash::FxHashSet;
 use stratum_core::{
+    edge::EdgeKind,
     ids::{ModuleId, RuleId},
     severity::Severity,
+    types::{Bindings, Import},
     violation::{SourceLocation, Violation},
 };
-use stratum_graph::{Breaks, CompoundGraph, Cut, Cycle, break_candidates, find_cycles};
+use stratum_graph::{Breaks, CompoundGraph, Cut, Cycle, break_candidates_where, find_cycles_where};
 
 use crate::ids::NO_CIRCULAR_DEPS;
-use crate::rule::{EmptyOptions, Rule};
+use crate::options::NoCircularDepsOptions;
+use crate::rule::Rule;
 use crate::scope::ProjectScope;
 
 const ANCHOR_NAME_CHARS: usize = 120;
@@ -18,7 +22,7 @@ pub struct NoCircularDeps;
 
 impl Rule for NoCircularDeps {
     type Scope = ProjectScope;
-    type Options = EmptyOptions;
+    type Options = NoCircularDepsOptions;
 
     fn id(&self) -> RuleId {
         NO_CIRCULAR_DEPS
@@ -34,23 +38,80 @@ impl Rule for NoCircularDeps {
         &self,
         graph: &CompoundGraph,
         _scope: ProjectScope,
-        _options: &EmptyOptions,
+        options: &NoCircularDepsOptions,
         severity: Severity,
     ) -> Vec<Violation> {
-        let mut out: Vec<Violation> = find_cycles(graph)
+        let deps = Deps::of(graph, *options);
+        let mut out: Vec<Violation> = find_cycles_where(graph, |a, b| deps.keeps(a, b))
             .iter()
-            .map(|cycle| self.finding(graph, cycle, severity))
+            .map(|cycle| self.finding(&deps, cycle, severity))
             .collect();
         out.sort_by(|a, b| a.file.cmp(&b.file));
         out
     }
 }
 
+/// The dependencies cycles are looked for in: every one, or with an `ignore_*` option on,
+/// those with at least one import the options keep.
+struct Deps<'g> {
+    graph: &'g CompoundGraph,
+    options: NoCircularDepsOptions,
+    kept: Option<FxHashSet<(ModuleId, ModuleId)>>,
+}
+
+impl<'g> Deps<'g> {
+    fn of(graph: &'g CompoundGraph, options: NoCircularDepsOptions) -> Self {
+        let kept = (options.ignore_type_only || options.ignore_dynamic).then(|| {
+            graph
+                .modules
+                .values()
+                .flat_map(|m| m.imports.iter().map(move |i| (m.id, i)))
+                .filter(|(_, i)| keeps(options, i))
+                .filter_map(|(from, i)| Some((from, i.target?)))
+                .collect()
+        });
+        Self {
+            graph,
+            options,
+            kept,
+        }
+    }
+
+    fn keeps(&self, from: ModuleId, to: ModuleId) -> bool {
+        self.kept.as_ref().is_none_or(|k| k.contains(&(from, to)))
+    }
+
+    /// Where `from` first imports `to` by an import the options keep.
+    fn import_line(&self, from: ModuleId, to: ModuleId) -> Option<u32> {
+        self.graph
+            .modules
+            .get(&from)?
+            .imports
+            .iter()
+            .find(|i| i.target == Some(to) && keeps(self.options, i))
+            .map(|i| i.location.line)
+    }
+}
+
+fn keeps(options: NoCircularDepsOptions, import: &Import) -> bool {
+    !(options.ignore_type_only && type_only(import)
+        || options.ignore_dynamic && import.kind == EdgeKind::Runtime)
+}
+
+/// `import type`, `export type … from`, or every binding type-only.
+fn type_only(import: &Import) -> bool {
+    import.type_only
+        || matches!(&import.bindings, Bindings::Names(names)
+            if !names.is_empty() && names.iter().all(|n| n.type_only))
+}
+
 impl NoCircularDeps {
-    fn finding(self, graph: &CompoundGraph, cycle: &Cycle, severity: Severity) -> Violation {
+    fn finding(self, deps: &Deps<'_>, cycle: &Cycle, severity: Severity) -> Violation {
+        let graph = deps.graph;
         let members = cycle.by_path(graph);
         let anchor = members.first().copied();
-        let Breaks { cuts, closing } = break_candidates(graph, cycle);
+        let Breaks { cuts, closing } =
+            break_candidates_where(graph, cycle, |a, b| deps.keeps(a, b));
 
         let name = anchor
             .and_then(|m| path_of(graph, m).file_name())
@@ -69,7 +130,7 @@ impl NoCircularDeps {
         let fix = format!(
             "Break it at one of: {}; extract the shared piece into a lower module or invert the dependency",
             cuts.iter()
-                .map(|cut| describe(graph, cut, members.len()))
+                .map(|cut| describe(deps, cut, members.len()))
                 .collect::<Vec<_>>()
                 .join(", "),
         );
@@ -97,7 +158,7 @@ impl NoCircularDeps {
                 .map(|m| path_of(graph, m).to_path_buf())
                 .unwrap_or_default(),
             location: SourceLocation {
-                line: anchor.map_or(1, |m| first_import_line(graph, m, &members)),
+                line: anchor.map_or(1, |m| first_import_line(deps, m, &members)),
                 column: 1,
             },
             modules,
@@ -118,34 +179,31 @@ fn display(graph: &CompoundGraph, m: ModuleId) -> String {
     path_of(graph, m).to_string_lossy().replace('\\', "/")
 }
 
-fn describe(graph: &CompoundGraph, cut: &Cut, size: usize) -> String {
-    let at = import_line(graph, cut.from, cut.to)
+fn describe(deps: &Deps<'_>, cut: &Cut, size: usize) -> String {
+    let at = deps
+        .import_line(cut.from, cut.to)
         .map(|line| format!(":{line}"))
         .unwrap_or_default();
     format!(
         "`{}{at} -> {}` (frees {} of {size})",
-        display(graph, cut.from),
-        display(graph, cut.to),
+        display(deps.graph, cut.from),
+        display(deps.graph, cut.to),
         cut.freed,
     )
 }
 
-fn first_import_line(graph: &CompoundGraph, anchor: ModuleId, members: &[ModuleId]) -> u32 {
-    let Some(node) = graph.node_for(anchor) else {
+fn first_import_line(deps: &Deps<'_>, anchor: ModuleId, members: &[ModuleId]) -> u32 {
+    let Some(node) = deps.graph.node_for(anchor) else {
         return 1;
     };
-    graph
+    deps.graph
         .deps
         .neighbors(node)
-        .map(|next| graph.deps[next])
+        .map(|next| deps.graph.deps[next])
         .filter(|to| members.contains(to))
-        .filter_map(|to| import_line(graph, anchor, to))
+        .filter_map(|to| deps.import_line(anchor, to))
         .min()
         .unwrap_or(1)
-}
-
-fn import_line(graph: &CompoundGraph, from: ModuleId, to: ModuleId) -> Option<u32> {
-    graph.import_location(from, to).map(|at| at.line)
 }
 
 #[cfg(test)]
@@ -158,11 +216,24 @@ mod tests {
         edge::EdgeKind,
         ids::{ContainerId, LayerId, ModuleId},
         purity::Purity,
-        types::{Bindings, Import, Module},
+        types::{ImportedName, Module},
         visibility::VisibilityScope,
     };
 
+    #[derive(Clone, Copy)]
+    enum Via {
+        Value,
+        Type,
+        TypeNames,
+        Dynamic,
+    }
+
     fn build(n: u32, edges: &[(u32, u32)]) -> CompoundGraph {
+        let edges: Vec<(u32, u32, Via)> = edges.iter().map(|&(a, b)| (a, b, Via::Value)).collect();
+        build_via(n, &edges)
+    }
+
+    fn build_via(n: u32, edges: &[(u32, u32, Via)]) -> CompoundGraph {
         let mut g = CompoundGraph::empty();
         for i in 0..n {
             let id = ModuleId::new(i);
@@ -182,27 +253,131 @@ mod tests {
             g.node_index.insert(id, node);
             g.modules.insert(id, m);
         }
-        for (k, (a, b)) in edges.iter().enumerate() {
-            let na = g.node_index[&ModuleId::new(*a)];
-            let nb = g.node_index[&ModuleId::new(*b)];
-            g.deps.add_edge(na, nb, EdgeKind::Static);
-            g.modules[&ModuleId::new(*a)].imports.push(Import {
+        for (k, &(a, b, via)) in edges.iter().enumerate() {
+            let na = g.node_index[&ModuleId::new(a)];
+            let nb = g.node_index[&ModuleId::new(b)];
+            let kind = match via {
+                Via::Dynamic => EdgeKind::Runtime,
+                _ => EdgeKind::Static,
+            };
+            let name = |type_only| ImportedName {
+                imported: "x".into(),
+                type_only,
+            };
+            let bindings = match via {
+                Via::Value => Bindings::Names(vec![name(false)]),
+                Via::Type => Bindings::Names(vec![name(true)]),
+                Via::TypeNames => Bindings::Names(vec![name(true), name(true)]),
+                Via::Dynamic => Bindings::All,
+            };
+            g.deps.add_edge(na, nb, kind);
+            g.modules[&ModuleId::new(a)].imports.push(Import {
                 specifier: format!("./m{b}"),
                 location: SourceLocation {
                     line: 100 + u32::try_from(k).unwrap(),
                     column: 1,
                 },
-                kind: EdgeKind::Static,
-                type_only: false,
-                bindings: Bindings::None,
-                target: Some(ModuleId::new(*b)),
+                kind,
+                type_only: matches!(via, Via::Type),
+                bindings,
+                target: Some(ModuleId::new(b)),
             });
         }
         g
     }
 
     fn check(g: &CompoundGraph) -> Vec<Violation> {
-        NoCircularDeps.check(g, ProjectScope, &EmptyOptions, Severity::Error)
+        check_with(g, false, false)
+    }
+
+    fn check_with(
+        g: &CompoundGraph,
+        ignore_type_only: bool,
+        ignore_dynamic: bool,
+    ) -> Vec<Violation> {
+        let options = NoCircularDepsOptions {
+            ignore_type_only,
+            ignore_dynamic,
+        };
+        NoCircularDeps.check(g, ProjectScope, &options, Severity::Error)
+    }
+
+    #[test]
+    fn ignore_type_only_drops_a_dependency_made_only_of_type_imports() {
+        let g = build_via(
+            2,
+            &[
+                (0, 1, Via::Type),
+                (0, 1, Via::TypeNames),
+                (1, 0, Via::Value),
+            ],
+        );
+        assert_eq!(check(&g).len(), 1);
+        assert!(check_with(&g, true, false).is_empty());
+        assert_eq!(check_with(&g, false, true).len(), 1);
+    }
+
+    #[test]
+    fn ignore_dynamic_drops_a_dependency_made_only_of_dynamic_imports() {
+        let g = build_via(2, &[(0, 1, Via::Value), (1, 0, Via::Dynamic)]);
+        assert!(check_with(&g, false, true).is_empty());
+        assert_eq!(check_with(&g, true, false).len(), 1);
+    }
+
+    #[test]
+    fn one_value_import_keeps_the_dependency_and_names_its_line() {
+        let g = build_via(
+            2,
+            &[
+                (0, 1, Via::Type),
+                (0, 1, Via::Dynamic),
+                (0, 1, Via::Value),
+                (1, 0, Via::Value),
+            ],
+        );
+        let v = check_with(&g, true, true);
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].location.line, 102);
+        assert!(
+            v[0].fix
+                .as_deref()
+                .unwrap()
+                .contains("`src/m0.ts:102 -> src/m1.ts`"),
+            "{:?}",
+            v[0].fix
+        );
+    }
+
+    #[test]
+    fn both_options_drop_a_dependency_of_type_and_dynamic_imports() {
+        let g = build_via(
+            2,
+            &[(0, 1, Via::Type), (0, 1, Via::Dynamic), (1, 0, Via::Value)],
+        );
+        assert_eq!(check_with(&g, true, false).len(), 1);
+        assert_eq!(check_with(&g, false, true).len(), 1);
+        assert!(check_with(&g, true, true).is_empty());
+    }
+
+    #[test]
+    fn break_candidates_count_only_the_kept_dependencies() {
+        let g = build_via(
+            3,
+            &[
+                (0, 1, Via::Value),
+                (1, 2, Via::Value),
+                (2, 0, Via::Value),
+                (1, 0, Via::Type),
+            ],
+        );
+        let fix = |v: Vec<Violation>| v[0].fix.clone().unwrap();
+        assert!(fix(check(&g)).contains("(frees 1 of 3)"));
+        assert_eq!(
+            fix(check_with(&g, true, false))
+                .matches("(frees 3 of 3)")
+                .count(),
+            3
+        );
     }
 
     #[test]

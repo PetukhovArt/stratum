@@ -259,9 +259,26 @@ mod tests {
     }
 
     #[test]
+    fn cycle_options_are_booleans() {
+        assert!(validate(&serde_json::json!({
+            "stratum/no-circular-deps": { "severity": "error", "options": { "ignore_type_only": true, "ignore_dynamic": false } },
+        }))
+        .is_ok());
+        let err = validate(&serde_json::json!({
+            "stratum/no-circular-deps": { "severity": "error", "options": { "ignore_dynamic": "yes" } },
+        }))
+        .unwrap_err()
+        .to_string();
+        assert!(
+            err.contains("stratum/no-circular-deps") && err.contains("\"ignore_dynamic\""),
+            "{err}"
+        );
+    }
+
+    #[test]
     fn option_on_an_optionless_rule_and_unknown_slug_are_errors() {
         let err = validate(&serde_json::json!({
-            "stratum/no-circular-deps": { "severity": "error", "options": { "depth": 2 } },
+            "stratum/purity": { "severity": "error", "options": { "depth": 2 } },
         }))
         .unwrap_err()
         .to_string();
@@ -270,7 +287,12 @@ mod tests {
             validate(&serde_json::json!({ "stratum/no-such-rule": { "severity": "error" } }))
                 .is_err()
         );
-        assert!(validate(&serde_json::json!({ "stratum/no-circular-deps": { "severity": "error", "options": {} } })).is_ok());
+        assert!(
+            validate(
+                &serde_json::json!({ "stratum/purity": { "severity": "error", "options": {} } })
+            )
+            .is_ok()
+        );
     }
 
     #[test]

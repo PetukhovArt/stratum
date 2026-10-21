@@ -17,10 +17,13 @@ pub fn builtin(slug: &str) -> Option<RuleDoc> {
             &[],
         ),
         "stratum/no-circular-deps" => (
-            "Reports every import cycle: two or more modules that reach each other through imports, or a module importing itself. One finding per cycle, at its anchor (the member with the smallest project-relative path), on the line of the anchor's first import into the cycle. The message gives the number of modules and about how many imports close the cycle; the fix names up to three imports to break, best first, each with how many modules breaking it frees from the cycle. The finding's modules start with the endpoints of those imports.",
+            "Reports every import cycle: two or more modules that reach each other through imports, or a module importing itself. One finding per cycle, at its anchor (the member with the smallest project-relative path), on the line of the anchor's first import into the cycle. The message gives the number of modules and about how many imports close the cycle; the fix names up to three imports to break, best first, each with how many modules breaking it frees from the cycle. The finding's modules start with the endpoints of those imports. With an `ignore_*` option, a module's imports of another all of which the option ignores do not count toward any cycle.",
             "Modules in a cycle cannot be loaded, tested or changed in isolation, and cycles break initialisation order at runtime.",
             "Break the cycle at one of the imports the fix names: extract the piece both sides need into a lower module, or invert the dependency (callback, interface, event). Per-file overrides do not apply; only the project-wide severity does.",
-            &[],
+            &[
+                "ignore_type_only: ignore type-only imports: `import type`, `export type ... from`, or every imported name marked `type` (false)",
+                "ignore_dynamic: ignore dynamic `import()` and `import.meta.glob()` (false)",
+            ],
         ),
         "stratum/purity" => (
             "Every module has a purity rank from 1 (pure) to 4 (side effects), default 2, set by a `// @stratum-purity N` line in the file's leading comments. A module may import only modules whose purity is <= its own.",

@@ -1,6 +1,7 @@
 use std::cmp::Reverse;
 
 use petgraph::algo::tarjan_scc;
+use petgraph::visit::{EdgeFiltered, EdgeRef};
 use rustc_hash::FxHashMap;
 
 use stratum_core::ids::ModuleId;
@@ -41,7 +42,17 @@ impl Cycle {
 /// also sorted by the first module's raw id — deterministic across runs.
 #[must_use]
 pub fn find_cycles(g: &CompoundGraph) -> Vec<Cycle> {
-    let sccs = tarjan_scc(&g.deps);
+    find_cycles_where(g, |_, _| true)
+}
+
+/// [`find_cycles`] over only the dependencies `keep(from, to)` accepts.
+#[must_use]
+pub fn find_cycles_where(
+    g: &CompoundGraph,
+    keep: impl Fn(ModuleId, ModuleId) -> bool,
+) -> Vec<Cycle> {
+    let kept = EdgeFiltered::from_fn(&g.deps, |e| keep(g.deps[e.source()], g.deps[e.target()]));
+    let sccs = tarjan_scc(&kept);
     let mut cycles = Vec::new();
     for scc in sccs {
         if scc.len() >= 2 {
@@ -50,7 +61,7 @@ pub fn find_cycles(g: &CompoundGraph) -> Vec<Cycle> {
             cycles.push(Cycle { modules });
         } else if scc.len() == 1 {
             let n = scc[0];
-            if g.deps.find_edge(n, n).is_some() {
+            if g.deps.find_edge(n, n).is_some() && keep(g.deps[n], g.deps[n]) {
                 cycles.push(Cycle {
                     modules: vec![g.deps[n]],
                 });
@@ -86,7 +97,18 @@ pub struct Breaks {
 /// result for any build order.
 #[must_use]
 pub fn break_candidates(g: &CompoundGraph, cycle: &Cycle) -> Breaks {
-    let local = Local::of(g, cycle);
+    break_candidates_where(g, cycle, |_, _| true)
+}
+
+/// [`break_candidates`] over only the dependencies `keep(from, to)` accepts: the
+/// filter `cycle` was found with.
+#[must_use]
+pub fn break_candidates_where(
+    g: &CompoundGraph,
+    cycle: &Cycle,
+    keep: impl Fn(ModuleId, ModuleId) -> bool,
+) -> Breaks {
+    let local = Local::of(g, cycle, &keep);
     let mut back = feedback::back_edges(&local);
     let closing = back.len();
     let pool: Vec<usize> = if local.edges.len() <= MAX_SCORED_EDGES {
@@ -125,7 +147,7 @@ struct Local {
 }
 
 impl Local {
-    fn of(g: &CompoundGraph, cycle: &Cycle) -> Self {
+    fn of(g: &CompoundGraph, cycle: &Cycle, keep: &dyn Fn(ModuleId, ModuleId) -> bool) -> Self {
         let members = cycle.by_path(g);
         let n = members.len();
         let local_of: FxHashMap<ModuleId, u32> = members
@@ -137,7 +159,8 @@ impl Local {
         for (u, m) in members.iter().enumerate() {
             let Some(node) = g.node_for(*m) else { continue };
             for next in g.deps.neighbors(node) {
-                if let Some(&v) = local_of.get(&g.deps[next]) {
+                let to = g.deps[next];
+                if let Some(&v) = local_of.get(&to).filter(|_| keep(*m, to)) {
                     edges.push((u32::try_from(u).unwrap_or(u32::MAX), v));
                 }
             }
@@ -304,6 +327,27 @@ mod tests {
         assert_eq!(cycles.len(), 2);
         assert_eq!(cycles[0].modules[0], ModuleId::new(0));
         assert_eq!(cycles[1].modules[0], ModuleId::new(2));
+    }
+
+    #[test]
+    fn a_dropped_dependency_breaks_its_cycle_and_self_loop() {
+        let g = graph_with_edges(3, &[(0, 1), (1, 0), (2, 2)]);
+        let id = ModuleId::new;
+        assert!(find_cycles_where(&g, |from, to| from != id(1) && to != id(2)).is_empty());
+        assert_eq!(find_cycles_where(&g, |from, _| from != id(2)).len(), 1);
+    }
+
+    #[test]
+    fn candidates_skip_a_dropped_dependency() {
+        let g = pathed_graph(&[0, 1, 2], &[(0, 1), (1, 2), (2, 0), (1, 0)]);
+        let keep = |from: ModuleId, to: ModuleId| (from.raw(), to.raw()) != (1, 0);
+        let freed = |breaks: &Breaks| breaks.cuts.iter().map(|c| c.freed).collect::<Vec<_>>();
+
+        let all = break_candidates(&g, &find_cycles(&g).remove(0));
+        assert_eq!(freed(&all), [3, 1, 1]);
+        let kept = break_candidates_where(&g, &find_cycles_where(&g, keep).remove(0), keep);
+        assert_eq!(freed(&kept), [3, 3, 3]);
+        assert_eq!(kept.closing, 1);
     }
 
     fn pathed_graph(order: &[u32], edges: &[(u32, u32)]) -> CompoundGraph {

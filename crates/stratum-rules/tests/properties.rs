@@ -13,7 +13,7 @@ use stratum_core::{
     visibility::VisibilityScope,
 };
 use stratum_graph::CompoundGraph;
-use stratum_rules::{EmptyOptions, NoCircularDeps, ProjectScope, Rule};
+use stratum_rules::{NoCircularDeps, NoCircularDepsOptions, ProjectScope, Rule};
 
 fn arb_edges(n: u32) -> impl Strategy<Value = Vec<(u32, u32)>> {
     let mut all = Vec::new();
@@ -66,8 +66,8 @@ proptest! {
     fn no_circular_deps_deterministic(edges in arb_edges(6)) {
         let g = build(6, &edges);
         let r = NoCircularDeps;
-        let a = r.check(&g, ProjectScope, &EmptyOptions, Severity::Error);
-        let b = r.check(&g, ProjectScope, &EmptyOptions, Severity::Error);
+        let a = r.check(&g, ProjectScope, &NoCircularDepsOptions::default(), Severity::Error);
+        let b = r.check(&g, ProjectScope, &NoCircularDepsOptions::default(), Severity::Error);
         prop_assert_eq!(a, b);
     }
 }

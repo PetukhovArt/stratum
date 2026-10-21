@@ -68,6 +68,15 @@ impl Default for ZoneBreadthOptions {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NoCircularDepsOptions {
+    #[serde(default)]
+    pub ignore_type_only: bool,
+    #[serde(default)]
+    pub ignore_dynamic: bool,
+}
+
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NoBarrelOptions {

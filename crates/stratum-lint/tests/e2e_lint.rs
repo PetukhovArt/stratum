@@ -120,6 +120,88 @@ fn a_cycle_through_an_ignored_file_is_not_reported() {
     assert_eq!(cycle_count_with_ignore(&["src/generated"]), 0);
 }
 
+fn cycle_count_with_options(options: &serde_json::Value) -> usize {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    std::fs::write(
+        root.join("src/picker.ts"),
+        "import type { PickFile } from './pick-file';\nexport const picker: PickFile = () => 1;\n",
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("src/pick-file.ts"),
+        "export type PickFile = () => number;\nexport async function pick() {\n  const { picker } = await import('./picker');\n  return picker();\n}\n",
+    )
+    .unwrap();
+    let config = serde_json::json!({
+        "version": 1,
+        "layers": [{ "id": "app", "path": "src", "depends_on": [] }],
+        "rules": { "stratum/no-circular-deps": { "severity": "error", "options": options } },
+    });
+    std::fs::write(root.join("stratum.config.jsonc"), config.to_string()).unwrap();
+    let out = Command::cargo_bin("stratum-lint")
+        .unwrap()
+        .args(["--format", "json", "--no-baseline"])
+        .arg(root)
+        .output()
+        .unwrap();
+    let report: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    report["violations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|v| v["rule"] == "stratum/no-circular-deps")
+        .count()
+}
+
+#[test]
+fn a_cycle_closed_only_by_a_type_import_or_a_dynamic_import_is_ignored_on_request() {
+    assert_eq!(cycle_count_with_options(&serde_json::json!({})), 1);
+    assert_eq!(
+        cycle_count_with_options(&serde_json::json!({ "ignore_type_only": true })),
+        0
+    );
+    assert_eq!(
+        cycle_count_with_options(&serde_json::json!({ "ignore_dynamic": true })),
+        0
+    );
+}
+
+#[test]
+fn a_mistyped_cycle_option_is_a_config_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    std::fs::write(root.join("src/a.ts"), "export const a = 1;\n").unwrap();
+    let config = serde_json::json!({
+        "version": 1,
+        "layers": [{ "id": "app", "path": "src", "depends_on": [] }],
+        "rules": { "stratum/no-circular-deps": { "severity": "error", "options": { "ignore_type_only": 1 } } },
+    });
+    std::fs::write(root.join("stratum.config.jsonc"), config.to_string()).unwrap();
+    Command::cargo_bin("stratum-lint")
+        .unwrap()
+        .arg("--no-baseline")
+        .arg(root)
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("ignore_type_only"));
+}
+
+#[test]
+fn explain_lists_the_cycle_options() {
+    Command::cargo_bin("stratum-lint")
+        .unwrap()
+        .args(["explain", "stratum/no-circular-deps"])
+        .assert()
+        .success()
+        .stdout(
+            predicate::str::contains("ignore_type_only")
+                .and(predicate::str::contains("ignore_dynamic")),
+        );
+}
+
 fn lint_with_entry_points(entry_points: &[&str]) -> assert_cmd::assert::Assert {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();
