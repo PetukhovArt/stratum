@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.3.0 (2026-10-26)
+
 - Added `ignore_type_only` and `ignore_dynamic` options to `stratum/no-circular-deps`: a cycle closed only by `import type` or by dynamic `import()` is no longer reported
 
 ## 0.2.0 (2026-10-18)
