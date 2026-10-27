@@ -21,6 +21,7 @@ pub mod slice_fan_in;
 pub mod stage_mixing;
 pub mod suppression;
 pub mod unreachable_modules;
+pub mod unused_dependencies;
 pub mod unused_exports;
 pub mod visibility_scope;
 pub mod zone_breadth;

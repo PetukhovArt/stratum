@@ -34,6 +34,9 @@ pub use builtin::slice_fan_in::SliceFanIn;
 pub use builtin::stage_mixing::StageMixing;
 pub use builtin::suppression::Suppression;
 pub use builtin::unreachable_modules::UnreachableModules;
+pub use builtin::unused_dependencies::{
+    DEFAULT_ENTRIES, DependencyCheck, ManifestField, UnusedDependencies, UnusedDependenciesOptions,
+};
 pub use builtin::unused_exports::UnusedExports;
 pub use builtin::visibility_scope::VisibilityScope as VisibilityScopeRule;
 pub use builtin::zone_breadth::ZoneBreadth;
@@ -52,7 +55,8 @@ pub use ids::{
     COMPOSER_SCOPE, CONTAINER_BREADTH, DEEP_MODULE, DEPTH_RATIO, IMPORT_POLICY, MILLER_LIMIT,
     MISSING_ENTRY, MODULE_DOCS, NAMING, NO_BARREL, NO_CIRCULAR_DEPS, NO_CROSS_LAYER_IMPORT,
     PROMOTION_PRESSURE, PUBLIC_API, PURITY, RESTRICTED_CALLS, SIBLING_ISOLATION, SLICE_FAN_IN,
-    STAGE_MIXING, SUPPRESSION, UNREACHABLE_MODULES, UNUSED_EXPORTS, VISIBILITY_SCOPE, ZONE_BREADTH,
+    STAGE_MIXING, SUPPRESSION, UNREACHABLE_MODULES, UNUSED_DEPENDENCIES, UNUSED_EXPORTS,
+    VISIBILITY_SCOPE, ZONE_BREADTH,
 };
 pub use rule::{EmptyOptions, Rule};
 pub use scope::{ProjectScope, RuleScope};

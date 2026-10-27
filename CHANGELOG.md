@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added rule `stratum/unused-dependencies`: a package.json dependency nothing imports, and an imported package package.json does not declare; `@types/*`, CLI packages run from `scripts` and tool configs such as `vite.config.ts` are counted (off by default)
+
 - Added `count_ignored_importers` and `ignore_type_exports` options to `stratum/unused-exports`: an export only tests import, or a type export, is no longer reported
 
 - Fixed `project.entry_points` rejecting an entry file outside every layer, such as `src/main.tsx`: it is read for its imports, so what it imports is no longer reported by `unreachable-modules` and `unused-exports`

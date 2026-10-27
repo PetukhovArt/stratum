@@ -6,7 +6,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use stratum_config::{Config, IgnoreSet};
 use stratum_core::severity::Severity;
 use stratum_graph::{CompoundGraph, GraphBuilder, SideFile, SideRole};
-use stratum_rules::UnusedExportsOptions;
+use stratum_rules::{UnusedDependenciesOptions, UnusedExportsOptions};
 
 /// Where to look for side files: the layer folders, and what is ignored inside and out.
 pub(crate) struct Walk<'a> {
@@ -137,21 +137,67 @@ impl<'a> Walk<'a> {
     }
 }
 
-/// Whether `stratum/unused-exports` reads the ignored files: on somewhere, with
-/// `count_ignored_importers`.
+const UNUSED_EXPORTS: &str = "stratum/unused-exports";
+pub(crate) const UNUSED_DEPENDENCIES: &str = "stratum/unused-dependencies";
+
+/// Whether a rule reads the ignored files inside the layers: `stratum/unused-exports` with
+/// `count_ignored_importers`, or `stratum/unused-dependencies`.
 pub(crate) fn wants_ignored(config: &Config) -> bool {
-    const SLUG: &str = "stratum/unused-exports";
-    enabled(config, SLUG)
-        && options::<UnusedExportsOptions>(config, SLUG).is_some_and(|o| o.count_ignored_importers)
+    let counted = enabled(config, UNUSED_EXPORTS)
+        && options::<UnusedExportsOptions>(config, UNUSED_EXPORTS)
+            .is_some_and(|o| o.count_ignored_importers);
+    counted || enabled(config, UNUSED_DEPENDENCIES)
 }
 
-/// The rule is on in `rules` or in some `overrides` block. A built-in absent from `rules` counts
-/// as on: its default severity decides, and reading too many side files is only slower.
+/// The `entries` globs of `stratum/unused-dependencies`; empty while it is off.
+pub(crate) fn listed(config: &Config) -> Vec<String> {
+    if !enabled(config, UNUSED_DEPENDENCIES) {
+        return Vec::new();
+    }
+    options::<UnusedDependenciesOptions>(config, UNUSED_DEPENDENCIES)
+        .unwrap_or_default()
+        .entries
+}
+
+impl Walk<'_> {
+    /// Files outside the layers that a glob of `patterns` matches; `*` stays within one folder.
+    pub(crate) fn matching(&self, patterns: &[String]) -> Vec<String> {
+        let mut out = Vec::new();
+        for pattern in patterns {
+            let Ok(glob) = globset::GlobBuilder::new(pattern)
+                .literal_separator(true)
+                .build()
+            else {
+                continue;
+            };
+            let glob = glob.compile_matcher();
+            let base = stratum_config::literal_dir(pattern);
+            let depth = (!pattern.contains("**")).then(|| {
+                let below = pattern.split('/').count();
+                let at = if base.is_empty() {
+                    0
+                } else {
+                    base.split('/').count()
+                };
+                below - at
+            });
+            out.extend(
+                self.outside_layers(&base, depth)
+                    .into_iter()
+                    .filter(|rel| glob.is_match(rel)),
+            );
+        }
+        out
+    }
+}
+
+/// The rule is on in `rules` or in some `overrides` block. Both built-ins that read side files
+/// are off by default, so one absent from `rules` is off.
 pub(crate) fn enabled(config: &Config, slug: &str) -> bool {
     config
         .rules
         .get(slug)
-        .is_none_or(|rule| rule.severity != Severity::Off)
+        .is_some_and(|rule| rule.severity != Severity::Off)
         || config
             .overrides
             .iter()

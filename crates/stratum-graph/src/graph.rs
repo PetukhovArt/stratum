@@ -32,6 +32,9 @@ pub struct CompoundGraph {
     pub entry_points: Vec<ModuleId>,
     /// Source files outside the graph read for their imports only; filled by the engine.
     pub side_files: Vec<SideFile>,
+    /// `package.json` at the project root; read by the engine only for
+    /// `stratum/unused-dependencies`.
+    pub manifest: Option<Manifest>,
     /// Navigation docs by folder ; empty unless `stratum/module-docs` sets `nav_file`.
     pub nav_docs: BTreeMap<PathBuf, NavDoc>,
     /// Built on first read from module paths, visibility and containers. Incremental updates
@@ -52,6 +55,7 @@ impl CompoundGraph {
             node_index: rustc_hash::FxHashMap::default(),
             entry_points: Vec::new(),
             side_files: Vec::new(),
+            manifest: None,
             nav_docs: BTreeMap::new(),
             index: OnceLock::new(),
             slice_importers: OnceLock::new(),
@@ -193,6 +197,30 @@ pub enum SideRole {
     Ignored,
     /// Named by a rule's own option, such as `stratum/unused-dependencies` `entries`.
     Listed,
+}
+
+/// What `package.json` declares, as the engine read it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Manifest {
+    pub path: PathBuf,
+    /// The package's own `name`.
+    pub name: Option<String>,
+    /// Every entry of `dependencies`, `devDependencies`, `peerDependencies` and
+    /// `optionalDependencies`, in file order.
+    pub declared: Vec<Declared>,
+    /// The commands of `scripts`.
+    pub scripts: Vec<String>,
+    /// Binary names by package, from `node_modules/<package>/package.json` `bin`; a package not
+    /// installed has no entry.
+    pub bins: BTreeMap<String, Vec<String>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Declared {
+    /// `dependencies`, `devDependencies`, `peerDependencies` or `optionalDependencies`.
+    pub field: String,
+    pub package: String,
+    pub location: SourceLocation,
 }
 
 /// A folder's navigation doc, read by the engine ; `requires` holds folders, not doc files.

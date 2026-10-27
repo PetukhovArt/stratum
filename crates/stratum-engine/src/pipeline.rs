@@ -18,8 +18,8 @@ use crate::config::{ConfigSource, LoadedConfig};
 use crate::docs;
 use crate::finding::{EdgeRef, Finding};
 use crate::paths::{canonicalize, relative, relative_in_text};
-use crate::side;
 use crate::suppression::{self, Analysis, Reported, Suppressed};
+use crate::{manifest, side};
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
@@ -193,6 +193,11 @@ pub(crate) fn graph(
     if side::wants_ignored(config) {
         let ignored = walk.ignored_in_layers().into_iter();
         side_files.extend(ignored.map(|rel| (rel, SideRole::Ignored)));
+    }
+    let listed = walk.matching(&side::listed(config)).into_iter();
+    side_files.extend(listed.map(|rel| (rel, SideRole::Listed)));
+    if side::enabled(config, side::UNUSED_DEPENDENCIES) {
+        graph.manifest = manifest::read(&root_abs);
     }
     graph.side_files = side::scan(&builder, &graph, &root_abs, side_files);
     graph.nav_docs = docs::read(&graph, &root_abs, config);

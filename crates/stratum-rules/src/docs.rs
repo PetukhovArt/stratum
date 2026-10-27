@@ -175,6 +175,18 @@ pub fn builtin(slug: &str) -> Option<RuleDoc> {
             "Write the reason after `--`, correct the slug, or delete the directive once the line no longer breaks the rule.",
             &[],
         ),
+        "stratum/unused-dependencies" => (
+            "Compares the packages the code imports with ROOT's package.json. Unused: a package declared in one of `fields` that nothing imports, reported at its line in package.json. Unlisted: a bare specifier imported by a module, an entry point or an `entries` file whose package no field in `fields` declares, reported once per file at the first import. Every import counts, static, dynamic, `require()`, type-only and side-effect, from modules, entry points outside the layers, files ignored by `project.ignore` inside the layers (tests), and `entries` files. `@types/foo` is used when `foo` is imported (`@types/scope__name` for `@scope/name`, `@types/node` for a Node builtin),, a type-only import is listed by its `@types` package, and a bare builtin name (`buffer`) also uses a declared package of that name, a browser polyfill. With `scripts`, a package whose binary a package.json script runs is used; binaries come from `node_modules/<package>/package.json` `bin`, else the package's own name. Skipped: Node builtins, `#imports`, URL and `virtual:` specifiers, imports resolved to a module (aliases), and the package's own name. Blind spots: only ROOT's package.json (no workspaces), an unresolved path alias looks like a package, and a package loaded by name (a plugin in a config string, global types such as `@types/jest`) looks unused; list those in `ignore`.",
+            "A dependency nothing uses slows every install and widens the supply chain for no effect; an import of an undeclared package works only by hoisting or a transitive dependency and breaks on the next lockfile change.",
+            "Remove the unused package from package.json, or add the imported one to it. For a package used in a way Stratum cannot see, add a glob to `ignore`; for a config file outside the layers, add it to `entries`.",
+            &[
+                "check: which findings to report, `unused` and `unlisted` (unused, unlisted)",
+                "fields: the package.json fields that declare a package and are checked for unused ones; also `peerDependencies`, `optionalDependencies` (dependencies, devDependencies)",
+                "ignore: globs of package names never reported, e.g. `@types/*` ([])",
+                "entries: globs relative to ROOT of files outside the layers whose imports count, such as vite or vitest configs; `*` stays within one folder (*.config.{js,cjs,mjs,ts,cts,mts})",
+                "scripts: a package whose binary a package.json script runs is used (true)",
+            ],
+        ),
         _ => return None,
     };
     Some(RuleDoc {

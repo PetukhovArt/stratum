@@ -7,6 +7,7 @@ pub mod config;
 mod docs;
 pub mod drift;
 pub mod finding;
+mod manifest;
 pub mod paths;
 pub mod pipeline;
 mod side;

@@ -100,6 +100,7 @@ A parent may extend further; a cycle is an error. Merge, child over parent:
 | `stratum/module-docs` | warning | warning | warning | `nav_file` (unset), `requires_key` ("requires") |
 | `stratum/unused-exports` | off | off | off | `count_ignored_importers` (false), `ignore_type_exports` (false) |
 | `stratum/unreachable-modules` | off | off | off | none |
+| `stratum/unused-dependencies` | off | | | `check` (unused, unlisted), `fields` (dependencies, devDependencies), `ignore` ([]), `entries` (*.config.{js,cjs,mjs,ts,cts,mts}), `scripts` (true) |
 | `stratum/suppression` | error | error | error | none |
 | `stratum/slice-fan-in` | off | off | warning | `max_fan_in` (5) |
 | `stratum/miller-limit` | info | info | info | `max_children` (20) |
@@ -272,6 +273,41 @@ Inert until `nav_file` names the navigation doc each unit holds (`requires_key` 
 
 - A layer root, a container (slice, sub-unit, nested container) and a private zone must hold the `nav_file`. A segment or collection folder must not: it is a bucket, not a unit, and its content belongs to the doc of the folder that owns it.
 - `requires` lists what the doc presupposes, as paths relative to ROOT of folders or of their docs, in any of the YAML forms `requires: a`, `requires: [a, b]` or a `- a` block list. A path outside the layers is fine, and so is a folder inside the requiring one (or the reverse). Reported: a required folder whose code imports the requiring folder, and a required sibling container. Documents follow imports.
+
+## `stratum/unused-dependencies`: package.json against the imports
+
+```jsonc
+"stratum/unused-dependencies": { "severity": "warning", "options": {
+  "check": ["unused", "unlisted"],
+  "fields": ["dependencies", "devDependencies"],
+  "ignore": ["@types/jest", "prettier-plugin-*"],
+  "entries": ["*.config.{js,cjs,mjs,ts,cts,mts}", "scripts/**/*.mjs"],
+  "scripts": true
+} }
+```
+
+Off by default. It compares the bare package specifiers imported anywhere with ROOT's `package.json`:
+
+- **unused**: a package declared in one of `fields` that nothing imports, reported at its line in `package.json`;
+- **unlisted**: a package imported by a module, an entry point or an `entries` file that no field in `fields` declares, once per file at the first import.
+
+Every import counts, static, dynamic, `require()`, type-only and side-effect. The importers are the modules, entry points outside the layers, the files inside the layers that `project.ignore` ignores (tests: their packages count as used but are never reported as unlisted), and the `entries` files: globs relative to ROOT of files outside the layers, where `*` stays within one folder. The default `entries` reads the tool configs at ROOT (`vite.config.ts`, `vitest.config.ts`, `eslint.config.mjs`).
+
+| Key | Meaning (default) |
+|---|---|
+| `check` | which findings to report: `unused`, `unlisted` (both) |
+| `fields` | the `package.json` fields that declare a package and are checked for unused ones; also `peerDependencies`, `optionalDependencies` (`dependencies`, `devDependencies`) |
+| `ignore` | globs of package names never reported, e.g. `@types/*` (none) |
+| `entries` | files outside the layers whose imports count (`*.config.{js,cjs,mjs,ts,cts,mts}`) |
+| `scripts` | a package whose binary a `package.json` script runs is used (`true`) |
+
+How the usual false alarms are handled:
+
+- `@types/foo` is used when `foo` is imported, `@types/scope__name` when `@scope/name` is, and `@types/node` when a Node builtin is. A type-only import of `foo` is listed when only `@types/foo` is declared. Global type packages such as `@types/jest` are imported by nothing; put them in `ignore`.
+- A CLI-only package is used when a script runs one of its binaries: `tsc` uses `typescript`. Binaries come from `node_modules/<package>/package.json` `bin`, or, for a package not installed, its own name. `npx foo` and `cross-env A=1 foo` count, since every word of a script is a candidate.
+- A bare builtin name (`buffer`, `events`) uses a declared package of that name, a browser polyfill; it is never unlisted. `node:` builtins, `#imports`, URL and `virtual:` specifiers, imports that resolve to a module (a path alias) and the package's own `name` are never packages. An alias that does not resolve looks like a package: fix `tsconfig.json` `paths` or put it in `ignore`.
+
+Only ROOT's `package.json` is read: in a workspace, run Stratum per package.
 
 ## Rhai rules
 

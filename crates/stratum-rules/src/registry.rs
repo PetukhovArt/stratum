@@ -182,8 +182,9 @@ impl RuleRegistry {
             public_api::PublicApi, purity::PurityRule, restricted_calls::RestrictedCalls,
             sibling_isolation::SiblingIsolation, slice_fan_in::SliceFanIn,
             stage_mixing::StageMixing, suppression::Suppression,
-            unreachable_modules::UnreachableModules, unused_exports::UnusedExports,
-            visibility_scope::VisibilityScope, zone_breadth::ZoneBreadth,
+            unreachable_modules::UnreachableModules, unused_dependencies::UnusedDependencies,
+            unused_exports::UnusedExports, visibility_scope::VisibilityScope,
+            zone_breadth::ZoneBreadth,
         };
         let mut r = Self::new();
         r.register(NoCrossLayerImport);
@@ -210,6 +211,7 @@ impl RuleRegistry {
         r.register(UnusedExports);
         r.register(UnreachableModules);
         r.register(Suppression);
+        r.register(UnusedDependencies);
         r
     }
 }
