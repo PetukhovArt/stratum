@@ -222,3 +222,11 @@ pub struct UnusedExportsOptions {
     #[serde(default)]
     pub ignore_type_exports: bool,
 }
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SuppressionOptions {
+    /// Foreign directives, such as `eslint-disable` or `@ts-ignore`, that no comment may start with.
+    #[serde(default)]
+    pub forbid: Vec<String>,
+}

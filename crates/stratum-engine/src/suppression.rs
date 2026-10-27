@@ -1,8 +1,13 @@
 use std::collections::HashMap;
 
 use stratum_config::ConfigError;
-use stratum_core::{ids::ModuleId, severity::Severity, types::Suppression, violation::Violation};
-use stratum_rules::{EffectiveSeverities, SUPPRESSION};
+use stratum_core::{
+    ids::ModuleId,
+    severity::Severity,
+    types::Suppression,
+    violation::{SourceLocation, Violation},
+};
+use stratum_rules::{EffectiveSeverities, SUPPRESSION, SuppressionOptions};
 
 use crate::finding::Finding;
 use crate::pipeline::EngineInput;
@@ -81,6 +86,8 @@ pub(crate) fn apply<T: Reported>(
     input: &EngineInput,
     reported: Vec<T>,
 ) -> Result<(Vec<T>, Vec<Suppressed>), ConfigError> {
+    let mut reported = reported;
+    reported.extend(forbidden(input)?);
     let directives = directives(input);
     if directives.is_empty() {
         return Ok((reported, Vec::new()));
@@ -214,4 +221,148 @@ fn problems<T: Reported>(
         ));
     }
     Ok(out)
+}
+
+/// One violation per comment, in a module, that starts with a directive of the rule's `forbid`.
+/// Read from disk, so an unsaved buffer in the LSP shows the saved file's directives.
+fn forbidden<T: Reported>(input: &EngineInput) -> Result<Vec<T>, ConfigError> {
+    let forbid = input
+        .config
+        .rules
+        .get(SLUG)
+        .filter(|rule| !rule.options.is_null())
+        .and_then(|rule| serde_json::from_value::<SuppressionOptions>(rule.options.clone()).ok())
+        .map(|o| o.forbid)
+        .unwrap_or_default();
+    if forbid.is_empty() {
+        return Ok(Vec::new());
+    }
+    let Some(rule) = input.registry.by_slug(SLUG) else {
+        return Ok(Vec::new());
+    };
+    let severities = EffectiveSeverities::new(&input.config, &input.project_root)?;
+    if severities.off_everywhere(rule) {
+        return Ok(Vec::new());
+    }
+    let mut out = Vec::new();
+    for m in input.graph.modules.values() {
+        let cap = severities.for_slashed(&input.relative(&m.path)).of(rule);
+        if cap == Severity::Off {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(&m.path) else {
+            continue;
+        };
+        for (at, written, listed) in foreign_directives(&text, &forbid) {
+            out.push(T::of(
+                input,
+                Violation {
+                    rule: SUPPRESSION,
+                    severity: Severity::Error.clamp(Severity::Info, cap),
+                    message: format!(
+                        "Directive `{written}` is forbidden: `stratum/suppression` `forbid` lists `{listed}`."
+                    ),
+                    file: m.path.clone(),
+                    location: at,
+                    modules: vec![m.id],
+                    edge: None,
+                    fix: Some(
+                        "Fix what the directive hides and delete it. To keep existing ones, accept them into the baseline (`stratum-lint baseline`); for a folder, turn the rule off in an `overrides` block.".to_owned(),
+                    ),
+                },
+            ));
+        }
+    }
+    Ok(out)
+}
+
+/// `(location, directive as written, entry of forbid)` per comment of `text` whose body starts
+/// with an entry of `forbid`, followed by the end of the body or a character that is not a letter,
+/// digit or `_`: `eslint-disable` matches `eslint-disable-next-line` but not `eslint-disabled`.
+/// Comments are found per line: `//`, `/*`, `<!--`, and a block comment line starting with `*`.
+fn foreign_directives<'f>(
+    text: &str,
+    forbid: &'f [String],
+) -> Vec<(SourceLocation, String, &'f str)> {
+    let mut out = Vec::new();
+    for (i, line) in text.lines().enumerate() {
+        for (column, body) in comment_bodies(line) {
+            let Some(listed) = forbid.iter().find(|d| {
+                body.strip_prefix(d.as_str()).is_some_and(|rest| {
+                    !rest
+                        .chars()
+                        .next()
+                        .is_some_and(|c| c.is_alphanumeric() || c == '_')
+                })
+            }) else {
+                continue;
+            };
+            let written: String = body
+                .chars()
+                .take_while(|c| !c.is_whitespace() && !matches!(c, '*' | ':' | ','))
+                .collect();
+            out.push((
+                SourceLocation {
+                    line: u32::try_from(i + 1).unwrap_or(u32::MAX),
+                    column: u32::try_from(column + 1).unwrap_or(u32::MAX),
+                },
+                written,
+                listed.as_str(),
+            ));
+        }
+    }
+    out
+}
+
+/// `(byte column of the marker, text after it, trimmed)` for every comment start on `line`.
+fn comment_bodies(line: &str) -> Vec<(usize, &str)> {
+    fn body(rest: &str) -> &str {
+        rest.trim_start_matches(|c: char| c == '*' || c.is_whitespace())
+    }
+    let mut out = Vec::new();
+    let indent = line.len() - line.trim_start().len();
+    let trimmed = line.trim_start();
+    if trimmed.starts_with('*') && !trimmed.starts_with("*/") {
+        out.push((indent, body(&trimmed[1..])));
+    }
+    for marker in ["//", "/*", "<!--"] {
+        let mut from = 0;
+        while let Some(found) = line[from..].find(marker) {
+            let at = from + found;
+            from = at + marker.len();
+            let url = marker == "//" && line[..at].ends_with(':');
+            let doubled = marker == "//" && at > 0 && line[..at].ends_with('/');
+            if !url && !doubled {
+                out.push((at, body(&line[from..])));
+            }
+        }
+    }
+    out.sort_by_key(|(at, _)| *at);
+    out.dedup_by_key(|(at, _)| *at);
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::foreign_directives;
+
+    #[test]
+    fn a_comment_starting_with_a_forbidden_directive_is_found_with_its_longer_forms() {
+        let forbid = ["eslint-disable".to_owned(), "@ts-ignore".to_owned()];
+        let text = "// eslint-disable-next-line no-console\nconst a = 1; // @ts-ignore\n/* eslint-disable */\n/**\n * @ts-ignore\n */\n// eslint-disabled is fine\nconst url = 'https://eslint-disable';\n<!-- eslint-disable -->\n// see @ts-ignore docs\n";
+        let found: Vec<(u32, String)> = foreign_directives(text, &forbid)
+            .into_iter()
+            .map(|(at, written, _)| (at.line, written))
+            .collect();
+        assert_eq!(
+            found,
+            [
+                (1, "eslint-disable-next-line".to_owned()),
+                (2, "@ts-ignore".to_owned()),
+                (3, "eslint-disable".to_owned()),
+                (5, "@ts-ignore".to_owned()),
+                (9, "eslint-disable".to_owned()),
+            ]
+        );
+    }
 }

@@ -133,6 +133,7 @@ Adding a field keeps `v`; renaming, removing or redefining one bumps it. Finding
 - `stratum/suppression` checks the directives. An error, and the directive suppresses nothing: no reason after `--`, or a slug that is not a rule. A warning: a valid directive that hides nothing (unused).
 - The summary of `--format json` gains `suppressed: N`; the agent summary line gains `, N suppressed`. `jsonl`, `gitlab` and `github` leave suppressed findings out; `sarif` keeps them with `suppressions: [{ "kind": "inSource", "justification": <reason> }]`.
 - A harness can treat an added line matching `\bstratum-ignore\b` as a new suppression.
+- Foreign directives: `"stratum/suppression": { "severity": "error", "options": { "forbid": ["eslint-disable", "@ts-ignore", "@ts-expect-error", "@ts-nocheck"] } }` reports every comment that starts with one of them, one error per line, so an agent cannot silence `tsc` or ESLint instead of fixing the code. `eslint-disable` also matches `eslint-disable-next-line`. The message carries no line number: run `stratum-lint baseline` once and the gate fails only on new directives; `--changed` reports only those in changed files.
 
 ### CI formats
 

@@ -101,7 +101,7 @@ A parent may extend further; a cycle is an error. Merge, child over parent:
 | `stratum/unused-exports` | off | off | off | `count_ignored_importers` (false), `ignore_type_exports` (false) |
 | `stratum/unreachable-modules` | off | off | off | none |
 | `stratum/unused-dependencies` | off | | | `check` (unused, unlisted), `fields` (dependencies, devDependencies), `ignore` ([]), `entries` (*.config.{js,cjs,mjs,ts,cts,mts}), `scripts` (true) |
-| `stratum/suppression` | error | error | error | none |
+| `stratum/suppression` | error | error | error | `forbid` ([]) |
 | `stratum/slice-fan-in` | off | off | warning | `max_fan_in` (5) |
 | `stratum/miller-limit` | info | info | info | `max_children` (20) |
 | `stratum/promotion-pressure` | info | | | `threshold` (5) |

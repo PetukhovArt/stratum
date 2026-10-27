@@ -103,7 +103,7 @@ Source files: `.ts .tsx .mts .cts .js .jsx .mjs .cjs .vue` (Vue: `<script>` and 
 | `stratum/unused-exports` | An export that no module reachable from `project.entry_points` imports. |
 | `stratum/unreachable-modules` | A module that no file in `project.entry_points` reaches. |
 | `stratum/unused-dependencies` | A package.json dependency nothing imports, or an imported package package.json does not declare. |
-| `stratum/suppression` | A `stratum-ignore` directive without a reason or with an unknown slug, or one that suppresses nothing. |
+| `stratum/suppression` | A `stratum-ignore` directive without a reason or with an unknown slug, or one that suppresses nothing; with `forbid`, a foreign directive such as `eslint-disable` or `@ts-ignore`. |
 | `stratum/slice-fan-in` | A slice imported by more than `max_fan_in` other slices. |
 | `stratum/miller-limit` | A module with more than `max_children` importers from outside its slice (else its layer) whose layers may import it. |
 | `stratum/promotion-pressure` | A module with at least `threshold` importers from outside its slice (else its layer) whose layers do not declare its layer: a candidate for a lower layer. |

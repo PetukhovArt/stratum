@@ -2,7 +2,8 @@ use stratum_core::{ids::RuleId, severity::Severity, violation::Violation};
 use stratum_graph::CompoundGraph;
 
 use crate::ids::SUPPRESSION;
-use crate::rule::{EmptyOptions, Rule};
+use crate::options::SuppressionOptions;
+use crate::rule::Rule;
 use crate::scope::ProjectScope;
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -10,7 +11,7 @@ pub struct Suppression;
 
 impl Rule for Suppression {
     type Scope = ProjectScope;
-    type Options = EmptyOptions;
+    type Options = SuppressionOptions;
 
     fn id(&self) -> RuleId {
         SUPPRESSION
@@ -26,7 +27,7 @@ impl Rule for Suppression {
         &self,
         _graph: &CompoundGraph,
         _scope: ProjectScope,
-        _options: &EmptyOptions,
+        _options: &SuppressionOptions,
         _severity: Severity,
     ) -> Vec<Violation> {
         vec![]
