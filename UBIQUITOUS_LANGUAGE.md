@@ -74,6 +74,7 @@
 | **Rule Doc** | What a **Rule** checks, why, how to fix a hit, and its options, as `explain` and `rules` show it. A **Custom Rule** supplies one through `fn doc()`. | rule help, rule description |
 | **Rule Scope** | The unit a **Rule** checks per call: a **Module**, a **Container**, or the whole project. | rule input, scope kind |
 | **Import Policy** | The declarative `stratum/import-policy` **Rule**: config policies of `from` / `except_from` / `deny` / `allow` / `slice` globs that deny **Edges** without scripting. | boundary rule, import rule |
+| **Reachability Policy** | The declarative `stratum/reachability-policy` **Rule**: config policies of `from` / `deny` / `allow` globs that deny a **Module** reachable through any chain of **Edges**, not only a direct one. Its **Violation** names the shortest chain. | transitive import rule, deep import policy |
 | **Violation** | One reported **Rule** infraction: **Rule Slug**, **Severity**, message, file, **Source Location**, the **Modules** involved, an optional **Edge**, an optional **Fix**. | error, issue |
 | **Severity** | One of `error`, `warning`, `info`, `off`. Only `error` makes the **Gate** fail. The configured severity is a cap: a **Rule** may report lower, never higher. | level, priority |
 | **Advisory** | An `info`-severity **Violation**. The agent format shows advisories as one count line, not counted against `--max`. | info finding, hint |

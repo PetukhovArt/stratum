@@ -25,8 +25,9 @@ pub const UNUSED_EXPORTS: RuleId = RuleId::new(22);
 pub const UNREACHABLE_MODULES: RuleId = RuleId::new(23);
 pub const SUPPRESSION: RuleId = RuleId::new(24);
 pub const UNUSED_DEPENDENCIES: RuleId = RuleId::new(25);
+pub const REACHABILITY_POLICY: RuleId = RuleId::new(26);
 
-pub const BUILTIN: [RuleId; 25] = [
+pub const BUILTIN: [RuleId; 26] = [
     NO_CROSS_LAYER_IMPORT,
     NO_CIRCULAR_DEPS,
     PURITY,
@@ -52,6 +53,7 @@ pub const BUILTIN: [RuleId; 25] = [
     UNREACHABLE_MODULES,
     SUPPRESSION,
     UNUSED_DEPENDENCIES,
+    REACHABILITY_POLICY,
 ];
 
 #[must_use]

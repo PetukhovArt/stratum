@@ -179,9 +179,9 @@ impl RuleRegistry {
             miller_limit::MillerLimit, missing_entry::MissingEntry, module_docs::ModuleDocs,
             naming::Naming, no_barrel::NoBarrel, no_circular_deps::NoCircularDeps,
             no_cross_layer_import::NoCrossLayerImport, promotion_pressure::PromotionPressure,
-            public_api::PublicApi, purity::PurityRule, restricted_calls::RestrictedCalls,
-            sibling_isolation::SiblingIsolation, slice_fan_in::SliceFanIn,
-            stage_mixing::StageMixing, suppression::Suppression,
+            public_api::PublicApi, purity::PurityRule, reachability_policy::ReachabilityPolicy,
+            restricted_calls::RestrictedCalls, sibling_isolation::SiblingIsolation,
+            slice_fan_in::SliceFanIn, stage_mixing::StageMixing, suppression::Suppression,
             unreachable_modules::UnreachableModules, unused_dependencies::UnusedDependencies,
             unused_exports::UnusedExports, visibility_scope::VisibilityScope,
             zone_breadth::ZoneBreadth,
@@ -212,6 +212,7 @@ impl RuleRegistry {
         r.register(UnreachableModules);
         r.register(Suppression);
         r.register(UnusedDependencies);
+        r.register(ReachabilityPolicy);
         r
     }
 }

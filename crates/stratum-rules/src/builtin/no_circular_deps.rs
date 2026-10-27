@@ -99,7 +99,7 @@ fn keeps(options: NoCircularDepsOptions, import: &Import) -> bool {
 }
 
 /// `import type`, `export type … from`, or every binding type-only.
-fn type_only(import: &Import) -> bool {
+pub(crate) fn type_only(import: &Import) -> bool {
     import.type_only
         || matches!(&import.bindings, Bindings::Names(names)
             if !names.is_empty() && names.iter().all(|n| n.type_only))

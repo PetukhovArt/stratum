@@ -15,6 +15,7 @@ pub mod no_cross_layer_import;
 pub mod promotion_pressure;
 pub mod public_api;
 pub mod purity;
+pub mod reachability_policy;
 pub mod restricted_calls;
 pub mod sibling_isolation;
 pub mod slice_fan_in;

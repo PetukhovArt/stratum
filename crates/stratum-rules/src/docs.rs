@@ -189,6 +189,21 @@ pub fn builtin(slug: &str) -> Option<RuleDoc> {
                 "scripts: a package whose binary a package.json script runs is used (true)",
             ],
         ),
+        "stratum/reachability-policy" => (
+            "Reports a module matching `deny` (and not `allow`) that a module matching `from` reaches through imports, at any depth: `import-policy` judges one import, this rule the whole chain. `from` may also match an entry point outside every layer. One finding per `from` file and policy, at that file's first import on the chain, naming the shortest import chain to the nearest denied module and how many more denied modules it reaches. The chain's modules are the finding's modules, so `--changed` reports it when any file on the chain changed. Imports of packages and of ignored files end a chain; non-literal dynamic imports are not followed.",
+            "Bundle and runtime boundaries (a worker and the DOM, client and server code, production and test helpers) break through indirect imports that no single-import policy sees.",
+            "Cut the chain at one of its imports: inject the dependency from above, split the module that pulls the denied code, or move the denied code behind a dynamic import and set `ignore_dynamic`.",
+            &[
+                "options: a list of policies, each checked on its own, e.g. [{ \"from\": [\"src/workers/*.ts\"], \"deny\": [\"src/**/dom/**\"], \"message\": \"Workers have no DOM\" }]",
+                "from: globs of the files whose imports are followed, forward slashes relative to the project root (required)",
+                "deny: globs of the modules none of them may reach (required)",
+                "allow: globs of denied modules that are fine after all ([])",
+                "ignore_dynamic: do not follow dynamic `import()` and `import.meta.glob()` (false)",
+                "ignore_type_only: do not follow type-only imports (false)",
+                "message: text of the violation; the chain is appended (\"Denied module reachable by reachability-policy\")",
+                "fix: what to do instead; replaces the rule's generic fix in the finding (none)",
+            ],
+        ),
         _ => return None,
     };
     Some(RuleDoc {

@@ -89,6 +89,7 @@ A parent may extend further; a cycle is an error. Merge, child over parent:
 | `stratum/public-api` | warning | warning | error | none |
 | `stratum/sibling-isolation` | warning | warning | error | none |
 | `stratum/import-policy` | error | | | list of policies, below |
+| `stratum/reachability-policy` | error | | | list of policies, below |
 | `stratum/restricted-calls` | off | off | off | list of policies, below |
 | `stratum/stage-mixing` | off | off | error | none |
 | `stratum/container-breadth` | info | info | warning | `max_kinds` (6), `max_items` (20), `max_root_files` (4) |
@@ -236,6 +237,42 @@ Slice isolation and entry-only access need no policy: declare `slices: true` and
   }
 }
 ```
+
+## `stratum/reachability-policy`: what an entry may pull in
+
+`import-policy` judges one import; `reachability-policy` judges the whole chain. `options` is a list of policies, each checked on its own:
+
+```jsonc
+"stratum/reachability-policy": { "severity": "error", "options": [
+  {
+    "from": ["src/workers/*.ts"],
+    "deny": ["src/**/dom/**", "src/**/*.test-utils.ts"],
+    "allow": ["src/shared/dom/types.ts"],
+    "ignore_type_only": true,
+    "ignore_dynamic": true,
+    "message": "Workers have no DOM",
+    "fix": "Pass the data in a message instead of importing the DOM helper"
+  }
+] }
+```
+
+| Key | Meaning |
+|---|---|
+| `from` | globs of the files whose imports are followed: modules, or entry points outside every layer (required) |
+| `deny` | globs of the modules none of them may reach, at any depth (required) |
+| `allow` | globs of denied modules that are fine after all |
+| `ignore_dynamic` | do not follow `import()` and `import.meta.glob()`: a lazy chunk is not part of the bundle (default `false`) |
+| `ignore_type_only` | do not follow `import type` and imports of types only (default `false`) |
+| `message` | text of the violation; the chain is appended |
+| `fix` | what to do instead; replaces the rule's generic fix in the finding |
+
+One finding per `from` file and policy, on the line of that file's first import on the chain. The message names the nearest denied module, the shortest import chain to it and how many more denied modules the file reaches:
+
+```text
+Workers have no DOM: `src/workers/sync.ts` reaches `src/shared/dom/render.ts` through src/workers/sync.ts -> src/shared/helper.ts -> src/shared/dom/render.ts (and 2 more denied modules)
+```
+
+The finding's modules are the chain, so `--changed` reports it when any file on the chain changed. A chain ends at an import of a package or of an ignored file; non-literal dynamic imports are not followed. A broad `from` (`src/**`) runs one search per matching file: keep `from` to the real entries.
 
 ## `stratum/restricted-calls`: calls allowed only in chosen files
 

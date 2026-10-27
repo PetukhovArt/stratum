@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added rule `stratum/reachability-policy`: a denied module reachable from a `from` file through any chain of imports is reported with the chain; `ignore_dynamic` and `ignore_type_only` skip lazy and type-only imports
+
 - Added a `forbid` option to `stratum/suppression`: a comment that starts with a listed foreign directive, such as `eslint-disable` or `@ts-ignore`, is an error on its line; with a baseline only new ones fail
 
 - Added rule `stratum/unused-dependencies`: a package.json dependency nothing imports, and an imported package package.json does not declare; `@types/*`, CLI packages run from `scripts` and tool configs such as `vite.config.ts` are counted (off by default)
