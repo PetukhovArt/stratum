@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added rule `stratum/co-change`: on `lint --changed` and `diff --base`, a changed file matching `when` needs a changed file matching `require`; `stratum-ignore stratum/co-change -- <reason>` in the changed file acknowledges a false alarm
+
 - Added rule `stratum/reachability-policy`: a denied module reachable from a `from` file through any chain of imports is reported with the chain; `ignore_dynamic` and `ignore_type_only` skip lazy and type-only imports
 
 - Added a `forbid` option to `stratum/suppression`: a comment that starts with a listed foreign directive, such as `eslint-disable` or `@ts-ignore`, is an error on its line; with a baseline only new ones fail

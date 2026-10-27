@@ -64,6 +64,16 @@ impl EngineInput {
         })
     }
 
+    /// [`Self::analyze`] for a run on a diff: `changed` are the paths, relative to the root with
+    /// `/`, that differ from the base. Adds the diff-mode `stratum/co-change`.
+    pub fn analyze_changed(&self, changed: &[String]) -> Result<Analysis, ConfigError> {
+        let mut analysis = self.analyze()?;
+        analysis
+            .findings
+            .extend(crate::co_change::findings(self, changed)?);
+        Ok(analysis)
+    }
+
     /// `analyze`'s findings, each with the violation it came from (graph ids instead of paths).
     pub fn analyze_violations(&self) -> Result<Vec<(Violation, Finding)>, ConfigError> {
         self.reported().map(|(kept, _)| kept)

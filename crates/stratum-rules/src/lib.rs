@@ -13,6 +13,7 @@ mod severity;
 pub use severity::{EffectiveSeverities, FileSeverities};
 pub mod territory;
 
+pub use builtin::co_change::{CO_CHANGE_SLUG, CoChange, CoChangeMiss, CoChangeOptions};
 pub use builtin::composer_scope::ComposerScope;
 pub use builtin::container_breadth::ContainerBreadth;
 pub use builtin::deep_module::DeepModule;
@@ -53,11 +54,11 @@ pub use registry::{DynRule, DynRuleAdapter, RuleRegistry};
 pub use runner::{run_all, run_all_with_registry};
 
 pub use ids::{
-    COMPOSER_SCOPE, CONTAINER_BREADTH, DEEP_MODULE, DEPTH_RATIO, IMPORT_POLICY, MILLER_LIMIT,
-    MISSING_ENTRY, MODULE_DOCS, NAMING, NO_BARREL, NO_CIRCULAR_DEPS, NO_CROSS_LAYER_IMPORT,
-    PROMOTION_PRESSURE, PUBLIC_API, PURITY, REACHABILITY_POLICY, RESTRICTED_CALLS,
-    SIBLING_ISOLATION, SLICE_FAN_IN, STAGE_MIXING, SUPPRESSION, UNREACHABLE_MODULES,
-    UNUSED_DEPENDENCIES, UNUSED_EXPORTS, VISIBILITY_SCOPE, ZONE_BREADTH,
+    CO_CHANGE, COMPOSER_SCOPE, CONTAINER_BREADTH, DEEP_MODULE, DEPTH_RATIO, IMPORT_POLICY,
+    MILLER_LIMIT, MISSING_ENTRY, MODULE_DOCS, NAMING, NO_BARREL, NO_CIRCULAR_DEPS,
+    NO_CROSS_LAYER_IMPORT, PROMOTION_PRESSURE, PUBLIC_API, PURITY, REACHABILITY_POLICY,
+    RESTRICTED_CALLS, SIBLING_ISOLATION, SLICE_FAN_IN, STAGE_MIXING, SUPPRESSION,
+    UNREACHABLE_MODULES, UNUSED_DEPENDENCIES, UNUSED_EXPORTS, VISIBILITY_SCOPE, ZONE_BREADTH,
 };
 pub use rule::{EmptyOptions, Rule};
 pub use scope::{ProjectScope, RuleScope};

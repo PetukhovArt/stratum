@@ -3,6 +3,7 @@
 
 pub mod baseline;
 pub mod cache;
+pub mod co_change;
 pub mod config;
 mod docs;
 pub mod drift;

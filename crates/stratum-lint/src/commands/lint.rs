@@ -65,7 +65,11 @@ fn gate(root: &Utf8Path, args: &LintArgs) -> miette::Result<Report> {
 
     let input = build(root, &loaded)?;
     summary.cache = Some(input.cache);
-    let analysis = input.analyze().map_err(|e| miette::miette!("{e}"))?;
+    let analysis = match scope.as_ref().and_then(Scope::changed) {
+        Some(changed) => input.analyze_changed(changed),
+        None => input.analyze(),
+    }
+    .map_err(|e| miette::miette!("{e}"))?;
     let in_scope = |f: &Finding| scope.as_ref().is_none_or(|s| s.touches(f));
     let matched = baseline.unwrap_or_default().apply(analysis.findings);
     summary.fixed = matched.fixed();

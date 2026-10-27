@@ -204,6 +204,18 @@ pub fn builtin(slug: &str) -> Option<RuleDoc> {
                 "fix: what to do instead; replaces the rule's generic fix in the finding (none)",
             ],
         ),
+        "stratum/co-change" => (
+            "A diff-mode rule: when the change touches a file matching a policy's `when`, at least one file matching its `require` must change too. It runs in `lint --changed[=REF]`, one finding per policy at line 1 of the first changed `when` file, and in `diff --base REF`, as a section of the report; plain `lint`, `baseline` and the LSP never run it. Globs match every changed path relative to the project root, source or not, untracked files included. A changed `when` file that holds `stratum-ignore stratum/co-change -- <reason>` on any line, in any comment syntax, acknowledges the policy for that change; outside a diff the directive is never reported as hiding nothing. Blind spots: the directive stays after the merge and acknowledges every later change of that file until deleted, and `--changed` without REF sees only uncommitted changes.",
+            "Some changes are only correct in pairs: a schema with its migration, a public API with its docs, a config type with its version bump. A reviewer catches the missing half late; the gate catches it on the change.",
+            "Change a file matching `require` in the same change, or, when the pair truly does not apply, add `stratum-ignore stratum/co-change -- <reason>` to the changed file and delete it after the merge.",
+            &[
+                "options: a list of policies, each checked on its own, e.g. [{ \"when\": [\"src/api/schema/**\"], \"require\": [\"docs/api/**\", \"CHANGELOG.md\"], \"message\": \"API schema changed without docs\" }]",
+                "when: globs of the changed files that trigger the policy, forward slashes relative to the project root (required)",
+                "require: globs of which at least one file must change too (required, not empty)",
+                "message: text of the violation; the files and globs are appended (\"Files that change together changed alone\")",
+                "fix: what to change; replaces the rule's generic fix in the finding (none)",
+            ],
+        ),
         _ => return None,
     };
     Some(RuleDoc {

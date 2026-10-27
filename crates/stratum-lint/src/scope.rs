@@ -7,7 +7,11 @@ use stratum_engine::{Finding, paths};
 use crate::{cwd::absolutize, git};
 
 #[derive(Debug, Clone, Default)]
-pub struct Scope(BTreeSet<String>);
+pub struct Scope {
+    files: BTreeSet<String>,
+    /// The `--changed` paths alone, without `--files`; `None` without `--changed`.
+    changed: Option<Vec<String>>,
+}
 
 impl Scope {
     /// `None` when neither `files` nor `changed` restricts the report.
@@ -31,33 +35,43 @@ impl Scope {
                     })
             })
             .collect::<miette::Result<_>>()?;
-        if let Some(reference) = changed {
-            set.extend(git::changed_files(root_abs, reference)?);
-        }
-        Ok(Some(Self(set)))
+        let changed = changed
+            .map(|reference| git::changed_files(root_abs, reference))
+            .transpose()?;
+        set.extend(changed.iter().flatten().cloned());
+        Ok(Some(Self {
+            files: set,
+            changed,
+        }))
+    }
+
+    /// The files `--changed` found, for the diff-mode rules; `None` without `--changed`.
+    #[must_use]
+    pub fn changed(&self) -> Option<&[String]> {
+        self.changed.as_deref()
     }
 
     #[must_use]
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.files.len()
     }
 
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.files.is_empty()
     }
 
     #[must_use]
     pub fn covers(&self, file: &str) -> bool {
-        self.0.contains(file)
+        self.files.contains(file)
     }
 
     #[must_use]
     pub fn touches(&self, f: &Finding) -> bool {
-        self.0.contains(&f.file)
+        self.files.contains(&f.file)
             || f.edge
                 .as_ref()
-                .is_some_and(|e| self.0.contains(&e.from) || self.0.contains(&e.to))
-            || f.members.iter().any(|m| self.0.contains(m))
+                .is_some_and(|e| self.files.contains(&e.from) || self.files.contains(&e.to))
+            || f.members.iter().any(|m| self.files.contains(m))
     }
 }

@@ -174,14 +174,15 @@ impl RuleRegistry {
     #[must_use]
     pub fn with_builtins() -> Self {
         use crate::builtin::{
-            composer_scope::ComposerScope, container_breadth::ContainerBreadth,
-            deep_module::DeepModule, depth_ratio::DepthRatio, import_policy::ImportPolicy,
-            miller_limit::MillerLimit, missing_entry::MissingEntry, module_docs::ModuleDocs,
-            naming::Naming, no_barrel::NoBarrel, no_circular_deps::NoCircularDeps,
-            no_cross_layer_import::NoCrossLayerImport, promotion_pressure::PromotionPressure,
-            public_api::PublicApi, purity::PurityRule, reachability_policy::ReachabilityPolicy,
-            restricted_calls::RestrictedCalls, sibling_isolation::SiblingIsolation,
-            slice_fan_in::SliceFanIn, stage_mixing::StageMixing, suppression::Suppression,
+            co_change::CoChange, composer_scope::ComposerScope,
+            container_breadth::ContainerBreadth, deep_module::DeepModule, depth_ratio::DepthRatio,
+            import_policy::ImportPolicy, miller_limit::MillerLimit, missing_entry::MissingEntry,
+            module_docs::ModuleDocs, naming::Naming, no_barrel::NoBarrel,
+            no_circular_deps::NoCircularDeps, no_cross_layer_import::NoCrossLayerImport,
+            promotion_pressure::PromotionPressure, public_api::PublicApi, purity::PurityRule,
+            reachability_policy::ReachabilityPolicy, restricted_calls::RestrictedCalls,
+            sibling_isolation::SiblingIsolation, slice_fan_in::SliceFanIn,
+            stage_mixing::StageMixing, suppression::Suppression,
             unreachable_modules::UnreachableModules, unused_dependencies::UnusedDependencies,
             unused_exports::UnusedExports, visibility_scope::VisibilityScope,
             zone_breadth::ZoneBreadth,
@@ -213,6 +214,7 @@ impl RuleRegistry {
         r.register(Suppression);
         r.register(UnusedDependencies);
         r.register(ReachabilityPolicy);
+        r.register(CoChange);
         r
     }
 }

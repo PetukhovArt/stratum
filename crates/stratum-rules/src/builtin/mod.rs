@@ -1,3 +1,4 @@
+pub mod co_change;
 pub mod composer_scope;
 pub mod container_breadth;
 pub mod deep_module;

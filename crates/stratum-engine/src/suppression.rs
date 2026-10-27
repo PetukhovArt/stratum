@@ -7,7 +7,7 @@ use stratum_core::{
     types::Suppression,
     violation::{SourceLocation, Violation},
 };
-use stratum_rules::{EffectiveSeverities, SUPPRESSION, SuppressionOptions};
+use stratum_rules::{CO_CHANGE_SLUG, EffectiveSeverities, SUPPRESSION, SuppressionOptions};
 
 use crate::finding::Finding;
 use crate::pipeline::EngineInput;
@@ -187,7 +187,8 @@ fn problems<T: Reported>(
                     d.problems.join(" and ")
                 ),
             )
-        } else if !used {
+        } else if !used && !d.at.slugs.iter().any(|s| s == CO_CHANGE_SLUG) {
+            // A `stratum/co-change` acknowledgement is read only on a diff, never per line.
             (
                 Severity::Warning,
                 format!(

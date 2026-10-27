@@ -2,6 +2,8 @@
 
 A **CI Template** runs Stratum on every MR/PR and on the default branch: findings in the CI's own format, the baseline ratchet against the MR's base, and an advisory drift report. Job layout, snippets and inputs: [ci/README.md](../ci/README.md). Exit codes and output shapes: [harness.md](harness.md).
 
+`stratum/co-change` runs only on a diff: the templates show it in the drift report, which is advisory. To gate on it, add a step `stratum-lint --changed="$BASE" --format agent` against the merge base.
+
 ## Before the first pipeline
 
 1. Commit `stratum.config.jsonc` (`stratum-lint init`) and, if the project has existing violations, `stratum.baseline.json` (`stratum-lint baseline`). A baseline added in the same MR counts as introduced and passes.

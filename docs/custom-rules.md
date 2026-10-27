@@ -90,6 +90,7 @@ A parent may extend further; a cycle is an error. Merge, child over parent:
 | `stratum/sibling-isolation` | warning | warning | error | none |
 | `stratum/import-policy` | error | | | list of policies, below |
 | `stratum/reachability-policy` | error | | | list of policies, below |
+| `stratum/co-change` | error | | | list of policies, below |
 | `stratum/restricted-calls` | off | off | off | list of policies, below |
 | `stratum/stage-mixing` | off | off | error | none |
 | `stratum/container-breadth` | info | info | warning | `max_kinds` (6), `max_items` (20), `max_root_files` (4) |
@@ -273,6 +274,38 @@ Workers have no DOM: `src/workers/sync.ts` reaches `src/shared/dom/render.ts` th
 ```
 
 The finding's modules are the chain, so `--changed` reports it when any file on the chain changed. A chain ends at an import of a package or of an ignored file; non-literal dynamic imports are not followed. A broad `from` (`src/**`) runs one search per matching file: keep `from` to the real entries.
+
+## `stratum/co-change`: files that change together
+
+A diff-mode rule. `options` is a list of policies: when the change touches a file matching `when`, at least one file matching `require` must change too.
+
+```jsonc
+"stratum/co-change": { "severity": "error", "options": [
+  {
+    "when": ["src/api/schema/**"],
+    "require": ["docs/api/**", "CHANGELOG.md"],
+    "message": "API schema changed without docs",
+    "fix": "Update docs/api or add a CHANGELOG line"
+  },
+  { "when": ["src/domain/dto/**"], "require": ["src/domain/migrations/**"], "message": "DTO changed without a migration step" }
+] }
+```
+
+| Key | Meaning |
+|---|---|
+| `when` | globs of the changed files that trigger the policy (required) |
+| `require` | globs of which at least one file must change too (required, not empty) |
+| `message` | text of the violation; the files and globs are appended |
+| `fix` | what to change; replaces the rule's generic fix in the finding |
+
+Globs match every changed path relative to ROOT, source or not, untracked files included. It runs only where there is a diff:
+
+- `stratum-lint --changed[=REF]`: one finding per broken policy, at line 1 of the first changed `when` file, so the gate fails. Without REF the diff is the uncommitted work against `HEAD`; in CI use `--changed=origin/main`.
+- `stratum-lint diff --base REF`: a section "Files that must change together" in the drift report, and exit 1.
+
+Plain `lint`, `baseline` and the LSP never run it.
+
+A false alarm (a typo fix in the schema) is acknowledged in the changed file: `stratum-ignore stratum/co-change -- <reason>` on any line, in any comment syntax (`//`, `#`, `--`, `<!-- -->`), so `.sql`, `.yaml` and `.md` files can hold it too. While a changed `when` file holds it, the policy is not reported for the change. The directive is never reported as hiding nothing, since only a diff reads it; it does stay after the merge and acknowledges every later change of that file, so delete it once the change has landed.
 
 ## `stratum/restricted-calls`: calls allowed only in chosen files
 

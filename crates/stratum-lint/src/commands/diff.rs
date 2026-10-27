@@ -3,7 +3,8 @@ use std::fmt::Write as _;
 use camino::Utf8Path;
 use stratum_config::Config;
 use stratum_core::types::ContainerKind;
-use stratum_engine::Drift;
+use stratum_engine::{Drift, co_change};
+use stratum_rules::CoChangeMiss;
 
 use crate::commands::lint;
 use crate::git;
@@ -16,13 +17,17 @@ pub fn run(root: &Utf8Path, base: &str, config_path: Option<&Utf8Path>) -> miett
     let config = lint::load_config(root, config_path)?.config;
     let report = compute(root, base, &config)?;
     print!("{}", report.markdown());
-    Ok(i32::from(!report.drift.is_empty()))
+    Ok(i32::from(
+        !report.drift.is_empty() || !report.co_change.is_empty(),
+    ))
 }
 
 pub(crate) struct DriftReport<'a> {
     pub base: &'a str,
     pub sha: String,
     pub drift: Drift,
+    /// `stratum/co-change` policies the change breaks.
+    pub co_change: Vec<CoChangeMiss>,
     prefix: String,
 }
 
@@ -30,6 +35,7 @@ impl DriftReport<'_> {
     pub fn markdown(&self) -> String {
         markdown(
             &self.drift,
+            &self.co_change,
             &self.sha,
             self.prefix.trim_end_matches('/'),
             self.base,
@@ -49,15 +55,23 @@ pub(crate) fn compute<'a>(
     })?;
     let drift =
         stratum_engine::drift(root, base_files, config).map_err(|e| miette::miette!("{e}"))?;
+    let changed = git::changed_files(root, base)?;
     Ok(DriftReport {
         base,
         sha,
         drift,
+        co_change: co_change::misses(root, config, &changed),
         prefix: git::prefix(root).unwrap_or_default(),
     })
 }
 
-fn markdown(drift: &Drift, sha: &str, prefix: &str, base: &str) -> String {
+fn markdown(
+    drift: &Drift,
+    co_changes: &[CoChangeMiss],
+    sha: &str,
+    prefix: &str,
+    base: &str,
+) -> String {
     let mut lines = vec![
         if prefix.is_empty() {
             "<!-- stratum:drift -->".to_owned()
@@ -65,8 +79,15 @@ fn markdown(drift: &Drift, sha: &str, prefix: &str, base: &str) -> String {
             format!("<!-- stratum:drift {prefix} -->")
         },
         format!("### Stratum: architecture drift vs {sha}"),
-        summary(drift),
+        summary(drift, co_changes.len()),
     ];
+    section(
+        &mut lines,
+        "Files that must change together",
+        co_changes
+            .iter()
+            .map(|miss| format!("- {}", co_change::message(miss))),
+    );
     let breaking = drift.breaking_imports();
     section(
         &mut lines,
@@ -147,11 +168,16 @@ fn markdown(drift: &Drift, sha: &str, prefix: &str, base: &str) -> String {
     capped(&lines, base)
 }
 
-fn summary(drift: &Drift) -> String {
-    if drift.is_empty() {
+fn summary(drift: &Drift, co_changes: usize) -> String {
+    if drift.is_empty() && co_changes == 0 {
         return "No architecture drift.".into();
     }
     let counts = [
+        (
+            co_changes,
+            "file set that must change together",
+            "file sets that must change together",
+        ),
         (
             drift.breaking_imports().len(),
             "import that breaks rules",
