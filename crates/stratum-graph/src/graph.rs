@@ -8,7 +8,7 @@ use petgraph::graph::{DiGraph, NodeIndex};
 use stratum_core::{
     edge::EdgeKind,
     ids::{ContainerId, LayerId, ModuleId},
-    types::{Container, ContainerKind, Layer, Module},
+    types::{Container, ContainerKind, Import, Layer, Module},
     violation::SourceLocation,
 };
 
@@ -30,6 +30,8 @@ pub struct CompoundGraph {
     pub deps: DiGraph<ModuleId, EdgeKind>,
     pub node_index: rustc_hash::FxHashMap<ModuleId, NodeIndex>,
     pub entry_points: Vec<ModuleId>,
+    /// Source files outside the graph read for their imports only; filled by the engine.
+    pub side_files: Vec<SideFile>,
     /// Navigation docs by folder ; empty unless `stratum/module-docs` sets `nav_file`.
     pub nav_docs: BTreeMap<PathBuf, NavDoc>,
     /// Built on first read from module paths, visibility and containers. Incremental updates
@@ -49,6 +51,7 @@ impl CompoundGraph {
             deps: DiGraph::new(),
             node_index: rustc_hash::FxHashMap::default(),
             entry_points: Vec::new(),
+            side_files: Vec::new(),
             nav_docs: BTreeMap::new(),
             index: OnceLock::new(),
             slice_importers: OnceLock::new(),
@@ -169,6 +172,27 @@ pub struct PrivateZone {
     pub path: PathBuf,
     pub root: PathBuf,
     pub files: Vec<ModuleId>,
+}
+
+/// A source file outside the Compound DAG, read for its imports only: no rule checks it, and it
+/// makes no module and no edge. Its `imports` resolve to modules as a module's do.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SideFile {
+    pub path: PathBuf,
+    /// Relative to the project root, with `/`.
+    pub relative: String,
+    pub role: SideRole,
+    pub imports: Vec<Import>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SideRole {
+    /// Matched by `project.entry_points` outside every layer: a root of reachability.
+    EntryPoint,
+    /// Inside a layer and ignored by `project.ignore` (tests): its imports count as use only.
+    Ignored,
+    /// Named by a rule's own option, such as `stratum/unused-dependencies` `entries`.
+    Listed,
 }
 
 /// A folder's navigation doc, read by the engine ; `requires` holds folders, not doc files.

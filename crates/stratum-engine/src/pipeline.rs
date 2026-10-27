@@ -9,7 +9,7 @@ use stratum_core::{
     types::Layer,
     violation::Violation,
 };
-use stratum_graph::{BuildConfig, CacheStats, CompoundGraph, GraphBuilder, Overlay};
+use stratum_graph::{BuildConfig, CacheStats, CompoundGraph, GraphBuilder, Overlay, SideRole};
 use stratum_plugins_rhai::{LoadError as PluginLoadError, PLUGIN_ID_FLOOR};
 use stratum_rules::{DynRule, RuleRegistry};
 
@@ -18,6 +18,7 @@ use crate::config::{ConfigSource, LoadedConfig};
 use crate::docs;
 use crate::finding::{EdgeRef, Finding};
 use crate::paths::{canonicalize, relative, relative_in_text};
+use crate::side;
 use crate::suppression::{self, Analysis, Reported, Suppressed};
 
 #[derive(Debug, thiserror::Error)]
@@ -31,7 +32,7 @@ pub enum EngineError {
     #[error("{0}")]
     Baseline(#[from] BaselineError),
     #[error(
-        "`project.entry_points` glob {0:?} matches no module: an entry point is a source file inside a layer that `project.ignore` does not ignore"
+        "`project.entry_points` glob {0:?} matches no file: an entry point is a source file, inside a layer or outside, that `project.ignore` does not ignore"
     )]
     EntryPointUnmatched(String),
 }
@@ -168,13 +169,28 @@ pub(crate) fn graph(
     source: Source,
 ) -> Result<(Utf8PathBuf, CompoundGraph, CacheStats, GraphBuilder), EngineError> {
     let (root_abs, mut graph, cache, builder) = graph_without_entry_points(root, config, source)?;
-    let modules = graph
+    let entry = EntryPoints::new(config)?;
+    let mut hit = vec![false; entry.len()];
+    graph.entry_points = graph
         .modules
         .values()
-        .map(|m| (m.id, relative(&m.path, &root_abs)));
-    graph.entry_points = EntryPoints::new(config)?
-        .select(modules)
-        .map_err(|glob| EngineError::EntryPointUnmatched(glob.to_owned()))?;
+        .filter(|m| entry.mark(&relative(&m.path, &root_abs), &mut hit))
+        .map(|m| m.id)
+        .collect();
+    let ignore = IgnoreSet::new(config)?;
+    let walk = side::Walk::new(&root_abs, config, &ignore);
+    let mut side_files: Vec<(String, SideRole)> = Vec::new();
+    for base in entry.base_dirs() {
+        for rel in walk.outside_layers(&base, None) {
+            if entry.mark(&rel, &mut hit) {
+                side_files.push((rel, SideRole::EntryPoint));
+            }
+        }
+    }
+    if let Some(i) = hit.iter().position(|h| !h) {
+        return Err(EngineError::EntryPointUnmatched(entry.glob(i).to_owned()));
+    }
+    graph.side_files = side::scan(&builder, &graph, &root_abs, side_files);
     graph.nav_docs = docs::read(&graph, &root_abs, config);
     Ok((root_abs, graph, cache, builder))
 }

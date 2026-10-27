@@ -1,10 +1,10 @@
 use rustc_hash::FxHashSet;
 use stratum_core::{
     ids::ModuleId,
-    types::{Bindings, ExportDecl, ExportOrigin, Module},
+    types::{Bindings, ExportDecl, ExportOrigin, Import, Module},
 };
 
-use crate::CompoundGraph;
+use crate::{CompoundGraph, SideFile, SideRole};
 
 #[must_use]
 pub fn unreachable_modules(graph: &CompoundGraph) -> Vec<ModuleId> {
@@ -31,27 +31,10 @@ pub fn unused_exports(graph: &CompoundGraph) -> Vec<(ModuleId, &ExportDecl)> {
         let Some(m) = graph.modules.get(id) else {
             continue;
         };
-        let forwarding = forwarding_imports(m);
-        for (index, import) in m.imports.iter().enumerate() {
-            let Some(target) = import.target else {
-                continue;
-            };
-            if is_vue(graph, target) {
-                usage.take(target, Demand::Name("default"));
-            }
-            if forwarding.contains(&index) {
-                continue;
-            }
-            match &import.bindings {
-                Bindings::Names(names) => {
-                    for n in names {
-                        usage.take(target, Demand::Name(&n.imported));
-                    }
-                }
-                Bindings::All => usage.take(target, Demand::All),
-                Bindings::None | Bindings::Forward => {}
-            }
-        }
+        usage.take_imports(&m.imports, &forwarding_imports(m));
+    }
+    for side in side_entries(graph) {
+        usage.take_imports(&side.imports, &FxHashSet::default());
     }
     usage.run();
     graph
@@ -72,6 +55,7 @@ pub fn unused_exports(graph: &CompoundGraph) -> Vec<(ModuleId, &ExportDecl)> {
 fn reachable(graph: &CompoundGraph) -> FxHashSet<ModuleId> {
     let mut seen: FxHashSet<ModuleId> = FxHashSet::default();
     let mut stack: Vec<ModuleId> = graph.entry_points.clone();
+    stack.extend(side_entries(graph).flat_map(|side| side.imports.iter().filter_map(|i| i.target)));
     while let Some(id) = stack.pop() {
         if !seen.insert(id) {
             continue;
@@ -81,6 +65,14 @@ fn reachable(graph: &CompoundGraph) -> FxHashSet<ModuleId> {
         }
     }
     seen
+}
+
+/// Entry points outside every layer: what they import is reachable and used.
+fn side_entries(graph: &CompoundGraph) -> impl Iterator<Item = &SideFile> {
+    graph
+        .side_files
+        .iter()
+        .filter(|side| side.role == SideRole::EntryPoint)
 }
 
 fn forwarding_imports(m: &Module) -> FxHashSet<usize> {
@@ -123,6 +115,30 @@ impl<'g> Usage<'g> {
     fn take(&mut self, module: ModuleId, demand: Demand<'g>) {
         if self.seen.insert((module, demand)) {
             self.queue.push((module, demand));
+        }
+    }
+
+    /// What an importer's `imports` take, the ones at `forwarding` indices excepted.
+    fn take_imports(&mut self, imports: &'g [Import], forwarding: &FxHashSet<usize>) {
+        for (index, import) in imports.iter().enumerate() {
+            let Some(target) = import.target else {
+                continue;
+            };
+            if is_vue(self.graph, target) {
+                self.take(target, Demand::Name("default"));
+            }
+            if forwarding.contains(&index) {
+                continue;
+            }
+            match &import.bindings {
+                Bindings::Names(names) => {
+                    for n in names {
+                        self.take(target, Demand::Name(&n.imported));
+                    }
+                }
+                Bindings::All => self.take(target, Demand::All),
+                Bindings::None | Bindings::Forward => {}
+            }
         }
     }
 

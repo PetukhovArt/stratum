@@ -16,7 +16,7 @@ pub use builder::{BuildConfig, BuildError, CacheState, CacheStats, GraphBuilder}
 pub use cycles::{
     Breaks, Cut, Cycle, break_candidates, break_candidates_where, find_cycles, find_cycles_where,
 };
-pub use graph::{CompoundGraph, NavDoc, PrivateZone};
+pub use graph::{CompoundGraph, NavDoc, PrivateZone, SideFile, SideRole};
 pub use index::{DirEntries, DirRole};
 pub use snapshot::{
     GraphSnapshot, SnapshotContainer, SnapshotEdge, SnapshotLayer, SnapshotModule, SnapshotZone,

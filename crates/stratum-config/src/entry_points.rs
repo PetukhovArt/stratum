@@ -27,28 +27,73 @@ impl EntryPoints {
         Ok(Self { globs })
     }
 
-    /// The items whose root-relative, `/`-separated path some glob matches, in input order.
-    ///
-    /// # Errors
-    /// The first glob, in config order, that matches none of `files`.
-    pub fn select<T>(&self, files: impl IntoIterator<Item = (T, String)>) -> Result<Vec<T>, &str> {
-        let mut hit = vec![false; self.globs.len()];
-        let mut selected = Vec::new();
-        for (item, path) in files {
-            let mut matched = false;
-            for (i, (_, glob)) in self.globs.iter().enumerate() {
-                if glob.is_match(&path) {
-                    hit[i] = true;
-                    matched = true;
-                }
-            }
-            if matched {
-                selected.push(item);
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.globs.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.globs.is_empty()
+    }
+
+    /// The `i`-th glob as written in the config.
+    #[must_use]
+    pub fn glob(&self, i: usize) -> &str {
+        &self.globs[i].0
+    }
+
+    /// Whether some glob matches the root-relative, `/`-separated `path`; sets `hit[i]` for
+    /// every glob `i` that does. `hit` has [`Self::len`] slots.
+    pub fn mark(&self, path: &str, hit: &mut [bool]) -> bool {
+        let mut matched = false;
+        for (i, (_, glob)) in self.globs.iter().enumerate() {
+            if glob.is_match(path) {
+                hit[i] = true;
+                matched = true;
             }
         }
-        match hit.iter().position(|h| !h) {
-            Some(i) => Err(&self.globs[i].0),
-            None => Ok(selected),
-        }
+        matched
+    }
+
+    /// The directories, relative to the root, below which a file some glob matches can lie: each
+    /// glob's leading segments up to the first one with a glob character (`""` is the root).
+    #[must_use]
+    pub fn base_dirs(&self) -> Vec<String> {
+        let mut dirs: Vec<String> = self
+            .globs
+            .iter()
+            .map(|(pattern, _)| literal_dir(pattern))
+            .collect();
+        dirs.sort();
+        dirs.dedup();
+        dirs
+    }
+}
+
+/// `pattern`'s leading segments before the first one holding `*`, `?`, `[` or `{`, without the
+/// last segment when every segment is literal.
+#[must_use]
+pub fn literal_dir(pattern: &str) -> String {
+    let segments: Vec<&str> = pattern.split('/').collect();
+    let literal = segments
+        .iter()
+        .take_while(|s| !s.contains(['*', '?', '[', '{']))
+        .count()
+        .min(segments.len().saturating_sub(1));
+    segments[..literal].join("/")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::literal_dir;
+
+    #[test]
+    fn literal_dir_stops_at_the_first_glob_segment() {
+        assert_eq!(literal_dir("src/main.tsx"), "src");
+        assert_eq!(literal_dir("main.ts"), "");
+        assert_eq!(literal_dir("src/**/*.stories.ts"), "src");
+        assert_eq!(literal_dir("*.config.ts"), "");
+        assert_eq!(literal_dir("apps/web/src/*.ts"), "apps/web/src");
     }
 }

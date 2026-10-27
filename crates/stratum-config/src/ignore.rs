@@ -25,10 +25,20 @@ impl IgnoreSet {
     /// # Errors
     /// [`ConfigError::BadGlob`] for an entry of `project.ignore` that is not a valid glob.
     pub fn new(config: &Config) -> Result<Self, ConfigError> {
+        Self::of(&config.project.ignore)
+    }
+
+    /// [`DEFAULT_IGNORE`] alone, without `project.ignore`.
+    #[must_use]
+    pub fn defaults() -> Self {
+        Self::of(&[]).unwrap_or_else(|_| unreachable!("the built-in globs are valid"))
+    }
+
+    fn of(user: &[String]) -> Result<Self, ConfigError> {
         let mut builder = GlobSetBuilder::new();
         let mut negated = Vec::new();
-        let user = config.project.ignore.iter().map(String::as_str);
-        for pattern in DEFAULT_IGNORE.into_iter().chain(user) {
+        let user = user.iter().map(String::as_str);
+        for pattern in DEFAULT_IGNORE.into_iter().chain(user.clone()) {
             let (negate, glob) = pattern
                 .strip_prefix('!')
                 .map_or((false, pattern), |rest| (true, rest));
@@ -39,7 +49,7 @@ impl IgnoreSet {
             negated.push(negate);
         }
         let globs = builder.build().map_err(|source| ConfigError::BadGlob {
-            pattern: config.project.ignore.join(","),
+            pattern: user.collect::<Vec<_>>().join(","),
             source,
         })?;
         Ok(Self { globs, negated })

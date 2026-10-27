@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed `project.entry_points` rejecting an entry file outside every layer, such as `src/main.tsx`: it is read for its imports, so what it imports is no longer reported by `unreachable-modules` and `unused-exports`
+
 ## 0.3.0 (2026-10-26)
 
 - Added `ignore_type_only` and `ignore_dynamic` options to `stratum/no-circular-deps`: a cycle closed only by `import type` or by dynamic `import()` is no longer reported

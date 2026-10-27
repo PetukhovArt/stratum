@@ -142,14 +142,16 @@ Built-in defaults come first in every config, zero-config included: `**/node_mod
 "project": { "entry_points": ["src/main.ts", "src/**/*.stories.ts", "src/workers/*.worker.ts"] }
 ```
 
-Globs relative to ROOT naming the files the program starts from: the scripts of your HTML pages, workers, Storybook stories, whatever a bundler or runtime loads by path. Each glob must match at least one module (a source file inside a layer, not ignored); one that matches none stops the run with exit code 2 and names the glob.
+Globs relative to ROOT naming the files the program starts from: the scripts of your HTML pages, workers, Storybook stories, whatever a bundler or runtime loads by path. Each glob must match at least one source file that `project.ignore` does not ignore; one that matches none stops the run with exit code 2 and names the glob.
+
+An entry point may lie outside every layer, such as `src/main.tsx` next to `src/app` and `src/shared`. Such a file is read for its imports only: what it imports is reachable and the names it imports are used, but it is no module, so no rule checks it. To find these files Stratum walks each glob's leading literal folder (`src` for `src/**/*.stories.ts`, ROOT for `**/*.ts`) outside the layers, skipping ignored folders; prefer globs that start with a folder.
 
 - `unreachable-modules` follows every import from the entry points, static, dynamic, type-only or side-effect, and reports each module it never reaches.
 - `unused-exports` reports an export of a reachable module that no reachable module imports. A name imported from a barrel is followed through `export { x } from` and `export * from` to the module that declares it; a re-export alone uses nothing. A namespace import, `require()`, `import()` or `import.meta.glob()` uses every export of its target. Entry points' exports count as used, and so does the default export of an imported `.vue` file. Exports of unreachable modules are left to `unreachable-modules`.
 
 Blind spots: the graph only holds modules, so it cannot see importers outside it:
 
-- Files outside the layers or ignored by `project.ignore` (tests, an Electron main process outside `src`) do not count as importers. What only they use looks dead. List those targets in `entry_points`, or accept the findings.
+- Files outside the layers or ignored by `project.ignore` (tests, an Electron main process outside `src`) do not count as importers unless they are entry points. What only they use looks dead. List those files or their targets in `entry_points`, or accept the findings.
 - Non-literal dynamic imports (`` import(`./pages/${name}.vue`) ``) are not followed. Neither is a worker started with `new Worker(new URL("./x.worker.ts", import.meta.url))`; list worker files in `entry_points`.
 
 ## `stratum/import-policy`: import boundaries without scripting

@@ -40,8 +40,9 @@ pub struct ProjectConfig {
     pub ignore: Vec<String>,
     /// Globs relative to the project root of the files the program starts from: the roots of
     /// reachability for `stratum/unused-exports` and `stratum/unreachable-modules`. Required when
-    /// either rule is on; each glob must match a module. A child list replaces the `extends`
-    /// parent's list.
+    /// either rule is on; each glob must match a source file that `ignore` does not ignore, a
+    /// module or a file outside every layer (read for its imports only). A child list replaces
+    /// the `extends` parent's list.
     #[serde(default)]
     pub entry_points: Vec<String>,
 }

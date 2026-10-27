@@ -9,6 +9,7 @@ pub mod drift;
 pub mod finding;
 pub mod paths;
 pub mod pipeline;
+mod side;
 pub mod snapshot;
 pub mod suppression;
 mod zero_config;

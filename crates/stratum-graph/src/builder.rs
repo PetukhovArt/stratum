@@ -490,6 +490,45 @@ impl GraphBuilder {
         Ok(assemble(parsed, targets))
     }
 
+    /// The imports of each of `files`, files outside `graph`, resolved against its modules; `None`
+    /// for a file no extractor handles or that cannot be read or parsed. Never cached.
+    #[must_use]
+    pub fn scan_side(
+        &self,
+        graph: &CompoundGraph,
+        files: &[Utf8PathBuf],
+    ) -> Vec<Option<Vec<Import>>> {
+        let path_to_id: FxHashMap<Utf8PathBuf, ModuleId> = graph
+            .modules
+            .values()
+            .filter_map(|m| Some((Utf8PathBuf::from_path_buf(m.path.clone()).ok()?, m.id)))
+            .collect();
+        let scan = |path: &Utf8PathBuf| {
+            self.pick_extractor(path)?;
+            let source = self.source(path).ok()?;
+            self.facts_of(path, &source, &path_to_id)
+                .ok()
+                .map(|facts| facts.imports)
+        };
+        let workers = std::thread::available_parallelism()
+            .map_or(1, std::num::NonZeroUsize::get)
+            .min(MAX_WORKERS);
+        let chunk = files.len().div_ceil(workers).max(1);
+        std::thread::scope(|s| {
+            let handles: Vec<_> = files
+                .chunks(chunk)
+                .map(|part| {
+                    let handle = s.spawn(move || part.iter().map(scan).collect::<Vec<_>>());
+                    (part.len(), handle)
+                })
+                .collect();
+            handles
+                .into_iter()
+                .flat_map(|(len, h)| h.join().unwrap_or_else(|_| vec![None; len]))
+                .collect()
+        })
+    }
+
     fn parse(&self, path: &Utf8Path, source: &str) -> Result<Parsed, BuildError> {
         let extractor = self
             .pick_extractor(path)

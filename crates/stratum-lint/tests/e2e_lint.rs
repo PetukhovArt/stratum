@@ -223,11 +223,83 @@ fn lint_with_entry_points(entry_points: &[&str]) -> assert_cmd::assert::Assert {
 }
 
 #[test]
-fn an_entry_glob_matching_no_module_exits_2() {
+fn an_entry_glob_matching_no_file_exits_2() {
     lint_with_entry_points(&["src/app/main.ts"]).success();
-    lint_with_entry_points(&["src/app/main.ts", "src/boot.ts"])
+    lint_with_entry_points(&["src/app/main.ts", "src/missing.ts"])
         .code(2)
         .stderr(predicate::str::contains(
-            "\"src/boot.ts\" matches no module",
+            "\"src/missing.ts\" matches no file",
         ));
+}
+
+#[test]
+fn an_entry_point_outside_every_layer_reaches_what_it_imports() {
+    lint_with_entry_points(&["src/boot.ts"]).success();
+    lint_with_entry_points(&["src/*.ts"]).success();
+}
+
+#[test]
+fn an_ignored_entry_point_outside_the_layers_matches_no_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    std::fs::create_dir_all(root.join("src/app")).unwrap();
+    std::fs::write(root.join("src/app/main.ts"), "export const main = 1;\n").unwrap();
+    std::fs::write(root.join("src/boot.ts"), "import './app/main';\n").unwrap();
+    let config = serde_json::json!({
+        "version": 1,
+        "project": { "entry_points": ["src/boot.ts"], "ignore": ["src/boot.ts"] },
+        "layers": [{ "id": "app", "path": "src/app", "depends_on": [] }],
+        "rules": { "stratum/unreachable-modules": { "severity": "error" } },
+    });
+    std::fs::write(root.join("stratum.config.jsonc"), config.to_string()).unwrap();
+    Command::cargo_bin("stratum-lint")
+        .unwrap()
+        .arg("--no-baseline")
+        .arg(root)
+        .assert()
+        .code(2);
+}
+
+#[test]
+fn names_an_entry_point_outside_the_layers_imports_are_used() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    std::fs::create_dir_all(root.join("src/app")).unwrap();
+    std::fs::write(
+        root.join("src/app/app.ts"),
+        "export const used = 1;\nexport const unused = 2;\n",
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("src/main.ts"),
+        "import { used } from './app/app';\nused;\n",
+    )
+    .unwrap();
+    let config = serde_json::json!({
+        "version": 1,
+        "project": { "entry_points": ["src/main.ts"] },
+        "layers": [{ "id": "app", "path": "src/app", "depends_on": [] }],
+        "rules": {
+            "stratum/unused-exports": { "severity": "error" },
+            "stratum/unreachable-modules": { "severity": "error" },
+        },
+    });
+    std::fs::write(root.join("stratum.config.jsonc"), config.to_string()).unwrap();
+    let out = Command::cargo_bin("stratum-lint")
+        .unwrap()
+        .args(["--format", "json", "--no-baseline"])
+        .arg(root)
+        .output()
+        .unwrap();
+    let report: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let found: Vec<(&str, &str)> = report["violations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| (v["rule"].as_str().unwrap(), v["message"].as_str().unwrap()))
+        .filter(|(rule, _)| rule.starts_with("stratum/un"))
+        .collect();
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].0, "stratum/unused-exports");
+    assert!(found[0].1.contains("`unused`"), "{found:?}");
 }
