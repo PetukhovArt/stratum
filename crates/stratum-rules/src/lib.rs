@@ -40,7 +40,8 @@ pub use builtin::zone_breadth::ZoneBreadth;
 pub use options::{
     ComposerScopeOptions, ContainerBreadthOptions, DeepModuleOptions, DepthRatioOptions,
     FolderCase, MillerLimitOptions, ModuleDocsOptions, NamingOptions, NoBarrelOptions,
-    NoCircularDepsOptions, PromotionPressureOptions, SliceFanInOptions, ZoneBreadthOptions,
+    NoCircularDepsOptions, PromotionPressureOptions, SliceFanInOptions, UnusedExportsOptions,
+    ZoneBreadthOptions,
 };
 
 pub use docs::RuleDoc;

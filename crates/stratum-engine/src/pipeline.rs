@@ -190,6 +190,10 @@ pub(crate) fn graph(
     if let Some(i) = hit.iter().position(|h| !h) {
         return Err(EngineError::EntryPointUnmatched(entry.glob(i).to_owned()));
     }
+    if side::wants_ignored(config) {
+        let ignored = walk.ignored_in_layers().into_iter();
+        side_files.extend(ignored.map(|rel| (rel, SideRole::Ignored)));
+    }
     graph.side_files = side::scan(&builder, &graph, &root_abs, side_files);
     graph.nav_docs = docs::read(&graph, &root_abs, config);
     Ok((root_abs, graph, cache, builder))

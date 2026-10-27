@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added `count_ignored_importers` and `ignore_type_exports` options to `stratum/unused-exports`: an export only tests import, or a type export, is no longer reported
+
 - Fixed `project.entry_points` rejecting an entry file outside every layer, such as `src/main.tsx`: it is read for its imports, so what it imports is no longer reported by `unreachable-modules` and `unused-exports`
 
 ## 0.3.0 (2026-10-26)

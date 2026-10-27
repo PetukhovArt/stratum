@@ -98,7 +98,7 @@ A parent may extend further; a cycle is an error. Merge, child over parent:
 | `stratum/composer-scope` | warning | warning | warning | `scope_file` (unset) |
 | `stratum/naming` | warning | off | warning | `folder_case` (unset), `reserved` ([]), `duplicate_slices` (false) |
 | `stratum/module-docs` | warning | warning | warning | `nav_file` (unset), `requires_key` ("requires") |
-| `stratum/unused-exports` | off | off | off | none |
+| `stratum/unused-exports` | off | off | off | `count_ignored_importers` (false), `ignore_type_exports` (false) |
 | `stratum/unreachable-modules` | off | off | off | none |
 | `stratum/suppression` | error | error | error | none |
 | `stratum/slice-fan-in` | off | off | warning | `max_fan_in` (5) |
@@ -149,9 +149,18 @@ An entry point may lie outside every layer, such as `src/main.tsx` next to `src/
 - `unreachable-modules` follows every import from the entry points, static, dynamic, type-only or side-effect, and reports each module it never reaches.
 - `unused-exports` reports an export of a reachable module that no reachable module imports. A name imported from a barrel is followed through `export { x } from` and `export * from` to the module that declares it; a re-export alone uses nothing. A namespace import, `require()`, `import()` or `import.meta.glob()` uses every export of its target. Entry points' exports count as used, and so does the default export of an imported `.vue` file. Exports of unreachable modules are left to `unreachable-modules`.
 
+`unused-exports` options, both `false` by default:
+
+```jsonc
+"stratum/unused-exports": { "severity": "warning", "options": { "count_ignored_importers": true, "ignore_type_exports": true } }
+```
+
+- `count_ignored_importers`: the source files inside the layers that `project.ignore` ignores (tests, stories) are read for their imports only. A name one of them imports counts as used; the file itself is not linted, and it makes no module reachable for `unreachable-modules`. The built-in ignores (`node_modules`, `dist`, `*.d.ts`, ...) are never read.
+- `ignore_type_exports`: `export type`, `export interface` and type-only re-exports are not reported.
+
 Blind spots: the graph only holds modules, so it cannot see importers outside it:
 
-- Files outside the layers or ignored by `project.ignore` (tests, an Electron main process outside `src`) do not count as importers unless they are entry points. What only they use looks dead. List those files or their targets in `entry_points`, or accept the findings.
+- Files outside the layers or ignored by `project.ignore` (tests, an Electron main process outside `src`) do not count as importers unless they are entry points, or, with `count_ignored_importers`, ignored files inside a layer. What only they use looks dead. List those files or their targets in `entry_points`, or accept the findings.
 - Non-literal dynamic imports (`` import(`./pages/${name}.vue`) ``) are not followed. Neither is a worker started with `new Worker(new URL("./x.worker.ts", import.meta.url))`; list worker files in `entry_points`.
 
 ## `stratum/import-policy`: import boundaries without scripting

@@ -213,3 +213,12 @@ impl Default for DepthRatioOptions {
         }
     }
 }
+
+#[derive(Debug, Clone, Copy, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UnusedExportsOptions {
+    #[serde(default)]
+    pub count_ignored_importers: bool,
+    #[serde(default)]
+    pub ignore_type_exports: bool,
+}

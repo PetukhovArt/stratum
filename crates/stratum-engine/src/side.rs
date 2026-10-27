@@ -4,7 +4,9 @@ use std::path::PathBuf;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use stratum_config::{Config, IgnoreSet};
+use stratum_core::severity::Severity;
 use stratum_graph::{CompoundGraph, GraphBuilder, SideFile, SideRole};
+use stratum_rules::UnusedExportsOptions;
 
 /// Where to look for side files: the layer folders, and what is ignored inside and out.
 pub(crate) struct Walk<'a> {
@@ -44,7 +46,8 @@ impl<'a> Walk<'a> {
     }
 
     /// Source files below `base` (relative to the root) outside every layer and not ignored,
-    /// relative to the root with `/`. `max_depth` counts path segments below the root.
+    /// relative to the root with `/`. `max_depth` counts levels below `base`: `Some(1)` takes
+    /// only the files directly in it.
     pub(crate) fn outside_layers(&self, base: &str, max_depth: Option<usize>) -> Vec<String> {
         let mut out = Vec::new();
         if !base.is_empty() && (self.in_layer(base) || self.is_ignored(base)) {
@@ -58,6 +61,30 @@ impl<'a> Walk<'a> {
             }
         };
         self.descend(base, max_depth, &mut keep, &mut out);
+        out
+    }
+
+    /// Source files inside the layers that `project.ignore` ignores and the built-in defaults
+    /// (`node_modules`, `dist`, ...) do not, relative to the root with `/`.
+    pub(crate) fn ignored_in_layers(&self) -> Vec<String> {
+        let defaults = IgnoreSet::defaults();
+        let mut out = Vec::new();
+        let mut keep = |rel: &str, is_dir: bool| {
+            let defaulted = defaults.is_ignored(Utf8Path::new(rel));
+            if is_dir {
+                !defaulted
+            } else {
+                !defaulted && self.is_ignored(rel) && crate::is_source(Utf8Path::new(rel))
+            }
+        };
+        for layer in &self.layers {
+            let base = if layer == "." { "" } else { layer.as_str() };
+            if base.is_empty() || !defaults.is_ignored(Utf8Path::new(base)) {
+                self.descend(base, None, &mut keep, &mut out);
+            }
+        }
+        out.sort();
+        out.dedup();
         out
     }
 
@@ -108,6 +135,36 @@ impl<'a> Walk<'a> {
             }
         }
     }
+}
+
+/// Whether `stratum/unused-exports` reads the ignored files: on somewhere, with
+/// `count_ignored_importers`.
+pub(crate) fn wants_ignored(config: &Config) -> bool {
+    const SLUG: &str = "stratum/unused-exports";
+    enabled(config, SLUG)
+        && options::<UnusedExportsOptions>(config, SLUG).is_some_and(|o| o.count_ignored_importers)
+}
+
+/// The rule is on in `rules` or in some `overrides` block. A built-in absent from `rules` counts
+/// as on: its default severity decides, and reading too many side files is only slower.
+pub(crate) fn enabled(config: &Config, slug: &str) -> bool {
+    config
+        .rules
+        .get(slug)
+        .is_none_or(|rule| rule.severity != Severity::Off)
+        || config
+            .overrides
+            .iter()
+            .filter_map(|o| o.rules.get(slug))
+            .any(|rule| rule.severity != Severity::Off)
+}
+
+pub(crate) fn options<T: serde::de::DeserializeOwned>(config: &Config, slug: &str) -> Option<T> {
+    let rule = config.rules.get(slug)?;
+    if rule.options.is_null() {
+        return None;
+    }
+    serde_json::from_value(rule.options.clone()).ok()
 }
 
 /// Parse `files` (relative to `root`) with `builder` for their imports; a file no extractor

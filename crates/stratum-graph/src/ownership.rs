@@ -19,9 +19,10 @@ pub fn unreachable_modules(graph: &CompoundGraph) -> Vec<ModuleId> {
 
 /// Exports of reachable modules that no reachable importer takes, in graph order. A re-export
 /// alone does not take the name it forwards; an entry point's exports and the default export of
-/// an imported `.vue` file are taken.
+/// an imported `.vue` file are taken. With `count_ignored`, so are the names the ignored side
+/// files import.
 #[must_use]
-pub fn unused_exports(graph: &CompoundGraph) -> Vec<(ModuleId, &ExportDecl)> {
+pub fn unused_exports(graph: &CompoundGraph, count_ignored: bool) -> Vec<(ModuleId, &ExportDecl)> {
     let reached = reachable(graph);
     let mut usage = Usage::new(graph);
     for &entry in &graph.entry_points {
@@ -33,7 +34,12 @@ pub fn unused_exports(graph: &CompoundGraph) -> Vec<(ModuleId, &ExportDecl)> {
         };
         usage.take_imports(&m.imports, &forwarding_imports(m));
     }
-    for side in side_entries(graph) {
+    let importing = graph.side_files.iter().filter(|side| match side.role {
+        SideRole::EntryPoint => true,
+        SideRole::Ignored => count_ignored,
+        SideRole::Listed => false,
+    });
+    for side in importing {
         usage.take_imports(&side.imports, &FxHashSet::default());
     }
     usage.run();
@@ -264,7 +270,7 @@ mod tests {
             g.modules.insert(m.id, m);
         }
         g.entry_points = vec![ModuleId::new(0)];
-        let unused: Vec<(u32, &str)> = unused_exports(&g)
+        let unused: Vec<(u32, &str)> = unused_exports(&g, false)
             .into_iter()
             .map(|(id, d)| (id.raw(), d.name.as_str()))
             .collect();
