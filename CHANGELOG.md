@@ -2,16 +2,13 @@
 
 ## Unreleased
 
+## 0.4.0 (2026-10-27)
+
 - Added rule `stratum/co-change`: on `lint --changed` and `diff --base`, a changed file matching `when` needs a changed file matching `require`; `stratum-ignore stratum/co-change -- <reason>` in the changed file acknowledges a false alarm
-
 - Added rule `stratum/reachability-policy`: a denied module reachable from a `from` file through any chain of imports is reported with the chain; `ignore_dynamic` and `ignore_type_only` skip lazy and type-only imports
-
 - Added a `forbid` option to `stratum/suppression`: a comment that starts with a listed foreign directive, such as `eslint-disable` or `@ts-ignore`, is an error on its line; with a baseline only new ones fail
-
 - Added rule `stratum/unused-dependencies`: a package.json dependency nothing imports, and an imported package package.json does not declare; `@types/*`, CLI packages run from `scripts` and tool configs such as `vite.config.ts` are counted (off by default)
-
 - Added `count_ignored_importers` and `ignore_type_exports` options to `stratum/unused-exports`: an export only tests import, or a type export, is no longer reported
-
 - Fixed `project.entry_points` rejecting an entry file outside every layer, such as `src/main.tsx`: it is read for its imports, so what it imports is no longer reported by `unreachable-modules` and `unused-exports`
 
 ## 0.3.0 (2026-10-26)

@@ -15,7 +15,7 @@ Import or fork the stratum repository into your GitLab, then in the consuming pr
 ```yaml
 include:
   - project: <group>/stratum
-    ref: v0.3.0
+    ref: v0.4.0
     file: ci/gitlab/templates/stratum.yml
     inputs:
       stage: test   # optional, default test
@@ -59,7 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: <org>/stratum/ci/github@v0.3.0
+      - uses: <org>/stratum/ci/github@v0.4.0
         with:
           root: .   # optional, project root inside the repository
 ```
