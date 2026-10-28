@@ -21,7 +21,7 @@ Neither the templates nor the binary reach a public host: the templates talk onl
 ## GitLab
 
 1. Import or fork the stratum repository into your GitLab, tags included: consumers reference it as `<group>/stratum`.
-2. In the consuming project, `include: project: <group>/stratum` with `ref: v0.4.0` and `file: ci/gitlab/templates/stratum.yml` ([snippet](../ci/README.md#gitlab)). Jobs `stratum` (gate, Code Quality widget) and `stratum-drift` (advisory) appear in MR pipelines; `stratum` also runs on the default branch.
+2. In the consuming project, `include: project: <group>/stratum` with `ref: v0.5.0` and `file: ci/gitlab/templates/stratum.yml` ([snippet](../ci/README.md#gitlab)). Jobs `stratum` (gate, Code Quality widget) and `stratum-drift` (advisory) appear in MR pipelines; `stratum` also runs on the default branch.
 3. Set `image:` / `tags:` on both jobs if the default runner lacks node >= 18 and git.
 4. MR note with the drift report: add the masked CI/CD variable `STRATUM_GITLAB_TOKEN`, a project access token with the `api` scope. Without it the report is only the "stratum drift" artifact on the MR.
 5. Internal or self-signed CA on the GitLab instance: set `NODE_EXTRA_CA_CERTS` to the CA bundle in the image, or the note request fails TLS.
@@ -30,7 +30,7 @@ The template picks the base commit itself (merged-results pipelines included, [d
 
 ## GitHub
 
-`uses: <org>/stratum/ci/github@v0.4.0` after `actions/checkout`, with `pull-requests: write` for the drift comment ([workflow](../ci/README.md#github-githubcom-and-github-enterprise-server)). Findings become annotations on the PR diff; the drift report goes to the job summary and to one PR comment. On GitHub Enterprise Server, `<org>/stratum` is the repository mirrored onto the instance.
+`uses: <org>/stratum/ci/github@v0.5.0` after `actions/checkout`, with `pull-requests: write` for the drift comment ([workflow](../ci/README.md#github-githubcom-and-github-enterprise-server)). Findings become annotations on the PR diff; the drift report goes to the job summary and to one PR comment. On GitHub Enterprise Server, `<org>/stratum` is the repository mirrored onto the instance.
 
 ## Accepting debt
 

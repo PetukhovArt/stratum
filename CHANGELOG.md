@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.5.0 (2026-10-28)
+
 - Breaking: `stratum-lint baseline` writes `stratum.baseline.json` version 2, which 0.4.0 and older cannot read: upgrade every `stratum-lint` and `stratum-lsp` that reads the baseline, including CI pins, to 0.5.0, then run `stratum-lint baseline --prune` once to convert it
 - Changed the baseline file to one line per entry, `<rule> <file> <message digest>[ x<count>]`, with the message replaced by an 8-hex-digit digest: about 3.5× smaller, so an agent that opens it reads a fraction of the tokens; a version 1 file is still read and matches the same violations
 - Changed `baseline --check` to print the message digest instead of the message for each grown entry
