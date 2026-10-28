@@ -64,13 +64,13 @@ pub fn check(root: &Utf8Path, out: Option<&Utf8Path>, reference: &str) -> miette
     let added: usize = grown.iter().map(|g| g.head - g.base).sum();
     println!("Baseline {rel} grew by {added} since {reference}:");
     for g in grown.iter().take(SHOWN_GROWTHS) {
-        let fp = &g.fingerprint;
+        let key = &g.key;
         println!(
             "+{} {} {} {}",
             g.head - g.base,
-            fp.rule,
-            fp.file,
-            fp.message
+            key.rule,
+            key.file,
+            key.message
         );
     }
     if grown.len() > SHOWN_GROWTHS {

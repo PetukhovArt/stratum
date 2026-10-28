@@ -73,8 +73,9 @@ fn gate(root: &Utf8Path, args: &LintArgs) -> miette::Result<Report> {
     let in_scope = |f: &Finding| scope.as_ref().is_none_or(|s| s.touches(f));
     let matched = baseline.unwrap_or_default().apply(analysis.findings);
     summary.fixed = matched.fixed();
-    summary.fixed_in_scope =
-        matched.fixed_where(|file| scope.as_ref().is_none_or(|s| s.covers(file)));
+    summary.fixed_in_scope = scope
+        .as_ref()
+        .map_or(summary.fixed, |s| matched.fixed_among(s.files()));
     summary.baselined = matched.baselined.iter().filter(|f| in_scope(f)).count();
     let kept = matched.new.into_iter().filter(|f| in_scope(f)).collect();
     let suppressed = analysis

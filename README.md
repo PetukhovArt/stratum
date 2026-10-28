@@ -22,7 +22,7 @@ Fast enough to run on every edit, written for AI coding agents and CI.
 - **24 rules out of the box.** Cross-layer imports, cycles, public API bypass, sibling coupling, import policies, restricted calls, folder structure, unused exports and unreachable modules. Custom rules in Rhai, no rebuild.
 - **Every finding says what to do.** Each one carries a `fix`, so an agent repairs it without asking.
 - **Fast.** Rust, a graph cache and a git-aware scope: about 0.15 s for the changed files of a 4,000-module project. Works offline.
-- **Adopt on a legacy codebase.** `baseline` accepts what exists today; later runs report only new violations, and `diff --base main` shows what a merge request changes.
+- **Adopt on a legacy codebase.** `baseline` accepts what exists today in a one-line-per-entry file; later runs report only new violations, and `diff --base main` shows what a merge request changes.
 - **See it.** `stratum-lint visualize` opens the dependency graph, the layer matrix and the container map in the browser.
 
 ## Quick start

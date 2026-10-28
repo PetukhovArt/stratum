@@ -35,10 +35,24 @@ fn repo_with_baseline_at_head(subdir: &str) -> (tempfile::TempDir, PathBuf) {
     (dir, root)
 }
 
-fn edit_violations(root: &Path, edit: impl FnOnce(&mut Vec<Value>)) {
+/// Edits the version 2 entries `<rule> <file> <digest>[ x<count>][ <touch>...]` as token lists.
+fn edit_violations(root: &Path, edit: impl FnOnce(&mut Vec<Vec<String>>)) {
     let path = root.join(BASELINE);
     let mut json: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
-    edit(json["violations"].as_array_mut().unwrap());
+    let mut entries: Vec<Vec<String>> = json["violations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|line| {
+            line.as_str()
+                .unwrap()
+                .split(' ')
+                .map(str::to_owned)
+                .collect()
+        })
+        .collect();
+    edit(&mut entries);
+    json["violations"] = entries.iter().map(|tokens| tokens.join(" ")).collect();
     std::fs::write(path, json.to_string()).unwrap();
 }
 
@@ -55,14 +69,14 @@ fn check(root: &Path, reference: &str) -> (Option<i32>, String, String) {
 fn moving_a_violation_to_another_file_at_the_same_total_grows() {
     let (_repo, root) = repo_with_baseline_at_head("");
     edit_violations(&root, |v| {
-        v[1]["file"] = "src/features/cart/circle.ts".into();
+        v[1][1] = "src/features/cart/circle.ts".into();
     });
 
     let (code, stdout, _) = check(&root, "HEAD");
 
     assert_eq!(code, Some(1), "{stdout}");
     assert!(
-        stdout.contains("+1 stratum/no-circular-deps src/features/cart/circle.ts Import cycle"),
+        stdout.contains("+1 stratum/no-circular-deps src/features/cart/circle.ts "),
         "{stdout}"
     );
     assert!(!stdout.contains("src/features/cart/boom.ts"), "{stdout}");
@@ -71,7 +85,7 @@ fn moving_a_violation_to_another_file_at_the_same_total_grows() {
 #[test]
 fn a_count_rising_from_one_to_two_grows() {
     let (_repo, root) = repo_with_baseline_at_head("");
-    edit_violations(&root, |v| v[0]["count"] = 2.into());
+    edit_violations(&root, |v| v[0].insert(3, "x2".into()));
 
     let (code, stdout, _) = check(&root, "HEAD");
 
@@ -143,7 +157,7 @@ fn an_unknown_ref_is_a_tool_failure_that_hints_a_shallow_fetch() {
 #[test]
 fn root_in_a_repo_subdirectory_reads_its_own_baseline_at_the_ref() {
     let (_repo, root) = repo_with_baseline_at_head(PROJECT_SUBDIR);
-    edit_violations(&root, |v| v[0]["count"] = 2.into());
+    edit_violations(&root, |v| v[0].insert(3, "x2".into()));
 
     let (code, stdout, _) = check(&root, "HEAD");
 
@@ -152,4 +166,66 @@ fn root_in_a_repo_subdirectory_reads_its_own_baseline_at_the_ref() {
         stdout.contains("+1 stratum/depth-ratio src/shared/api/http.ts"),
         "{stdout}"
     );
+}
+
+/// A version 1 baseline as 0.4.0 wrote it: one object per violation, edge endpoints as touches.
+fn v1_baseline_of_current_violations(root: &Path) -> String {
+    let out = stratum(&["--format", "json", "--no-baseline"], root);
+    let report: Value = serde_json::from_slice(&out.stdout).unwrap();
+    let violations: Vec<Value> = report["violations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| {
+            let mut entry = serde_json::json!({
+                "rule": v["rule"], "file": v["file"], "message": v["message"],
+            });
+            let touches: Vec<Value> = ["from", "to"]
+                .iter()
+                .map(|end| v["edge"][end].clone())
+                .filter(|t| t.is_string() && *t != v["file"])
+                .collect();
+            if !touches.is_empty() {
+                entry["touches"] = touches.into();
+            }
+            entry
+        })
+        .collect();
+    serde_json::to_string_pretty(&serde_json::json!({ "version": 1, "violations": violations }))
+        .unwrap()
+}
+
+#[test]
+fn a_v1_baseline_still_gates_and_the_next_write_converts_it_to_v2() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().to_path_buf();
+    copy_dir(&fixture("tiny-ts-violations"), &root);
+    git(&root, &["init", "-q"]);
+    std::fs::write(
+        root.join(BASELINE),
+        v1_baseline_of_current_violations(&root),
+    )
+    .unwrap();
+    commit_all(&root);
+
+    let lint = stratum(&["--format", "json"], &root);
+    let report: Value = serde_json::from_slice(&lint.stdout).unwrap();
+    assert_eq!(lint.status.code(), Some(0), "{report}");
+    assert_eq!(report["summary"]["baselined"], 6, "{report}");
+    assert_eq!(report["violations"].as_array().unwrap().len(), 0);
+
+    assert_eq!(
+        stratum(&["baseline", "--prune"], &root).status.code(),
+        Some(0)
+    );
+    let text = std::fs::read_to_string(root.join(BASELINE)).unwrap();
+    assert!(
+        text.starts_with("{\"version\":2,\"violations\":[\n\"depth-ratio "),
+        "{text}"
+    );
+    assert_eq!(text.lines().count(), 2 + 6, "{text}");
+
+    let (code, stdout, _) = check(&root, "HEAD");
+    assert_eq!(code, Some(0), "{stdout}");
+    assert!(stdout.contains("did not grow"), "{stdout}");
 }

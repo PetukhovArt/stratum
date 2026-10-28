@@ -61,9 +61,8 @@ impl Scope {
         self.files.is_empty()
     }
 
-    #[must_use]
-    pub fn covers(&self, file: &str) -> bool {
-        self.files.contains(file)
+    pub fn files(&self) -> impl Iterator<Item = &str> {
+        self.files.iter().map(String::as_str)
     }
 
     #[must_use]

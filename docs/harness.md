@@ -148,9 +148,27 @@ Entries are fingerprinted by `rule slug + relative file + message`, without line
 A run reports `N baselined` and `M fixed - run "stratum-lint baseline --prune"`; the baseline only ever shrinks unless regenerated on purpose.
 Matching runs on the whole project before scoping, so `fixed` is project-wide and `baselined` counts only in-scope hits. An empty scope skips the graph build, so both read 0.
 
-Baseline file (`stratum.baseline.json`): `{ "version": 1, "violations": [{ rule, file, message, count? }] }`; `message` is stored masked, `count` is omitted when 1.
+Baseline file (`stratum.baseline.json`), version 2: a JSON object with one entry string per line, sorted by full rule slug, file and digest, so a diff shows only the entries that changed:
 
-`baseline --check[=REF]` is the ratchet: it compares the working-tree baseline (`--out`, else `ROOT/stratum.baseline.json`) with the same ROOT-relative path at REF, reads no config and builds no graph. **Baseline Growth** is any fingerprint whose count rose. A fixed entry does not pay for a new one, so a swap at the same total grows, and so does a file move (the file is part of the fingerprint). On growth it prints `Baseline <file> grew by N since <REF>:`, then `+N <slug> <file> <message>` per grown fingerprint, the first 20, then `... N more`. Otherwise it prints one line: not grown, introduced (absent at REF, so adopting a baseline passes), or nothing to check.
+```json
+{"version":2,"violations":[
+"custom/no-lodash src/my%20dir/util.ts 1c9e0a7b",
+"container-breadth src/domain/connections/index.ts 68d84eb5",
+"no-cross-layer-import src/features/editor/bindings/index.ts d5c2de2b x4 40050a5e 7683c5d4 dbee6653"
+]}
+```
+
+Each entry is `<rule> <file> <digest>[ x<count>][ <touch>...]`, separated by single spaces:
+
+- `rule`: the **Rule Slug**, with `stratum/` dropped for built-ins (`public-api` is `stratum/public-api`). A slug with a `/` other than `stratum/<name>` is written as is; a custom slug without a `/`, or one starting with `/`, gets a leading `/`.
+- `file`: the anchor file, relative to ROOT. A space in the slug or file is written `%20` and a `%` is written `%25`.
+- `digest`: 8 hex digits, the FNV-1a 32 hash of the masked message. Matching compares rule, file and digest, so it matches what the masked message matched.
+- `x<count>`: how many identical violations the entry accepts, omitted when 1.
+- `touch`: the digest of each other file the violation involves (edge endpoints, cycle members), so `--files` / `--changed` on one of them counts the entry as fixed in scope.
+
+`stratum-lint baseline` and `baseline --prune` always write version 2. Version 1, `{ "version": 1, "violations": [{ rule, file, message, count?, touches? }] }` with one object per entry and the message in full, is still read: `lint`, the LSP Server and `baseline --check` accept it on either side, and the next `baseline` or `baseline --prune` rewrites it as version 2 with the same matches.
+
+`baseline --check[=REF]` is the ratchet: it compares the working-tree baseline (`--out`, else `ROOT/stratum.baseline.json`) with the same ROOT-relative path at REF, reads no config and builds no graph. **Baseline Growth** is any fingerprint whose count rose. A fixed entry does not pay for a new one, so a swap at the same total grows, and so does a file move (the file is part of the fingerprint). On growth it prints `Baseline <file> grew by N since <REF>:`, then `+N <slug> <file> <digest>` per grown fingerprint (the digest of its line in the file), the first 20, then `... N more`. Otherwise it prints one line: not grown, introduced (absent at REF, so adopting a baseline passes), or nothing to check.
 
 ### Drift report
 
