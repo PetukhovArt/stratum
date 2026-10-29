@@ -113,8 +113,8 @@ impl Api {
         edges
     }
 
-    /// The modules of each container and of the containers nested in it: the frontend joins the
-    /// module edges between two of these sets into `/api/edge?from_container=&to_container=`.
+    /// The modules of each container as a unit, as `/api/edge?from_container=` counts them: the
+    /// frontend joins the module edges between two of these sets into that answer.
     fn container_members(&self) -> BTreeMap<u32, Vec<u32>> {
         let graph = &self.input.graph;
         graph

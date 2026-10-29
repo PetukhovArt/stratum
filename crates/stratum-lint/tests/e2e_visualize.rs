@@ -185,6 +185,61 @@ async fn edge_route_resolves_each_imported_name_through_the_barrel_to_its_declar
 }
 
 #[tokio::test]
+async fn a_container_edge_leaves_out_the_imports_of_a_sub_unit_inside_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = Utf8Path::from_path(dir.path()).unwrap();
+    for (path, text) in [
+        ("package.json", r#"{ "name": "units" }"#),
+        (
+            "stratum.config.jsonc",
+            r#"{ "version": 1, "layers": [
+                { "id": "features", "path": "src/features", "depends_on": ["services"], "slices": true },
+                { "id": "services", "path": "src/services", "slices": true } ] }"#,
+        ),
+        (
+            "src/features/editor/index.ts",
+            r#"import { t } from "../../services/i18n"; export const editor = t;"#,
+        ),
+        (
+            "src/features/editor/panel/index.ts",
+            r#"import { Bundle } from "../../../services/i18n"; export const panel: Bundle = {};"#,
+        ),
+        (
+            "src/services/i18n/index.ts",
+            "export const t = 1; export type Bundle = {};",
+        ),
+    ] {
+        std::fs::create_dir_all(root.join(path).parent().unwrap()).unwrap();
+        std::fs::write(root.join(path), text).unwrap();
+    }
+    let router = router_at(root, None);
+    let (_, snapshot) = get_from(router.clone(), "/api/snapshot").await;
+    let s: serde_json::Value = serde_json::from_str(&snapshot).unwrap();
+    let panel = s["containers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["path"] == "src/features/editor/panel")
+        .unwrap();
+    assert_eq!(panel["kind"], "sub_unit");
+    let uri = format!(
+        "/api/edge?from_container={}&to_container={}",
+        id_at(&s, "containers", "src/features/editor"),
+        id_at(&s, "containers", "src/services/i18n")
+    );
+    let (status, body) = get_from(router, &uri).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let edge: serde_json::Value = serde_json::from_str(&body).unwrap();
+    let files: Vec<&str> = edge["imports"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["file"].as_str().unwrap())
+        .collect();
+    assert_eq!(files, ["src/features/editor/index.ts"]);
+}
+
+#[tokio::test]
 async fn edge_route_answers_no_imports_without_an_edge_and_400_without_both_ends() {
     let s = tiny_snapshot().await;
     let reverse = format!(

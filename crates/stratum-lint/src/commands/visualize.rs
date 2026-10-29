@@ -19,6 +19,7 @@ use stratum_core::{
     edge::{Edge, EdgeKind},
     ids::{ContainerId, ModuleId},
     severity::Severity,
+    types::ContainerKind,
     violation::SourceLocation,
     violation::Violation,
 };
@@ -268,7 +269,8 @@ struct ApiDecl {
 #[derive(Debug, Clone, Copy)]
 enum EdgeEnd {
     Module(ModuleId),
-    /// Its modules and those of every container nested in it.
+    /// The modules of the visualizer's unit: its own and those of `nested` containers under it,
+    /// not those of a slice or sub-unit under it, which are units of their own.
     Container(ContainerId),
 }
 
@@ -279,7 +281,12 @@ impl EdgeEnd {
             Self::Container(c) => graph
                 .modules
                 .keys()
-                .filter(|&&m| graph.containers_of(m).any(|held| held.id == c))
+                .filter(|&&m| {
+                    graph
+                        .containers_of(m)
+                        .find(|held| held.kind != ContainerKind::Nested)
+                        .is_some_and(|unit| unit.id == c)
+                })
                 .copied()
                 .collect(),
         }
