@@ -6,8 +6,13 @@
 //! others as quadratic curves, each label starting at the middle of its two end points. The
 //! numbers below are measured on mermaid 12 renders:
 //! <https://github.com/mermaid-js/mermaid/blob/develop/packages/mermaid/src/diagrams/c4/c4Renderer.js>
+//!
+//! Mermaid also starts a new row at a shape whose right side passes `screen.availWidth`, the
+//! reader's screen, divided by the boundaries side by side, so the rows here stay under
+//! [`SCREEN`] and a second boundary goes below the first. The shape count of a row runs on
+//! from one boundary into the next, so the first one ends on a full row.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::{Diagram, Element};
 
@@ -16,16 +21,30 @@ const GAP: f64 = 100.0;
 const EMPTY_HEIGHT: f64 = 52.0;
 const BOUNDARY_INSET_X: f64 = 50.0;
 const BOUNDARY_INSET_Y: f64 = 207.0;
+/// From a boundary's dashed top to its first row.
+const FRAME_TOP: f64 = 100.0;
+/// From a boundary's dashed bottom to the untitled one below it.
+const OTHERS_BELOW: f64 = 68.0;
+/// The left side of a shape outside every boundary.
+const FIRST_SHAPE_X: f64 = 150.0;
 const LABEL_HEIGHT: f64 = 14.0;
 const CHAR_WIDTH: f64 = 6.0;
 const DESCRIPTION_CHARS_PER_LINE: usize = 34;
 const NAME_CHARS_PER_LINE: usize = 22;
+
+/// The narrowest screen, in CSS pixels, on which every row stays as planned.
+const SCREEN: f64 = 1280.0;
+/// The untitled boundary around the other systems: Mermaid centers a title over its top,
+/// where the arrows into them meet.
+pub const OTHERS_ID: &str = "others";
 
 /// Shapes in a row tried, the first winning ties; wider rows shrink the text on a page.
 const ROW_WIDTHS: [usize; 3] = [3, 2, 4];
 /// Placements tried one by one at most; past it, a local search from the packed placement.
 const EXHAUSTIVE: usize = 5000;
 const SEARCH_ROUNDS: usize = 30;
+/// Placements of the other systems a local search starts from at most; past it, one.
+const OTHERS_STARTS: usize = 64;
 /// Past this many shapes inside the boundaries, the shapes stay packed in the model's order.
 const MAX_SEARCHED: usize = 24;
 /// Placements with the best arrows whose labels are then placed: placing labels takes time
@@ -34,8 +53,8 @@ const LABEL_WORK: usize = 20_000;
 const SHORTLIST: (usize, usize) = (16, 256);
 /// What an empty cell costs: the diagram grows, so only for clearer arrows or labels.
 const EMPTY_CELL: f64 = 10.0;
-/// What a label costs over a box or a label, crossed by an arrow or a boundary side, and per
-/// step away from the middle of its arrow.
+/// What a label costs over a box, a label, a boundary's title or each of its sides, crossed by
+/// an arrow, and per step away from the middle of its arrow.
 const LABEL_BLOCKED: f64 = 100.0;
 const LABEL_CROSSED: f64 = 25.0;
 const LABEL_STEP: f64 = 0.5;
@@ -47,110 +66,198 @@ pub struct Layout<'d> {
     pub top: Vec<Option<&'d Element>>,
     /// The cells inside the innermost boundary in declaration order, `None` for an empty one.
     pub nested: Vec<Option<&'d Element>>,
+    /// The cells of the other systems' boundary, declared after the innermost one; empty when
+    /// the other systems are in `top`.
+    pub others: Vec<Option<&'d Element>>,
     pub shapes_in_row: usize,
     /// Per relationship of the diagram, how far to move its label from where Mermaid puts it.
     pub offsets: Vec<(f64, f64)>,
 }
 
-/// The layout with the fewest arrows through boxes, the lightest of them first, then the
-/// fewest labels over a box, a label or an arrow, among the layouts tried.
+/// The shapes in a row tried, those whose full row fits [`SCREEN`] inside `depth`
+/// boundaries; one when none fits.
+fn row_widths(depth: usize) -> Vec<usize> {
+    let fits = |cols: usize| {
+        FIRST_SHAPE_X + real(depth) * BOUNDARY_INSET_X + real(cols - 1) * (WIDTH + GAP) + WIDTH
+            < SCREEN
+    };
+    let fitting: Vec<usize> = ROW_WIDTHS.into_iter().filter(|&cols| fits(cols)).collect();
+    if fitting.is_empty() { vec![1] } else { fitting }
+}
+
+const TOP: usize = 0;
+const NESTED: usize = 1;
+const OTHERS: usize = 2;
+
+/// The layout with the fewest arrows through boxes or titles, the lightest of them first,
+/// then the fewest labels over a box, a label or a boundary, among the layouts tried.
 pub fn arrange(diagram: &Diagram) -> Layout<'_> {
-    let (top, nested): (Vec<&Element>, Vec<&Element>) = if diagram.boundaries.is_empty() {
-        (
+    let groups: [Vec<&Element>; 3] = if diagram.boundaries.is_empty() {
+        [
             diagram.outer.iter().chain(&diagram.inner).collect(),
             Vec::new(),
-        )
+            Vec::new(),
+        ]
     } else {
-        (
-            diagram.outer.iter().collect(),
+        [
+            Vec::new(),
             diagram.inner.iter().collect(),
-        )
+            diagram.outer.iter().collect(),
+        ]
     };
     let depth = diagram.boundaries.len();
+    let widths = row_widths(depth);
     let mut shortlist: Vec<(f64, usize, Placement)> = Vec::new();
-    for cols in ROW_WIDTHS {
-        let slack = |n: usize| n.div_ceil(cols) * cols + cols;
-        let cells = if nested.is_empty() {
-            [slack(top.len()), 0]
-        } else {
-            [top.len().div_ceil(cols) * cols, slack(nested.len())]
+    for &cols in &widths {
+        let slack = |n: usize| {
+            if n == 0 {
+                0
+            } else {
+                n.div_ceil(cols) * cols + cols
+            }
         };
+        let cells = [
+            if groups[NESTED].is_empty() {
+                slack(groups[TOP].len())
+            } else {
+                groups[TOP].len().div_ceil(cols) * cols
+            },
+            slack(groups[NESTED].len()),
+            slack(groups[OTHERS].len()),
+        ];
         let cost = |p: &Placement| {
-            let (t, n) = (fill(&top, &p[0]), fill(&nested, &p[1]));
-            let empty = t.iter().chain(&n).filter(|c| c.is_none()).count();
-            Scene::new(diagram, &t, &n, depth, cols).route_cost() + EMPTY_CELL * real(empty)
+            let filled = Cells::fill(&groups, p, cols);
+            Scene::new(diagram, &filled, depth, cols).route_cost() + EMPTY_CELL * real(filled.empty)
         };
         shortlist.extend(
-            search([top.len(), nested.len()], cells, cost)
+            search(groups.each_ref().map(Vec::len), cells, cost)
                 .into_iter()
                 .map(|(c, p)| (c, cols, p)),
         );
     }
+    let mut tried = BTreeSet::new();
+    shortlist.retain(|(_, cols, p)| tried.insert((*cols, p.clone())));
     shortlist.sort_by(|a, b| a.0.total_cmp(&b.0));
     let rels = diagram.rels.len().max(1);
     shortlist.truncate((LABEL_WORK / (rels * rels)).clamp(SHORTLIST.0, SHORTLIST.1));
     let best = shortlist
         .into_iter()
         .map(|(route, cols, p)| {
-            let (t, n) = (fill(&top, &p[0]), fill(&nested, &p[1]));
-            let (labels, offsets) = Scene::new(diagram, &t, &n, depth, cols).labels();
-            (route + labels, cols, t, n, offsets)
+            let filled = Cells::fill(&groups, &p, cols);
+            let (labels, offsets) = Scene::new(diagram, &filled, depth, cols).labels();
+            (route + labels, cols, filled, offsets)
         })
         .min_by(|a, b| a.0.total_cmp(&b.0));
-    match best {
-        Some((_, shapes_in_row, top, nested, offsets)) => Layout {
-            top,
-            nested,
-            shapes_in_row,
-            offsets,
-        },
-        None => Layout {
-            top: top.into_iter().map(Some).collect(),
-            nested: nested.into_iter().map(Some).collect(),
-            shapes_in_row: ROW_WIDTHS[0],
-            offsets: vec![(0.0, 0.0); diagram.rels.len()],
-        },
+    let (shapes_in_row, filled, offsets) = if let Some((_, cols, filled, offsets)) = best {
+        (cols, filled, offsets)
+    } else {
+        let packed = groups.each_ref().map(|g| (0..g.len()).collect());
+        (
+            widths[0],
+            Cells::fill(&groups, &packed, widths[0]),
+            vec![(0.0, 0.0); diagram.rels.len()],
+        )
+    };
+    let [top, nested, others] = filled.groups;
+    Layout {
+        top,
+        nested,
+        others,
+        shapes_in_row,
+        offsets,
     }
 }
 
-/// The cell of each shape, for the shapes outside the boundaries and those inside.
-type Placement = [Vec<usize>; 2];
+/// The cell of each shape, for the shapes outside the boundaries, inside them, and in the
+/// other systems' boundary.
+type Placement = [Vec<usize>; 3];
 
-/// The cells up to the last shape, each holding its shape or `None`.
-fn fill<'d>(shapes: &[&'d Element], cells: &[usize]) -> Vec<Option<&'d Element>> {
-    let mut filled = vec![None; cells.iter().map(|&c| c + 1).max().unwrap_or(0)];
-    for (shape, &cell) in shapes.iter().zip(cells) {
-        filled[cell] = Some(*shape);
+/// Each group's cells up to its last shape, each holding its shape or `None`.
+struct Cells<'d> {
+    groups: [Vec<Option<&'d Element>>; 3],
+    /// The empty cells that hold a place, not the ones that only end a row.
+    empty: usize,
+}
+
+impl<'d> Cells<'d> {
+    /// The nested cells end on a full row before the other systems' boundary: Mermaid counts
+    /// the shapes of a row on into it.
+    fn fill(shapes: &[Vec<&'d Element>; 3], placement: &Placement, cols: usize) -> Self {
+        let mut groups: [Vec<Option<&'d Element>>; 3] = [0, 1, 2].map(|g| {
+            let mut filled = vec![None; placement[g].iter().map(|&c| c + 1).max().unwrap_or(0)];
+            for (shape, &cell) in shapes[g].iter().zip(&placement[g]) {
+                filled[cell] = Some(*shape);
+            }
+            filled
+        });
+        let empty = groups.iter().flatten().filter(|c| c.is_none()).count();
+        if !groups[OTHERS].is_empty() {
+            let nested = &mut groups[NESTED];
+            nested.resize(nested.len().div_ceil(cols) * cols, None);
+        }
+        Self { groups, empty }
     }
-    filled
 }
 
 /// Every placement of `shapes[g]` shapes in `cells[g]` cells with its cost when there are
-/// few, the packed one first; else the placements a local search visits from the packed one,
-/// moving one shape to another cell, or swapping two, while that lowers the cost.
+/// few, the packed one first; else the placements local searches visit, each from one
+/// placement of the other systems with the rest packed.
 fn search(
-    shapes: [usize; 2],
-    cells: [usize; 2],
+    shapes: [usize; 3],
+    cells: [usize; 3],
     cost: impl Fn(&Placement) -> f64,
 ) -> Vec<(f64, Placement)> {
-    let packed: Placement = [(0..shapes[0]).collect(), (0..shapes[1]).collect()];
-    if shapes[1] > MAX_SEARCHED {
+    let packed: Placement = shapes.map(|n| (0..n).collect());
+    if shapes[NESTED] > MAX_SEARCHED {
         return vec![(cost(&packed), packed)];
     }
-    let count = arrangements(cells[0], shapes[0]).saturating_mul(arrangements(cells[1], shapes[1]));
+    let count = (0..3).fold(1usize, |n, g| {
+        n.saturating_mul(arrangements(cells[g], shapes[g]))
+    });
     if count <= EXHAUSTIVE {
-        let inner = injections(shapes[1], cells[1]);
-        return injections(shapes[0], cells[0])
-            .into_iter()
-            .flat_map(|t| inner.iter().map(move |n| [t.clone(), n.clone()]))
-            .map(|p| (cost(&p), p))
-            .collect();
+        let mut all = vec![Placement::default()];
+        for g in 0..3 {
+            let choices = injections(shapes[g], cells[g]);
+            all = all
+                .into_iter()
+                .flat_map(|p| {
+                    choices.iter().map(move |choice| {
+                        let mut next = p.clone();
+                        next[g].clone_from(choice);
+                        next
+                    })
+                })
+                .collect();
+        }
+        return all.into_iter().map(|p| (cost(&p), p)).collect();
     }
-    let mut current = (cost(&packed), packed);
+    let starts = if arrangements(cells[OTHERS], shapes[OTHERS]) <= OTHERS_STARTS {
+        injections(shapes[OTHERS], cells[OTHERS])
+    } else {
+        vec![packed[OTHERS].clone()]
+    };
+    let mut seen = Vec::new();
+    for others in starts {
+        let mut start = packed.clone();
+        start[OTHERS] = others;
+        seen.extend(descend(start, shapes, cells, &cost));
+    }
+    seen
+}
+
+/// The placements a local search visits from `start`, moving one shape to another cell, or
+/// swapping two, while that lowers the cost.
+fn descend(
+    start: Placement,
+    shapes: [usize; 3],
+    cells: [usize; 3],
+    cost: &impl Fn(&Placement) -> f64,
+) -> Vec<(f64, Placement)> {
+    let mut current = (cost(&start), start);
     let mut seen = vec![current.clone()];
     for _ in 0..SEARCH_ROUNDS {
         let mut best: Option<(f64, Placement)> = None;
-        for group in 0..2 {
+        for group in 0..3 {
             for shape in 0..shapes[group] {
                 for cell in 0..cells[group] {
                     let mut next = current.1.clone();
@@ -279,8 +386,8 @@ fn height(element: &Element) -> f64 {
 }
 
 /// `cols` cells to a row from `(x, y)`, each row's tops aligned; returns the rectangle of
-/// each shape, `None` for an empty cell, and the bottom of the last row.
-fn grid(cells: &[Option<&Element>], cols: usize, x: f64, y: f64) -> (Vec<Option<Rect>>, f64) {
+/// each cell, an empty one as Mermaid draws it, and the bottom of the last row.
+fn grid(cells: &[Option<&Element>], cols: usize, x: f64, y: f64) -> (Vec<Rect>, f64) {
     let mut rects = Vec::with_capacity(cells.len());
     let mut top = y;
     let mut bottom = y;
@@ -291,12 +398,12 @@ fn grid(cells: &[Option<&Element>], cols: usize, x: f64, y: f64) -> (Vec<Option<
             .fold(0.0, f64::max);
         for (col, cell) in row.iter().enumerate() {
             let x0 = x + real(col) * (WIDTH + GAP);
-            rects.push(cell.map(|e| Rect {
+            rects.push(Rect {
                 x0,
                 y0: top,
                 x1: x0 + WIDTH,
-                y1: top + height(e),
-            }));
+                y1: top + cell.map_or(EMPTY_HEIGHT, height),
+            });
         }
         bottom = top + row_height;
         top = bottom + GAP;
@@ -363,57 +470,86 @@ fn segments_cross(a: (f64, f64), b: (f64, f64), c: (f64, f64), d: (f64, f64)) ->
 
 const SAMPLES: u32 = 24;
 const ARROWS_CROSSING: f64 = 30.0;
+const ARROW_BLOCKED: f64 = 1000.0;
 /// The samples of an arrow a label may sit by, the middle first, a quarter of the arrow
 /// at most away from it.
 const ALONG: [usize; 13] = [12, 11, 13, 10, 14, 9, 15, 8, 16, 7, 17, 6, 18];
 
+/// A boundary's dashed frame, and its title when it has one: the name over the kind.
+struct Frame {
+    outline: Rect,
+    title: Option<Rect>,
+    edges: [Rect; 4],
+}
+
+impl Frame {
+    fn around(held: Rect) -> Self {
+        let outline = Rect {
+            x0: held.x0 - BOUNDARY_INSET_X,
+            y0: held.y0 - FRAME_TOP,
+            x1: held.x1 + BOUNDARY_INSET_X,
+            y1: held.y1 + BOUNDARY_INSET_X,
+        };
+        let Rect { x0, y0, x1, y1 } = outline;
+        let (mid_x, mid_y) = outline.center();
+        Self {
+            outline,
+            title: None,
+            edges: [
+                Rect::around(mid_x, y0, x1 - x0, 2.0),
+                Rect::around(mid_x, y1, x1 - x0, 2.0),
+                Rect::around(x0, mid_y, 2.0, y1 - y0),
+                Rect::around(x1, mid_y, 2.0, y1 - y0),
+            ],
+        }
+    }
+
+    fn titled(self, name: &str) -> Self {
+        let w = (real(name.chars().count()) * 10.0).max(80.0);
+        let (mid_x, _) = self.outline.center();
+        Self {
+            title: Some(Rect::around(mid_x, self.outline.y0 + 22.0, w, 44.0)),
+            ..self
+        }
+    }
+}
+
 struct Scene {
     rects: Vec<Rect>,
-    /// The innermost boundary's name and kind, over the first nested row.
-    title: Option<Rect>,
-    /// The four sides of the innermost boundary's dashed frame.
-    edges: Vec<Rect>,
+    /// The innermost boundary and the other systems' one.
+    frames: Vec<Frame>,
     arrows: Vec<Arrow>,
     rels: usize,
 }
 
 impl Scene {
-    fn new(
-        diagram: &Diagram,
-        top: &[Option<&Element>],
-        nested: &[Option<&Element>],
-        depth: usize,
-        cols: usize,
-    ) -> Self {
+    fn new(diagram: &Diagram, cells: &Cells, depth: usize, cols: usize) -> Self {
+        let [top, nested, others] = &cells.groups;
         let (outside, bottom) = grid(top, cols, 0.0, 0.0);
         let nested_y = if top.is_empty() {
             0.0
         } else {
             bottom + BOUNDARY_INSET_Y
         };
-        let (inside, _) = grid(nested, cols, real(depth) * BOUNDARY_INSET_X, nested_y);
-        let (title, edges) = match diagram.boundaries.last() {
-            Some(boundary) if !nested.is_empty() => {
-                let held = bounding(inside.iter().flatten());
-                let w = (real(boundary.name.chars().count()) * 10.0).max(80.0);
-                let (x0, y0) = (held.x0 - BOUNDARY_INSET_X, nested_y - GAP);
-                let (x1, y1) = (held.x1 + BOUNDARY_INSET_X, held.y1 + BOUNDARY_INSET_X);
-                let edges = vec![
-                    Rect::around(f64::midpoint(x0, x1), y0, x1 - x0, 2.0),
-                    Rect::around(f64::midpoint(x0, x1), y1, x1 - x0, 2.0),
-                    Rect::around(x0, f64::midpoint(y0, y1), 2.0, y1 - y0),
-                    Rect::around(x1, f64::midpoint(y0, y1), 2.0, y1 - y0),
-                ];
-                let title = Rect::around(f64::midpoint(held.x0, held.x1), nested_y - 75.0, w, 40.0);
-                (Some(title), edges)
+        let nested_x = real(depth) * BOUNDARY_INSET_X;
+        let (inside, _) = grid(nested, cols, nested_x, nested_y);
+        let mut frames = Vec::new();
+        let mut below = Vec::new();
+        if let Some(boundary) = diagram.boundaries.last().filter(|_| !inside.is_empty()) {
+            let frame = Frame::around(bounding(&inside)).titled(&boundary.name);
+            let others_y = frame.outline.y1 + OTHERS_BELOW + FRAME_TOP;
+            below = grid(others, cols, nested_x, others_y).0;
+            if !below.is_empty() {
+                frames.push(Frame::around(bounding(&below)));
             }
-            _ => (None, Vec::new()),
-        };
+            frames.push(frame);
+        }
         let shapes: Vec<(&Element, Rect)> = top
             .iter()
             .zip(&outside)
             .chain(nested.iter().zip(&inside))
-            .filter_map(|(e, r)| Some(((*e)?, (*r)?)))
+            .chain(others.iter().zip(&below))
+            .filter_map(|(e, r)| Some(((*e)?, *r)))
             .collect();
         let rects: Vec<Rect> = shapes.iter().map(|&(_, r)| r).collect();
         let index: BTreeMap<&str, usize> = shapes
@@ -470,16 +606,15 @@ impl Scene {
             .collect();
         Self {
             rects,
-            title,
-            edges,
+            frames,
             arrows,
             rels: diagram.rels.len(),
         }
     }
 
-    /// Each arrow through a box weighs the most, more the more it carries; then each arrow
-    /// through the boundary's title, each two arrows crossing, then each arrow pointing up and
-    /// its length, both more for an arrow that carries more.
+    /// Each arrow through a box or a boundary's title weighs the most, more through a box the
+    /// more it carries; then each two arrows crossing, then each arrow pointing up and its
+    /// length, both more for an arrow that carries more.
     fn route_cost(&self) -> f64 {
         let mut cost = 0.0;
         for arrow in &self.arrows {
@@ -493,10 +628,12 @@ impl Scene {
                         && arrow.points.iter().any(|&p| r.holds(p, -6.0))
                 })
                 .count();
-            cost += real(through) * (1000.0 + real(arrow.weight.min(500)));
-            if self.title.is_some_and(|t| arrow.crosses(&t)) {
-                cost += 200.0;
-            }
+            cost += real(through) * (ARROW_BLOCKED + real(arrow.weight.min(500)));
+            let titles = self
+                .frames
+                .iter()
+                .filter(|f| f.title.is_some_and(|t| arrow.crosses(&t)));
+            cost += ARROW_BLOCKED * real(titles.count());
             let heft = 1.0 + real(arrow.weight).ln_1p();
             if self.rects[arrow.to].center().1 < self.rects[arrow.from].center().1 - 1.0 {
                 cost += 20.0 * heft;
@@ -516,8 +653,8 @@ impl Scene {
     }
 
     /// Places each label, in relationship order, beside, over or under a point of its arrow,
-    /// the middle first: never over a box, the boundary's title or a label placed before it
-    /// when another spot is free, and crossed by as few arrows and boundary sides as can be.
+    /// the middle first: never over a box, a boundary's title or side or a label placed before
+    /// it when another spot is free, and crossed by as few arrows as can be.
     /// Returns the cost of what could not be placed cleanly and every label's offset.
     fn labels(&self) -> (f64, Vec<(f64, f64)>) {
         let mut placed: Vec<Rect> = Vec::new();
@@ -554,13 +691,19 @@ impl Scene {
             let mut best: Option<(f64, Rect)> = None;
             for (penalty, spot) in beside.chain(away) {
                 let blocked = self.rects.iter().any(|r| r.overlaps(&spot, 4.0))
-                    || self.title.is_some_and(|r| r.overlaps(&spot, 2.0))
                     || placed.iter().any(|p| p.overlaps(&spot, 3.0))
                     || spot.x0 < bounds.x0 - 40.0
                     || spot.x1 > bounds.x1 + 40.0;
-                let crossed = self.arrows.iter().filter(|a| a.crosses(&spot)).count()
-                    + self.edges.iter().filter(|e| e.overlaps(&spot, 4.0)).count();
-                let spot_cost = if blocked { LABEL_BLOCKED } else { 0.0 }
+                let on_frames: usize = self
+                    .frames
+                    .iter()
+                    .map(|f| {
+                        usize::from(f.title.is_some_and(|t| t.overlaps(&spot, 2.0)))
+                            + f.edges.iter().filter(|e| e.overlaps(&spot, 4.0)).count()
+                    })
+                    .sum();
+                let crossed = self.arrows.iter().filter(|a| a.crosses(&spot)).count();
+                let spot_cost = LABEL_BLOCKED * real(usize::from(blocked) + on_frames)
                     + LABEL_CROSSED * real(crossed)
                     + penalty;
                 if best.is_none_or(|(b, _)| spot_cost < b) {
@@ -579,5 +722,33 @@ impl Scene {
             );
         }
         (cost, offsets)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Mermaid 12 `Bounds.insert`: a boundary, the implicit outermost one included, starts
+    /// 50 px right of its parent's start, a shape 50 px right of its boundary's start, the
+    /// next one 100 px after the last; a shape whose right side reaches the screen width
+    /// starts a new row.
+    fn mermaid_keeps_row(cols: usize, depth: usize, screen: usize) -> bool {
+        let first = 50 + 50 * (depth + 1) + 50;
+        first + (cols - 1) * (216 + 100) + 216 < screen
+    }
+
+    #[test]
+    fn every_row_width_tried_stays_one_row_on_a_1280_px_screen() {
+        for depth in 0..=2 {
+            let widths = row_widths(depth);
+            assert!(!widths.is_empty());
+            for cols in widths {
+                assert!(
+                    mermaid_keeps_row(cols, depth, 1280),
+                    "{cols} at depth {depth}"
+                );
+            }
+        }
     }
 }
