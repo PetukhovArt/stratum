@@ -1,8 +1,9 @@
 import { Component, createMemo, createSignal, For, Show } from 'solid-js'
 import { BudgetNote } from '../../canvas/budget-note'
 import { Canvas } from '../../canvas/canvas'
+import { sharedAttr, sharedNote } from '../../features/shared-mark'
 import { t } from '../../i18n'
-import { CANVAS_DEFS, EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR } from '../../render/encoding'
+import { CANVAS_DEFS, EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR, SHARED_COLOR } from '../../render/encoding'
 import { edgeKey, Model, worst } from '../../render/model'
 import { go, nav, set } from '../../shell/nav'
 import { trunc } from '../../render/labels'
@@ -183,20 +184,21 @@ const UnitMark: Component<{
                   data-testid="map-cell"
                   data-id={cell.id}
                   data-ch={sev ? 'sev' : 'mod'}
+                  data-shared={sharedAttr(props.model, cell.id)}
                   x={cell.x}
                   y={cell.y}
                   width={GRID.size}
                   height={GRID.size}
                   rx="2"
                   fill={entryOf(props.model, cell.id).length ? ENTRY_FILL : MODULE_FILL}
-                  stroke={sev ? SEV_COLOR[sev] : 'none'}
+                  stroke={sev ? SEV_COLOR[sev] : props.model.isSharedByChosenFeatures(cell.id) ? SHARED_COLOR : 'none'}
                   stroke-width="1.4"
                   onClick={(e) => {
                     e.stopPropagation()
                     go({ view: 'focus', focus: cell.id })
                   }}
                 >
-                  <title>{props.model.modules.get(cell.id)?.path}</title>
+                  <title>{(props.model.modules.get(cell.id)?.path ?? '') + sharedNote(props.model, cell.id)}</title>
                 </rect>
               )
             }}

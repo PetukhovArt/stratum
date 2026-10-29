@@ -1,7 +1,8 @@
 import { Component, createMemo, For, Show } from 'solid-js'
 import { Canvas } from '../../canvas/canvas'
+import { sharedNote } from '../../features/shared-mark'
 import { t } from '../../i18n'
-import { CANVAS_DEFS, EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR } from '../../render/encoding'
+import { CANVAS_DEFS, EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR, SHARED_COLOR } from '../../render/encoding'
 import { Model, worst } from '../../render/model'
 import { go, set } from '../../shell/nav'
 import { Band, BAND, BAND_CARD_SCALE, BandLink, BandsLayout, layoutBands, Pill } from './bands'
@@ -91,11 +92,17 @@ const PillView: Component<{ model: Model; pill: Pill }> = (props) => {
   const m = props.model
   const sev = worst(p.findings)
   const isSingle = p.ids.length === 1
+  const isShared = isSingle && m.isSharedByChosenFeatures(p.ids[0])
   const name = isSingle ? m.label(p.ids[0]) : p.group.name
   const onClick = () => (isSingle ? go({ view: 'focus', focus: p.ids[0] }) : set({ sel: { kind: 'imports', pairs: p.pairs } }))
   const isRight = p.side > 0
   return (
-    <g class="fo-pill" data-testid="focus-pill" onClick={onClick}>
+    <g
+      class="fo-pill"
+      data-testid="focus-pill"
+      data-shared={isShared ? 'true' : undefined}
+      onClick={onClick}
+    >
       <rect
         x={p.x}
         y={p.y}
@@ -103,7 +110,7 @@ const PillView: Component<{ model: Model; pill: Pill }> = (props) => {
         height={p.h}
         rx="11"
         fill={layerTone(m, p.group.layer, LAYER_TONE.pill)}
-        stroke={layerTone(m, p.group.layer, LAYER_TONE.tintEdgeStrong)}
+        stroke={isShared ? SHARED_COLOR : layerTone(m, p.group.layer, LAYER_TONE.tintEdgeStrong)}
         stroke-dasharray={sev ? DASHED : undefined}
       />
       <Show when={sev}>
@@ -121,7 +128,7 @@ const PillView: Component<{ model: Model; pill: Pill }> = (props) => {
         {trunc(name, 21)}
         {isSingle ? '' : ` · ${p.ids.length}`}
       </text>
-      <title>{p.group.path}</title>
+      <title>{p.group.path + (isShared ? sharedNote(m, p.ids[0]) : '')}</title>
     </g>
   )
 }
