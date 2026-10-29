@@ -1,7 +1,7 @@
 import type { MessagesOf } from '../../i18n/types'
 
 export const en = {
-  'map.variant.lanes': 'Lanes + bundles',
+  'map.variant.lanes': 'Blocks + bundles',
   'map.variant.layers': 'Layer graph',
   'map.edges': 'edges',
   'map.gate.rules': 'rule breaks',
@@ -32,6 +32,10 @@ export const en = {
   },
   'map.unitPairs': { one: 'across {n} unit pair', other: 'across {n} unit pairs' },
   'map.dependsOn': 'depends on {layers}',
+  'map.layer.dragHint': 'drag the header to move the whole layer',
+  'map.unit.dragHint': 'drag to move',
+  'map.layout.reset': 'Reset layout',
+  'map.layout.resetTitle': 'Put every moved block back where the layout placed it',
   'map.declared': 'declared in depends_on',
   'map.undeclared': 'not in depends_on',
   'map.whole': 'Whole graph',
@@ -59,7 +63,7 @@ export const en = {
 } as const
 
 export const ru: MessagesOf<typeof en> = {
-  'map.variant.lanes': 'Полосы + связки',
+  'map.variant.lanes': 'Блоки + связки',
   'map.variant.layers': 'Граф слоёв',
   'map.edges': 'рёбра',
   'map.gate.rules': 'нарушения правил',
@@ -102,6 +106,10 @@ export const ru: MessagesOf<typeof en> = {
     other: 'в {n} парах юнитов',
   },
   'map.dependsOn': 'зависит от {layers}',
+  'map.layer.dragHint': 'тащите заголовок, чтобы сдвинуть весь слой',
+  'map.unit.dragHint': 'тащите, чтобы сдвинуть',
+  'map.layout.reset': 'Сбросить раскладку',
+  'map.layout.resetTitle': 'Вернуть все сдвинутые блоки на места раскладки',
   'map.declared': 'заявлено в depends_on',
   'map.undeclared': 'нет в depends_on',
   'map.whole': 'Весь граф',

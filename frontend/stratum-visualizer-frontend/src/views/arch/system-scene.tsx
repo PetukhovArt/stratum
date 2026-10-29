@@ -6,10 +6,9 @@ import { CANVAS_DEFS, EDGE_NEUTRAL } from '../../render/encoding'
 import { Model } from '../../render/model'
 import { nav, set } from '../../shell/nav'
 import { LanesAside } from '../map/lanes-scene'
-import { LanesLayout } from '../map/layout'
 import { goToLevel } from './actions'
 import { ARCH_CONTAINERS } from './path'
-import { layoutPorts, layoutSystems, PortArrow, PortBox, SystemBox } from './system-layout'
+import { layoutPorts, layoutSystems, PortArrow, PortBox, portsSlot, SystemBox } from './system-layout'
 import { SystemsInModel } from './systems'
 
 const NAME_CHAR_PX = 6.6
@@ -213,11 +212,10 @@ const PortArrowMark: Component<{ arrow: PortArrow; model: Model }> = (props) => 
 }
 
 export const portsAside = (m: Model, systems: SystemsInModel): LanesAside => {
-  const portsOf = (layout: LanesLayout) => layoutPorts(layout, systems)
   return {
-    widthOf: (layout) => portsOf(layout).width,
+    size: portsSlot(systems),
     Marks: (props) => {
-      const ports = createMemo(() => portsOf(props.layout))
+      const ports = createMemo(() => layoutPorts(props.layout, props.slot, systems))
       return (
         <g class="arch-ports">
           <g fill="none">

@@ -17,6 +17,7 @@ const Stage: Component<ViewProps> = (props) => {
     <div class="map-stage" data-testid="map-stage" data-variant={nav().mapVariant}>
       <Show when={nav().mapVariant === 'lanes'} fallback={<LayersScene model={props.model} />}>
         <LanesScene
+          view="map"
           model={props.model}
           gate={nav().mapGate}
           expanded={nav().mapExpanded}

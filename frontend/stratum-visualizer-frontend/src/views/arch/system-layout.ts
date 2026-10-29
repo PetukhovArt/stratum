@@ -1,10 +1,10 @@
 import { SystemInfo } from '../../lib/api'
 import { Bounds } from '../../render/viewport'
-import { curveBetween, LANES, LanesLayout, Point, Rect } from '../map/layout'
+import { BlocksLayout, curveBetween, Point, Rect, Size } from '../map/layout'
 import { ChannelInUse, PortLink, SystemsInModel } from './systems'
 
 const SYSTEM = { selfW: 240, selfH: 110, w: 230, h: 76, gap: 24, column: 280, margin: 30 } as const
-const PORT = { w: 160, h: 46, gap: 18, offset: 110 } as const
+const PORT = { w: 160, h: 46, gap: 18, margin: 24 } as const
 
 export interface SystemBox extends Rect {
   system: SystemInfo
@@ -73,26 +73,28 @@ export interface PortArrow {
 export interface PortsLayout {
   ports: readonly PortBox[]
   arrows: readonly PortArrow[]
-  width: number
 }
 
-export const layoutPorts = (lanes: LanesLayout, s: SystemsInModel): PortsLayout => {
-  const column = stackHeight(s.others.length, PORT.h, PORT.gap)
-  const top = Math.max(0, (lanes.bounds.h - column) / 2)
+export const portsSlot = (s: SystemsInModel): Size => ({
+  w: PORT.w + PORT.margin * 2,
+  h: stackHeight(s.others.length, PORT.h, PORT.gap) + PORT.margin * 2,
+})
+
+export const layoutPorts = (layout: BlocksLayout, slot: Rect, s: SystemsInModel): PortsLayout => {
   const ports = s.others.map(
     (system, i): PortBox => ({
       system,
-      x: LANES.width + PORT.offset,
-      y: top + i * (PORT.h + PORT.gap),
+      x: slot.x + PORT.margin,
+      y: slot.y + PORT.margin + i * (PORT.h + PORT.gap),
       w: PORT.w,
       h: PORT.h,
     }),
   )
   const byId = new Map(ports.map((p) => [p.system.id, p]))
   const arrows = s.portLinks.flatMap((link): PortArrow[] => {
-    const from = lanes.boxes.get(link.container)
+    const from = layout.boxes.get(link.container)
     const to = byId.get(link.system)
     return from && to ? [{ link, ...curveBetween(from, to) }] : []
   })
-  return { ports, arrows, width: ports.length ? PORT.offset + PORT.w : 0 }
+  return { ports, arrows }
 }

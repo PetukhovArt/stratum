@@ -38,6 +38,7 @@ const ContainersLevel: Component<{ model: Model }> = (props) => {
   return (
     <>
       <LanesScene
+        view="arch"
         model={props.model}
         gate={nav().mapGate}
         expanded={NO_EXPANDED}

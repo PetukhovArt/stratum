@@ -1,7 +1,7 @@
-import { Component, createMemo, createSignal, For, Show } from 'solid-js'
+import { Accessor, batch, Component, createMemo, createSignal, For, Index, onCleanup, Show } from 'solid-js'
 import { Dynamic } from 'solid-js/web'
 import { BudgetNote } from '../../canvas/budget-note'
-import { Canvas } from '../../canvas/canvas'
+import { Canvas, useCanvas } from '../../canvas/canvas'
 import { sharedAttr, sharedNote } from '../../features/shared-mark'
 import { MessageKey, t } from '../../i18n'
 import { CANVAS_DEFS, EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR, SHARED_COLOR } from '../../render/encoding'
@@ -9,30 +9,44 @@ import { edgeKey, Model, worst } from '../../render/model'
 import { go, MapGate, set } from '../../shell/nav'
 import { trunc } from '../../render/labels'
 import { entryOf, layerName, layerTone } from '../focus/paint'
-import { Curve, defaultCurves, GRID, Lane, LANES, LanesLayout, layoutLanes, UnitBox } from './layout'
+import {
+  BLOCK,
+  BlocksLayout,
+  curveBetween,
+  defaultLinks,
+  GRID,
+  LayerBlock,
+  layoutBlocks,
+  moveUnits,
+  Point,
+  Rect,
+  Size,
+  UNIT_NAME,
+  UnitBox,
+} from './layout'
 import { MapLegend } from './legend'
+import { savedPositions, SavedPositions } from './positions'
 import { selectedUnit, selectedUnitPair } from './selection'
-import { mapDataOf, MapData } from './units'
+import { mapDataOf, MapData, UnitLink } from './units'
 
 const EDGE_WIDTH = { base: 0.8, max: 4, perLog: 0.8, highlight: 1.2 } as const
 const EDGE_OPACITY = { focused: 0.9, broken: 0.85, base: 0.18, range: 0.5, perImport: 1 / 60 } as const
-const NAME_CHAR_PX = 6.4
-const NAME_PAD = 30
 const FAN_MIN_HEIGHT = 44
+const META_CHAR_PX = 5.5
 const ERROR_DOT_R = 3.5
+const DRAG_THRESHOLD_PX = 3
 const SELECTED_STROKE = 'oklch(94% 0.005 260)'
 const LABEL_FILL = 'oklch(90% 0.005 260)'
 const LABEL_HALO = 'oklch(16% 0.012 260)'
 const ENTRY_FILL = 'oklch(85% 0.01 260)'
 const MODULE_FILL = 'oklch(42% 0.02 260)'
-const META_FILL = 'oklch(62% 0.012 260)'
 const DASHED_KINDS: ReadonlySet<string> = new Set(['sub_unit', 'nested'])
 
 const unitPath = (m: Model, id: number): string => m.containers.get(id)?.path ?? ''
 
 export interface LanesAside {
-  widthOf: (layout: LanesLayout) => number
-  Marks: Component<{ layout: LanesLayout }>
+  size: Size
+  Marks: Component<{ layout: BlocksLayout; slot: Rect }>
 }
 
 export interface LanesMarks {
@@ -41,14 +55,29 @@ export interface LanesMarks {
   dblClickHint?: MessageKey
 }
 
+interface Drag {
+  ids: readonly number[]
+  dx: number
+  dy: number
+}
+
+type StartDrag = (e: PointerEvent, ids: readonly number[]) => void
+
 const EdgeMark: Component<{
-  curve: Curve
+  link: UnitLink
+  layout: Accessor<BlocksLayout>
   model: Model
   testId: string | undefined
   isFocused: () => boolean
   isHighlighted: () => boolean
 }> = (props) => {
-  const link = props.curve.link
+  const link = props.link
+  const curve = createMemo(() => {
+    const boxes = props.layout().boxes
+    const a = boxes.get(link.from)
+    const b = boxes.get(link.to)
+    return a && b ? curveBetween(a, b) : null
+  })
   const isEmphasised = () => props.isFocused() || props.isHighlighted()
   const sev = () => (isEmphasised() ? link.worst : link.breaks > 0 ? link.breakWorst : null)
   const opacity = () => {
@@ -66,110 +95,136 @@ const EdgeMark: Component<{
     return `${unitPath(props.model, link.from)}\n→ ${unitPath(props.model, link.to)}\n${t('map.imports', { n: link.count })}${breaks}${rules}`
   }
   return (
-    <>
-      <path
-        class="map-edge"
-        data-testid={props.testId}
-        data-from={link.from}
-        data-to={link.to}
-        d={props.curve.d}
-        data-edge={`unit:${link.key}`}
-        data-ch={sev() ? 'sev' : 'edge'}
-        data-rule={link.rules.length ? link.rules.join(' ') : undefined}
-        stroke={sev() ? SEV_COLOR[sev()!] : EDGE_NEUTRAL}
-        stroke-opacity={opacity()}
-        stroke-width={width()}
-        marker-end={CANVAS_DEFS.arrow}
-        onClick={() => set({ sel: { kind: 'cell', level: 'unit', from: link.from, to: link.to } })}
-      >
-        <title>{title()}</title>
-      </path>
-      <Show when={isEmphasised()}>
-        <text
-          class="map-count"
-          x={props.curve.label.x}
-          y={props.curve.label.y}
-          fill={LABEL_FILL}
-          stroke={LABEL_HALO}
-        >
-          {link.count}
-        </text>
-      </Show>
-    </>
+    <Show when={curve()}>
+      {(c) => (
+        <>
+          <path
+            class="map-edge"
+            data-testid={props.testId}
+            data-from={link.from}
+            data-to={link.to}
+            d={c().d}
+            data-edge={`unit:${link.key}`}
+            data-ch={sev() ? 'sev' : 'edge'}
+            data-rule={link.rules.length ? link.rules.join(' ') : undefined}
+            stroke={sev() ? SEV_COLOR[sev()!] : EDGE_NEUTRAL}
+            stroke-opacity={opacity()}
+            stroke-width={width()}
+            marker-end={CANVAS_DEFS.arrow}
+            onClick={() => set({ sel: { kind: 'cell', level: 'unit', from: link.from, to: link.to } })}
+          >
+            <title>{title()}</title>
+          </path>
+          <Show when={isEmphasised()}>
+            <text class="map-count" x={c().label.x} y={c().label.y} fill={LABEL_FILL} stroke={LABEL_HALO}>
+              {link.count}
+            </text>
+          </Show>
+        </>
+      )}
+    </Show>
   )
 }
 
-const LaneMark: Component<{ lane: Lane; model: Model }> = (props) => {
-  const layer = () => props.model.layers.find((l) => l.id === props.lane.layer)
-  const depends = () => {
-    const names = (layer()?.depends_on ?? []).map((id) => layerName(props.model, id))
-    return t('map.dependsOn', { layers: names.length ? names.join(', ') : '—' })
+const BlockMark: Component<{ block: Accessor<LayerBlock>; model: Model; onDragStart: StartDrag }> = (props) => {
+  const layer = () => props.block().layer
+  const title = () => {
+    const names = (props.model.layers.find((l) => l.id === layer())?.depends_on ?? []).map((id) =>
+      layerName(props.model, id),
+    )
+    const depends = t('map.dependsOn', { layers: names.length ? names.join(', ') : '—' })
+    return `${layerName(props.model, layer())}\n${t('map.modules', { n: props.block().modules })} · ${depends}\n${t('map.layer.dragHint')}`
   }
   return (
-    <g>
+    <g class="map-block" data-testid="map-layer-block" data-layer={layer()}>
       <rect
-        width={LANES.width}
-        y={props.lane.y}
-        height={props.lane.h}
-        rx="10"
-        fill={layerTone(props.model, props.lane.layer, LAYER_TONE.bandOff)}
-        stroke={layerTone(props.model, props.lane.layer, LAYER_TONE.tintEdge)}
+        x={props.block().x}
+        y={props.block().y}
+        width={props.block().w}
+        height={props.block().h}
+        rx="8"
+        fill={layerTone(props.model, layer(), LAYER_TONE.bandOff)}
+        stroke={layerTone(props.model, layer(), LAYER_TONE.tintEdge)}
+        pointer-events="none"
       />
-      <rect width="4" y={props.lane.y} height={props.lane.h} rx="2" fill={layerTone(props.model, props.lane.layer)} />
+      <rect
+        class="map-block-handle"
+        data-testid="map-layer-handle"
+        data-layer={layer()}
+        x={props.block().x}
+        y={props.block().y}
+        width={props.block().w}
+        height={BLOCK.header}
+        rx="8"
+        fill="transparent"
+        onPointerDown={(e) => props.onDragStart(e, props.block().units)}
+      >
+        <title>{title()}</title>
+      </rect>
       <text
         class="map-lane-name"
-        x={LANES.pad}
-        y={props.lane.y + 17}
-        fill={layerTone(props.model, props.lane.layer, LAYER_TONE.label)}
+        x={props.block().x + BLOCK.pad}
+        y={props.block().y + 13}
+        fill={layerTone(props.model, layer(), LAYER_TONE.label)}
+        stroke={LABEL_HALO}
+        pointer-events="none"
       >
-        {layerName(props.model, props.lane.layer).toUpperCase()}
-      </text>
-      <text class="map-lane-meta" x={LANES.width - LANES.pad} y={props.lane.y + 17} fill={META_FILL}>
-        {t('map.modules', { n: props.lane.modules })} · {depends()}
+        {layerName(props.model, layer()).toUpperCase()}
       </text>
     </g>
   )
 }
 
 const UnitMark: Component<{
-  box: UnitBox
+  box: Accessor<UnitBox>
   model: Model
   data: MapData
   isHovered: () => boolean
   isPaired: () => boolean
   onHover: (id: number | null) => void
   onDblClick: (id: number) => void
+  onDragStart: StartDrag
+  wasDragged: () => boolean
   marks: LanesMarks
 }> = (props) => {
-  const b = props.box
-  const u = b.unit
+  const u = props.box().unit
   const info = props.data.units.get(u.id)!
   const isSelected = () => selectedUnit() === u.id
   const isRinged = () => isSelected() || props.isPaired()
-  const isExpanded = b.cells !== null
+  const isExpanded = () => props.box().cells !== null
   const stage = props.model.containers.get(u.id)?.stage ?? 0
   const meta = () => {
-    const fan = b.h > FAN_MIN_HEIGHT || isExpanded ? ` · ${t('map.unit.fan', { in: info.fanIn, out: info.fanOut })}` : ''
-    return `${u.modules.length} · s${stage}${fan}`
+    const short = `${u.modules.length} · s${stage}`
+    const full = `${short} · ${t('map.unit.fan', { in: info.fanIn, out: info.fanOut })}`
+    const fits = full.length * META_CHAR_PX + UNIT_NAME.pad / 2 <= props.box().w
+    return fits && (props.box().h > FAN_MIN_HEIGHT || isExpanded()) ? full : short
   }
-  const title = () =>
-    `${u.path}\n${t('map.unit.title', { kind: u.kind, stage, modules: t('map.modules', { n: u.modules.length }) })}\n${
-      props.marks.dblClickHint ? t(props.marks.dblClickHint) : isExpanded ? t('map.unit.collapse') : t('map.unit.expand')
-    }`
+  const title = () => {
+    const open = props.marks.dblClickHint
+      ? t(props.marks.dblClickHint)
+      : isExpanded()
+        ? t('map.unit.collapse')
+        : t('map.unit.expand')
+    const kind = t('map.unit.title', { kind: u.kind, stage, modules: t('map.modules', { n: u.modules.length }) })
+    return `${u.path}\n${kind}\n${open} · ${t('map.unit.dragHint')}`
+  }
   return (
     <g
       class="map-unit"
       data-testid={props.marks.unit}
       data-id={u.id}
-      transform={`translate(${b.x},${b.y})`}
+      transform={`translate(${props.box().x},${props.box().y})`}
       onMouseEnter={() => props.onHover(u.id)}
       onMouseLeave={() => props.onHover(null)}
-      onClick={() => set({ sel: { kind: 'container', id: u.id } })}
+      onPointerDown={(e) => props.onDragStart(e, [u.id])}
+      onClick={() => {
+        if (!props.wasDragged()) set({ sel: { kind: 'container', id: u.id } })
+      }}
       onDblClick={() => props.onDblClick(u.id)}
     >
       <rect
-        width={b.w}
-        height={b.h}
+        width={props.box().w}
+        height={props.box().h}
         rx="6"
         fill={layerTone(props.model, u.layer, LAYER_TONE.band)}
         stroke={
@@ -181,17 +236,17 @@ const UnitMark: Component<{
         stroke-dasharray={DASHED_KINDS.has(u.kind) ? '4 2' : undefined}
       />
       <text class="map-unit-name" x="8" y="16">
-        {trunc(u.name, Math.floor((b.w - NAME_PAD) / NAME_CHAR_PX))}
+        {trunc(u.name, Math.floor((props.box().w - UNIT_NAME.pad) / UNIT_NAME.charPx))}
         <tspan class="map-unit-meta" x="8" dy="13">
           {meta()}
         </tspan>
       </text>
       <Show when={info.errors > 0}>
-        <circle data-ch="sev" cx={b.w - 10} cy="12" r={ERROR_DOT_R} fill={SEV_COLOR.error}>
+        <circle data-ch="sev" cx={props.box().w - 10} cy="12" r={ERROR_DOT_R} fill={SEV_COLOR.error}>
           <title>{t('map.errors', { n: info.errors })}</title>
         </circle>
       </Show>
-      <Show when={b.cells}>
+      <Show when={props.box().cells}>
         {(cells) => (
           <For each={cells()}>
             {(cell) => {
@@ -213,7 +268,7 @@ const UnitMark: Component<{
                   stroke-width="1.4"
                   onClick={(e) => {
                     e.stopPropagation()
-                    go({ view: 'focus', focus: cell.id })
+                    if (!props.wasDragged()) go({ view: 'focus', focus: cell.id })
                   }}
                 >
                   <title>{(props.model.modules.get(cell.id)?.path ?? '') + sharedNote(props.model, cell.id)}</title>
@@ -228,8 +283,161 @@ const UnitMark: Component<{
   )
 }
 
+const ResetLayout: Component<{ saved: SavedPositions }> = (props) => {
+  const canvas = useCanvas()
+  return (
+    <button
+      class="map-reset"
+      data-testid="map-reset-layout"
+      disabled={props.saved.at().size === 0}
+      title={t('map.layout.resetTitle')}
+      onClick={() => {
+        props.saved.reset()
+        canvas.fit()
+      }}
+    >
+      {t('map.layout.reset')}
+    </button>
+  )
+}
+
+const movedAt = (
+  base: BlocksLayout,
+  saved: ReadonlyMap<string, Point>,
+  drag: Drag | null,
+): ReadonlyMap<number, Point> => {
+  const at = new Map<number, Point>()
+  for (const [id, box] of base.boxes) {
+    const p = saved.get(box.unit.path)
+    if (p) at.set(id, p)
+  }
+  for (const id of drag?.ids ?? []) {
+    const from = at.get(id) ?? base.boxes.get(id)
+    if (from && drag) at.set(id, { x: from.x + drag.dx, y: from.y + drag.dy })
+  }
+  return at
+}
+
+const BlocksMarks: Component<{
+  model: Model
+  data: MapData
+  base: Accessor<BlocksLayout>
+  layout: Accessor<BlocksLayout>
+  visible: Accessor<readonly UnitLink[]>
+  hover: Accessor<number | null>
+  setHover: (id: number | null) => void
+  focusUnit: () => number | null
+  pairKey: () => string | null
+  setDrag: (drag: Drag | null) => void
+  saved: SavedPositions
+  onUnitDblClick: (id: number) => void
+  marks: LanesMarks
+  aside?: LanesAside
+}> = (props) => {
+  const canvas = useCanvas()
+  let wasDragged = false
+  let stopDrag: (() => void) | null = null
+  const startDrag: StartDrag = (e, ids) => {
+    if (e.button !== 0) return
+    e.stopPropagation()
+    wasDragged = false
+    const from = { x: e.clientX, y: e.clientY }
+    const zoom = canvas.viewport().zoom
+    let isMoving = false
+    const move = (ev: PointerEvent) => {
+      const dx = ev.clientX - from.x
+      const dy = ev.clientY - from.y
+      if (!isMoving && Math.abs(dx) + Math.abs(dy) <= DRAG_THRESHOLD_PX) return
+      if (!isMoving) canvas.setViewport(canvas.viewport())
+      isMoving = true
+      props.setDrag({ ids, dx: dx / zoom, dy: dy / zoom })
+    }
+    const stop = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', end)
+      window.removeEventListener('pointercancel', end)
+      stopDrag = null
+    }
+    const end = () => {
+      stop()
+      if (!isMoving) return
+      wasDragged = true
+      const boxes = props.layout().boxes
+      const moved = new Map<string, Point>()
+      for (const id of ids) {
+        const box = boxes.get(id)
+        if (box) moved.set(box.unit.path, { x: box.x, y: box.y })
+      }
+      batch(() => {
+        props.saved.save(moved)
+        props.setDrag(null)
+      })
+    }
+    stopDrag?.()
+    stopDrag = stop
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', end)
+    window.addEventListener('pointercancel', end)
+  }
+  onCleanup(() => stopDrag?.())
+  const isPaired = (id: number) => {
+    const p = selectedUnitPair()
+    return p !== null && (p.from === id || p.to === id)
+  }
+  const units = createMemo(() => [...props.base().boxes.values()].map((b) => b.unit))
+  return (
+    <g class="map" data-variant="lanes">
+      <g class="map-edges" fill="none">
+        <For each={props.visible()}>
+          {(link) => (
+            <EdgeMark
+              link={link}
+              layout={props.layout}
+              model={props.model}
+              testId={props.marks.bundle}
+              isFocused={() => props.focusUnit() !== null}
+              isHighlighted={() => link.key === props.pairKey()}
+            />
+          )}
+        </For>
+      </g>
+      <Index each={props.layout().blocks}>
+        {(block) => <BlockMark block={block} model={props.model} onDragStart={startDrag} />}
+      </Index>
+      <Show when={props.aside}>
+        {(aside) => (
+          <Show when={props.layout().reserved}>
+            {(slot) => <Dynamic component={aside().Marks} layout={props.layout()} slot={slot()} />}
+          </Show>
+        )}
+      </Show>
+      <For each={units()}>
+        {(unit) => (
+          <Show when={props.layout().boxes.get(unit.id)}>
+            {(box) => (
+              <UnitMark
+                box={box}
+                model={props.model}
+                data={props.data}
+                isHovered={() => props.hover() === unit.id}
+                isPaired={() => isPaired(unit.id)}
+                onHover={props.setHover}
+                onDblClick={props.onUnitDblClick}
+                onDragStart={startDrag}
+                wasDragged={() => wasDragged}
+                marks={props.marks}
+              />
+            )}
+          </Show>
+        )}
+      </For>
+    </g>
+  )
+}
+
 export const LanesScene: Component<{
   model: Model
+  view: 'map' | 'arch'
   gate: MapGate
   expanded: readonly number[]
   onUnitDblClick: (id: number) => void
@@ -239,71 +447,55 @@ export const LanesScene: Component<{
   const data = createMemo(() => mapDataOf(props.model))
   const expandedIds = createMemo(() => props.expanded)
   const expanded = createMemo(() => new Set(expandedIds()))
-  const layout = createMemo(() => layoutLanes(props.model, data(), expanded()))
+  const base = createMemo(() => layoutBlocks(props.model, expanded(), props.aside?.size ?? null))
+  const saved = savedPositions(() => props.model.project, props.view)
+  const [drag, setDrag] = createSignal<Drag | null>(null)
+  const layout = createMemo(() => moveUnits(base(), movedAt(base(), saved.at(), drag())))
   const [hover, setHover] = createSignal<number | null>(null)
   const focusUnit = () => hover() ?? selectedUnit()
   const pairKey = () => {
     const p = selectedUnitPair()
     return p ? edgeKey(p.from, p.to) : null
   }
-  const byDefault = createMemo(() => defaultCurves(layout(), data(), props.gate, expanded(), pairKey()))
+  const byDefault = createMemo(() => defaultLinks(base(), data(), props.gate, expanded(), pairKey()))
   const visible = createMemo(() => {
     const f = focusUnit()
-    if (f !== null) return layout().curves.filter((c) => c.link.from === f || c.link.to === f)
-    return byDefault().curves
+    if (f === null) return byDefault().links
+    const boxes = base().boxes
+    return data().links.filter((l) => (l.from === f || l.to === f) && boxes.has(l.from) && boxes.has(l.to))
   })
-  const isPaired = (id: number) => {
-    const p = selectedUnitPair()
-    return p !== null && (p.from === id || p.to === id)
-  }
-  const fitKey = () => `lanes:${expandedIds().join(',')}`
-  const bounds = createMemo(() => {
-    const b = layout().bounds
-    return props.aside ? { ...b, w: b.w + props.aside.widthOf(layout()) } : b
-  })
+  const fitKey = () => `blocks:${expandedIds().join(',')}`
 
   return (
     <Canvas
-      bounds={bounds()}
+      bounds={layout().bounds}
       fitKey={fitKey()}
       legend={<MapLegend variant="lanes" />}
       overlay={
-        <Show when={focusUnit() === null && byDefault().hidden > 0}>
-          <BudgetNote text={t('map.budget.hidden', { n: byDefault().hidden })} />
-        </Show>
+        <>
+          <ResetLayout saved={saved} />
+          <Show when={focusUnit() === null && byDefault().hidden > 0}>
+            <BudgetNote text={t('map.budget.hidden', { n: byDefault().hidden })} />
+          </Show>
+        </>
       }
     >
-      <g class="map" data-variant="lanes">
-        <For each={layout().lanes}>{(lane) => <LaneMark lane={lane} model={props.model} />}</For>
-        <g class="map-edges" fill="none">
-          <For each={visible()}>
-            {(curve) => (
-              <EdgeMark
-                curve={curve}
-                model={props.model}
-                testId={props.marks.bundle}
-                isFocused={() => focusUnit() !== null}
-                isHighlighted={() => curve.link.key === pairKey()}
-              />
-            )}
-          </For>
-        </g>
-        <Show when={props.aside}>{(aside) => <Dynamic component={aside().Marks} layout={layout()} />}</Show>
-        <For each={[...layout().boxes.values()]}>
-          {(box) => (
-            <UnitMark
-              box={box}
-              model={props.model}
-              data={data()}
-              isHovered={() => hover() === box.unit.id}
-              isPaired={() => isPaired(box.unit.id)}
-              onHover={setHover}
-              onDblClick={props.onUnitDblClick}
-              marks={props.marks}
-            />
-          )}
-        </For>
-      </g>
+      <BlocksMarks
+        model={props.model}
+        data={data()}
+        base={base}
+        layout={layout}
+        visible={visible}
+        hover={hover}
+        setHover={setHover}
+        focusUnit={focusUnit}
+        pairKey={pairKey}
+        setDrag={setDrag}
+        saved={saved}
+        onUnitDblClick={props.onUnitDblClick}
+        marks={props.marks}
+        aside={props.aside}
+      />
     </Canvas>
   )
 }
