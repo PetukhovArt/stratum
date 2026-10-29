@@ -4,7 +4,8 @@ use oxc_allocator::Allocator;
 use oxc_ast::Visit;
 use oxc_ast::ast::{
     Argument, CallExpression, ExportAllDeclaration, ExportNamedDeclaration, Expression,
-    ImportDeclaration, ImportDeclarationSpecifier, ImportExpression, VariableDeclarator,
+    IdentifierReference, ImportDeclaration, ImportDeclarationSpecifier, ImportExpression, TSType,
+    VariableDeclarator,
 };
 use oxc_ast::visit::walk;
 use oxc_parser::Parser;
@@ -26,6 +27,8 @@ pub struct Collected {
     /// Top-level ES exports only; `module.exports` / `exports.x` are not counted.
     pub exports: RawExports,
     pub calls: Vec<RawCall>,
+    /// See [`ExtractedData::local_refs`](crate::ExtractedData::local_refs).
+    pub local_refs: Vec<(String, Vec<String>)>,
     pub suppressions: Vec<RawSuppression>,
 }
 
@@ -37,11 +40,13 @@ pub fn collect(source: &str, source_type: SourceType, tracked: &TrackedCalls) ->
             let mut visitor = ImportVisitor {
                 calls: CallRecorder::new(tracked, &ret.program),
                 imports: Vec::new(),
+                in_type: 0,
             };
             visitor.visit_program(&ret.program);
             Collected {
                 exports: top_level_exports(&ret.program, &visitor.imports),
                 imports: visitor.imports,
+                local_refs: visitor.calls.local_refs(),
                 calls: visitor.calls.finish(),
                 suppressions: suppressions(source, &ret.trivias),
             }
@@ -64,6 +69,8 @@ thread_local! {
 struct ImportVisitor<'t> {
     calls: CallRecorder<'t>,
     imports: Vec<RawImport>,
+    /// How many type positions the visit is inside.
+    in_type: u32,
 }
 
 impl ImportVisitor<'_> {
@@ -194,6 +201,18 @@ impl<'a> Visit<'a> for ImportVisitor<'_> {
     fn visit_variable_declarator(&mut self, decl: &VariableDeclarator<'a>) {
         self.calls.declarator(decl);
         walk::walk_variable_declarator(self, decl);
+    }
+
+    fn visit_ts_type(&mut self, ty: &TSType<'a>) {
+        self.in_type += 1;
+        walk::walk_ts_type(self, ty);
+        self.in_type -= 1;
+    }
+
+    fn visit_identifier_reference(&mut self, reference: &IdentifierReference<'a>) {
+        if self.in_type == 0 {
+            self.calls.reference(reference);
+        }
     }
 
     fn visit_call_expression(&mut self, call: &CallExpression<'a>) {

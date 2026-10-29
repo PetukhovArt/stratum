@@ -1,7 +1,9 @@
+use std::collections::{BTreeMap, BTreeSet};
+
 use oxc_ast::ast::{
     Argument, BindingPatternKind, CallExpression, Declaration, ExportDefaultDeclarationKind,
-    Expression, ImportDeclaration, ImportDeclarationSpecifier, Program, Statement,
-    VariableDeclarator,
+    Expression, IdentifierReference, ImportDeclaration, ImportDeclarationSpecifier, Program,
+    Statement, VariableDeclarator,
 };
 use oxc_span::Span;
 use stratum_core::types::{CallArg, CallForm};
@@ -15,6 +17,9 @@ pub(crate) struct CallRecorder<'t> {
     aliases: Vec<(String, String)>,
     namespaces: Vec<String>,
     owners: Vec<(Span, String)>,
+    /// The names of `owners`, ascending.
+    top_names: Vec<String>,
+    local_refs: BTreeMap<String, BTreeSet<String>>,
     clients: Vec<Client>,
     members: Vec<MemberCall>,
     calls: Vec<RawCall>,
@@ -66,11 +71,16 @@ impl<'t> CallRecorder<'t> {
         } else {
             program.body.iter().flat_map(top_level_names).collect()
         };
+        let mut top_names: Vec<String> = owners.iter().map(|(_, n)| n.clone()).collect();
+        top_names.sort();
+        top_names.dedup();
         Self {
             tracked,
             aliases: Vec::new(),
             namespaces: Vec::new(),
             owners,
+            top_names,
+            local_refs: BTreeMap::new(),
             clients: Vec::new(),
             members: Vec::new(),
             calls: Vec::new(),
@@ -168,6 +178,37 @@ impl<'t> CallRecorder<'t> {
                 owner: self.owner(call.span),
             });
         }
+    }
+
+    /// Records `reference` when it names another top-level declaration of the module than the
+    /// one it stands in. Scopes are not resolved: a local that shadows a top-level name counts.
+    pub(crate) fn reference(&mut self, reference: &IdentifierReference<'_>) {
+        let name = reference.name.as_str();
+        if self
+            .top_names
+            .binary_search_by(|n| n.as_str().cmp(name))
+            .is_err()
+        {
+            return;
+        }
+        let Some(owner) = self.owner(reference.span) else {
+            return;
+        };
+        if owner != name {
+            self.local_refs
+                .entry(owner)
+                .or_default()
+                .insert(name.to_owned());
+        }
+    }
+
+    /// Per top-level declaration with any, ascending by name: the other top-level declarations
+    /// of the module it references, ascending.
+    pub(crate) fn local_refs(&self) -> Vec<(String, Vec<String>)> {
+        self.local_refs
+            .iter()
+            .map(|(owner, refs)| (owner.clone(), refs.iter().cloned().collect()))
+            .collect()
     }
 
     /// The recorded calls in source order. A member call is matched to a client by variable
@@ -406,6 +447,55 @@ other.getUser();
                     method: "getUser".into()
                 }
             )]
+        );
+    }
+
+    fn local_refs(source: &str) -> Vec<(String, Vec<String>)> {
+        let mut tracked = TrackedCalls::default();
+        tracked.insert("invoke").unwrap();
+        let ts = SourceType::default()
+            .with_typescript(true)
+            .with_module(true);
+        collect(source, ts, &tracked).local_refs
+    }
+
+    #[test]
+    fn a_declaration_records_the_other_top_level_declarations_it_references_but_not_types_or_imports()
+     {
+        let found = local_refs(
+            "import { makeTransport } from './transport';
+type Options = { base: string };
+function helper() { return invoke('a'); }
+export const createApi = (t: Options) => {
+  const client = helper();
+  return { get: () => client.get(), again: createApi, helper };
+};
+export const api = createApi(makeTransport({ base: 'x' }) as Options);
+export const unrelated = 1;
+export default function main() { return api; }
+",
+        );
+        let owned = |o: &str, r: &[&str]| (o.to_owned(), r.iter().map(|&s| s.to_owned()).collect());
+        assert_eq!(
+            found,
+            [
+                owned("api", &["createApi"]),
+                owned("createApi", &["helper"]),
+                owned("main", &["api"]),
+            ]
+        );
+    }
+
+    #[test]
+    fn no_local_refs_are_recorded_when_no_call_is_tracked() {
+        let ts = SourceType::default()
+            .with_typescript(true)
+            .with_module(true);
+        let source = "const a = 1; export const b = a;";
+        assert!(
+            collect(source, ts, &TrackedCalls::default())
+                .local_refs
+                .is_empty()
         );
     }
 

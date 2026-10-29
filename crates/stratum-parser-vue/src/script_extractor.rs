@@ -1,3 +1,5 @@
+use std::collections::{BTreeMap, BTreeSet};
+
 use camino::Utf8Path;
 
 use stratum_core::types::ExportOrigin;
@@ -35,6 +37,7 @@ impl LanguageExtractor for VueExtractor {
         let mut all_imports: Vec<RawImport> = Vec::new();
         let mut exports = RawExports::default();
         let mut calls: Vec<RawCall> = Vec::new();
+        let mut local_refs: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
         let mut suppressions: Vec<RawSuppression> = Vec::new();
         for block in blocks {
             let st = if block.is_typescript {
@@ -76,6 +79,9 @@ impl LanguageExtractor for VueExtractor {
                 call.span = shift(call.span, offset);
                 calls.push(call);
             }
+            for (owner, refs) in collected.local_refs {
+                local_refs.entry(owner).or_default().extend(refs);
+            }
             for mut suppression in collected.suppressions {
                 suppression.span = shift(suppression.span, offset);
                 suppressions.push(suppression);
@@ -87,6 +93,10 @@ impl LanguageExtractor for VueExtractor {
             purity: extract_purity(source),
             exports,
             calls,
+            local_refs: local_refs
+                .into_iter()
+                .map(|(owner, refs)| (owner, refs.into_iter().collect()))
+                .collect(),
             suppressions,
         })
     }
@@ -179,6 +189,23 @@ mod tests {
         assert_eq!(
             found,
             [("provide", "provide('a', 1)"), ("inject", "i('a')")]
+        );
+    }
+
+    #[test]
+    fn local_refs_of_both_script_blocks_are_kept() {
+        let src = "<script>\nconst base = 1;\nexport const api = base;\n</script>\n<script setup>\nconst load = () => 2;\nconst run = () => load();\n</script>";
+        let mut tracked = TrackedCalls::default();
+        tracked.insert("inject").unwrap();
+        let data = VueExtractor::new(tracked)
+            .extract(Utf8Path::new("Api.vue"), src)
+            .unwrap();
+        assert_eq!(
+            data.local_refs,
+            [
+                ("api".to_owned(), vec!["base".to_owned()]),
+                ("run".to_owned(), vec!["load".to_owned()]),
+            ]
         );
     }
 

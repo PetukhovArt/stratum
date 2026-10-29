@@ -46,6 +46,7 @@ impl GraphBuilder {
             && module.calls == facts.calls
             && module.imports == facts.imports
             && module.suppressions == facts.suppressions
+            && module.local_refs == facts.local_refs
         {
             return Ok(false);
         }
@@ -85,6 +86,7 @@ impl GraphBuilder {
             m.calls = facts.calls;
             m.imports = facts.imports;
             m.suppressions = facts.suppressions;
+            m.local_refs = facts.local_refs;
         }
         Ok(true)
     }

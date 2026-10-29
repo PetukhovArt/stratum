@@ -33,6 +33,7 @@ fn module(id: u32, layer_raw: u32, path: &str) -> Module {
         calls: vec![],
         imports: vec![],
         suppressions: vec![],
+        local_refs: vec![],
     }
 }
 

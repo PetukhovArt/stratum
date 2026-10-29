@@ -188,6 +188,7 @@ mod tests {
                     }],
                     imports: vec![],
                     suppressions: vec![],
+                    local_refs: vec![],
                 },
             );
         }

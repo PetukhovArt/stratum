@@ -334,6 +334,7 @@ mod tests {
                 calls,
                 imports: vec![],
                 suppressions: vec![],
+                local_refs: vec![],
             },
         );
         graph

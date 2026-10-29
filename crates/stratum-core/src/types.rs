@@ -29,6 +29,10 @@ pub struct Module {
     pub imports: Vec<Import>,
     #[serde(default)]
     pub suppressions: Vec<Suppression>,
+    /// Per top-level declaration, ascending by name: the other top-level declarations of this
+    /// module its code references, ascending. Recorded only when calls are tracked.
+    #[serde(default)]
+    pub local_refs: Vec<(String, Vec<String>)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

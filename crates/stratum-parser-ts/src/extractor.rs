@@ -75,6 +75,10 @@ pub struct ExtractedData {
     pub exports: RawExports,
     #[serde(default)]
     pub calls: Vec<RawCall>,
+    /// Per top-level declaration, ascending by name: the other top-level declarations of the
+    /// module its code references. Recorded only when calls are tracked.
+    #[serde(default)]
+    pub local_refs: Vec<(String, Vec<String>)>,
     #[serde(default)]
     pub suppressions: Vec<RawSuppression>,
 }

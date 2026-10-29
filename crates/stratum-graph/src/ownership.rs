@@ -243,6 +243,7 @@ mod tests {
             calls: vec![],
             imports,
             suppressions: vec![],
+            local_refs: vec![],
         }
     }
 

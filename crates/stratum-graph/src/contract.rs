@@ -192,6 +192,7 @@ mod tests {
                 calls: vec![],
                 imports,
                 suppressions: vec![],
+                local_refs: vec![],
             };
             g.modules.insert(m.id, m);
         }
