@@ -30,6 +30,9 @@ export const en = {
   'shell.canvas.fitTitle': 'Fit (f)',
   'shell.canvas.zoomIn': 'Zoom in',
   'shell.canvas.zoomOut': 'Zoom out',
+  'shell.canvas.legend': 'Legend',
+  'shell.canvas.legendShow': 'Show legend',
+  'shell.canvas.legendHide': 'Hide legend',
 } as const
 
 export const ru: MessagesOf<typeof en> = {
@@ -67,4 +70,7 @@ export const ru: MessagesOf<typeof en> = {
   'shell.canvas.fitTitle': 'Вписать (f)',
   'shell.canvas.zoomIn': 'Приблизить',
   'shell.canvas.zoomOut': 'Отдалить',
+  'shell.canvas.legend': 'Легенда',
+  'shell.canvas.legendShow': 'Показать легенду',
+  'shell.canvas.legendHide': 'Скрыть легенду',
 }
