@@ -97,10 +97,12 @@ const SystemMark: Component<{ box: SystemBox; model: Model }> = (props) => {
 }
 
 const ArrowLabel: Component<{ x: number; y: number; n: number }> = (props) => (
-  <text class="map-count" x={props.x} y={props.y} fill={LABEL_FILL} stroke={LABEL_HALO}>
+  <text class="arch-count" x={props.x} y={props.y} fill={LABEL_FILL} stroke={LABEL_HALO}>
     {props.n}
   </text>
 )
+
+const HitPath: Component<{ d: string }> = (props) => <path class="arch-hit" d={props.d} stroke="transparent" stroke-width="14" />
 
 export const SystemScene: Component<{ model: Model; systems: SystemsInModel }> = (props) => {
   const layout = createMemo(() => layoutSystems(props.systems))
@@ -112,27 +114,29 @@ export const SystemScene: Component<{ model: Model; systems: SystemsInModel }> =
             {(a) => {
               const isSelected = () => selectedChannel() === a.channel.to.id
               return (
-                <>
+                <g
+                  class="arch-channel"
+                  data-testid="arch-channel"
+                  data-from={props.systems.self.id}
+                  data-to={a.channel.to.id}
+                  data-contracts={a.channel.contracts.length}
+                  onClick={() => set({ sel: { kind: 'channel', to: a.channel.to.id } })}
+                >
+                  <HitPath d={a.d} />
                   <path
-                    class="arch-channel"
-                    data-testid="arch-channel"
-                    data-from={props.systems.self.id}
-                    data-to={a.channel.to.id}
                     d={a.d}
                     stroke={isSelected() ? SELECTED_STROKE : EDGE_NEUTRAL}
                     stroke-opacity={isSelected() ? ARROW_OPACITY.selected : ARROW_OPACITY.base}
                     stroke-width={isSelected() ? ARROW_WIDTH.selected : ARROW_WIDTH.base}
                     marker-end={CANVAS_DEFS.arrow}
-                    onClick={() => set({ sel: { kind: 'channel', to: a.channel.to.id } })}
-                  >
-                    <title>
-                      {props.systems.self.name} → {a.channel.to.name}
-                      {'\n'}
-                      {t('arch.channel.contracts', { n: a.channel.contracts.length })}
-                    </title>
-                  </path>
+                  />
                   <ArrowLabel x={a.label.x} y={a.label.y} n={a.channel.contracts.length} />
-                </>
+                  <title>
+                    {props.systems.self.name} → {a.channel.to.name}
+                    {'\n'}
+                    {t('arch.channel.contracts', { n: a.channel.contracts.length })}
+                  </title>
+                </g>
               )
             }}
           </For>
@@ -182,30 +186,29 @@ const PortArrowMark: Component<{ arrow: PortArrow; model: Model }> = (props) => 
     return (p?.container === link.container && p.system === link.system) || selectedSystem() === link.system
   }
   return (
-    <>
+    <g
+      class="arch-port-link"
+      data-testid="arch-port-link"
+      data-container={link.container}
+      data-system={link.system}
+      onClick={() => set({ sel: { kind: 'port', container: link.container, system: link.system } })}
+    >
+      <HitPath d={props.arrow.d} />
       <path
-        class="arch-port-link"
-        data-testid="arch-port-link"
-        data-container={link.container}
-        data-system={link.system}
         d={props.arrow.d}
         stroke={isSelected() ? SELECTED_STROKE : EDGE_NEUTRAL}
         stroke-opacity={isSelected() ? ARROW_OPACITY.selected : ARROW_OPACITY.base / 2}
         stroke-width={isSelected() ? ARROW_WIDTH.selected : ARROW_WIDTH.base}
         stroke-dasharray="6 3"
         marker-end={CANVAS_DEFS.arrow}
-        onClick={() => set({ sel: { kind: 'port', container: link.container, system: link.system } })}
-      >
-        <title>
-          {props.model.unitLabel(link.container)} → {link.system}
-          {'\n'}
-          {t('arch.channel.contracts', { n: link.contracts.length })}
-        </title>
-      </path>
-      <Show when={isSelected()}>
-        <ArrowLabel x={props.arrow.label.x} y={props.arrow.label.y} n={link.contracts.length} />
-      </Show>
-    </>
+      />
+      <ArrowLabel x={props.arrow.label.x} y={props.arrow.label.y} n={link.contracts.length} />
+      <title>
+        {props.model.unitLabel(link.container)} → {link.system}
+        {'\n'}
+        {t('arch.channel.contracts', { n: link.contracts.length })}
+      </title>
+    </g>
   )
 }
 

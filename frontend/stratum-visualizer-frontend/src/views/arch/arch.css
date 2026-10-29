@@ -31,6 +31,10 @@
 .arch-system-name { font-size: 12px; font-weight: 600; fill: oklch(92% 0.005 260); }
 .arch-system-meta { font-size: 10px; fill: oklch(66% 0.012 260); }
 .arch-system-reason { font-size: 9.5px; fill: oklch(58% 0.01 260); }
+.arch-systems .arch-count, .arch-ports .arch-count {
+  font-size: 11px; font-weight: 600; text-anchor: middle; stroke-width: 3; paint-order: stroke; pointer-events: auto;
+}
+.arch-hit { pointer-events: stroke; }
 .arch-system.muted .arch-system-name, .arch-port.muted .arch-system-name { fill: oklch(64% 0.01 260); }
 
 .arch-cts { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
