@@ -44,7 +44,7 @@ const FINDINGS = [finding('cross-slice', [3], [3, 2]), finding('purity', [2], nu
 describe('buildModel with a scope', () => {
   it('drops the modules, edges, emptied containers and findings the scope leaves out', () => {
     const keep = new Set([1, 2])
-    const m = buildModel(SNAPSHOT, FINDINGS, { keeps: (id) => keep.has(id), isShared: (id) => id === 2 })
+    const m = buildModel(SNAPSHOT, FINDINGS, { chosen: [], keeps: (id) => keep.has(id), isShared: (id) => id === 2 })
 
     expect([...m.modules.keys()]).toEqual([1, 2])
     expect(m.edges.map((e) => [e.from, e.to])).toEqual([[1, 2]])
@@ -62,7 +62,7 @@ describe('buildModel with a scope', () => {
   })
 
   it('clears a container entry the scope hides', () => {
-    const m = buildModel(SNAPSHOT, [], { keeps: (id) => id !== 1, isShared: () => false })
+    const m = buildModel(SNAPSHOT, [], { chosen: [], keeps: (id) => id !== 1, isShared: () => false })
     expect(m.containers.get(11)?.entry).toBeNull()
     expect(m.containers.get(12)?.entry).toBe(3)
   })

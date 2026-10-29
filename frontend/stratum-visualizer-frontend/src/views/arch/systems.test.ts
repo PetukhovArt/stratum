@@ -35,11 +35,11 @@ const SNAPSHOT = snapshotV3({
   edges: [],
 })
 
-const contract = (id: string, callers: [module: number, line: number][]): SystemContract => ({
+const contract = (id: string, callers: [module: number, line: number, features?: string[]][]): SystemContract => ({
   id,
   signature: null,
   decl: null,
-  callers: callers.map(([module, line]) => ({ module, line, owner: null })),
+  callers: callers.map(([module, line, features]) => ({ module, line, owner: null, features: features ?? null })),
 })
 
 const system = (id: string) => ({ id, name: id, contractsTotal: 2, unavailableReason: null })
@@ -63,7 +63,8 @@ const INDEX: SystemIndex = {
   ],
 }
 
-const only = (ids: number[]) => buildModel(SNAPSHOT, [], { keeps: (id) => ids.includes(id), isShared: () => false })
+const only = (ids: number[], chosen: string[] = []) =>
+  buildModel(SNAPSHOT, [], { chosen, keeps: (id) => ids.includes(id), isShared: () => false })
 
 const inUse = (ids: number[] | null) => {
   const s = systemsOf(INDEX, ids ? only(ids) : buildModel(SNAPSHOT, []))
@@ -93,7 +94,27 @@ describe('systems in the model', () => {
       [1, 'api', ['UserService.GetUser', 'UserService.WatchUsers']],
       [2, 'host', ['save_file']],
     ])
-    expect(s.portLink(2, 'host')?.contracts[0].callers).toEqual([{ module: 0, line: 9, owner: null }])
+    expect(s.portLink(2, 'host')?.contracts[0].callers).toEqual([{ module: 0, line: 9, owner: null, features: null }])
     expect(s.portLink(2, 'api')).toBeNull()
+  })
+
+  it('credits a chosen feature only with the calls the server says it reaches by name', () => {
+    const byName: SystemIndex = {
+      ...INDEX,
+      channels: [
+        {
+          from: 'ui',
+          to: 'api',
+          contracts: [
+            contract('UserService.GetUser', [[3, 7, ['checkout']]]),
+            contract('UserService.WatchUsers', [[3, 10, ['search']]]),
+          ],
+          unattributedCalls: 0,
+        },
+      ],
+    }
+    const s = systemsOf(byName, only([0, 2, 3], ['checkout']))
+    expect(s.channelTo('api')?.contracts.map((c) => c.id)).toEqual(['UserService.GetUser'])
+    expect(s.portLinks.map((l) => [l.container, l.contracts.map((c) => c.id)])).toEqual([[1, ['UserService.GetUser']]])
   })
 })

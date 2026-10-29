@@ -144,7 +144,7 @@ describe('architecture path', () => {
   })
 
   it('falls back to the deepest level the filtered model still holds', () => {
-    const searchOnly = buildModel(SNAPSHOT, [], { keeps: (id) => id === 5, isShared: () => false })
+    const searchOnly = buildModel(SNAPSHOT, [], { chosen: [], keeps: (id) => id === 5, isShared: () => false })
     expect(deepestShownPrefix(code, searchOnly, self)).toEqual({ level: 'containers' })
     expect(deepestShownPrefix({ level: 'code', container: 11, module: 5 }, model, self)).toEqual({
       level: 'components',

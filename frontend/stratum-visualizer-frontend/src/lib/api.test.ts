@@ -97,7 +97,7 @@ describe('fetchSystems', () => {
                 id: 'UserService.GetUser',
                 signature: 'rpc GetUser(GetUserRequest) returns (User)',
                 decl: { path: 'api:user.proto', line: 7 },
-                callers: [{ module: 3, line: 7, owner: 'getUser' }],
+                callers: [{ module: 3, line: 7, owner: 'getUser', features: ['checkout'] }],
               },
               { id: 'UserService.forgetUser', signature: null, decl: null, callers: [{ module: 3, line: 12, owner: null }] },
             ],
@@ -113,11 +113,12 @@ describe('fetchSystems', () => {
       ['billing', 'root is not a directory'],
     ])
     expect(index.channels[0]).toMatchObject({ from: 'ui', to: 'api', unattributedCalls: 1 })
+    expect(index.channels[0].contracts[0].callers[0].features).toEqual(['checkout'])
     expect(index.channels[0].contracts[1]).toEqual({
       id: 'UserService.forgetUser',
       signature: null,
       decl: null,
-      callers: [{ module: 3, line: 12, owner: null }],
+      callers: [{ module: 3, line: 12, owner: null, features: null }],
     })
   })
 })

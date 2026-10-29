@@ -80,7 +80,7 @@ describe('toReview', () => {
   it('leaves out changes touching a module the feature filter hides, not drawing it as a ghost', () => {
     const toShared = drift.edges[0]
     const intoCart = { ...toShared, from: 'src/features/cart/model.ts', to: 'src/features/cart/index.ts' }
-    const m = model({ keeps: (id) => id !== 2, isShared: () => false })
+    const m = model({ chosen: [], keeps: (id) => id !== 2, isShared: () => false })
     const review = toReview(m, { ...drift, breaking: [0, 1], edges: [toShared, intoCart] })
 
     expect(review.counts).toMatchObject({ added: 1, breaking: 1 })

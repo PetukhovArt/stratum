@@ -73,12 +73,16 @@ export interface Model {
   isSharedByChosenFeatures: (id: number) => boolean
   /** True for the path of a snapshot module or container that the scope left out. */
   hides: (path: string) => boolean
+  chosenFeatures: readonly string[]
 }
 
 export interface ModuleScope {
+  chosen: readonly string[]
   keeps: (id: number) => boolean
   isShared: (id: number) => boolean
 }
+
+const NO_FEATURES: readonly string[] = []
 
 export const worst = (violations: readonly Violation[]): SeverityLabel | null => {
   let best: SeverityLabel | null = null
@@ -391,5 +395,6 @@ export const buildModel = (whole: GraphSnapshot, allViolations: readonly Violati
     layerHue: (index) => layerHue(index, snapshot.layers.length),
     isSharedByChosenFeatures: scope?.isShared ?? NOT_SHARED,
     hides: (path) => hiddenPaths?.has(path) ?? false,
+    chosenFeatures: scope?.chosen ?? NO_FEATURES,
   }
 }

@@ -33,6 +33,7 @@ export const scopeOf = (features: readonly Feature[], filter: FeatureFilter): Mo
     for (const [id, n] of countUses(features)) if (n > filter.commonLimit) common.add(id)
   }
   return {
+    chosen: chosen.map((f) => f.id),
     keeps: (id) => !common.has(id) && (!chosen.length || inChosen.has(id)),
     isShared: (id) => (inChosen.get(id) ?? 0) >= 2,
   }

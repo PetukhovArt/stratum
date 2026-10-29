@@ -197,6 +197,8 @@ export interface ContractCaller {
   module: number
   line: number
   owner: string | null
+  /** Ids of the features that reach this call by name; `null` from a server that does not send them. */
+  features: readonly string[] | null
 }
 
 export interface SystemContract {
@@ -245,10 +247,16 @@ const parseSystem = (raw: unknown, url: string, where: string): ParsedSystem => 
 }
 
 const parseCaller = (raw: unknown, url: string, where: string): ContractCaller => {
-  if (!isFields(raw) || !isCount(raw.module) || !isLine(raw.line) || (raw.owner !== null && typeof raw.owner !== 'string')) {
+  if (
+    !isFields(raw) ||
+    !isCount(raw.module) ||
+    !isLine(raw.line) ||
+    (raw.owner !== null && typeof raw.owner !== 'string') ||
+    (raw.features !== undefined && !isStrings(raw.features))
+  ) {
     throw new ApiShapeError(url, where)
   }
-  return { module: raw.module, line: raw.line, owner: raw.owner }
+  return { module: raw.module, line: raw.line, owner: raw.owner, features: raw.features ?? null }
 }
 
 const parseSystemContract = (raw: unknown, url: string, where: string): SystemContract => {

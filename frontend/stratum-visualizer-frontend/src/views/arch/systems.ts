@@ -34,21 +34,31 @@ const byContractsDesc = (a: PortLink, b: PortLink): number => b.contracts.length
 const portLinksOf = (m: Model, channels: readonly ChannelInUse[]): PortLink[] => {
   const links: PortLink[] = []
   for (const channel of channels) {
-    const containers = new Set(channel.contracts.flatMap((c) => c.callers.map((caller) => m.unitOf(caller.module))))
+    const unitOf = (caller: ContractCaller) => (m.modules.has(caller.module) ? m.unitOf(caller.module) : null)
+    const containers = new Set(channel.contracts.flatMap((c) => c.callers.flatMap((caller) => unitOf(caller) ?? [])))
     for (const container of [...containers].sort((a, b) => a - b)) {
-      const contracts = narrowed(channel.contracts, (caller) => m.unitOf(caller.module) === container)
+      const contracts = narrowed(channel.contracts, (caller) => unitOf(caller) === container)
       links.push({ container, system: channel.to.id, contracts })
     }
   }
   return links.sort(byContractsDesc)
 }
 
+const shownBy = (m: Model): ((caller: ContractCaller) => boolean) => {
+  const chosen = new Set(m.chosenFeatures)
+  return (caller) =>
+    chosen.size && caller.features
+      ? caller.features.some((id) => chosen.has(id))
+      : m.modules.has(caller.module)
+}
+
 const build = (index: SystemIndex, m: Model): SystemsInModel => {
   const byId = new Map(index.others.map((s) => [s.id, s]))
+  const isShown = shownBy(m)
   const channels = index.channels.flatMap((channel): ChannelInUse[] => {
     const to = byId.get(channel.to)
     if (channel.from !== index.self.id || !to) return []
-    const contracts = narrowed(channel.contracts, (caller) => m.modules.has(caller.module))
+    const contracts = narrowed(channel.contracts, isShown)
     return [{ to, contracts, unattributedCalls: channel.unattributedCalls }]
   })
   const portLinks = portLinksOf(m, channels)
