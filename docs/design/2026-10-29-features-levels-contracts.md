@@ -7,7 +7,7 @@ Status: proposal, 2026-10-29. Slices S1–S6 below, each shippable alone.
 1. Build from the code a map of how the current structure implements features.
 2. Filter that map to one or more features for visual analysis.
 3. Move between levels: system → container → component → code. Entering a container shows how its components connect. Going up to the system level shows the APIs between systems as arrows. Each arrow is a contract or a call, and opening it shows the code with the relevant lines highlighted.
-4. Publish the result as a static site (GitLab Pages, GitHub Pages) and as standard C4 text (Mermaid, Structurizr, PlantUML).
+4. Publish the result as a static site (GitLab Pages, GitHub Pages) and as standard C4 text (Mermaid only; Structurizr DSL and C4-PlantUML were dropped because they cannot be checked visually here).
 
 Not a goal: guessing features from folder names, runtime tracing, a general C4 editor.
 
@@ -47,7 +47,7 @@ The CLI:
 stratum-lint visualize [ROOT] [--feature ID]...      # opens with the filter set
 stratum-lint features [ROOT] [--format json|text]    # features, their modules, shared modules
 stratum-lint export [ROOT] --out public/ [--with-source] [--base REF]   # static site
-stratum-lint c4 [ROOT] --format mermaid|structurizr|plantuml [--level system|container|component] [--feature ID]...
+stratum-lint c4 [ROOT] [--level system|container|component] [--feature ID]...
 ```
 
 ## 3. Where it lives in the visualizer
@@ -97,7 +97,7 @@ The highlighter is `highlight.js` core with TS, Rust and Protobuf, loaded as a l
 | S2 Features | `features` config and its default, `/api/features`, `stratum-lint features`, the header filter in all views | Choosing 2 features leaves only their union; shared modules are marked; the CLI prints the same sets |
 | S3 Architecture view | View `6`, levels Containers → Components → Code, breadcrumbs, keys | From the top level, the declaration of a cross-slice name is reachable in ≤ 3 actions |
 | S4 Systems | `systems` config, the `proto` and `rust-attr` adapters, call matchers, `Call.args/owner`, `/api/systems`, the System level, ports at Containers | With one feature in the filter, the System level shows only the RPCs and commands that feature reaches, each with caller `file:line` |
-| S5 C4 text | `stratum-lint c4` for Mermaid C4 (it renders inline in GitLab and GitHub markdown), Structurizr DSL and C4-PlantUML; system and container levels, feature filter | The Mermaid output renders in a GitLab MR description; Structurizr Lite opens the DSL |
+| S5 C4 text | `stratum-lint c4` for Mermaid C4 (it renders inline in GitLab and GitHub markdown); system and container levels, feature filter | The Mermaid output renders in a GitLab MR description |
 | S6 Static site | `stratum-lint export --out DIR`, static mode in the frontend, CI examples in `docs/ci.md` for GitLab Pages (`pages` job, `public/`) and GitHub Pages (`actions/deploy-pages`) | The exported folder opened with a plain file server works the same as `visualize`, apart from the Brief of files that do not exist yet |
 
 Order: S1 → S2 → S3 → S4. S5 and S6 can start after S2. S5 needs S4 for the system level.

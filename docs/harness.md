@@ -73,7 +73,7 @@ stratum-lint features [ROOT] [--config PATH] [--format text|json]
                                                # shared module and the feature ids holding it.
                                                # json: { features: [{ id, name, entry, modules }], shared }; ROOT-relative paths
                                                # with "/", every list ascending
-stratum-lint c4 [ROOT] [--config PATH] --format mermaid|structurizr|plantuml [--level system|container|component]
+stratum-lint c4 [ROOT] [--config PATH] [--level system|container|component]
                 [--feature ID]... [--container NAME]
                                                # a C4 diagram as text on stdout, one view; default --level container.
                                                # system: the `self` system of config `systems` and the others as externals,
@@ -88,12 +88,11 @@ stratum-lint c4 [ROOT] [--config PATH] --format mermaid|structurizr|plantuml [--
                                                # --feature: only the union of these features' modules; the unattributed count is
                                                #   then left out. Past 60 elements inside the boundary, the 59 with the most
                                                #   modules stay and the rest become one "… N more" that carries their arrows.
-                                               # mermaid only: shapes are placed on Mermaid's grid (2 or 3 to a row, so a row fits
+                                               # Mermaid text: shapes are placed on Mermaid's grid (2 or 3 to a row, so a row fits
                                                #   a 1280-px screen; empty cells drawn transparent), other systems in an untitled
                                                #   boundary below the system's, and labels moved with UpdateRelStyle so that no
                                                #   arrow crosses a box or a boundary title and no label covers a box, another label
-                                               #   or a boundary, when the search finds such a placement; structurizr and plantuml
-                                               #   lay out themselves.
+                                               #   or a boundary, when the search finds such a placement.
                                                # Ids [A-Za-z0-9_] from the system id or the path; a `"` in a label is written `'`.
 ```
 

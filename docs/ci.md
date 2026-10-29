@@ -44,9 +44,9 @@ The ratchet fails when a baseline entry's count grows, and a moved file counts a
 GitLab and GitHub render a ```` ```mermaid ```` block in markdown, C4 diagrams included. Print one and paste it into the MR or PR description:
 
 ```
-stratum-lint c4 --format mermaid                      # containers: the top-level layers
-stratum-lint c4 --format mermaid --level system       # needs `systems` in the config
-stratum-lint c4 --format mermaid --feature checkout   # only what one feature reaches
+stratum-lint c4                                       # containers: the top-level layers
+stratum-lint c4 --level system                        # needs `systems` in the config
+stratum-lint c4 --feature checkout                    # only what one feature reaches
 ```
 
 Wrap the output in a fence:
@@ -62,8 +62,6 @@ title Containers of Web UI
 The container level shows one box per top-level layer; layers nested in another layer's folder count for it. To look inside one, use `--level component --container <layer id>`: one box per folder or file directly in that layer, at most 60 (the smallest fold into one "… N more"). For a narrower view, use `--feature`. The Mermaid output places the boxes and moves the labels itself (`UpdateRelStyle`, transparent filler boxes), so arrows stay out of boxes and labels apart; keep those lines when you paste it. At the container level, the other systems sit in an untitled dashed boundary below the system's.
 
 Mermaid lays the boxes out in the reader's browser and starts a new row where a box would pass the screen width (`screen.availWidth`, the screen in CSS pixels, so a 1920-px screen at 150 % scaling counts as 1280). The output keeps every row at 2 or 3 boxes, which fit a screen 1280 px wide; on a narrower screen the rows wrap and arrows can cross boxes. A headless browser that renders the diagram (a screenshot job, for one) reports an 800-px screen unless told otherwise: start Chrome with `--screen-info={0,0 1920x1080}`.
-
-`--format structurizr` writes a workspace for Structurizr Lite (`workspace.dsl`), and `--format plantuml` writes C4-PlantUML.
 
 ## Reproducing a pipeline locally
 
