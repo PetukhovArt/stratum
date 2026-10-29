@@ -1,0 +1,11 @@
+---
+source: crates/stratum-lint/tests/e2e_c4.rs
+expression: files
+---
+C4Context
+title System context of Web UI
+System(sys_ui, "Web UI", "1 module")
+System_Ext(sys_api, "Backend", "4 contracts declared")
+System_Ext(sys_host, "Desktop host", "2 contracts declared")
+System_Ext(sys_billing, "billing", "contracts unavailable: root ../billing/proto is not a directory")
+Rel(sys_ui, sys_host, "2 contracts: greet, save_file")

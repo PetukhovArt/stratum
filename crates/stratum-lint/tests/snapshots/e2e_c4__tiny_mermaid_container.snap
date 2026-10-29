@@ -1,0 +1,19 @@
+---
+source: crates/stratum-lint/tests/e2e_c4.rs
+expression: all
+---
+C4Container
+title Containers of tiny-ts
+System_Boundary(sys_tiny_ts, "tiny-ts") {
+  Container(ctr_src_app, "app", "layer", "1 module")
+  Container(ctr_src_entities_user, "entities/user", "slice", "2 modules")
+  Container(ctr_src_features_cart, "features/cart", "slice", "2 modules")
+  Container(ctr_src_legacy, "legacy", "layer", "1 module")
+  Container(ctr_src_shared, "shared", "layer", "3 modules")
+}
+Rel(ctr_src_app, ctr_src_features_cart, "1 import")
+Rel(ctr_src_app, ctr_src_shared, "1 import")
+Rel(ctr_src_entities_user, ctr_src_shared, "1 import")
+Rel(ctr_src_features_cart, ctr_src_entities_user, "1 import")
+Rel(ctr_src_features_cart, ctr_src_shared, "1 import")
+Rel(ctr_src_legacy, ctr_src_shared, "1 import")

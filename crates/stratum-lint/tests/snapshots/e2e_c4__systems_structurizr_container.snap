@@ -1,0 +1,38 @@
+---
+source: crates/stratum-lint/tests/e2e_c4.rs
+expression: output
+---
+workspace "Containers of Web UI" {
+    model {
+        sys_ui = softwareSystem "Web UI" "" {
+            ctr_src_features_checkout = container "features/checkout" "1 module" "slice"
+            ctr_src_features_files = container "features/files" "1 module" "slice"
+            ctr_src_shared = container "shared" "3 modules" "layer"
+        }
+        sys_api = softwareSystem "Backend" "4 contracts declared" {
+            tags "External"
+        }
+        sys_host = softwareSystem "Desktop host" "2 contracts declared" {
+            tags "External"
+        }
+        sys_billing = softwareSystem "billing" "contracts unavailable: root ../billing/proto is not a directory" {
+            tags "External"
+        }
+        ctr_src_features_checkout -> ctr_src_shared "2 imports"
+        ctr_src_features_files -> sys_host "2 contracts: greet, save_file"
+        ctr_src_shared -> sys_api "3 contracts: UserService.GetUser, UserService.WatchUsers, UserService.forgetUser"
+    }
+    views {
+        container sys_ui "containers" {
+            include *
+            include sys_api sys_host sys_billing
+            autoLayout
+        }
+        styles {
+            element "External" {
+                background #999999
+                color #ffffff
+            }
+        }
+    }
+}

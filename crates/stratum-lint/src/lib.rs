@@ -2,6 +2,7 @@
 #![allow(clippy::missing_errors_doc)]
 
 mod brief;
+pub mod c4;
 pub mod cli;
 pub mod commands;
 mod cwd;

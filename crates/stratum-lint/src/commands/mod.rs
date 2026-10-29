@@ -1,4 +1,5 @@
 pub mod baseline;
+pub mod c4;
 pub mod context;
 pub mod diff;
 pub mod features;

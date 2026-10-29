@@ -1,0 +1,16 @@
+---
+source: crates/stratum-lint/tests/e2e_c4.rs
+expression: output
+---
+@startuml
+!include <C4/C4_Component>
+
+title Components of shared
+System_Boundary(sys_ui, "Web UI") {
+  Container_Boundary(ctr_src_shared, "shared") {
+    Component(cmp_src_shared_api, "api", "folder", "2 modules")
+    Component(cmp_src_shared_config, "config", "folder", "1 module")
+  }
+}
+Rel(cmp_src_shared_api, cmp_src_shared_config, "1 import")
+@enduml

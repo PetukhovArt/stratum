@@ -43,6 +43,24 @@ fn run(cli: cli::Cli) -> miette::Result<u8> {
             config,
             format,
         }) => commands::features::run(&root, format, config.as_deref()).map(exit_code),
+        Some(cli::Command::C4 {
+            root,
+            config,
+            format,
+            level,
+            features,
+            container,
+        }) => commands::c4::run(
+            &root,
+            config.as_deref(),
+            format,
+            &stratum_lint::c4::Request {
+                level,
+                features: &features,
+                container: container.as_deref(),
+            },
+        )
+        .map(|()| 0),
         Some(cli::Command::Baseline {
             root,
             out,
