@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use axum::{
@@ -9,16 +9,21 @@ use axum::{
     response::Response,
     routing::get,
 };
-use camino::Utf8Path;
+use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
 use miette::IntoDiagnostic;
 use rust_embed::RustEmbed;
 use tokio::runtime::Builder;
 
 use serde::Serialize;
 use stratum_core::{
-    edge::Edge, ids::ModuleId, severity::Severity, violation::SourceLocation, violation::Violation,
+    edge::{Edge, EdgeKind},
+    ids::{ContainerId, ModuleId},
+    severity::Severity,
+    violation::SourceLocation,
+    violation::Violation,
 };
-use stratum_engine::{Drift, EngineInput, Finding};
+use stratum_engine::{Drift, EngineInput, Finding, paths};
+use stratum_graph::{CompoundGraph, crossing_names};
 
 use crate::brief;
 use crate::commands::{diff, lint};
@@ -143,6 +148,8 @@ pub fn build_router(api: Arc<Api>) -> Router {
             }),
         )
         .route("/api/context", get(context_brief))
+        .route("/api/edge", get(edge_contract))
+        .route("/api/source", get(source_window))
         .route(
             "/api/drift",
             get(|State(api): State<Arc<Api>>| async move {
@@ -164,13 +171,247 @@ async fn context_brief(
     State(api): State<Arc<Api>>,
     Query(query): Query<HashMap<String, String>>,
 ) -> Response {
-    const PLAIN: &str = "text/plain; charset=utf-8";
     let Some(rel) = query.get("path") else {
         return text(StatusCode::BAD_REQUEST, PLAIN, "missing ?path=".into());
     };
     match brief::agent_brief(&api.input, &api.findings, rel) {
         Ok(brief) => text(StatusCode::OK, PLAIN, brief),
         Err(e) => text(StatusCode::BAD_REQUEST, PLAIN, e.to_string()),
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct ApiEdge {
+    imports: Vec<ApiImport>,
+}
+
+#[derive(Debug, Serialize)]
+struct ApiImport {
+    file: String,
+    line: u32,
+    type_only: bool,
+    kind: EdgeKind,
+    names: Vec<ApiName>,
+}
+
+#[derive(Debug, Serialize)]
+struct ApiName {
+    name: String,
+    type_only: bool,
+    decl: Option<ApiDecl>,
+}
+
+#[derive(Debug, Serialize)]
+struct ApiDecl {
+    path: String,
+    line: u32,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum EdgeEnd {
+    Module(ModuleId),
+    /// Its modules and those of every container nested in it.
+    Container(ContainerId),
+}
+
+impl EdgeEnd {
+    fn modules(self, graph: &CompoundGraph) -> HashSet<ModuleId> {
+        match self {
+            Self::Module(id) => HashSet::from([id]),
+            Self::Container(c) => graph
+                .modules
+                .keys()
+                .filter(|&&m| graph.containers_of(m).any(|held| held.id == c))
+                .copied()
+                .collect(),
+        }
+    }
+}
+
+async fn edge_contract(
+    State(api): State<Arc<Api>>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let Some((from, to)) = edge_ends(&query) else {
+        return text(
+            StatusCode::BAD_REQUEST,
+            PLAIN,
+            "pass ?from=&to= module ids or ?from_container=&to_container= container ids".into(),
+        );
+    };
+    json(&edge_imports(&api.input, from, to))
+}
+
+fn edge_ends(query: &HashMap<String, String>) -> Option<(EdgeEnd, EdgeEnd)> {
+    let id = |key: &str| query.get(key).and_then(|v| v.parse::<u32>().ok());
+    let given = |keys: [&str; 2]| keys.iter().any(|k| query.contains_key(*k));
+    let modules = given(["from", "to"]).then(|| {
+        Some((
+            EdgeEnd::Module(ModuleId::new(id("from")?)),
+            EdgeEnd::Module(ModuleId::new(id("to")?)),
+        ))
+    });
+    let containers = given(["from_container", "to_container"]).then(|| {
+        Some((
+            EdgeEnd::Container(ContainerId::new(id("from_container")?)),
+            EdgeEnd::Container(ContainerId::new(id("to_container")?)),
+        ))
+    });
+    match (modules, containers) {
+        (Some(ends), None) | (None, Some(ends)) => ends,
+        _ => None,
+    }
+}
+
+fn edge_imports(input: &EngineInput, from: EdgeEnd, to: EdgeEnd) -> ApiEdge {
+    let graph = &input.graph;
+    let targets = to.modules(graph);
+    let path_of = |id: ModuleId| graph.modules.get(&id).map(|m| input.relative(&m.path));
+    let mut imports: Vec<(SourceLocation, ApiImport)> = from
+        .modules(graph)
+        .into_iter()
+        .filter_map(|id| graph.modules.get(&id))
+        .flat_map(|m| {
+            let file = input.relative(&m.path);
+            m.imports
+                .iter()
+                .filter(|i| i.target.is_some_and(|t| targets.contains(&t)))
+                .map(move |i| (file.clone(), i))
+        })
+        .map(|(file, i)| {
+            let names = crossing_names(graph, i)
+                .into_iter()
+                .map(|n| ApiName {
+                    name: n.name,
+                    type_only: n.type_only,
+                    decl: n.decl.and_then(|d| {
+                        Some(ApiDecl {
+                            path: path_of(d.module)?,
+                            line: d.location.line,
+                        })
+                    }),
+                })
+                .collect();
+            let import = ApiImport {
+                file,
+                line: i.location.line,
+                type_only: i.type_only,
+                kind: i.kind,
+                names,
+            };
+            (i.location, import)
+        })
+        .collect();
+    imports.sort_by(|(a_at, a), (b_at, b)| {
+        (&a.file, a_at.line, a_at.column).cmp(&(&b.file, b_at.line, b_at.column))
+    });
+    ApiEdge {
+        imports: imports.into_iter().map(|(_, i)| i).collect(),
+    }
+}
+
+const SOURCE_CONTEXT: usize = 20;
+const SOURCE_CONTEXT_CAP: usize = 200;
+const SOURCE_WHOLE_FILE_CAP: usize = 2000;
+
+#[derive(Debug, Serialize)]
+struct ApiSource {
+    path: String,
+    start: usize,
+    lines: Vec<String>,
+    total: usize,
+}
+
+async fn source_window(
+    State(api): State<Arc<Api>>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    match read_source(&api.input, &query) {
+        Ok(source) => json(&source),
+        Err((status, message)) => text(status, PLAIN, message),
+    }
+}
+
+fn read_source(
+    input: &EngineInput,
+    query: &HashMap<String, String>,
+) -> Result<ApiSource, (StatusCode, String)> {
+    let bad = |message: String| (StatusCode::BAD_REQUEST, message);
+    let number = |key: &str| {
+        query
+            .get(key)
+            .map(|v| {
+                v.parse::<usize>()
+                    .map_err(|_| bad(format!("?{key}= is not a number")))
+            })
+            .transpose()
+    };
+    let rel = query
+        .get("path")
+        .ok_or_else(|| bad("missing ?path=".into()))?;
+    let line = number("line")?;
+    let context = number("context")?
+        .unwrap_or(SOURCE_CONTEXT)
+        .min(SOURCE_CONTEXT_CAP);
+    let file = source_file(&input.project_root, rel)?;
+    let bytes = std::fs::read(&file).map_err(|e| bad(format!("{rel}: {e}")))?;
+    let text = String::from_utf8_lossy(&bytes);
+    let all: Vec<&str> = text.lines().collect();
+    let (start, count) = match line {
+        Some(0) => return Err(bad("?line= starts at 1".into())),
+        Some(n) => {
+            let start = n.saturating_sub(context).max(1);
+            (start, n + context + 1 - start)
+        }
+        None => (1, SOURCE_WHOLE_FILE_CAP),
+    };
+    Ok(ApiSource {
+        path: input.relative(file.as_std_path()),
+        start,
+        lines: all
+            .iter()
+            .skip(start - 1)
+            .take(count)
+            .map(|l| (*l).to_owned())
+            .collect(),
+        total: all.len(),
+    })
+}
+
+fn source_file(root: &Utf8Path, rel: &str) -> Result<Utf8PathBuf, (StatusCode, String)> {
+    let outside = || {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("{rel} is outside the project root"),
+        )
+    };
+    let escapes = Utf8Path::new(rel).components().any(|c| {
+        matches!(
+            c,
+            Utf8Component::Prefix(_) | Utf8Component::RootDir | Utf8Component::ParentDir
+        )
+    });
+    if escapes {
+        return Err(outside());
+    }
+    let file = paths::canonicalize(&root.join(rel)).map_err(|e| match e.kind() {
+        std::io::ErrorKind::NotFound => (StatusCode::NOT_FOUND, format!("{rel}: no such file")),
+        _ => (StatusCode::BAD_REQUEST, format!("{rel}: {e}")),
+    })?;
+    let root = paths::canonicalize(root).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    if file.starts_with(&root) {
+        Ok(file)
+    } else {
+        Err(outside())
+    }
+}
+
+const PLAIN: &str = "text/plain; charset=utf-8";
+
+fn json(body: &impl Serialize) -> Response {
+    match serde_json::to_string(body) {
+        Ok(body) => text(StatusCode::OK, "application/json", body),
+        Err(_) => internal_error(),
     }
 }
 
