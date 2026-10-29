@@ -1,0 +1,13 @@
+{
+  "$schema": "https://raw.githubusercontent.com/PetukhovArt/jig/main/schema/config.schema.json",
+  "tsc": { "command": "frontend/stratum-visualizer-frontend/node_modules/typescript/lib/tsc.js" },
+  "agent-view": {},
+  "checks": [
+    {
+      "name": "rustfmt",
+      "files": "**/*.rs",
+      "on": "edit",
+      "run": "rustfmt --check --edition 2024 {files}"
+    }
+  ]
+}
