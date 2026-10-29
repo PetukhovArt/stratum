@@ -153,6 +153,12 @@ kbd {
   background: var(--bg-1); font-size: 11px; color: var(--tx-4); white-space: nowrap; overflow: hidden;
 }
 .status .sp { flex: 1; }
+.dock-btn {
+  appearance: none; border: 0; background: transparent; color: var(--tx-4); cursor: pointer;
+  height: 20px; width: 22px; padding: 0; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center;
+}
+.dock-btn.on { color: var(--tx-2); }
+.dock-btn:hover { background: var(--bg-3); color: var(--tx-1); }
 
 .pal-scrim {
   position: fixed; inset: 0; z-index: 100; background: oklch(0% 0 0 / .45);

@@ -15,16 +15,11 @@ import { Header } from './header'
 import { bindKeymap } from './keymap'
 import { nav, set } from './nav'
 import { Palette } from './palette'
+import { isPanelCollapsed, PanelSide, panelWidth, setPanelWidth, togglePanel } from './panels'
 import { StatusBar } from './status-bar'
 import { variantIndex, variantPatch } from './variants'
 
-const PANEL = {
-  leftWidth: 264,
-  rightWidth: 340,
-  minWidth: 200,
-  maxWidth: 560,
-  handleWidth: '5px',
-} as const
+const HANDLE_WIDTH = '5px'
 
 export const Shell: Component = () => {
   const [snapshot] = createResource(() => fetchSnapshot())
@@ -74,10 +69,8 @@ const Layout: Component<{
   chosenFeatures: readonly string[]
 }> = (props) => {
   const [isPaletteOpen, setPaletteOpen] = createSignal(false)
-  const [isLeftCollapsed, setLeftCollapsed] = createSignal(false)
-  const [isRightCollapsed, setRightCollapsed] = createSignal(false)
-  const [leftWidth, setLeftWidth] = createSignal<number>(PANEL.leftWidth)
-  const [rightWidth, setRightWidth] = createSignal<number>(PANEL.rightWidth)
+  const isLeftCollapsed = () => isPanelCollapsed('left')
+  const isRightCollapsed = () => isPanelCollapsed('right')
   const view = createMemo(() => viewById(nav().view))
 
   onMount(() => {
@@ -85,22 +78,22 @@ const Layout: Component<{
     const unbind = bindKeymap({
       isPaletteOpen,
       setPaletteOpen,
-      toggleLeftPanel: () => setLeftCollapsed(!isLeftCollapsed()),
-      toggleRightPanel: () => setRightCollapsed(!isRightCollapsed()),
+      toggleLeftPanel: () => togglePanel('left'),
+      toggleRightPanel: () => togglePanel('right'),
     })
     onCleanup(unbind)
   })
 
   const bodyStyle = () => {
     const column = (isCollapsed: boolean, width: number) => (isCollapsed ? '0' : `${width}px`)
-    const handle = (isCollapsed: boolean) => (isCollapsed ? '0' : PANEL.handleWidth)
+    const handle = (isCollapsed: boolean) => (isCollapsed ? '0' : HANDLE_WIDTH)
     return {
       'grid-template-columns': [
-        column(isLeftCollapsed(), leftWidth()),
+        column(isLeftCollapsed(), panelWidth('left')),
         handle(isLeftCollapsed()),
         'minmax(0, 1fr)',
         handle(isRightCollapsed()),
-        column(isRightCollapsed(), rightWidth()),
+        column(isRightCollapsed(), panelWidth('right')),
       ].join(' '),
     }
   }
@@ -122,7 +115,7 @@ const Layout: Component<{
           </Show>
         </div>
         <Show when={!isLeftCollapsed()} fallback={<div />}>
-          <ResizeHandle side="left" width={leftWidth} setWidth={setLeftWidth} />
+          <ResizeHandle side="left" />
         </Show>
         <div class="stage-wrap">
           <VariantBar view={view()} />
@@ -132,7 +125,7 @@ const Layout: Component<{
           <CodePanel />
         </div>
         <Show when={!isRightCollapsed()} fallback={<div />}>
-          <ResizeHandle side="right" width={rightWidth} setWidth={setRightWidth} />
+          <ResizeHandle side="right" />
         </Show>
         <div class="panel-slot">
           <Show when={!isRightCollapsed()}>
@@ -169,24 +162,20 @@ const VariantBar: Component<{ view: ViewDef }> = (props) => (
   </Show>
 )
 
-const ResizeHandle: Component<{
-  side: 'left' | 'right'
-  width: () => number
-  setWidth: (n: number) => void
-}> = (props) => {
+const ResizeHandle: Component<{ side: PanelSide }> = (props) => {
   let stopDrag: (() => void) | null = null
   onCleanup(() => stopDrag?.())
 
   const onMouseDown = (e: MouseEvent) => {
     e.preventDefault()
     const startX = e.clientX
-    const startW = props.width()
+    const startW = panelWidth(props.side)
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
     const onMove = (ev: MouseEvent) => {
       const dx = ev.clientX - startX
       const next = props.side === 'left' ? startW + dx : startW - dx
-      props.setWidth(Math.max(PANEL.minWidth, Math.min(PANEL.maxWidth, next)))
+      setPanelWidth(props.side, next)
     }
     const onUp = () => {
       document.body.style.cursor = ''
