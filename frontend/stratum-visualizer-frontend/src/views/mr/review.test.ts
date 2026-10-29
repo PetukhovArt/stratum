@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildModel } from '../../render/model'
+import { buildModel, ModuleScope } from '../../render/model'
 import { snapshotV3 } from '../../test/snapshot'
 import { EdgeKind, SnapshotContainer } from '../../types'
 import { DriftReport } from './drift'
@@ -17,7 +17,7 @@ const container = (id: number, name: string, path: string, kind: SnapshotContain
   entry: null,
 })
 
-const model = () =>
+const model = (scope?: ModuleScope) =>
   buildModel(
     snapshotV3({
       layers: [
@@ -40,6 +40,7 @@ const model = () =>
       ],
     }),
     [],
+    scope,
   )
 
 const drift: DriftReport = {
@@ -74,5 +75,18 @@ describe('toReview', () => {
       { id: 0, path: 'src/features/cart/index.ts', isGhost: false, added: 1, removed: 1, worst: 'error' },
       { id: 1, path: 'src/features/cart/model.ts', isGhost: false, added: 0, removed: 1, worst: null },
     ])
+  })
+
+  it('leaves out changes touching a module the feature filter hides, not drawing it as a ghost', () => {
+    const toShared = drift.edges[0]
+    const intoCart = { ...toShared, from: 'src/features/cart/model.ts', to: 'src/features/cart/index.ts' }
+    const m = model({ keeps: (id) => id !== 2, isShared: () => false })
+    const review = toReview(m, { ...drift, breaking: [0, 1], edges: [toShared, intoCart] })
+
+    expect(review.counts).toMatchObject({ added: 1, breaking: 1 })
+    expect(review.items).toEqual([
+      expect.objectContaining({ kind: 'import', from: 'src/features/cart/model.ts', to: 'src/features/cart/index.ts' }),
+    ])
+    expect([...review.nodes.values()].some((n) => n.isGhost)).toBe(false)
   })
 })

@@ -70,6 +70,14 @@ export interface Model {
   /** Unit cycles of two or more units, largest first. */
   unitSccs: readonly (readonly number[])[]
   layerHue: (index: number) => number
+  isSharedByChosenFeatures: (id: number) => boolean
+  /** True for the path of a snapshot module or container that the scope left out. */
+  hides: (path: string) => boolean
+}
+
+export interface ModuleScope {
+  keeps: (id: number) => boolean
+  isShared: (id: number) => boolean
 }
 
 export const worst = (violations: readonly Violation[]): SeverityLabel | null => {
@@ -181,7 +189,62 @@ const aggregate = (
   }))
 }
 
-export const buildModel = (snapshot: GraphSnapshot, violations: readonly Violation[]): Model => {
+interface Narrowed {
+  snapshot: GraphSnapshot
+  violations: readonly Violation[]
+  hiddenPaths: ReadonlySet<string>
+}
+
+const narrow = (snapshot: GraphSnapshot, violations: readonly Violation[], scope: ModuleScope): Narrowed => {
+  const parentOf = new Map(snapshot.containers.map((c) => [c.id, c.parent]))
+  const kept = new Set<number>()
+  const keptContainers = new Set<number>()
+  const hiddenPaths = new Set<string>()
+  for (const m of snapshot.modules) {
+    if (!scope.keeps(m.id)) {
+      hiddenPaths.add(m.path)
+      continue
+    }
+    kept.add(m.id)
+    for (let c: number | null | undefined = m.container; typeof c === 'number' && !keptContainers.has(c); ) {
+      keptContainers.add(c)
+      c = parentOf.get(c)
+    }
+  }
+  const containers = snapshot.containers.flatMap((c) => {
+    if (!keptContainers.has(c.id)) {
+      hiddenPaths.add(c.path)
+      return []
+    }
+    return c.entry === null || kept.has(c.entry) ? [c] : [{ ...c, entry: null }]
+  })
+  const isKeptFinding = (v: Violation): boolean => {
+    const touched = v.edge ? [...v.modules, v.edge.from, v.edge.to] : v.modules
+    return touched.length ? touched.every((id) => kept.has(id)) : !hiddenPaths.has(v.file)
+  }
+  return {
+    snapshot: {
+      ...snapshot,
+      modules: snapshot.modules.filter((m) => kept.has(m.id)),
+      containers,
+      edges: snapshot.edges.filter((e) => kept.has(e.from) && kept.has(e.to)),
+    },
+    violations: violations.filter(isKeptFinding),
+    hiddenPaths,
+  }
+}
+
+const NOT_SHARED = (): boolean => false
+
+/**
+ * With a `scope`, the Model holds only the modules it keeps, the edges between them, the
+ * containers enclosing them and the findings on them; layers stay whole.
+ */
+export const buildModel = (whole: GraphSnapshot, allViolations: readonly Violation[], scope?: ModuleScope | null): Model => {
+  const narrowed = scope ? narrow(whole, allViolations, scope) : null
+  const snapshot = narrowed?.snapshot ?? whole
+  const violations = narrowed?.violations ?? allViolations
+  const hiddenPaths = narrowed?.hiddenPaths
   const modules = new Map(snapshot.modules.map((m) => [m.id, m]))
   const containers = new Map(snapshot.containers.map((c) => [c.id, c]))
   const byPath = new Map(snapshot.modules.map((m) => [m.path, m.id]))
@@ -326,5 +389,7 @@ export const buildModel = (snapshot: GraphSnapshot, violations: readonly Violati
     layerEdges: aggregate(uniqueEdges, (id) => moduleOf(id).layer, findingsOnEdge),
     unitSccs,
     layerHue: (index) => layerHue(index, snapshot.layers.length),
+    isSharedByChosenFeatures: scope?.isShared ?? NOT_SHARED,
+    hides: (path) => hiddenPaths?.has(path) ?? false,
   }
 }
