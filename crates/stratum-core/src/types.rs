@@ -33,9 +33,40 @@ pub struct Module {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Call {
-    /// The tracked-call entry it matched: `inject`, `obj.get` or `*.get`.
+    /// The tracked-call entry it matched: `inject`, `obj.get`, `*.get`, or a factory name.
     pub name: String,
     pub location: SourceLocation,
+    /// In call order; for [`CallForm::Client`] the arguments of the factory call.
+    #[serde(default)]
+    pub args: Vec<CallArg>,
+    /// The name of the top-level declaration holding the call: `default` for an anonymous
+    /// `export default`, `None` for a top-level statement that declares nothing.
+    #[serde(default)]
+    pub owner: Option<String>,
+    #[serde(default)]
+    pub form: CallForm,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CallArg {
+    /// A string literal, or a template literal without substitutions.
+    Str(String),
+    Ident(String),
+    Other,
+}
+
+/// How a call reached its tracked entry.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CallForm {
+    /// The entry itself was called.
+    #[default]
+    Direct,
+    /// `c.method()` where `c` is a variable of the same module set to a factory call.
+    Client { method: String },
+    /// A factory call whose result no member call of the same module uses through a variable.
+    Unfollowed,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

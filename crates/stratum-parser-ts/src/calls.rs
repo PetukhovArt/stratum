@@ -1,0 +1,437 @@
+use oxc_ast::ast::{
+    Argument, BindingPatternKind, CallExpression, Declaration, ExportDefaultDeclarationKind,
+    Expression, ImportDeclaration, ImportDeclarationSpecifier, Program, Statement,
+    VariableDeclarator,
+};
+use oxc_span::Span;
+use stratum_core::types::{CallArg, CallForm};
+
+use crate::extractor::{CallPattern, RawCall, TrackedCalls};
+use crate::source_span::SourceSpan;
+
+/// Records the calls of one module that [`TrackedCalls`] asks for, in source order.
+pub(crate) struct CallRecorder<'t> {
+    tracked: &'t TrackedCalls,
+    aliases: Vec<(String, String)>,
+    namespaces: Vec<String>,
+    owners: Vec<(Span, String)>,
+    clients: Vec<Client>,
+    members: Vec<MemberCall>,
+    calls: Vec<RawCall>,
+}
+
+struct Client {
+    variable: String,
+    factory: String,
+    call: Span,
+    args: Vec<CallArg>,
+    owner: Option<String>,
+}
+
+struct MemberCall {
+    object: String,
+    method: String,
+    span: Span,
+    owner: Option<String>,
+}
+
+enum Callee<'a> {
+    Plain(&'a str),
+    Member {
+        object: Option<&'a str>,
+        name: &'a str,
+    },
+}
+
+impl<'a> Callee<'a> {
+    fn of(callee: &'a Expression<'_>) -> Option<Self> {
+        match callee {
+            Expression::Identifier(id) => Some(Self::Plain(id.name.as_str())),
+            Expression::StaticMemberExpression(member) => Some(Self::Member {
+                object: match &member.object {
+                    Expression::Identifier(id) => Some(id.name.as_str()),
+                    _ => None,
+                },
+                name: member.property.name.as_str(),
+            }),
+            _ => None,
+        }
+    }
+}
+
+impl<'t> CallRecorder<'t> {
+    pub(crate) fn new(tracked: &'t TrackedCalls, program: &Program<'_>) -> Self {
+        let owners = if tracked.is_empty() {
+            Vec::new()
+        } else {
+            program.body.iter().flat_map(top_level_names).collect()
+        };
+        Self {
+            tracked,
+            aliases: Vec::new(),
+            namespaces: Vec::new(),
+            owners,
+            clients: Vec::new(),
+            members: Vec::new(),
+            calls: Vec::new(),
+        }
+    }
+
+    pub(crate) fn import(&mut self, decl: &ImportDeclaration<'_>) {
+        if self.tracked.is_empty() {
+            return;
+        }
+        for spec in decl.specifiers.iter().flatten() {
+            match spec {
+                ImportDeclarationSpecifier::ImportSpecifier(spec) => {
+                    let imported = spec.imported.name();
+                    if spec.local.name != imported && self.is_plain_name(imported.as_str()) {
+                        self.aliases
+                            .push((spec.local.name.to_string(), imported.to_string()));
+                    }
+                }
+                ImportDeclarationSpecifier::ImportNamespaceSpecifier(spec) => {
+                    self.namespaces.push(spec.local.name.to_string());
+                }
+                ImportDeclarationSpecifier::ImportDefaultSpecifier(_) => {}
+            }
+        }
+    }
+
+    pub(crate) fn declarator(&mut self, decl: &VariableDeclarator<'_>) {
+        if self.tracked.factories().is_empty() {
+            return;
+        }
+        let BindingPatternKind::BindingIdentifier(variable) = &decl.id.kind else {
+            return;
+        };
+        let call = match &decl.init {
+            Some(Expression::CallExpression(call)) => call,
+            Some(Expression::AwaitExpression(wait)) => match &wait.argument {
+                Expression::CallExpression(call) => call,
+                _ => return,
+            },
+            _ => return,
+        };
+        let Some(factory) = self.factory_of(call) else {
+            return;
+        };
+        self.clients.push(Client {
+            variable: variable.name.to_string(),
+            factory,
+            call: call.span,
+            args: args(call),
+            owner: self.owner(call.span),
+        });
+    }
+
+    pub(crate) fn call(&mut self, call: &CallExpression<'_>) {
+        if self.tracked.is_empty() {
+            return;
+        }
+        let Some(callee) = Callee::of(&call.callee) else {
+            return;
+        };
+        for tracked in self.tracked.entries() {
+            if self.matches(&tracked.pattern, &callee) {
+                self.calls.push(RawCall {
+                    name: tracked.entry.clone(),
+                    span: SourceSpan::new(call.span.start, call.span.end),
+                    args: args(call),
+                    owner: self.owner(call.span),
+                    form: CallForm::Direct,
+                });
+            }
+        }
+        if self.tracked.factories().is_empty() {
+            return;
+        }
+        if let Some(factory) = self.factory_of(call) {
+            if !self.clients.iter().any(|c| c.call == call.span) {
+                self.calls.push(RawCall {
+                    name: factory,
+                    span: SourceSpan::new(call.span.start, call.span.end),
+                    args: args(call),
+                    owner: self.owner(call.span),
+                    form: CallForm::Unfollowed,
+                });
+            }
+        } else if let Callee::Member {
+            object: Some(object),
+            name,
+        } = callee
+        {
+            self.members.push(MemberCall {
+                object: object.to_owned(),
+                method: name.to_owned(),
+                span: call.span,
+                owner: self.owner(call.span),
+            });
+        }
+    }
+
+    /// The recorded calls in source order. A member call is matched to a client by variable
+    /// name, wherever in the module either stands.
+    pub(crate) fn finish(mut self) -> Vec<RawCall> {
+        let mut used = vec![false; self.clients.len()];
+        for member in self.members {
+            let Some(at) = self
+                .clients
+                .iter()
+                .position(|c| c.variable == member.object)
+            else {
+                continue;
+            };
+            used[at] = true;
+            let client = &self.clients[at];
+            self.calls.push(RawCall {
+                name: client.factory.clone(),
+                span: SourceSpan::new(member.span.start, member.span.end),
+                args: client.args.clone(),
+                owner: member.owner,
+                form: CallForm::Client {
+                    method: member.method,
+                },
+            });
+        }
+        for (client, used) in self.clients.into_iter().zip(used) {
+            if !used {
+                self.calls.push(RawCall {
+                    name: client.factory,
+                    span: SourceSpan::new(client.call.start, client.call.end),
+                    args: client.args,
+                    owner: client.owner,
+                    form: CallForm::Unfollowed,
+                });
+            }
+        }
+        self.calls.sort_by_key(|c| c.span.start);
+        self.calls
+    }
+
+    fn owner(&self, span: Span) -> Option<String> {
+        let after = self.owners.partition_point(|(s, _)| s.start <= span.start);
+        let (owner, name) = self.owners.get(after.checked_sub(1)?)?;
+        (span.end <= owner.end).then(|| name.clone())
+    }
+
+    fn is_plain_name(&self, name: &str) -> bool {
+        self.tracked
+            .entries()
+            .iter()
+            .any(|t| matches!(&t.pattern, CallPattern::Plain(n) if n == name))
+            || self.tracked.factories().iter().any(|f| f == name)
+    }
+
+    fn factory_of(&self, call: &CallExpression<'_>) -> Option<String> {
+        let callee = Callee::of(&call.callee)?;
+        self.tracked
+            .factories()
+            .iter()
+            .find(|f| self.matches(&CallPattern::Plain((*f).clone()), &callee))
+            .cloned()
+    }
+
+    fn matches(&self, pattern: &CallPattern, callee: &Callee<'_>) -> bool {
+        match (pattern, callee) {
+            (CallPattern::Plain(n), Callee::Plain(local)) => {
+                local == n
+                    || self
+                        .aliases
+                        .iter()
+                        .find(|(alias, _)| alias == local)
+                        .is_some_and(|(_, imported)| imported == n)
+            }
+            (
+                CallPattern::Plain(n),
+                Callee::Member {
+                    object: Some(object),
+                    name,
+                },
+            ) => name == n && self.namespaces.iter().any(|ns| ns == object),
+            (
+                CallPattern::Member { object, name },
+                Callee::Member {
+                    object: Some(o),
+                    name: p,
+                },
+            ) => o == object && p == name,
+            (CallPattern::AnyMember(n), Callee::Member { name, .. }) => name == n,
+            _ => false,
+        }
+    }
+}
+
+fn args(call: &CallExpression<'_>) -> Vec<CallArg> {
+    call.arguments
+        .iter()
+        .map(|arg| match arg {
+            Argument::StringLiteral(s) => CallArg::Str(s.value.to_string()),
+            Argument::TemplateLiteral(t) if t.expressions.is_empty() => t
+                .quasis
+                .first()
+                .and_then(|q| q.value.cooked.as_ref())
+                .map_or(CallArg::Other, |s| CallArg::Str(s.to_string())),
+            Argument::Identifier(id) => CallArg::Ident(id.name.to_string()),
+            _ => CallArg::Other,
+        })
+        .collect()
+}
+
+fn top_level_names(statement: &Statement<'_>) -> Vec<(Span, String)> {
+    match statement {
+        Statement::ExportNamedDeclaration(export) => export
+            .declaration
+            .as_ref()
+            .map(declaration_names)
+            .unwrap_or_default(),
+        Statement::ExportDefaultDeclaration(export) => {
+            let name = match &export.declaration {
+                ExportDefaultDeclarationKind::FunctionDeclaration(f) => {
+                    f.id.as_ref().map(|id| id.name.to_string())
+                }
+                ExportDefaultDeclarationKind::ClassDeclaration(c) => {
+                    c.id.as_ref().map(|id| id.name.to_string())
+                }
+                _ => None,
+            };
+            vec![(export.span, name.unwrap_or_else(|| "default".to_owned()))]
+        }
+        _ => statement
+            .as_declaration()
+            .map(declaration_names)
+            .unwrap_or_default(),
+    }
+}
+
+fn declaration_names(decl: &Declaration<'_>) -> Vec<(Span, String)> {
+    match decl {
+        Declaration::VariableDeclaration(vars) => vars
+            .declarations
+            .iter()
+            .filter_map(|d| match &d.id.kind {
+                BindingPatternKind::BindingIdentifier(id) => Some((d.span, id.name.to_string())),
+                _ => None,
+            })
+            .collect(),
+        Declaration::FunctionDeclaration(f) => {
+            f.id.iter()
+                .map(|id| (f.span, id.name.to_string()))
+                .collect()
+        }
+        Declaration::ClassDeclaration(c) => {
+            c.id.iter()
+                .map(|id| (c.span, id.name.to_string()))
+                .collect()
+        }
+        _ => Vec::new(),
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use oxc_span::SourceType;
+    use stratum_core::types::{CallArg, CallForm};
+
+    use crate::{TrackedCalls, collect};
+
+    type Found = (String, Vec<CallArg>, Option<String>, CallForm);
+
+    fn calls(source: &str) -> Vec<Found> {
+        let mut tracked = TrackedCalls::default();
+        tracked.insert("invoke").unwrap();
+        tracked.insert_factory("createClient").unwrap();
+        let ts = SourceType::default()
+            .with_typescript(true)
+            .with_module(true);
+        collect(source, ts, &tracked)
+            .calls
+            .into_iter()
+            .map(|c| (c.name, c.args, c.owner, c.form))
+            .collect()
+    }
+
+    fn s(v: &str) -> CallArg {
+        CallArg::Str(v.into())
+    }
+
+    fn id(v: &str) -> CallArg {
+        CallArg::Ident(v.into())
+    }
+
+    #[test]
+    fn a_direct_call_keeps_its_literal_and_identifier_args_and_its_top_level_owner() {
+        let found = calls(
+            "export async function load(x) { return invoke('a', x, 1); }
+export default () => invoke(`b`);
+invoke(name);
+",
+        );
+        assert_eq!(
+            found,
+            [
+                (
+                    "invoke".into(),
+                    vec![s("a"), id("x"), CallArg::Other],
+                    Some("load".into()),
+                    CallForm::Direct
+                ),
+                (
+                    "invoke".into(),
+                    vec![s("b")],
+                    Some("default".into()),
+                    CallForm::Direct
+                ),
+                ("invoke".into(), vec![id("name")], None, CallForm::Direct),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_member_call_on_a_factory_variable_is_a_client_call_with_the_factory_args() {
+        let found = calls(
+            "export const getUser = (id) => users.getUser({ id });
+const users = createClient(UserService, transport);
+other.getUser();
+",
+        );
+        assert_eq!(
+            found,
+            [(
+                "createClient".into(),
+                vec![id("UserService"), id("transport")],
+                Some("getUser".into()),
+                CallForm::Client {
+                    method: "getUser".into()
+                }
+            )]
+        );
+    }
+
+    #[test]
+    fn a_factory_call_no_member_call_of_the_module_uses_is_unfollowed() {
+        let found = calls(
+            "export const shared = createClient(OrderService);
+export function make() { return createClient(CartService); }
+",
+        );
+        assert_eq!(
+            found,
+            [
+                (
+                    "createClient".into(),
+                    vec![id("OrderService")],
+                    Some("shared".into()),
+                    CallForm::Unfollowed
+                ),
+                (
+                    "createClient".into(),
+                    vec![id("CartService")],
+                    Some("make".into()),
+                    CallForm::Unfollowed
+                ),
+            ]
+        );
+    }
+}

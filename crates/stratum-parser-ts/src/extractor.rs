@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use stratum_core::{
     edge::EdgeKind,
     purity::Purity,
-    types::{Bindings, ExportOrigin},
+    types::{Bindings, CallArg, CallForm, ExportOrigin},
 };
 
 use crate::source_span::SourceSpan;
@@ -31,9 +31,12 @@ pub struct RawImport {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RawCall {
-    /// The entry as written: `inject`, `obj.get`, `*.get`.
+    /// The entry as written: `inject`, `obj.get`, `*.get`, or the factory name.
     pub name: String,
     pub span: SourceSpan,
+    pub args: Vec<CallArg>,
+    pub owner: Option<String>,
+    pub form: CallForm,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -78,10 +81,13 @@ pub struct ExtractedData {
 
 /// The calls the parser records. Entry syntax: `name` is a plain call of `name`, of a local
 /// alias of the named import `name`, or `ns.name()` on a namespace import `ns`; `obj.name` is a
-/// member call on the identifier `obj`; `*.name` is a member call on anything.
+/// member call on the identifier `obj`; `*.name` is a member call on anything. A factory
+/// `name` records `c.method()` on each `const c = name(…)` of a module as [`CallForm::Client`],
+/// and a `name(…)` call that no such member call uses as [`CallForm::Unfollowed`].
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TrackedCalls {
     entries: Vec<TrackedCall>,
+    factories: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -115,13 +121,29 @@ impl TrackedCalls {
         Ok(())
     }
 
+    /// # Errors
+    /// [`InvalidCallEntry`] if `name` is not an identifier.
+    pub fn insert_factory(&mut self, name: &str) -> Result<(), InvalidCallEntry> {
+        if !is_identifier(name) {
+            return Err(InvalidCallEntry(name.into()));
+        }
+        if !self.factories.iter().any(|f| f == name) {
+            self.factories.push(name.to_owned());
+        }
+        Ok(())
+    }
+
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
+        self.entries.is_empty() && self.factories.is_empty()
     }
 
     pub(crate) fn entries(&self) -> &[TrackedCall] {
         &self.entries
+    }
+
+    pub(crate) fn factories(&self) -> &[String] {
+        &self.factories
     }
 }
 

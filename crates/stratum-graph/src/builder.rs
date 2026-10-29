@@ -663,6 +663,9 @@ fn located(lines: &LineIndex<'_>, data: ExtractedData) -> Parsed {
         .map(|call| Call {
             name: call.name,
             location: at(call.span.start),
+            args: call.args,
+            owner: call.owner,
+            form: call.form,
         })
         .collect();
     let suppressions = data

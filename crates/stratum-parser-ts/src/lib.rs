@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 mod annotations;
+mod calls;
 mod comments;
 mod exports;
 mod extractor;
