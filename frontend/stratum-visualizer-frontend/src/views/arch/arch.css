@@ -25,3 +25,23 @@
 .arch-segment-meta { font-size: 9.5px; font-weight: 400; fill: oklch(62% 0.012 260); }
 .arch-module-name { font-size: 10px; fill: oklch(88% 0.005 260); pointer-events: none; }
 .arch-lg-module { background: oklch(30% 0.02 260); }
+
+.arch-system, .arch-port, .arch-channel, .arch-port-link { cursor: pointer; }
+.arch-systems text, .arch-ports text { font-family: var(--mono); pointer-events: none; }
+.arch-system-name { font-size: 12px; font-weight: 600; fill: oklch(92% 0.005 260); }
+.arch-system-meta { font-size: 10px; fill: oklch(66% 0.012 260); }
+.arch-system-reason { font-size: 9.5px; fill: oklch(58% 0.01 260); }
+.arch-system.muted .arch-system-name, .arch-port.muted .arch-system-name { fill: oklch(64% 0.01 260); }
+
+.arch-cts { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
+.arch-ct { padding: 4px 0; border-top: 1px solid var(--bd-1); }
+.arch-sig { font-size: 10.5px; color: var(--tx-3); padding: 0 6px 2px; overflow-wrap: anywhere; }
+.arch-callers { display: flex; flex-direction: column; padding-left: 10px; }
+.arch-caller {
+  appearance: none; border: 0; background: transparent; text-align: left; cursor: pointer; min-width: 0;
+  font-family: var(--mono); font-size: 10.5px; color: var(--tx-3); padding: 1px 6px; border-radius: 4px; overflow: hidden;
+}
+.arch-caller:hover, .arch-caller.on { background: var(--bg-2); color: var(--tx-1); }
+.arch-caller.on { box-shadow: inset 2px 0 0 var(--accent); }
+.arch-unattributed { color: var(--warn); }
+.arch-muted { color: var(--tx-4); }

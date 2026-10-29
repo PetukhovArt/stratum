@@ -12,6 +12,8 @@ import './arch.css'
 import { ComponentsScene } from './components-scene'
 import { Crumbs } from './crumbs'
 import { ArchOutline, ArchDetails } from './panels'
+import { portsAside, SystemScene } from './system-scene'
+import { systemsIn } from './systems'
 
 const MARKS: LanesMarks = { unit: 'arch-container', bundle: 'arch-bundle', dblClickHint: 'arch.container.hint' }
 const NO_EXPANDED: readonly number[] = []
@@ -28,25 +30,35 @@ const levelKey = (e: KeyboardEvent, m: Model): void => {
   }
 }
 
-const ContainersLevel: Component<{ model: Model }> = (props) => (
-  <>
-    <LanesScene
-      model={props.model}
-      gate={nav().mapGate}
-      expanded={NO_EXPANDED}
-      onUnitDblClick={(id) => goToLevel(props.model, { level: 'components', container: id })}
-      marks={MARKS}
-    />
-    <GateBar total={mapDataOf(props.model).links.length} />
-  </>
-)
+const ContainersLevel: Component<{ model: Model }> = (props) => {
+  const aside = createMemo(() => {
+    const systems = systemsIn(props.model)
+    return systems ? portsAside(props.model, systems) : undefined
+  })
+  return (
+    <>
+      <LanesScene
+        model={props.model}
+        gate={nav().mapGate}
+        expanded={NO_EXPANDED}
+        onUnitDblClick={(id) => goToLevel(props.model, { level: 'components', container: id })}
+        marks={MARKS}
+        aside={aside()}
+      />
+      <GateBar total={mapDataOf(props.model).links.length} />
+    </>
+  )
+}
 
 const Stage: Component<ViewProps> = (props) => {
   const path = createMemo(() => archPathOf(props.model))
   const unit = createMemo(() => {
     const p = path()
-    return p.level === 'containers' ? null : (props.model.units.find((u) => u.id === p.container) ?? null)
+    return p.level === 'components' || p.level === 'code'
+      ? (props.model.units.find((u) => u.id === p.container) ?? null)
+      : null
   })
+  const systems = createMemo(() => (path().level === 'system' ? systemsIn(props.model) : null))
   onMount(() => {
     const listener = (e: KeyboardEvent) => levelKey(e, props.model)
     window.addEventListener('keydown', listener)
@@ -57,6 +69,7 @@ const Stage: Component<ViewProps> = (props) => {
       <Crumbs model={props.model} path={path()} />
       <div class="arch-canvas">
         <Switch fallback={<ContainersLevel model={props.model} />}>
+          <Match when={systems()}>{(s) => <SystemScene model={props.model} systems={s()} />}</Match>
           <Match when={unit()}>{(u) => <ComponentsScene model={props.model} unit={u()} />}</Match>
         </Switch>
       </div>

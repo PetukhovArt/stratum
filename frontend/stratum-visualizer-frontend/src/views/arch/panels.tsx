@@ -11,6 +11,8 @@ import { ViewProps } from '../view-def'
 import { archPathOf, goToLevel } from './actions'
 import { crossSliceBundles } from './bundles'
 import { ROOT_SEGMENT, segmentsOf } from './components'
+import { isPortSelection, PortDetails, SystemDetails, SystemOutline } from './system-panels'
+import { systemsIn, SystemsInModel } from './systems'
 
 const BUNDLE_LIST = 12
 const NEIGHBOURS = 12
@@ -104,8 +106,10 @@ const ContainersDetails: Component<{ model: Model }> = (props) => {
     const id = selectedUnit()
     return id === null ? null : (props.model.units.find((u) => u.id === id) ?? null)
   })
+  const systems = createMemo(() => (isPortSelection() ? systemsIn(props.model) : null))
   return (
     <Switch fallback={<ContainersOverview model={props.model} />}>
+      <Match when={systems()}>{(s) => <PortDetails model={props.model} systems={s()} />}</Match>
       <Match when={link()}>
         {(l) => (
           <div data-testid="arch-bundle-details" data-from={l().from} data-to={l().to}>
@@ -231,34 +235,55 @@ const ComponentsDetails: Component<{ model: Model; unit: Unit }> = (props) => {
 
 const unitOfPath = (m: Model): Unit | null => {
   const path = archPathOf(m)
-  if (path.level === 'containers') return null
+  if (path.level === 'system' || path.level === 'containers') return null
   return m.units.find((u) => u.id === path.container) ?? null
 }
 
+const systemsOfPath = (m: Model): SystemsInModel | null => (archPathOf(m).level === 'system' ? systemsIn(m) : null)
+
+const SystemPanel: Component<{ model: Model; systems: SystemsInModel }> = (props) => (
+  <div class="panel panel-details">
+    <div class="panel-hd">
+      <span class="panel-title">{t('arch.systems.title')}</span>
+      <span class="panel-count">{t('arch.systems.count', { n: props.systems.others.length + 1 })}</span>
+    </div>
+    <div class="panel-body">
+      <SystemDetails model={props.model} systems={props.systems} />
+    </div>
+  </div>
+)
+
 export const ArchDetails: Component<ViewProps> = (props) => {
   const unit = createMemo(() => unitOfPath(props.model))
+  const systems = createMemo(() => systemsOfPath(props.model))
   return (
-    <div class="panel panel-details">
-      <div class="panel-hd">
-        <span class="panel-title">
-          <Show when={unit()} fallback={t('arch.containers.title')}>
-            {(u) => props.model.unitLabel(u().id)}
-          </Show>
-        </span>
-        <span class="panel-count">
-          <Show when={unit()} fallback={t('map.units', { n: props.model.units.length })}>
-            {(u) => t('arch.modules', { n: u().modules.length })}
-          </Show>
-        </span>
-      </div>
-      <div class="panel-body">
-        <Show when={unit()} fallback={<ContainersDetails model={props.model} />}>
-          {(u) => <ComponentsDetails model={props.model} unit={u()} />}
-        </Show>
-      </div>
-    </div>
+    <Show when={systems()} fallback={<ContainerPanel model={props.model} unit={unit()} />}>
+      {(s) => <SystemPanel model={props.model} systems={s()} />}
+    </Show>
   )
 }
+
+const ContainerPanel: Component<{ model: Model; unit: Unit | null }> = (props) => (
+  <div class="panel panel-details">
+    <div class="panel-hd">
+      <span class="panel-title">
+        <Show when={props.unit} fallback={t('arch.containers.title')}>
+          {(u) => props.model.unitLabel(u().id)}
+        </Show>
+      </span>
+      <span class="panel-count">
+        <Show when={props.unit} fallback={t('map.units', { n: props.model.units.length })}>
+          {(u) => t('arch.modules', { n: u().modules.length })}
+        </Show>
+      </span>
+    </div>
+    <div class="panel-body">
+      <Show when={props.unit} fallback={<ContainersDetails model={props.model} />}>
+        {(u) => <ComponentsDetails model={props.model} unit={u()} />}
+      </Show>
+    </div>
+  </div>
+)
 
 const ComponentsOutline: Component<{ model: Model; unit: Unit }> = (props) => {
   const selected = () => {
@@ -303,9 +328,11 @@ const ComponentsOutline: Component<{ model: Model; unit: Unit }> = (props) => {
 
 export const ArchOutline: Component<ViewProps> = (props) => {
   const unit = createMemo(() => unitOfPath(props.model))
+  const systems = createMemo(() => systemsOfPath(props.model))
   return (
-    <Show when={unit()} fallback={<MapOutline {...props} />}>
-      {(u) => <ComponentsOutline model={props.model} unit={u()} />}
-    </Show>
+    <Switch fallback={<MapOutline {...props} />}>
+      <Match when={systems()}>{(s) => <SystemOutline systems={s()} />}</Match>
+      <Match when={unit()}>{(u) => <ComponentsOutline model={props.model} unit={u()} />}</Match>
+    </Switch>
   )
 }

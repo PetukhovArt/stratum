@@ -34,6 +34,25 @@ export const en = {
   'arch.legend.module': 'module',
   'arch.legend.import': 'import · severity colour = finding',
   'arch.legend.hint': 'double-click a module: code',
+  'arch.level.system': 'System',
+  'arch.systems.title': 'Systems',
+  'arch.systems.count': { one: '{n} system', other: '{n} systems' },
+  'arch.systems.hint':
+    'Click an arrow to list the contracts in use. Double-click this project or press Enter on it to see its containers.',
+  'arch.systems.channels': 'Channels',
+  'arch.systems.noChannels': 'No contract of another system is called',
+  'arch.system.self': { one: 'this project · {n} module', other: 'this project · {n} modules' },
+  'arch.system.contracts': { one: '{n} contract declared', other: '{n} contracts declared' },
+  'arch.system.unavailable': 'contracts unavailable',
+  'arch.system.unavailableReason': 'Contracts unavailable: {reason}',
+  'arch.system.enterHint': 'double-click or Enter: its containers',
+  'arch.enterSystem': 'Open containers',
+  'arch.channel.contracts': { one: '{n} contract in use', other: '{n} contracts in use' },
+  'arch.channel.none': 'The shown modules call no contract of this system',
+  'arch.port': 'other system',
+  'arch.unattributed': { one: '{n} call not attributed', other: '{n} calls not attributed' },
+  'arch.unattributedTitle':
+    'Calls of a configured matcher whose contract could not be named: a client is followed only inside the module that creates it',
 } as const
 
 export const ru: MessagesOf<typeof en> = {
@@ -72,4 +91,43 @@ export const ru: MessagesOf<typeof en> = {
   'arch.legend.module': 'модуль',
   'arch.legend.import': 'импорт · цвет severity — находка',
   'arch.legend.hint': 'двойной клик по модулю — код',
+  'arch.level.system': 'Система',
+  'arch.systems.title': 'Системы',
+  'arch.systems.count': { one: '{n} система', few: '{n} системы', many: '{n} систем', other: '{n} системы' },
+  'arch.systems.hint':
+    'Клик по стрелке покажет используемые контракты. Двойной клик по этому проекту или Enter на нём покажет его контейнеры.',
+  'arch.systems.channels': 'Каналы',
+  'arch.systems.noChannels': 'Контракты других систем не вызываются',
+  'arch.system.self': {
+    one: 'этот проект · {n} модуль',
+    few: 'этот проект · {n} модуля',
+    many: 'этот проект · {n} модулей',
+    other: 'этот проект · {n} модуля',
+  },
+  'arch.system.contracts': {
+    one: 'объявлен {n} контракт',
+    few: 'объявлено {n} контракта',
+    many: 'объявлено {n} контрактов',
+    other: 'объявлено {n} контракта',
+  },
+  'arch.system.unavailable': 'контракты недоступны',
+  'arch.system.unavailableReason': 'Контракты недоступны: {reason}',
+  'arch.system.enterHint': 'двойной клик или Enter — его контейнеры',
+  'arch.enterSystem': 'Открыть контейнеры',
+  'arch.channel.contracts': {
+    one: 'используется {n} контракт',
+    few: 'используется {n} контракта',
+    many: 'используется {n} контрактов',
+    other: 'используется {n} контракта',
+  },
+  'arch.channel.none': 'Показанные модули не вызывают контракты этой системы',
+  'arch.port': 'другая система',
+  'arch.unattributed': {
+    one: '{n} вызов не отнесён к контракту',
+    few: '{n} вызова не отнесены к контракту',
+    many: '{n} вызовов не отнесены к контракту',
+    other: '{n} вызова не отнесены к контракту',
+  },
+  'arch.unattributedTitle':
+    'Вызовы настроенного матчера, контракт которых не удалось назвать: клиент отслеживается только внутри модуля, который его создаёт',
 }

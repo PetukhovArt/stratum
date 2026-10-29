@@ -3,15 +3,17 @@ import { MessageKey, t } from '../../i18n'
 import { Model } from '../../render/model'
 import { goToLevel } from './actions'
 import { ArchLevel, ArchPath, crumbsOf } from './path'
+import { systemIndex } from './systems'
 
 const LEVEL_TITLE: Readonly<Record<ArchLevel, MessageKey>> = {
+  system: 'arch.level.system',
   containers: 'arch.level.containers',
   components: 'arch.level.components',
   code: 'arch.level.code',
 }
 
 export const Crumbs: Component<{ model: Model; path: ArchPath }> = (props) => {
-  const crumbs = () => crumbsOf(props.path, props.model)
+  const crumbs = () => crumbsOf(props.path, props.model, systemIndex()?.self ?? null)
   return (
     <nav class="arch-crumbs" aria-label={t('arch.crumbs')}>
       <For each={crumbs()}>

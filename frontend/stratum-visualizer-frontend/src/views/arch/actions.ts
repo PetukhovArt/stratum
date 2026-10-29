@@ -1,9 +1,13 @@
 import { closeCode, CodeTarget, openCode } from '../../contract/code'
+import { SystemContract } from '../../lib/api'
 import { Model } from '../../render/model'
 import { go, nav, Selection } from '../../shell/nav'
-import { ArchPath, deepestShownPrefix, downOf, upOf } from './path'
+import { ArchPath, deepestShownPrefix, downOf, SelfSystem, upOf } from './path'
+import { systemIndex } from './systems'
 
-export const archPathOf = (m: Model): ArchPath => deepestShownPrefix(nav().arch, m)
+const selfSystem = (): SelfSystem => systemIndex()?.self ?? null
+
+export const archPathOf = (m: Model): ArchPath => deepestShownPrefix(nav().arch, m, selfSystem())
 
 export const moduleCode = (m: Model, id: number): CodeTarget => ({
   name: m.label(id),
@@ -11,10 +15,23 @@ export const moduleCode = (m: Model, id: number): CodeTarget => ({
   site: null,
 })
 
+export const contractCode = (m: Model, contract: SystemContract, caller = contract.callers[0]): CodeTarget => {
+  const path = caller ? m.modules.get(caller.module)?.path : undefined
+  return {
+    name: contract.id,
+    decl: contract.decl,
+    site: path ? { kind: 'call', path, line: caller.line } : null,
+  }
+}
+
 const selectionAfter = (from: ArchPath, to: ArchPath): Selection | null => {
   if (to.level === 'code') return { kind: 'module', id: to.module }
   if (to.level === 'components' && from.level === 'code') return { kind: 'module', id: from.module }
-  if (to.level === 'containers' && from.level !== 'containers') return { kind: 'container', id: from.container }
+  if (to.level === 'containers' && (from.level === 'components' || from.level === 'code')) {
+    return { kind: 'container', id: from.container }
+  }
+  const self = selfSystem()
+  if (to.level === 'system' && from.level !== 'system' && self) return { kind: 'system', id: self.id }
   return null
 }
 
@@ -29,14 +46,14 @@ export const goToLevel = (m: Model, to: ArchPath): void => {
 }
 
 export const goDown = (m: Model): boolean => {
-  const to = downOf(archPathOf(m), nav().sel)
+  const to = downOf(archPathOf(m), nav().sel, selfSystem())
   if (!to) return false
   goToLevel(m, to)
   return true
 }
 
 export const goUp = (m: Model): boolean => {
-  const to = upOf(archPathOf(m))
+  const to = upOf(archPathOf(m), selfSystem())
   if (!to) return false
   goToLevel(m, to)
   return true

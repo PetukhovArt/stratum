@@ -1,4 +1,5 @@
 import { Component, createMemo, createSignal, For, Show } from 'solid-js'
+import { Dynamic } from 'solid-js/web'
 import { BudgetNote } from '../../canvas/budget-note'
 import { Canvas } from '../../canvas/canvas'
 import { sharedAttr, sharedNote } from '../../features/shared-mark'
@@ -8,7 +9,7 @@ import { edgeKey, Model, worst } from '../../render/model'
 import { go, MapGate, set } from '../../shell/nav'
 import { trunc } from '../../render/labels'
 import { entryOf, layerName, layerTone } from '../focus/paint'
-import { Curve, defaultCurves, GRID, Lane, LANES, layoutLanes, UnitBox } from './layout'
+import { Curve, defaultCurves, GRID, Lane, LANES, LanesLayout, layoutLanes, UnitBox } from './layout'
 import { MapLegend } from './legend'
 import { selectedUnit, selectedUnitPair } from './selection'
 import { mapDataOf, MapData } from './units'
@@ -28,6 +29,11 @@ const META_FILL = 'oklch(62% 0.012 260)'
 const DASHED_KINDS: ReadonlySet<string> = new Set(['sub_unit', 'nested'])
 
 const unitPath = (m: Model, id: number): string => m.containers.get(id)?.path ?? ''
+
+export interface LanesAside {
+  widthOf: (layout: LanesLayout) => number
+  Marks: Component<{ layout: LanesLayout }>
+}
 
 export interface LanesMarks {
   unit: string
@@ -228,6 +234,7 @@ export const LanesScene: Component<{
   expanded: readonly number[]
   onUnitDblClick: (id: number) => void
   marks: LanesMarks
+  aside?: LanesAside
 }> = (props) => {
   const data = createMemo(() => mapDataOf(props.model))
   const expandedIds = createMemo(() => props.expanded)
@@ -250,10 +257,14 @@ export const LanesScene: Component<{
     return p !== null && (p.from === id || p.to === id)
   }
   const fitKey = () => `lanes:${expandedIds().join(',')}`
+  const bounds = createMemo(() => {
+    const b = layout().bounds
+    return props.aside ? { ...b, w: b.w + props.aside.widthOf(layout()) } : b
+  })
 
   return (
     <Canvas
-      bounds={layout().bounds}
+      bounds={bounds()}
       fitKey={fitKey()}
       legend={<MapLegend variant="lanes" />}
       overlay={
@@ -277,6 +288,7 @@ export const LanesScene: Component<{
             )}
           </For>
         </g>
+        <Show when={props.aside}>{(aside) => <Dynamic component={aside().Marks} layout={layout()} />}</Show>
         <For each={[...layout().boxes.values()]}>
           {(box) => (
             <UnitMark

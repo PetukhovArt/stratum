@@ -35,6 +35,6 @@ describe('nav architecture level', () => {
     expect((await freshNav()).nav()).toMatchObject({ view: 'arch', arch: { level: 'code', container: 11, module: 4 } })
 
     localStorage.setItem('stratum.nav', JSON.stringify({ view: 'arch', arch: { level: 'code', container: 11 } }))
-    expect((await freshNav()).nav().arch).toEqual({ level: 'containers' })
+    expect((await freshNav()).nav().arch).toEqual({ level: 'system' })
   })
 })

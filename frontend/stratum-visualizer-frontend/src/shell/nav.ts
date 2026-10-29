@@ -11,6 +11,9 @@ export type Selection =
   | { kind: 'edge'; from: number; to: number }
   | { kind: 'cell'; level: 'layer' | 'unit'; from: number; to: number }
   | { kind: 'imports'; pairs: readonly (readonly [from: number, to: number])[] }
+  | { kind: 'system'; id: string }
+  | { kind: 'channel'; to: string }
+  | { kind: 'port'; container: number; system: string }
 
 export const MAP_VARIANTS = ['lanes', 'layers'] as const
 export type MapVariant = (typeof MAP_VARIANTS)[number]

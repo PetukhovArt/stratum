@@ -11,6 +11,7 @@ import { loadSnapshot, SnapshotVersionMismatchError } from '../lib/snapshot'
 import { loadViolations } from '../lib/violations'
 import { buildModel, Model } from '../render/model'
 import { viewById, ViewDef } from '../views'
+import { requestSystems } from '../views/arch/systems'
 import { Header } from './header'
 import { bindKeymap } from './keymap'
 import { nav, set } from './nav'
@@ -81,6 +82,7 @@ const Layout: Component<{
   const view = createMemo(() => viewById(nav().view))
 
   onMount(() => {
+    requestSystems()
     const unbind = bindKeymap({
       isPaletteOpen,
       setPaletteOpen,

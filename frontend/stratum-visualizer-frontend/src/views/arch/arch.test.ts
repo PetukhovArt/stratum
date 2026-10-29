@@ -3,7 +3,7 @@ import { buildModel, Model } from '../../render/model'
 import { snapshotV3 } from '../../test/snapshot'
 import { EdgeKind, SnapshotContainer } from '../../types'
 import { layoutComponents, marksWithinBudget, segmentsOf } from './components'
-import { ArchPath, crumbsOf, deepestShownPrefix, downOf, upOf } from './path'
+import { ArchPath, crumbsOf, deepestShownPrefix, downOf, parseArchPath, upOf } from './path'
 
 const container = (id: number, name: string, path: string, kind: SnapshotContainer['kind'], parent: number | null) => ({
   id,
@@ -100,31 +100,56 @@ describe('Components level', () => {
 describe('architecture path', () => {
   const code: ArchPath = { level: 'code', container: 11, module: 1 }
 
+  const self = { id: 'ui', name: 'Web UI', contractsTotal: 0, unavailableReason: null }
+
   it('derives one breadcrumb per level, goes up one level at a time and down into the selection', () => {
-    expect(crumbsOf(code, model).map((c) => [c.level, c.label])).toEqual([
+    expect(crumbsOf(code, model, null).map((c) => [c.level, c.label])).toEqual([
       ['containers', 'test'],
       ['components', 'cart'],
       ['code', 'Cart.tsx'],
     ])
-    expect(upOf(code)).toEqual({ level: 'components', container: 11 })
-    expect(upOf({ level: 'components', container: 11 })).toEqual({ level: 'containers' })
-    expect(upOf({ level: 'containers' })).toBeNull()
-    expect(downOf({ level: 'containers' }, { kind: 'container', id: 13 })).toEqual({ level: 'components', container: 13 })
-    expect(downOf({ level: 'components', container: 11 }, { kind: 'module', id: 2 })).toEqual({
+    expect(upOf(code, null)).toEqual({ level: 'components', container: 11 })
+    expect(upOf({ level: 'components', container: 11 }, null)).toEqual({ level: 'containers' })
+    expect(upOf({ level: 'containers' }, null)).toBeNull()
+    expect(downOf({ level: 'containers' }, { kind: 'container', id: 13 }, null)).toEqual({ level: 'components', container: 13 })
+    expect(downOf({ level: 'components', container: 11 }, { kind: 'module', id: 2 }, null)).toEqual({
       level: 'code',
       container: 11,
       module: 2,
     })
-    expect(downOf({ level: 'containers' }, { kind: 'cell', level: 'unit', from: 11, to: 13 })).toBeNull()
+    expect(downOf({ level: 'containers' }, { kind: 'cell', level: 'unit', from: 11, to: 13 }, null)).toBeNull()
+  })
+
+  it('puts the System level on top when systems are declared and enters only the self system', () => {
+    expect(crumbsOf(code, model, self).map((c) => [c.level, c.label])).toEqual([
+      ['system', 'Web UI'],
+      ['containers', 'test'],
+      ['components', 'cart'],
+      ['code', 'Cart.tsx'],
+    ])
+    expect(crumbsOf({ level: 'system' }, model, self).map((c) => c.level)).toEqual(['system'])
+    expect(upOf({ level: 'containers' }, self)).toEqual({ level: 'system' })
+    expect(upOf({ level: 'system' }, self)).toBeNull()
+    expect(downOf({ level: 'system' }, { kind: 'system', id: 'ui' }, self)).toEqual({ level: 'containers' })
+    expect(downOf({ level: 'system' }, { kind: 'system', id: 'api' }, self)).toBeNull()
+    expect(downOf({ level: 'system' }, { kind: 'channel', to: 'api' }, self)).toBeNull()
+  })
+
+  it('restores every level from storage and shows System only when systems are declared', () => {
+    const paths: ArchPath[] = [{ level: 'system' }, { level: 'containers' }, { level: 'components', container: 11 }, code]
+    for (const path of paths) expect(parseArchPath(JSON.parse(JSON.stringify(path)))).toEqual(path)
+    expect(parseArchPath({ level: 'components' })).toEqual({ level: 'system' })
+    expect(deepestShownPrefix({ level: 'system' }, model, self)).toEqual({ level: 'system' })
+    expect(deepestShownPrefix({ level: 'system' }, model, null)).toEqual({ level: 'containers' })
   })
 
   it('falls back to the deepest level the filtered model still holds', () => {
     const searchOnly = buildModel(SNAPSHOT, [], { keeps: (id) => id === 5, isShared: () => false })
-    expect(deepestShownPrefix(code, searchOnly)).toEqual({ level: 'containers' })
-    expect(deepestShownPrefix({ level: 'code', container: 11, module: 5 }, model)).toEqual({
+    expect(deepestShownPrefix(code, searchOnly, self)).toEqual({ level: 'containers' })
+    expect(deepestShownPrefix({ level: 'code', container: 11, module: 5 }, model, self)).toEqual({
       level: 'components',
       container: 11,
     })
-    expect(deepestShownPrefix(code, model)).toBe(code)
+    expect(deepestShownPrefix(code, model, self)).toBe(code)
   })
 })
