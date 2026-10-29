@@ -88,10 +88,12 @@ stratum-lint c4 [ROOT] [--config PATH] --format mermaid|structurizr|plantuml [--
                                                # --feature: only the union of these features' modules; the unattributed count is
                                                #   then left out. Past 60 elements inside the boundary, the 59 with the most
                                                #   modules stay and the rest become one "… N more" that carries their arrows.
-                                               # mermaid only: shapes are placed on Mermaid's grid (2 to 4 to a row, empty cells
-                                               #   drawn transparent) and labels moved with UpdateRelStyle so that no arrow crosses
-                                               #   a box and no label covers a box or another label, when the search finds such a
-                                               #   placement; structurizr and plantuml lay out themselves.
+                                               # mermaid only: shapes are placed on Mermaid's grid (2 or 3 to a row, so a row fits
+                                               #   a 1280-px screen; empty cells drawn transparent), other systems in an untitled
+                                               #   boundary below the system's, and labels moved with UpdateRelStyle so that no
+                                               #   arrow crosses a box or a boundary title and no label covers a box, another label
+                                               #   or a boundary, when the search finds such a placement; structurizr and plantuml
+                                               #   lay out themselves.
                                                # Ids [A-Za-z0-9_] from the system id or the path; a `"` in a label is written `'`.
 ```
 
