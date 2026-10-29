@@ -1,3 +1,6 @@
+use std::iter::Peekable;
+use std::str::Chars;
+
 /// A source text with comments and string contents blanked out, keeping every byte offset and
 /// line, cut into identifier tokens and single punctuation characters.
 pub(super) struct Scan {
@@ -89,7 +92,25 @@ fn blank_comments_and_strings(text: &str) -> String {
             out.extend(std::iter::repeat_n(' ', c.len_utf8()));
         }
     };
+    let mut prev: Option<char> = None;
     while let Some(c) = chars.next() {
+        let starts_raw =
+            c == 'r' && prev.is_none_or(|p| p == 'b' || !(p.is_alphanumeric() || p == '_'));
+        if starts_raw && let Some(hashes) = raw_string_hashes(&chars) {
+            out.push(c);
+            out.extend(chars.by_ref().take(hashes + 1));
+            while let Some(next) = chars.next() {
+                if next == '"' && closes_raw(&chars, hashes) {
+                    out.push('"');
+                    out.extend(chars.by_ref().take(hashes));
+                    break;
+                }
+                blank(&mut out, next);
+            }
+            prev = Some('"');
+            continue;
+        }
+        prev = Some(c);
         match (c, chars.peek()) {
             ('/', Some('/')) => {
                 blank(&mut out, c);
@@ -150,9 +171,38 @@ fn blank_comments_and_strings(text: &str) -> String {
     out
 }
 
+/// After the `r` of a raw string: the number of `#` before its opening `"`.
+fn raw_string_hashes(chars: &Peekable<Chars<'_>>) -> Option<usize> {
+    let mut hashes = 0;
+    for c in chars.clone() {
+        match c {
+            '#' => hashes += 1,
+            '"' => return Some(hashes),
+            _ => return None,
+        }
+    }
+    None
+}
+
+fn closes_raw(chars: &Peekable<Chars<'_>>, hashes: usize) -> bool {
+    chars.clone().take(hashes).filter(|&c| c == '#').count() == hashes
+}
+
 #[cfg(test)]
 mod tests {
     use super::Scan;
+
+    #[test]
+    fn a_raw_string_ending_in_a_backslash_closes_at_its_quote() {
+        let scan = Scan::new("a(r\"\\\\?\\\").b(r#\"x\"# c);\nfn d");
+        let words: Vec<&str> = scan
+            .tokens(&[])
+            .into_iter()
+            .map(|t| t.text)
+            .filter(|w| w.chars().all(char::is_alphanumeric))
+            .collect();
+        assert_eq!(words, ["a", "r", "b", "r", "c", "fn", "d"]);
+    }
 
     #[test]
     fn comments_and_string_contents_are_blank_and_lines_are_kept() {
