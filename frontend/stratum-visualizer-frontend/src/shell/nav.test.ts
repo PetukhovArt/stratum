@@ -26,3 +26,15 @@ describe('nav feature filter', () => {
     expect((await freshNav()).nav().features).toEqual([])
   })
 })
+
+describe('nav architecture level', () => {
+  beforeEach(() => localStorage.clear())
+
+  it('restores the level and path after a reload, and the top level from a stored path it cannot read', async () => {
+    ;(await freshNav()).go({ view: 'arch', arch: { level: 'code', container: 11, module: 4 } })
+    expect((await freshNav()).nav()).toMatchObject({ view: 'arch', arch: { level: 'code', container: 11, module: 4 } })
+
+    localStorage.setItem('stratum.nav', JSON.stringify({ view: 'arch', arch: { level: 'code', container: 11 } }))
+    expect((await freshNav()).nav().arch).toEqual({ level: 'containers' })
+  })
+})

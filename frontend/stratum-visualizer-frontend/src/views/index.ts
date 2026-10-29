@@ -1,4 +1,5 @@
 import { ViewId } from '../shell/nav'
+import { archView } from './arch/arch'
 import { benchView } from './bench/bench'
 import { dsmView } from './dsm/dsm'
 import { focusView } from './focus/focus'
@@ -9,7 +10,7 @@ import { ViewDef } from './view-def'
 
 export type { ViewDef, ViewProps } from './view-def'
 
-export const VIEWS: readonly ViewDef[] = [focusView, dsmView, mrView, mapView, setView, benchView]
+export const VIEWS: readonly ViewDef[] = [focusView, dsmView, mrView, mapView, setView, archView, benchView]
 
 export const availableViews = (): readonly ViewDef[] => VIEWS.filter((v) => v.isAvailable?.() ?? true)
 

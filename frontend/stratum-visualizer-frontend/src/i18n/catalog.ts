@@ -1,4 +1,5 @@
 import { en as contractEn, ru as contractRu } from '../contract/messages'
+import { en as archEn, ru as archRu } from '../views/arch/messages'
 import { en as featuresEn, ru as featuresRu } from '../features/messages'
 import { en as shellEn, ru as shellRu } from '../shell/messages'
 import { en as benchEn, ru as benchRu } from '../views/bench/messages'
@@ -18,6 +19,7 @@ export const en = {
   ...mrEn,
   ...mapEn,
   ...setEn,
+  ...archEn,
   ...benchEn,
   ...contractEn,
   ...featuresEn,
@@ -34,6 +36,7 @@ export const ru: Messages = {
   ...mrRu,
   ...mapRu,
   ...setRu,
+  ...archRu,
   ...benchRu,
   ...contractRu,
   ...featuresRu,

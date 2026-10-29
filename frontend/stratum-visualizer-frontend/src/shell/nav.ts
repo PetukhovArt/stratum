@@ -1,7 +1,8 @@
 import { createSignal } from 'solid-js'
 import { DEFAULT_COMMON_LIMIT } from '../features/scope'
+import { ARCH_TOP, ArchPath, parseArchPath } from '../views/arch/path'
 
-export const VIEW_IDS = ['focus', 'dsm', 'mr', 'map', 'set', 'bench'] as const
+export const VIEW_IDS = ['focus', 'dsm', 'mr', 'map', 'set', 'arch', 'bench'] as const
 export type ViewId = (typeof VIEW_IDS)[number]
 
 export type Selection =
@@ -29,6 +30,7 @@ export interface NavState {
   mapExpanded: readonly number[]
   setVariant: 'ring' | 'arc' | 'matrix'
   set: readonly number[]
+  arch: ArchPath
   /** Feature ids of the filter; `null` until the user picks, then the server's `selected` applies. */
   features: readonly string[] | null
   isHidingCommon: boolean
@@ -54,6 +56,7 @@ const DEFAULT_STATE: NavState = {
   mapExpanded: [],
   setVariant: 'ring',
   set: [],
+  arch: ARCH_TOP,
   features: null,
   isHidingCommon: false,
   commonLimit: DEFAULT_COMMON_LIMIT,
@@ -88,6 +91,7 @@ const restore = (): NavState => {
       : d.mapExpanded,
     setVariant: oneOf(raw.setVariant, ['ring', 'arc', 'matrix'] as const, d.setVariant),
     set: Array.isArray(raw.set) ? raw.set.filter((id): id is number => typeof id === 'number') : d.set,
+    arch: parseArchPath(raw.arch),
     features: Array.isArray(raw.features)
       ? raw.features.filter((id): id is string => typeof id === 'string')
       : d.features,
