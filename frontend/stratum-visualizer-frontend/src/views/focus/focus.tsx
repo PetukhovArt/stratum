@@ -19,10 +19,15 @@ const isTypingTarget = (target: EventTarget | null): boolean =>
   target instanceof HTMLElement &&
   (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
 
-const onHopsKey = (e: KeyboardEvent): void => {
+const TERRITORY_KEY = 't'
+
+const toggleTerritory = (): void => set({ isTerritoryOpen: !nav().isTerritoryOpen })
+
+const onFocusKey = (e: KeyboardEvent): void => {
   const hasModifier = e.metaKey || e.ctrlKey || e.altKey
-  if (e.key !== HOPS_KEY || hasModifier || isTypingTarget(e.target)) return
-  set({ hops: nav().hops === 1 ? 2 : 1 })
+  if (hasModifier || isTypingTarget(e.target)) return
+  if (e.key === HOPS_KEY) set({ hops: nav().hops === 1 ? 2 : 1 })
+  else if (e.key === TERRITORY_KEY) toggleTerritory()
 }
 
 const Toolbar: Component<{ model: Model; focus: number }> = (p) => (
@@ -46,9 +51,11 @@ const Toolbar: Component<{ model: Model; focus: number }> = (p) => (
       <button
         class={nav().isTerritoryOpen ? 'on' : ''}
         data-testid="focus-territory-toggle"
-        onClick={() => set({ isTerritoryOpen: !nav().isTerritoryOpen })}
+        aria-pressed={nav().isTerritoryOpen}
+        title={t(nav().isTerritoryOpen ? 'focus.territoryHide' : 'focus.territoryShow')}
+        onClick={toggleTerritory}
       >
-        {t('focus.territory')}
+        {nav().isTerritoryOpen ? '▴' : '▾'} {t('focus.territory')}
       </button>
     </div>
   </div>
@@ -57,8 +64,8 @@ const Toolbar: Component<{ model: Model; focus: number }> = (p) => (
 const Stage: Component<ViewProps> = (props) => {
   const focus = () => resolveFocus(props.model, nav().focus)
   onMount(() => {
-    window.addEventListener('keydown', onHopsKey)
-    onCleanup(() => window.removeEventListener('keydown', onHopsKey))
+    window.addEventListener('keydown', onFocusKey)
+    onCleanup(() => window.removeEventListener('keydown', onFocusKey))
   })
   return (
     <Show when={focus() !== null}>
