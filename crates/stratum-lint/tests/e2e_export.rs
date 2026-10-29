@@ -227,3 +227,43 @@ async fn with_base_the_drift_is_written_and_no_output_names_a_machine_path() {
         }
     }
 }
+
+fn export_into(out: &Path) -> assert_cmd::assert::Assert {
+    Command::cargo_bin("stratum-lint")
+        .unwrap()
+        .arg("export")
+        .arg(TINY)
+        .arg("--out")
+        .arg(out)
+        .assert()
+}
+
+#[test]
+fn export_refuses_a_non_empty_folder_of_no_earlier_export_and_leaves_it_untouched() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = dir.path();
+    std::fs::create_dir(out.join("data")).unwrap();
+    std::fs::write(out.join("data/notes.txt"), "mine").unwrap();
+    std::fs::write(out.join("index.html"), "mine").unwrap();
+    let before = written_text(out);
+    let stderr = export_into(out).code(2).get_output().stderr.clone();
+    let stderr = String::from_utf8(stderr).unwrap();
+    assert!(
+        stderr.contains(out.file_name().unwrap().to_str().unwrap())
+            && stderr.contains("earlier export"),
+        "{stderr}"
+    );
+    assert_eq!(written_text(out), before);
+    assert_eq!(files_under(out).len(), 2);
+}
+
+#[test]
+fn export_creates_a_missing_folder_and_replaces_the_data_of_an_earlier_export() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = dir.path().join("site");
+    export_into(&out).success();
+    std::fs::write(out.join("data/stale.json"), "{}").unwrap();
+    export_into(&out).success();
+    assert!(!out.join("data/stale.json").exists());
+    assert!(out.join("data/snapshot.json").exists());
+}

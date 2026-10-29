@@ -69,6 +69,7 @@ stratum-lint visualize [ROOT] [--config PATH] [--base REF] [--feature ID]... [--
 stratum-lint export [ROOT] [--config PATH] --out DIR [--with-source] [--base REF]
                                                # the Visualizer as a static site: any file server serves DIR/ with every view of
                                                # `visualize` except the Brief of files that do not exist yet; replaces DIR/data/;
+                                               # DIR must be missing, empty or an earlier export (it holds the marker .stratum-export);
                                                # prints "stratum-visualizer exported to DIR: N modules, M edges, ..." to stderr.
                                                # DIR/data/: snapshot.json, violations.json, features.json, systems.json (with `systems`),
                                                #   drift.json (with --base) — the bodies of the same /api/* routes; edges.json
@@ -123,7 +124,7 @@ stratum-lint c4 [ROOT] [--config PATH] [--level system|container|component]
 | `snapshot` | snapshot written | | tool failure | |
 | `c4` | printed | | tool failure; `--level system` without `systems` in the config; unknown `--feature` id; `--level component` without `--container` or with an unknown one (each message lists the known ids or names) | |
 | `visualize` | server stopped with Ctrl+C | | tool failure; unknown `--base` REF; unknown `--feature` id (the message lists the known ids) | |
-| `export` | site written | | tool failure; unknown `--base` REF; DIR not writable | |
+| `export` | site written | | tool failure; unknown `--base` REF; DIR not writable; DIR not empty and no earlier export (no `DIR/.stratum-export`) | |
 
 Only `lint` returns 3. Precedence when several apply: 2 over 1 over 3 over 0.
 A baseline entry is fixed in scope when the run no longer produces it and its file is in scope: the whole project when the run has no `--files` / `--changed`, else one of those files. `--no-baseline` never returns 3, and `baseline --check` is unaffected. The caller's action on 3 is `stratum-lint baseline --prune`, as a change of its own. Both CI Templates treat 3 as a pass.

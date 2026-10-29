@@ -65,7 +65,7 @@ Mermaid lays the boxes out in the reader's browser and starts a new row where a 
 
 ## The Visualizer on Pages
 
-`stratum-lint export --out DIR` writes the Visualizer as a static site; Pages serves it from a subpath. Add `--with-source` only if the site is private: without it, no file contents leave the repo. `--base` adds the Merge request view and needs the base commit in the clone.
+`stratum-lint export --out DIR` writes the Visualizer as a static site; Pages serves it from a subpath. DIR must be missing, empty or an earlier export, which leaves the marker file `DIR/.stratum-export`: any other folder fails with exit code 2 and stays untouched. Add `--with-source` only if the site is private: without it, no file contents leave the repo. `--base` adds the Merge request view and needs the base commit in the clone.
 
 GitLab Pages publishes the `public/` artifact of a job named `pages`:
 

@@ -28,7 +28,11 @@ impl Api {
     /// Writes the visualizer and every answer of its API as files under `out`, so a plain file
     /// server serves the same views. `out/data/` is replaced. Source text is written only with
     /// `with_source`; otherwise the output holds paths, names and signatures and no file contents.
+    ///
+    /// # Errors
+    /// When `out` holds files but no `.stratum-export` of an earlier export, before writing.
     pub fn write_site(&self, out: &Utf8Path, with_source: bool) -> miette::Result<SiteSummary> {
+        claim(out)?;
         let data = out.join("data");
         if data.exists() {
             std::fs::remove_dir_all(&data)
@@ -147,6 +151,31 @@ impl Api {
         paths.extend(decls.map(|decl| decl.path.clone()));
         Ok(paths)
     }
+}
+
+/// The file an export leaves in its folder, so a later export may replace that folder's contents.
+const EXPORT_MARKER: &str = ".stratum-export";
+
+fn claim(out: &Utf8Path) -> miette::Result<()> {
+    let marker = out.join(EXPORT_MARKER);
+    let foreign = match std::fs::read_dir(out) {
+        Ok(mut entries) => entries.next().is_some() && !marker.exists(),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,
+        Err(e) => {
+            return Err(e)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("cannot read {out}"));
+        }
+    };
+    if foreign {
+        miette::bail!(
+            "{out} is not empty and holds no earlier export ({EXPORT_MARKER} is missing); pass an empty folder or the folder of an earlier export"
+        );
+    }
+    std::fs::create_dir_all(out).into_diagnostic()?;
+    std::fs::write(&marker, "")
+        .into_diagnostic()
+        .wrap_err_with(|| format!("cannot write {marker}"))
 }
 
 fn to_json(value: &impl Serialize) -> miette::Result<String> {
