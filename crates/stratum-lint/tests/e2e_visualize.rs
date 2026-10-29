@@ -21,7 +21,7 @@ const FIXTURE: &str = "../../tests/fixtures/tiny-ts-violations";
 
 fn router_at(root: &Utf8Path, base: Option<&str>) -> Router {
     let input = lint::build(root, &lint::load_config(root, None).unwrap()).unwrap();
-    build_router(Arc::new(Api::new(input, base).unwrap()))
+    build_router(Arc::new(Api::new(input, base, &[]).unwrap()))
 }
 
 async fn get(uri: &str) -> (StatusCode, String) {
@@ -241,4 +241,64 @@ async fn source_route_rejects_paths_outside_the_root_and_404s_a_missing_file() {
     }
     let (status, _) = tiny("/api/source?path=src/app/missing.ts").await;
     assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+const TINY_FEATURES: &str = "../../tests/fixtures/tiny-ts/features.config.jsonc";
+
+fn tiny_features_api(selected: &[&str]) -> miette::Result<Api> {
+    let root = Utf8Path::new(TINY);
+    let config = lint::load_config(root, Some(Utf8Path::new(TINY_FEATURES))).unwrap();
+    let selected: Vec<String> = selected.iter().map(|&s| s.to_owned()).collect();
+    Api::new(lint::build(root, &config).unwrap(), None, &selected)
+}
+
+#[tokio::test]
+async fn features_route_lists_each_feature_by_module_id_with_the_shared_ones_and_the_selection() {
+    let router = build_router(Arc::new(tiny_features_api(&["cart", "legacy"]).unwrap()));
+    let (status, body) = get_from(router.clone(), "/api/features").await;
+    assert_eq!(status, StatusCode::OK);
+    let s: serde_json::Value =
+        serde_json::from_str(&get_from(router, "/api/snapshot").await.1).unwrap();
+    let ids = |paths: &[&str]| {
+        let mut ids: Vec<u64> = paths.iter().map(|p| id_at(&s, "modules", p)).collect();
+        ids.sort_unstable();
+        ids
+    };
+    let cart = [
+        "src/entities/user/User.ts",
+        "src/entities/user/index.ts",
+        "src/features/cart/cart.tsx",
+        "src/features/cart/index.ts",
+        "src/shared/ui/Button.tsx",
+        "src/shared/utils/format.ts",
+    ];
+    let boot = [&cart[..], &["src/app/main.ts", "src/shared/api/http.ts"]].concat();
+    let shared = [&cart[..], &["src/shared/api/http.ts"]].concat();
+    let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(
+        parsed,
+        serde_json::json!({
+            "features": [
+                { "id": "boot", "name": "boot",
+                  "entry": ids(&["src/app/main.ts"]), "modules": ids(&boot) },
+                { "id": "cart", "name": "Cart",
+                  "entry": ids(&["src/features/cart/cart.tsx", "src/features/cart/index.ts"]),
+                  "modules": ids(&cart) },
+                { "id": "legacy", "name": "Legacy helper",
+                  "entry": ids(&["src/legacy/old-helper.js"]),
+                  "modules": ids(&["src/legacy/old-helper.js", "src/shared/api/http.ts"]) },
+            ],
+            "shared": ids(&shared),
+            "selected": ["cart", "legacy"],
+        })
+    );
+}
+
+#[test]
+fn an_unknown_selected_feature_is_an_error_naming_the_known_ones() {
+    let err = tiny_features_api(&["cart", "chekout"]).unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        r#"unknown feature "chekout"; known: boot, cart, legacy"#
+    );
 }

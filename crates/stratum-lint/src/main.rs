@@ -29,8 +29,20 @@ fn run(cli: cli::Cli) -> miette::Result<u8> {
             config,
             base,
             no_open,
-        }) => commands::visualize::run(&root, config.as_deref(), base.as_deref(), !no_open)
-            .map(|()| 0),
+            features,
+        }) => commands::visualize::run(
+            &root,
+            config.as_deref(),
+            base.as_deref(),
+            &features,
+            !no_open,
+        )
+        .map(|()| 0),
+        Some(cli::Command::Features {
+            root,
+            config,
+            format,
+        }) => commands::features::run(&root, format, config.as_deref()).map(exit_code),
         Some(cli::Command::Baseline {
             root,
             out,

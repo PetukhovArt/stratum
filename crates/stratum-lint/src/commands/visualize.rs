@@ -26,7 +26,7 @@ use stratum_engine::{Drift, EngineInput, Finding, paths};
 use stratum_graph::{CompoundGraph, crossing_names};
 
 use crate::brief;
-use crate::commands::{diff, lint};
+use crate::commands::{diff, features, lint};
 
 #[derive(RustEmbed)]
 #[folder = "../../frontend/stratum-visualizer-frontend/dist/"]
@@ -50,6 +50,7 @@ pub struct Api {
     findings: Vec<Finding>,
     snapshot: String,
     violations: String,
+    features: String,
     /// `None` without `--base`: `/api/drift` answers 404.
     drift: Option<String>,
 }
@@ -73,8 +74,15 @@ struct ApiBase<'a> {
 
 impl Api {
     /// `base` is a git ref: the drift of the working tree vs it is computed once, here.
-    pub fn new(input: EngineInput, base: Option<&str>) -> miette::Result<Self> {
+    /// `selected` are the feature ids the filter opens with; an unknown one is an error that
+    /// names the known ids.
+    pub fn new(
+        input: EngineInput,
+        base: Option<&str>,
+        selected: &[String],
+    ) -> miette::Result<Self> {
         let drift = base.map(|base| drift_json(&input, base)).transpose()?;
+        let features = features_json(&input, selected)?;
         let snapshot = input.snapshot().map_err(|e| miette::miette!("{e}"))?;
         let (api_violations, findings): (Vec<ApiViolation>, Vec<Finding>) = input
             .analyze_violations()
@@ -85,11 +93,39 @@ impl Api {
         Ok(Self {
             snapshot: serde_json::to_string(&snapshot).into_diagnostic()?,
             violations: serde_json::to_string(&api_violations).into_diagnostic()?,
+            features,
             input,
             findings,
             drift,
         })
     }
+}
+
+#[derive(Debug, Serialize)]
+struct ApiFeatures<'a> {
+    #[serde(flatten)]
+    listing: features::Listing<ModuleId>,
+    selected: &'a [String],
+}
+
+fn features_json(input: &EngineInput, selected: &[String]) -> miette::Result<String> {
+    let features = input.features().map_err(|e| miette::miette!("{e}"))?;
+    if let Some(unknown) = selected.iter().find(|id| features.get(id).is_none()) {
+        let known: Vec<&str> = features.features().iter().map(|f| f.id.as_str()).collect();
+        let known = if known.is_empty() {
+            "none".to_owned()
+        } else {
+            known.join(", ")
+        };
+        return Err(miette::miette!(
+            "unknown feature {unknown:?}; known: {known}"
+        ));
+    }
+    let api = ApiFeatures {
+        listing: features::listing(&features, |m| m),
+        selected,
+    };
+    serde_json::to_string(&api).into_diagnostic()
 }
 
 fn drift_json(input: &EngineInput, base: &str) -> miette::Result<String> {
@@ -110,9 +146,11 @@ pub fn run(
     root: &Utf8Path,
     config: Option<&Utf8Path>,
     base: Option<&str>,
+    selected: &[String],
     open_browser: bool,
 ) -> miette::Result<()> {
-    let api = Api::new(lint::build(root, &lint::load_config(root, config)?)?, base)?;
+    let input = lint::build(root, &lint::load_config(root, config)?)?;
+    let api = Api::new(input, base, selected)?;
     let rt = Builder::new_current_thread()
         .enable_all()
         .build()
@@ -145,6 +183,12 @@ pub fn build_router(api: Arc<Api>) -> Router {
             "/api/violations",
             get(|State(api): State<Arc<Api>>| async move {
                 text(StatusCode::OK, "application/json", api.violations.clone())
+            }),
+        )
+        .route(
+            "/api/features",
+            get(|State(api): State<Arc<Api>>| async move {
+                text(StatusCode::OK, "application/json", api.features.clone())
             }),
         )
         .route("/api/context", get(context_brief))

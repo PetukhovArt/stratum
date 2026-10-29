@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "layers": [
+    { "id": "app", "path": "src/app", "depends_on": ["features", "entities", "shared"] },
+    { "id": "features", "path": "src/features", "depends_on": ["entities", "shared"], "slices": true },
+    { "id": "entities", "path": "src/entities", "depends_on": ["shared"], "slices": true },
+    { "id": "shared", "path": "src/shared" },
+    { "id": "legacy", "path": "src/legacy", "depends_on": ["shared"] }
+  ],
+  "features": {
+    "boot": { "entry": ["src/app/main.ts"] },
+    "cart": { "name": "Cart", "entry": ["src/features/cart/**"] },
+    "legacy": { "name": "Legacy helper", "entry": ["src/legacy/**"] }
+  }
+}

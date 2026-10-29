@@ -1,0 +1,31 @@
+---
+source: crates/stratum-lint/tests/e2e_features.rs
+expression: "features(\"text\")"
+---
+boot (boot): 8 modules, 1 exclusive
+  src/app/main.ts
+  src/entities/user/User.ts
+  src/entities/user/index.ts
+  src/features/cart/cart.tsx
+  src/features/cart/index.ts
+  src/shared/api/http.ts
+  src/shared/ui/Button.tsx
+  src/shared/utils/format.ts
+cart (Cart): 6 modules, 0 exclusive
+  src/entities/user/User.ts
+  src/entities/user/index.ts
+  src/features/cart/cart.tsx
+  src/features/cart/index.ts
+  src/shared/ui/Button.tsx
+  src/shared/utils/format.ts
+legacy (Legacy helper): 2 modules, 1 exclusive
+  src/legacy/old-helper.js
+  src/shared/api/http.ts
+shared: 7 modules
+  src/entities/user/User.ts: boot, cart
+  src/entities/user/index.ts: boot, cart
+  src/features/cart/cart.tsx: boot, cart
+  src/features/cart/index.ts: boot, cart
+  src/shared/api/http.ts: boot, legacy
+  src/shared/ui/Button.tsx: boot, cart
+  src/shared/utils/format.ts: boot, cart

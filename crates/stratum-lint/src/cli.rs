@@ -23,6 +23,13 @@ pub enum BriefFormat {
     Json,
 }
 
+#[derive(Debug, Clone, Copy, Default, ValueEnum)]
+pub enum FeaturesFormat {
+    #[default]
+    Text,
+    Json,
+}
+
 #[derive(Debug, Parser)]
 #[command(name = "stratum-lint", version, about, long_about = None)]
 pub struct Cli {
@@ -103,6 +110,18 @@ pub enum Command {
         /// Serve without opening the default browser (for scripted or agent runs)
         #[arg(long)]
         no_open: bool,
+        /// Open with the feature filter set to this feature id; repeatable
+        #[arg(long = "feature", value_name = "ID")]
+        features: Vec<String>,
+    },
+    /// Features, the modules each one reaches, and the modules two or more share
+    Features {
+        #[arg(default_value = ".")]
+        root: Utf8PathBuf,
+        #[arg(long)]
+        config: Option<Utf8PathBuf>,
+        #[arg(long, value_enum, default_value = "text")]
+        format: FeaturesFormat,
     },
     /// Accept the current violations into a baseline file
     Baseline {
