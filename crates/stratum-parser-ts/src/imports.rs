@@ -4,7 +4,8 @@ use oxc_allocator::Allocator;
 use oxc_ast::Visit;
 use oxc_ast::ast::{
     Argument, CallExpression, ExportAllDeclaration, ExportNamedDeclaration, Expression,
-    ImportDeclaration, ImportDeclarationSpecifier, ImportExpression,
+    IdentifierReference, ImportDeclaration, ImportDeclarationSpecifier, ImportExpression, TSType,
+    VariableDeclarator,
 };
 use oxc_ast::visit::walk;
 use oxc_parser::Parser;
@@ -12,9 +13,10 @@ use oxc_span::{SourceType, Span};
 use stratum_core::edge::EdgeKind;
 use stratum_core::types::{Bindings, ImportedName};
 
+use crate::calls::CallRecorder;
 use crate::comments::suppressions;
 use crate::exports::top_level_exports;
-use crate::extractor::{CallPattern, RawCall, RawExports, RawImport, RawSuppression, TrackedCalls};
+use crate::extractor::{RawCall, RawExports, RawImport, RawSuppression, TrackedCalls};
 use crate::source_span::SourceSpan;
 
 #[derive(Debug)]
@@ -25,6 +27,8 @@ pub struct Collected {
     /// Top-level ES exports only; `module.exports` / `exports.x` are not counted.
     pub exports: RawExports,
     pub calls: Vec<RawCall>,
+    /// See [`ExtractedData::local_refs`](crate::ExtractedData::local_refs).
+    pub local_refs: Vec<(String, Vec<String>)>,
     pub suppressions: Vec<RawSuppression>,
 }
 
@@ -33,12 +37,17 @@ pub fn collect(source: &str, source_type: SourceType, tracked: &TrackedCalls) ->
     ARENA.with_borrow_mut(|allocator| {
         let collected = {
             let ret = Parser::new(allocator, source, source_type).parse();
-            let mut visitor = ImportVisitor::new(tracked);
+            let mut visitor = ImportVisitor {
+                calls: CallRecorder::new(tracked, &ret.program),
+                imports: Vec::new(),
+                in_type: 0,
+            };
             visitor.visit_program(&ret.program);
             Collected {
                 exports: top_level_exports(&ret.program, &visitor.imports),
                 imports: visitor.imports,
-                calls: visitor.calls,
+                local_refs: visitor.calls.local_refs(),
+                calls: visitor.calls.finish(),
                 suppressions: suppressions(source, &ret.trivias),
             }
         };
@@ -58,123 +67,13 @@ thread_local! {
 }
 
 struct ImportVisitor<'t> {
-    tracked: &'t TrackedCalls,
-    aliases: Vec<(String, String)>,
-    namespaces: Vec<String>,
+    calls: CallRecorder<'t>,
     imports: Vec<RawImport>,
-    calls: Vec<RawCall>,
+    /// How many type positions the visit is inside.
+    in_type: u32,
 }
 
-enum Callee<'a> {
-    Plain(&'a str),
-    Member {
-        object: Option<&'a str>,
-        name: &'a str,
-    },
-}
-
-impl<'a> Callee<'a> {
-    fn of(callee: &'a Expression<'_>) -> Option<Self> {
-        match callee {
-            Expression::Identifier(id) => Some(Self::Plain(id.name.as_str())),
-            Expression::StaticMemberExpression(member) => Some(Self::Member {
-                object: match &member.object {
-                    Expression::Identifier(id) => Some(id.name.as_str()),
-                    _ => None,
-                },
-                name: member.property.name.as_str(),
-            }),
-            _ => None,
-        }
-    }
-}
-
-impl<'t> ImportVisitor<'t> {
-    const fn new(tracked: &'t TrackedCalls) -> Self {
-        Self {
-            tracked,
-            aliases: Vec::new(),
-            namespaces: Vec::new(),
-            imports: Vec::new(),
-            calls: Vec::new(),
-        }
-    }
-
-    fn record_local_names(&mut self, decl: &ImportDeclaration<'_>) {
-        if self.tracked.is_empty() {
-            return;
-        }
-        for spec in decl.specifiers.iter().flatten() {
-            match spec {
-                ImportDeclarationSpecifier::ImportSpecifier(spec) => {
-                    let imported = spec.imported.name();
-                    if spec.local.name != imported && self.is_plain_entry(imported.as_str()) {
-                        self.aliases
-                            .push((spec.local.name.to_string(), imported.to_string()));
-                    }
-                }
-                ImportDeclarationSpecifier::ImportNamespaceSpecifier(spec) => {
-                    self.namespaces.push(spec.local.name.to_string());
-                }
-                ImportDeclarationSpecifier::ImportDefaultSpecifier(_) => {}
-            }
-        }
-    }
-
-    fn is_plain_entry(&self, name: &str) -> bool {
-        self.tracked
-            .entries()
-            .iter()
-            .any(|t| matches!(&t.pattern, CallPattern::Plain(n) if n == name))
-    }
-
-    fn matches(&self, pattern: &CallPattern, callee: &Callee<'_>) -> bool {
-        match (pattern, callee) {
-            (CallPattern::Plain(n), Callee::Plain(local)) => {
-                local == n
-                    || self
-                        .aliases
-                        .iter()
-                        .find(|(alias, _)| alias == local)
-                        .is_some_and(|(_, imported)| imported == n)
-            }
-            (
-                CallPattern::Plain(n),
-                Callee::Member {
-                    object: Some(object),
-                    name,
-                },
-            ) => name == n && self.namespaces.iter().any(|ns| ns == object),
-            (
-                CallPattern::Member { object, name },
-                Callee::Member {
-                    object: Some(o),
-                    name: p,
-                },
-            ) => o == object && p == name,
-            (CallPattern::AnyMember(n), Callee::Member { name, .. }) => name == n,
-            _ => false,
-        }
-    }
-
-    fn record_call(&mut self, call: &CallExpression<'_>) {
-        if self.tracked.is_empty() {
-            return;
-        }
-        let Some(callee) = Callee::of(&call.callee) else {
-            return;
-        };
-        for tracked in self.tracked.entries() {
-            if !self.matches(&tracked.pattern, &callee) {
-                continue;
-            }
-            self.calls.push(RawCall {
-                name: tracked.entry.clone(),
-                span: SourceSpan::new(call.span.start, call.span.end),
-            });
-        }
-    }
-
+impl ImportVisitor<'_> {
     fn push(&mut self, specifier: Span, text: &str, statement: Span, import: Import) {
         self.imports.push(RawImport {
             specifier: text.to_owned(),
@@ -239,7 +138,7 @@ fn import_bindings(decl: &ImportDeclaration<'_>) -> Bindings {
 
 impl<'a> Visit<'a> for ImportVisitor<'_> {
     fn visit_import_declaration(&mut self, decl: &ImportDeclaration<'a>) {
-        self.record_local_names(decl);
+        self.calls.import(decl);
         let src = &decl.source;
         self.push(
             src.span,
@@ -299,8 +198,25 @@ impl<'a> Visit<'a> for ImportVisitor<'_> {
         walk::walk_import_expression(self, expr);
     }
 
+    fn visit_variable_declarator(&mut self, decl: &VariableDeclarator<'a>) {
+        self.calls.declarator(decl);
+        walk::walk_variable_declarator(self, decl);
+    }
+
+    fn visit_ts_type(&mut self, ty: &TSType<'a>) {
+        self.in_type += 1;
+        walk::walk_ts_type(self, ty);
+        self.in_type -= 1;
+    }
+
+    fn visit_identifier_reference(&mut self, reference: &IdentifierReference<'a>) {
+        if self.in_type == 0 {
+            self.calls.reference(reference);
+        }
+    }
+
     fn visit_call_expression(&mut self, call: &CallExpression<'a>) {
-        self.record_call(call);
+        self.calls.call(call);
         if let Some(Argument::StringLiteral(lit)) = call.arguments.first() {
             if is_require_callee(&call.callee) && call.arguments.len() == 1 {
                 self.push(

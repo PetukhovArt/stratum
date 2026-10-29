@@ -25,6 +25,8 @@
 .set-mx-block { fill: none; stroke: oklch(92% 0.01 260); stroke-dasharray: 3 2; pointer-events: none; }
 .set-mx-label text { font-size: 10px; fill: oklch(58% 0.012 260); }
 .set-mx-label.member text { fill: oklch(86% 0.006 260); }
+.set-node.shared rect:first-child { stroke: var(--shared); stroke-width: 1.6; }
+.set-mx-label.shared text { fill: var(--shared); }
 
 .set-lg { display: inline-block; width: 26px; height: 10px; flex: none; text-align: center; }
 .set-lg-member { border: 1px solid oklch(74% 0.06 260); background: oklch(23% 0.016 260); border-radius: 2px; }

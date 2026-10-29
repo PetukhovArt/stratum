@@ -1,10 +1,11 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import solid from 'vite-plugin-solid'
 
 const apiPort = process.env.VITE_API_PORT ?? '8080'
 
 export default defineConfig({
   plugins: [solid()],
+  base: './',
   server: {
     proxy: {
       '/api': `http://127.0.0.1:${apiPort}`,

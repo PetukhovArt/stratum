@@ -1,5 +1,6 @@
 import { Accessor, Component, createMemo, createSignal, For, Show } from 'solid-js'
 import { Canvas } from '../../canvas/canvas'
+import { sharedAttr, sharedNote } from '../../features/shared-mark'
 import { t } from '../../i18n'
 import { CANVAS_DEFS, EDGE_DASH, EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR } from '../../render/encoding'
 import { edgeKey, Model, worst } from '../../render/model'
@@ -130,9 +131,10 @@ const NodeMark: Component<{
   const sev = worst(m.findingsOf(n.id))
   return (
     <g
-      class={`set-node${n.isMember ? ' member' : ' via'}${n.isLoop ? ' loop' : ''}`}
+      class={`set-node${n.isMember ? ' member' : ' via'}${n.isLoop ? ' loop' : ''}${m.isSharedByChosenFeatures(n.id) ? ' shared' : ''}`}
       data-testid="set-node"
       data-id={n.id}
+      data-shared={sharedAttr(m, n.id)}
       transform={`translate(${n.x - props.w / 2},${n.y - props.h / 2})`}
       onMouseEnter={() => props.setHover(n.id)}
       onMouseLeave={() => props.setHover(null)}
@@ -153,7 +155,7 @@ const NodeMark: Component<{
       <Show when={sev}>
         {(s) => <circle data-ch="sev" cx={props.w - 10} cy={props.h / 2} r="3" fill={SEV_COLOR[s()]} />}
       </Show>
-      <title>{m.modules.get(n.id)!.path + (n.isMember ? '' : `\n${t('set.node.via')}`)}</title>
+      <title>{m.modules.get(n.id)!.path + (n.isMember ? '' : `\n${t('set.node.via')}`) + sharedNote(m, n.id)}</title>
     </g>
   )
 }
@@ -228,7 +230,11 @@ const MatrixMarks: Component<{ model: Model; matrix: SetMatrix }> = (props) => {
           const name = ellipsizePath(props.model.label(id), LABEL_CHARS.matrix)
           const isMember = mx().members.has(id)
           return (
-            <g class={`set-mx-label${isMember ? ' member' : ''}`} onClick={() => go({ view: 'focus', focus: id })}>
+            <g
+              class={`set-mx-label${isMember ? ' member' : ''}${sharedAttr(props.model, id) ? ' shared' : ''}`}
+              data-shared={sharedAttr(props.model, id)}
+              onClick={() => go({ view: 'focus', focus: id })}
+            >
               <text x={-MATRIX_LABEL_GAP} y={i() * SET_CELL + SET_CELL / 2 + 3.5} text-anchor="end">
                 {name}
               </text>
@@ -237,7 +243,7 @@ const MatrixMarks: Component<{ model: Model; matrix: SetMatrix }> = (props) => {
               >
                 {name}
               </text>
-              <title>{props.model.modules.get(id)?.path}</title>
+              <title>{(props.model.modules.get(id)?.path ?? '') + sharedNote(props.model, id)}</title>
             </g>
           )
         }}

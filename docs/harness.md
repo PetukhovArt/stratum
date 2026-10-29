@@ -61,10 +61,52 @@ stratum-lint snapshot [ROOT] [--out PATH] [--config PATH]
                                                # Graph Snapshot v3 JSON, default stratum.snapshot.json; config default ROOT/stratum.config.jsonc.
                                                # { version: 3, project, modules[{id, path, container, layer, purity, zone?, territory}],
                                                #   containers, layers, edges, zones[{id, path, root}], territories[] }; paths ROOT-relative with "/"
-stratum-lint visualize [ROOT] [--config PATH] [--base REF] [--no-open]
+stratum-lint visualize [ROOT] [--config PATH] [--base REF] [--feature ID]... [--no-open]
                                                # serves the Visualizer on 127.0.0.1:<random port> until Ctrl+C;
                                                # prints "stratum-visualizer ready at <url>" to stderr; --no-open skips the browser;
-                                               # --base REF: the Drift vs REF at /api/drift, as `diff --base REF` computes it
+                                               # --base REF: the Drift vs REF at /api/drift, as `diff --base REF` computes it;
+                                               # --feature ID: opens with the feature filter set to these ids
+stratum-lint export [ROOT] [--config PATH] --out DIR [--with-source] [--base REF]
+                                               # the Visualizer as a static site: any file server serves DIR/ with every view of
+                                               # `visualize` except the Brief of files that do not exist yet; replaces DIR/data/;
+                                               # DIR must be missing, empty or an earlier export (it holds the marker .stratum-export);
+                                               # prints "stratum-visualizer exported to DIR: N modules, M edges, ..." to stderr.
+                                               # DIR/data/: snapshot.json, violations.json, features.json, systems.json (with `systems`),
+                                               #   drift.json (with --base) — the bodies of the same /api/* routes; edges.json
+                                               #   { from: { to: /api/edge answer } } per module pair; members.json { container: [module] }
+                                               #   (container bundles are joined from these); context/<module id>.txt — the Brief;
+                                               #   source/index.json { path: n } + source/<n>.json { path, lines } only with --with-source:
+                                               #   each module and each cross-system contract declaration (`system-id:rel/path`).
+                                               # Without --with-source no file contents leave the repo: only paths, names, signatures.
+                                               # All paths ROOT-relative; index.html carries window.__STRATUM_STATIC__ and relative assets
+stratum-lint features [ROOT] [--config PATH] [--format text|json]
+                                               # every feature (config `features`, else one per folder or file in the first sliced layer),
+                                               # its modules and the modules two or more features share; default text:
+                                               # "<id> (<name>): N modules, M exclusive", its module paths, then "shared:" with each
+                                               # shared module and the feature ids holding it.
+                                               # json: { features: [{ id, name, entry, modules }], shared }; ROOT-relative paths
+                                               # with "/", every list ascending
+stratum-lint c4 [ROOT] [--config PATH] [--level system|container|component]
+                [--feature ID]... [--container NAME]
+                                               # a C4 diagram as text on stdout, one view; default --level container.
+                                               # system: the `self` system of config `systems` and the others as externals,
+                                               #   each arrow "N contracts[, M calls not attributed]";
+                                               # container: one container per top-level layer (a layer whose path is in no other
+                                               #   layer's path; a nested layer's modules count for the layer holding them), named
+                                               #   by its id, "N modules[, N slices | N parts]", in depends_on order; arrows
+                                               #   "N imports" (distinct module pairs) and "N contracts" to the other systems;
+                                               # component: one component per folder or file directly inside the top-level layer
+                                               #   --container NAME (its id), technology slice, layer, folder or file;
+                                               #   arrows "N imports".
+                                               # --feature: only the union of these features' modules; the unattributed count is
+                                               #   then left out. Past 60 elements inside the boundary, the 59 with the most
+                                               #   modules stay and the rest become one "… N more" that carries their arrows.
+                                               # Mermaid text: shapes are placed on Mermaid's grid (2 or 3 to a row, so a row fits
+                                               #   a 1280-px screen; empty cells drawn transparent), other systems in an untitled
+                                               #   boundary below the system's, and labels moved with UpdateRelStyle so that no
+                                               #   arrow crosses a box or a boundary title and no label covers a box, another label
+                                               #   or a boundary, when the search finds such a placement.
+                                               # Ids [A-Za-z0-9_] from the system id or the path; a `"` in a label is written `'`.
 ```
 
 ### Exit codes
@@ -77,10 +119,12 @@ stratum-lint visualize [ROOT] [--config PATH] [--base REF] [--no-open]
 | `baseline --check` | no entry count grew: equal, shrunk, introduced (absent at REF), or no baseline in the working tree | some entry count grew | tool failure; unknown REF; invalid baseline on either side; `--out` outside ROOT | |
 | `diff` | no drift | drift (advisory: CI Templates let it pass) | tool failure; unknown REF; a graph fails to build on either side | |
 | `explain` | printed | | tool failure; unknown slug | |
-| `rules`, `context` | printed, whatever violations exist | | tool failure; `context` FILE outside ROOT | |
+| `rules`, `context`, `features` | printed, whatever violations exist | | tool failure; `context` FILE outside ROOT; a `features` entry glob matching no module | |
 | `init` | config written | | tool failure; config already exists | |
 | `snapshot` | snapshot written | | tool failure | |
-| `visualize` | server stopped with Ctrl+C | | tool failure; unknown `--base` REF | |
+| `c4` | printed | | tool failure; `--level system` without `systems` in the config; unknown `--feature` id; `--level component` without `--container` or with an unknown one (each message lists the known ids or names) | |
+| `visualize` | server stopped with Ctrl+C | | tool failure; unknown `--base` REF; unknown `--feature` id (the message lists the known ids) | |
+| `export` | site written | | tool failure; unknown `--base` REF; DIR not writable; DIR not empty and no earlier export (no `DIR/.stratum-export`) | |
 
 Only `lint` returns 3. Precedence when several apply: 2 over 1 over 3 over 0.
 A baseline entry is fixed in scope when the run no longer produces it and its file is in scope: the whole project when the run has no `--files` / `--changed`, else one of those files. `--no-baseline` never returns 3, and `baseline --check` is unaffected. The caller's action on 3 is `stratum-lint baseline --prune`, as a change of its own. Both CI Templates treat 3 as a pass.

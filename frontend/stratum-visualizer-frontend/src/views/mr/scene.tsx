@@ -1,7 +1,8 @@
 import { Component, createMemo, For, Show } from 'solid-js'
 import { Canvas } from '../../canvas/canvas'
 import { t } from '../../i18n'
-import { CANVAS_DEFS, EDGE_DASH, LAYER_TONE } from '../../render/encoding'
+import { sharedNote } from '../../features/shared-mark'
+import { CANVAS_DEFS, EDGE_DASH, LAYER_TONE, SHARED_COLOR } from '../../render/encoding'
 import { edgeKey, Model } from '../../render/model'
 import { go, nav, set } from '../../shell/nav'
 import { EdgeMark, GroupBox, layoutRegion, RegionLayout } from './layout'
@@ -111,11 +112,13 @@ const Group: Component<{ box: GroupBox; model: Model; review: Review }> = (props
 const Node: Component<{ node: ReviewNode; layout: RegionLayout; model: Model }> = (props) => {
   const n = props.node
   const r = props.layout.nodes.get(n.id)!
+  const isShared = !n.isGhost && props.model.isSharedByChosenFeatures(n.id)
   return (
     <g
       class={n.isGhost ? 'mr-node ghost' : 'mr-node'}
       data-testid="mr-node"
       data-ghost={n.isGhost ? '1' : undefined}
+      data-shared={isShared ? 'true' : undefined}
       transform={`translate(${r.x},${r.y})`}
       onClick={() => {
         if (!n.isGhost) go({ view: 'focus', focus: n.id })
@@ -126,7 +129,7 @@ const Node: Component<{ node: ReviewNode; layout: RegionLayout; model: Model }> 
         height={r.h}
         rx="4"
         fill={n.isGhost ? 'transparent' : 'oklch(23% 0.016 260)'}
-        stroke={n.isImporter ? 'oklch(88% 0.01 260)' : 'oklch(42% 0.012 260)'}
+        stroke={isShared ? SHARED_COLOR : n.isImporter ? 'oklch(88% 0.01 260)' : 'oklch(42% 0.012 260)'}
         stroke-dasharray={n.isGhost ? '3 3' : undefined}
       />
       <text x="8" y="14.5" font-size="10" fill={n.isGhost ? 'oklch(68% 0.01 260)' : 'oklch(90% 0.005 260)'}>
@@ -137,7 +140,7 @@ const Node: Component<{ node: ReviewNode; layout: RegionLayout; model: Model }> 
           M
         </text>
       </Show>
-      <title>{n.path}</title>
+      <title>{n.path + (isShared ? sharedNote(props.model, n.id) : '')}</title>
     </g>
   )
 }

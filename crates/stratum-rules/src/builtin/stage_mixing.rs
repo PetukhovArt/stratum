@@ -158,6 +158,7 @@ mod tests {
                 calls: vec![],
                 imports: vec![],
                 suppressions: vec![],
+                local_refs: vec![],
             },
         );
         StageMixing.check(&g, ContainerId::new(1), &EmptyOptions, Severity::Error)

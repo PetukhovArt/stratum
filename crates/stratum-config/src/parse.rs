@@ -5,7 +5,7 @@ use jsonc_parser::{ParseOptions, parse_to_serde_value};
 use serde_json::Value;
 use stratum_core::severity::Severity;
 
-use crate::{Config, ConfigError, EntryPoints, IgnoreSet, extends, overrides};
+use crate::{Config, ConfigError, EntryPoints, IgnoreSet, extends, features, overrides, systems};
 
 /// Parse a JSONC string into a [`Config`], resolving `project.extends`
 /// (paths relative to `path`'s directory, or `stratum:*` presets).
@@ -16,7 +16,8 @@ use crate::{Config, ConfigError, EntryPoints, IgnoreSet, extends, overrides};
 /// [`ConfigError::UnknownPreset`] / [`ConfigError::ExtendsCycle`] for a bad `extends` chain, or
 /// [`ConfigError::Validation`] when the merged document does not match the [`Config`] schema
 /// or a layer depends on an undeclared layer;
-/// [`ConfigError::BadGlob`] for an invalid `project.ignore` glob.
+/// [`ConfigError::BadGlob`] for an invalid `project.ignore` or `features` glob, or
+/// [`ConfigError::Validation`] for a feature id outside `^[\w.-]+$` or a feature without `entry`.
 pub fn parse_str(path: &Utf8Path, text: &str) -> Result<Config, ConfigError> {
     let document = parse_jsonc(path, text)?;
     let mut merged = extends::resolve(path, document)?;
@@ -32,6 +33,8 @@ pub fn parse_str(path: &Utf8Path, text: &str) -> Result<Config, ConfigError> {
     IgnoreSet::new(&config)?;
     EntryPoints::new(&config)?;
     overrides::validate(&config)?;
+    features::validate(path, &config)?;
+    systems::validate(path, &config)?;
     Ok(config)
 }
 

@@ -39,6 +39,72 @@ The ratchet fails when a baseline entry's count grows, and a moved file counts a
 1. Regenerate the baseline in the MR (`stratum-lint baseline`) and commit it.
 2. Add the label `stratum:accept-debt`: the template skips `baseline --check` ([when the label takes effect](../ci/README.md#stratum-ci-templates)).
 
+## A C4 diagram in an MR description
+
+GitLab and GitHub render a ```` ```mermaid ```` block in markdown, C4 diagrams included. Print one and paste it into the MR or PR description:
+
+```
+stratum-lint c4                                       # containers: the top-level layers
+stratum-lint c4 --level system                        # needs `systems` in the config
+stratum-lint c4 --feature checkout                    # only what one feature reaches
+```
+
+Wrap the output in a fence:
+
+````
+```mermaid
+C4Container
+title Containers of Web UI
+...
+```
+````
+
+The container level shows one box per top-level layer; layers nested in another layer's folder count for it. To look inside one, use `--level component --container <layer id>`: one box per folder or file directly in that layer, at most 60 (the smallest fold into one "… N more"). For a narrower view, use `--feature`. The Mermaid output places the boxes and moves the labels itself (`UpdateRelStyle`, transparent filler boxes), so arrows stay out of boxes and labels apart; keep those lines when you paste it. At the container level, the other systems sit in an untitled dashed boundary below the system's.
+
+Mermaid lays the boxes out in the reader's browser and starts a new row where a box would pass the screen width (`screen.availWidth`, the screen in CSS pixels, so a 1920-px screen at 150 % scaling counts as 1280). The output keeps every row at 2 or 3 boxes, which fit a screen 1280 px wide; on a narrower screen the rows wrap and arrows can cross boxes. A headless browser that renders the diagram (a screenshot job, for one) reports an 800-px screen unless told otherwise: start Chrome with `--screen-info={0,0 1920x1080}`.
+
+## The Visualizer on Pages
+
+`stratum-lint export --out DIR` writes the Visualizer as a static site; Pages serves it from a subpath. DIR must be missing, empty or an earlier export, which leaves the marker file `DIR/.stratum-export`: any other folder fails with exit code 2 and stays untouched. Add `--with-source` only if the site is private: without it, no file contents leave the repo. `--base` adds the Merge request view and needs the base commit in the clone.
+
+GitLab Pages publishes the `public/` artifact of a job named `pages`:
+
+```yaml
+pages:
+  image: node:22
+  script:
+    - npx -y @petukhovart/stratum-lint export --out public
+  artifacts:
+    paths: [public]
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+```
+
+GitHub Pages (Settings → Pages → Source: GitHub Actions):
+
+```yaml
+on:
+  push:
+    branches: [main]
+permissions:
+  pages: write
+  id-token: write
+jobs:
+  pages:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: npx -y @petukhovart/stratum-lint export --out public
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+      - id: deploy
+        uses: actions/deploy-pages@v4
+```
+
 ## Reproducing a pipeline locally
 
 ```

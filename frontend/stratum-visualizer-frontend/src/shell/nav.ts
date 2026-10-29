@@ -1,6 +1,8 @@
 import { createSignal } from 'solid-js'
+import { DEFAULT_COMMON_LIMIT } from '../features/scope'
+import { ARCH_TOP, ArchPath, parseArchPath } from '../views/arch/path'
 
-export const VIEW_IDS = ['focus', 'dsm', 'mr', 'map', 'set', 'bench'] as const
+export const VIEW_IDS = ['focus', 'dsm', 'mr', 'map', 'set', 'arch', 'bench'] as const
 export type ViewId = (typeof VIEW_IDS)[number]
 
 export type Selection =
@@ -9,6 +11,9 @@ export type Selection =
   | { kind: 'edge'; from: number; to: number }
   | { kind: 'cell'; level: 'layer' | 'unit'; from: number; to: number }
   | { kind: 'imports'; pairs: readonly (readonly [from: number, to: number])[] }
+  | { kind: 'system'; id: string }
+  | { kind: 'channel'; to: string }
+  | { kind: 'port'; container: number; system: string }
 
 export const MAP_VARIANTS = ['lanes', 'layers'] as const
 export type MapVariant = (typeof MAP_VARIANTS)[number]
@@ -28,6 +33,11 @@ export interface NavState {
   mapExpanded: readonly number[]
   setVariant: 'ring' | 'arc' | 'matrix'
   set: readonly number[]
+  arch: ArchPath
+  /** Feature ids of the filter; `null` until the user picks, then the server's `selected` applies. */
+  features: readonly string[] | null
+  isHidingCommon: boolean
+  commonLimit: number
   sel: Selection | null
 }
 
@@ -49,11 +59,17 @@ const DEFAULT_STATE: NavState = {
   mapExpanded: [],
   setVariant: 'ring',
   set: [],
+  arch: ARCH_TOP,
+  features: null,
+  isHidingCommon: false,
+  commonLimit: DEFAULT_COMMON_LIMIT,
   sel: null,
 }
 
 const oneOf = <T>(value: unknown, allowed: readonly T[], fallback: T): T =>
   allowed.includes(value as T) ? (value as T) : fallback
+
+const isCount = (value: unknown): value is number => Number.isInteger(value) && (value as number) >= 1
 
 const restore = (): NavState => {
   let raw: Record<string, unknown> = {}
@@ -78,6 +94,12 @@ const restore = (): NavState => {
       : d.mapExpanded,
     setVariant: oneOf(raw.setVariant, ['ring', 'arc', 'matrix'] as const, d.setVariant),
     set: Array.isArray(raw.set) ? raw.set.filter((id): id is number => typeof id === 'number') : d.set,
+    arch: parseArchPath(raw.arch),
+    features: Array.isArray(raw.features)
+      ? raw.features.filter((id): id is string => typeof id === 'string')
+      : d.features,
+    isHidingCommon: typeof raw.isHidingCommon === 'boolean' ? raw.isHidingCommon : d.isHidingCommon,
+    commonLimit: isCount(raw.commonLimit) ? raw.commonLimit : d.commonLimit,
     sel: null,
   }
 }

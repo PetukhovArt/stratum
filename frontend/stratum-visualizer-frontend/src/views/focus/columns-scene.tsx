@@ -2,7 +2,8 @@ import { Accessor, Component, createMemo, createSignal, For, Show } from 'solid-
 import { BudgetNote } from '../../canvas/budget-note'
 import { Canvas } from '../../canvas/canvas'
 import { t } from '../../i18n'
-import { CANVAS_DEFS, EDGE_DASH, EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR } from '../../render/encoding'
+import { sharedAttr, sharedNote } from '../../features/shared-mark'
+import { CANVAS_DEFS, EDGE_DASH, EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR, SHARED_COLOR } from '../../render/encoding'
 import { edgeKey, Model, worst } from '../../render/model'
 import { go, nav, set } from '../../shell/nav'
 import { Territory } from '../../types'
@@ -118,6 +119,7 @@ const Row: Component<{ ctx: SceneCtx; group: ColumnGroup; row: ColumnRow }> = (p
       class="fo-row"
       data-testid="focus-row"
       data-id={id}
+      data-shared={sharedAttr(m, id)}
       onMouseEnter={() => props.ctx.setHover(id)}
       onMouseLeave={() => props.ctx.setHover(null)}
       onClick={() => go({ view: 'focus', focus: id })}
@@ -130,6 +132,9 @@ const Row: Component<{ ctx: SceneCtx; group: ColumnGroup; row: ColumnRow }> = (p
         rx="3"
         fill={props.ctx.hover() === id ? 'oklch(32% 0.02 260 / .8)' : 'transparent'}
       />
+      <Show when={m.isSharedByChosenFeatures(id)}>
+        <rect x={x0 + 3} y={props.row.y - COLUMN.row / 2 + 2} width="2" height={COLUMN.row - 4} fill={SHARED_COLOR} />
+      </Show>
       <Show when={isEntry}>
         <text x={x0 + 10} y={props.row.y + 3.5} font-size="9" fill="oklch(80% 0.01 260)">
           ◆
@@ -159,7 +164,7 @@ const Row: Component<{ ctx: SceneCtx; group: ColumnGroup; row: ColumnRow }> = (p
       <Show when={moduleSev}>
         <circle data-ch="sev" cx={x0 + COLUMN.width - 11} cy={props.row.y} r="3" fill={SEV_COLOR[moduleSev!]} />
       </Show>
-      <title>{path}</title>
+      <title>{path + sharedNote(m, id)}</title>
     </g>
   )
 }

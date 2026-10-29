@@ -23,6 +23,24 @@ pub enum BriefFormat {
     Json,
 }
 
+#[derive(Debug, Clone, Copy, Default, ValueEnum)]
+pub enum FeaturesFormat {
+    #[default]
+    Text,
+    Json,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, ValueEnum)]
+pub enum C4Level {
+    /// The project as one system and the systems it calls; needs `systems` in the config
+    System,
+    /// The top-level layers of the project, and the systems they call
+    #[default]
+    Container,
+    /// The folders and files directly inside one top-level layer (`--container`)
+    Component,
+}
+
 #[derive(Debug, Parser)]
 #[command(name = "stratum-lint", version, about, long_about = None)]
 pub struct Cli {
@@ -103,6 +121,49 @@ pub enum Command {
         /// Serve without opening the default browser (for scripted or agent runs)
         #[arg(long)]
         no_open: bool,
+        /// Open with the feature filter set to this feature id; repeatable
+        #[arg(long = "feature", value_name = "ID")]
+        features: Vec<String>,
+    },
+    /// Write the visualizer as a static site that any file server serves (GitLab or GitHub Pages)
+    Export {
+        #[arg(default_value = ".")]
+        root: Utf8PathBuf,
+        #[arg(long)]
+        config: Option<Utf8PathBuf>,
+        /// The site folder; its `data/` is replaced
+        #[arg(long, value_name = "DIR")]
+        out: Utf8PathBuf,
+        /// Also write the source files the Code panel opens; without it no file contents leave the repo
+        #[arg(long)]
+        with_source: bool,
+        /// Also write the drift of the working tree vs REF (Merge request view)
+        #[arg(long, value_name = "REF")]
+        base: Option<String>,
+    },
+    /// Features, the modules each one reaches, and the modules two or more share
+    Features {
+        #[arg(default_value = ".")]
+        root: Utf8PathBuf,
+        #[arg(long)]
+        config: Option<Utf8PathBuf>,
+        #[arg(long, value_enum, default_value = "text")]
+        format: FeaturesFormat,
+    },
+    /// A C4 diagram of the project as Mermaid text, rendered inline by GitLab and GitHub markdown
+    C4 {
+        #[arg(default_value = ".")]
+        root: Utf8PathBuf,
+        #[arg(long)]
+        config: Option<Utf8PathBuf>,
+        #[arg(long, value_enum, default_value = "container")]
+        level: C4Level,
+        /// Show only the modules of these features; repeatable
+        #[arg(long = "feature", value_name = "ID")]
+        features: Vec<String>,
+        /// The top-level layer the component level opens, by its id in the config
+        #[arg(long, value_name = "NAME")]
+        container: Option<String>,
     },
     /// Accept the current violations into a baseline file
     Baseline {

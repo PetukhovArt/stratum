@@ -57,6 +57,7 @@ impl LanguageExtractor for OxcTsExtractor {
             purity,
             exports: collected.exports,
             calls: collected.calls,
+            local_refs: collected.local_refs,
             suppressions: collected.suppressions,
         })
     }

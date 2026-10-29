@@ -117,7 +117,24 @@ const representative = (m: Model, container: SnapshotContainer): number | null =
   return nested
 }
 
-export const toReview = (m: Model, drift: DriftReport): Review => {
+const inScope = (m: Model, drift: DriftReport): DriftReport => {
+  const newIndex = new Map<number, number>()
+  const edges = drift.edges.filter((e, i) => {
+    if (m.hides(e.from) || m.hides(e.to)) return false
+    newIndex.set(i, newIndex.size)
+    return true
+  })
+  return {
+    ...drift,
+    edges,
+    breaking: drift.breaking.flatMap((i) => newIndex.get(i) ?? []),
+    cycles: drift.cycles.filter((c) => !c.members.some(m.hides) && !c.path.some(m.hides)),
+    stages: drift.stages.filter((s) => !m.hides(s.container)),
+  }
+}
+
+export const toReview = (m: Model, whole: DriftReport): Review => {
+  const drift = inScope(m, whole)
   const byDepth = [...m.containers.values()].sort((a, b) => b.path.length - a.path.length)
   const containerByPath = new Map([...m.containers.values()].map((c) => [c.path, c]))
   const ghostIds = new Map<string, number>()

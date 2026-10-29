@@ -1,0 +1,51 @@
+.arch-stage { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.arch-canvas { position: relative; flex: 1; min-height: 0; }
+.arch-stage .map-edge, .arch-stage .map-unit, .arch-module, .arch-import { cursor: pointer; }
+
+.arch-crumbs {
+  flex: none; display: flex; align-items: center; gap: 4px; padding: 5px 10px;
+  border-bottom: 1px solid var(--bd-1); background: var(--bg-1); min-width: 0;
+}
+.arch-crumb {
+  appearance: none; border: 1px solid transparent; background: transparent; color: var(--tx-3); cursor: pointer;
+  display: flex; align-items: baseline; gap: 6px; padding: 3px 8px; border-radius: 5px; min-width: 0;
+}
+.arch-crumb:hover { color: var(--tx-1); background: var(--bg-2); }
+.arch-crumb.on { color: var(--tx-1); background: var(--bg-3); border-color: var(--bd-2); cursor: default; }
+.arch-crumb-level { font-size: 9.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--tx-4); }
+.arch-crumb-name {
+  font-family: var(--mono); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.arch-crumb-sep { color: var(--tx-4); font-size: 12px; }
+.arch-crumbs .sp { flex: 1; }
+.arch-keys { font-size: 10.5px; color: var(--tx-4); white-space: nowrap; }
+
+.arch-components text { font-family: var(--mono); }
+.arch-segment-name { font-size: 11px; font-weight: 600; fill: oklch(86% 0.01 260); }
+.arch-segment-meta { font-size: 9.5px; font-weight: 400; fill: oklch(62% 0.012 260); }
+.arch-module-name { font-size: 10px; fill: oklch(88% 0.005 260); pointer-events: none; }
+.arch-lg-module { background: oklch(30% 0.02 260); }
+
+.arch-system, .arch-port, .arch-channel, .arch-port-link { cursor: pointer; }
+.arch-systems text, .arch-ports text { font-family: var(--mono); pointer-events: none; }
+.arch-system-name { font-size: 12px; font-weight: 600; fill: oklch(92% 0.005 260); }
+.arch-system-meta { font-size: 10px; fill: oklch(66% 0.012 260); }
+.arch-system-reason { font-size: 9.5px; fill: oklch(58% 0.01 260); }
+.arch-systems .arch-count, .arch-ports .arch-count {
+  font-size: 11px; font-weight: 600; text-anchor: middle; stroke-width: 3; paint-order: stroke; pointer-events: auto;
+}
+.arch-hit { pointer-events: stroke; }
+.arch-system.muted .arch-system-name, .arch-port.muted .arch-system-name { fill: oklch(64% 0.01 260); }
+
+.arch-cts { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
+.arch-ct { padding: 4px 0; border-top: 1px solid var(--bd-1); }
+.arch-sig { font-size: 10.5px; color: var(--tx-3); padding: 0 6px 2px; overflow-wrap: anywhere; }
+.arch-callers { display: flex; flex-direction: column; padding-left: 10px; }
+.arch-caller {
+  appearance: none; border: 0; background: transparent; text-align: left; cursor: pointer; min-width: 0;
+  font-family: var(--mono); font-size: 10.5px; color: var(--tx-3); padding: 1px 6px; border-radius: 4px; overflow: hidden;
+}
+.arch-caller:hover, .arch-caller.on { background: var(--bg-2); color: var(--tx-1); }
+.arch-caller.on { box-shadow: inset 2px 0 0 var(--accent); }
+.arch-unattributed { color: var(--warn); }
+.arch-muted { color: var(--tx-4); }

@@ -1,0 +1,15 @@
+---
+source: crates/stratum-lint/tests/e2e_c4.rs
+expression: output
+---
+C4Context
+title System context of Web UI
+System_Ext(sys_api, "Backend", "4 contracts declared")
+System(sys_ui, "Web UI", "6 modules")
+System_Ext(sys_host, "Desktop host", "2 contracts declared")
+System_Ext(sys_billing, "billing", "contracts unavailable: root ../billing/proto is not a directory")
+Rel(sys_ui, sys_api, "2 contracts")
+Rel(sys_ui, sys_host, "2 contracts")
+UpdateRelStyle(sys_ui, sys_api, $offsetX="-33", $offsetY="-11")
+UpdateRelStyle(sys_ui, sys_host, $offsetX="-46", $offsetY="-11")
+UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")

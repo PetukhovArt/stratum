@@ -5,6 +5,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use stratum_core::{severity::Severity, structure::Structure};
 
+use crate::{FeatureConfig, SystemConfig};
+
 /// The whole `stratum.config.jsonc` document.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -24,6 +26,17 @@ pub struct Config {
     /// Appended after the `extends` parent's overrides; the last matching block wins per rule.
     #[serde(default)]
     pub overrides: Vec<OverrideBlock>,
+    /// Keyed by feature id (`^[\w.-]+$`). A feature is its `entry` modules plus every module they
+    /// reach by static imports, type-only imports included. Without it, every folder or file
+    /// directly in the first layer with `slices: true` is a feature, a folder a nested layer
+    /// claims included. A child map replaces the `extends` parent's map.
+    #[serde(default)]
+    #[schemars(schema_with = "crate::features::schema")]
+    pub features: BTreeMap<String, FeatureConfig>,
+    /// The systems this project talks to, and this project itself as the one with `self`. A
+    /// child list replaces the `extends` parent's list.
+    #[serde(default)]
+    pub systems: Vec<SystemConfig>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

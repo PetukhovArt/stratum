@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "layers": [
+    { "id": "features", "path": "src/features", "depends_on": ["shared"], "slices": true },
+    { "id": "shared", "path": "src/shared" }
+  ],
+  "systems": [
+    { "id": "ui", "name": "Web UI", "self": true },
+    { "id": "host", "name": "Desktop host", "root": "../host/src",
+      "contracts": { "kind": "rust-attr", "attr": "tauri::command" },
+      "calls": [{ "callee": "invoke", "name_arg": 0 }] },
+    { "id": "api", "name": "Backend", "root": "../api/proto",
+      "contracts": { "kind": "proto" },
+      "calls": [{ "factory": "createClient", "service_arg": 0 }] },
+    { "id": "billing", "root": "../billing/proto", "contracts": { "kind": "proto" } }
+  ]
+}

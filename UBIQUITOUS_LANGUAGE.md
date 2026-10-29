@@ -40,7 +40,7 @@
 |------|-----------|-----------------|
 | **Container** | A unit of structure: a **Layer** root, a **Slice**, a **Sub-unit** or a nested container (an entry-bearing folder under a **Segment** or **Collection Folder**, or directly under a layer without slices). Has a `path`, a `kind`, a **Stage** and an optional **Entry**; its `parent` chain ends at the layer's container. Derived from the folder tree, never declared. Some conventions call such a unit a "module". | unit, box, group |
 | **Stage** | The evolution stage of a **Container**: 1 a single file, 2 a flat folder, 3 a folder split into **Segments**, 4 a folder composed of **Sub-units**. Computed from the folder tree, never annotated. Not **Purity**. | phase, level |
-| **Slice** | A **Container** at the first level of a **Layer** declared `slices: true`: each direct child folder or source file, except the layer's own **Entry**. A file slice has **Stage** 1 and is its own **Entry**. In FSD, `features/cart` is a slice. | feature, package |
+| **Slice** | A **Container** at the first level of a **Layer** declared `slices: true`: each direct child folder or source file, except the layer's own **Entry**. A file slice has **Stage** 1 and is its own **Entry**. In FSD, `features/cart` is a slice. | package |
 | **Sub-unit** | An entry-bearing folder directly under a **Slice**, **Sub-unit** or nested **Container**. Isolated from its siblings; it makes its parent **Stage** 4. | sub-feature, submodule |
 | **Segment** | A folder named in `structure.segments` that groups a **Container**'s files by purpose (FSD: `model`, `ui`, `api`). Never a **Container**, even with an **Entry** file; it makes its parent **Stage** 3. | layer folder |
 | **Entry** | The file named in `structure.entries` (default `index.ts` and its siblings) that is a **Container**'s only import target from outside. A folder that holds one is a **Container**. | barrel, public API file |
@@ -109,12 +109,24 @@
 | **Rule Engine** | The `stratum-engine` crate shared by the **Linter** and the **LSP Server**: loads the **Config**, builds the **Compound DAG**, runs the **Rules**, names **Violations** by **Rule Slug** with root-relative paths. | rule runner |
 | **Harness Plugin** | A Claude Code plugin that wires Stratum in: `stratum` (a skill) and `stratum-lsp` (the **LSP Server**, only for projects without `typescript-lsp`). Not a **Plugin**. | extension, editor extension |
 | **CI Template** | The CI-side adapter for one platform: `ci/gitlab/templates/stratum.yml` (GitLab `include`) or `ci/github` (GitHub composite action). It installs the **Linter** from the job's npm registry and runs the **Gate** in the platform's format, the **Baseline Growth** check and the **Drift** report. All platform knowledge lives here; the binary reads no CI environment. Not a **Harness Plugin**: it wires Stratum into a pipeline, not into an agent. | CI component, CI plugin, pipeline |
-| **Visualizer** | The browser UI for the **Compound DAG** and its **Violations**: `stratum-lint visualize` serves the **Graph Snapshot** at `/api/snapshot`, the violations at `/api/violations`, a file's **Brief** at `/api/context?path=`, with `--base REF` the **Drift** at `/api/drift` (404 without it), and the bundled SolidJS frontend, which shows them as SVG views: Module focus, Matrix, Merge request (with the **Drift**), Container map, Module set and Bench. | viewer, graph UI |
+| **Visualizer** | The browser UI for the **Compound DAG** and its **Violations**: `stratum-lint visualize` serves the **Graph Snapshot** at `/api/snapshot`, the violations at `/api/violations`, a file's **Brief** at `/api/context?path=`, with `--base REF` the **Drift** at `/api/drift` (404 without it), the **Edge Contract** at `/api/edge`, source lines at `/api/source`, the **Features** at `/api/features`, the **Channels** at `/api/systems`, and the bundled SolidJS frontend, which shows them as SVG views: Module focus, Matrix, Merge request (with the **Drift**), Container map, Module set, Architecture and Bench. `stratum-lint export` writes the same as a static site. | viewer, graph UI |
 | **Watch Mode** | `stratum-lint --watch`: re-runs the lint on any file event under the project root, with a 200 ms debounce. | live mode |
 | **Language Extractor** | One parser per language (`LanguageExtractor`): it turns a source file into **Extracted Data**. One handles `.ts .mts .cts .tsx .js .jsx .mjs .cjs`, one handles `.vue`. | parser adapter, frontend |
 | **Extracted Data** | What a **Language Extractor** produces for one file: **Raw Imports**, the **Purity** annotation, **Exports**, and calls to tracked names. | parser result, extraction output |
 | **Path Resolver** | Resolves a **Raw Import**'s specifier from one file's directory to an absolute path, honouring `tsconfig.json` `paths` aliases. | module resolver, tsconfig resolver |
 | **Graph Cache** | The on-disk file, one per project root and **Config**, holding each module's **Extracted Data** and resolved import targets between runs, so a build re-parses only changed files. It never changes a **Violation**; a stale or corrupt one counts as absent. Not the **Graph Snapshot**. | build cache, parse cache, daemon |
+
+## Features and systems
+
+| Term | Definition | Aliases to avoid |
+|------|-----------|-----------------|
+| **Feature** | A named user-facing capability: its `entry` **Modules** plus every **Module** they reach by static **Edges**, type-only included. Declared under `features`; without them, every folder or file directly in the first `slices: true` **Layer**'s folder is one. Not a **Slice**: a feature may span many **Containers**. | use case, slice |
+| **Shared Module** | A **Module** that two or more **Features** reach. One that only one reaches is exclusive. | common module |
+| **Edge Contract** | The names an **Edge** carries, each resolved through re-exports to the **Module** and line that declares it. A bundle's contract is the union over its **Edges**. | API, interface |
+| **System** | A codebase in the `systems` config: the one being linted (`self`) or another one (`root`) whose **System Contracts** are read by an adapter (`proto`, `rust-attr`). | service, app |
+| **System Contract** | One callable of another **System**: a proto `Service.Method` or a function under a configured attribute, with its signature and declaration. | endpoint, command, RPC |
+| **Channel** | The calls from the `self` **System** into another one: its **System Contracts** in use, each with its callers as `file:line`. | link, connection |
+| **Unattributed Call** | A call that a call matcher finds but cannot tie to one **System Contract**, such as a client passed between **Modules**. Counted per **Channel**, never guessed. | unknown call |
 
 ## Extensibility
 
@@ -167,6 +179,9 @@
 - **"module"** in some conventions is a folder-level unit: a **Container**. In Stratum a **Module** is one file.
 - **"container"** used to mean the **Visualizer**'s per-layer box. It now means any unit of structure; a layer root is one kind of **Container**. A DI container (see **DI edge**) is unrelated.
 - **"slice"**: a **Slice** is a **Container** of a `slices: true` **Layer**. The `slice` key of an **Import Policy** is a glob of directories inside which imports are allowed; it predates **Slices** and does not need them.
+- **"feature"**: a **Feature** is a capability with its import closure; FSD's `features/*` folders are **Slices**, and by default each becomes one **Feature**.
+- **"container"** and **"component"** in `stratum-lint c4` and the Architecture view are C4 levels: a C4 container is a top-level **Layer**, a C4 component one entry inside it. They are not **Containers** or **Modules** in the graph sense.
+- **"contract"** covers an **Edge Contract** and a **System Contract**. Say which.
 - **"scope"** covers a **Rule Scope**, a **Visibility Scope** and a **Report Scope**. Always qualify it.
 - **"plugin"**: a **Plugin** is a **Rhai Script** that adds a **Custom Rule**; a **Harness Plugin** installs Stratum into Claude Code. Qualify when both are in play.
 - **"rule"** covers both **Built-in Rules** and **Custom Rules**. They report the same **Violation** shape but differ in where they come from: built-ins are Rust, custom rules are **Rhai Scripts**.

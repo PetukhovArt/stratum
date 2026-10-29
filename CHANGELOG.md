@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Added a Contract section to the visualizer: selecting an import edge or a bundle lists the names that cross it, each resolved through barrels to its declaration, and a name opens the Code panel on the import line and the declaration
+- Added `features` to the config and `stratum-lint features`: a feature is its entry modules plus everything they import statically; without the key, each folder or file directly in the first sliced layer is one; the visualizer filters every view to the chosen features, marks modules two of them share and can hide modules most features use (`visualize --feature ID` preselects)
+- Added the Architecture view (key `6`) to the visualizer: System, Containers, Components and Code levels with breadcrumbs, `Enter` to go down and `Backspace` to go up
+- Added `systems` to the config: the contracts of other systems (`proto` services, `rust-attr` functions such as `tauri::command`) and the calls into them (`invoke("name")`, clients made by a `createClient(Service)` factory); the System level shows each channel's contracts with their callers as `file:line`, and a feature is credited only with the calls inside the declarations it uses
+- Added `stratum-lint c4`: a Mermaid C4 diagram of the system, container or component level, narrowed by `--feature`, laid out so arrows miss boxes and labels; GitLab and GitHub render it in a description
+- Added `stratum-lint export --out DIR`: the visualizer as a static site for GitLab or GitHub Pages, with source text only under `--with-source`
+
 ## 0.5.0 (2026-10-28)
 
 - Breaking: `stratum-lint baseline` writes `stratum.baseline.json` version 2, which 0.4.0 and older cannot read: upgrade every `stratum-lint` and `stratum-lsp` that reads the baseline, including CI pins, to 0.5.0, then run `stratum-lint baseline --prune` once to convert it

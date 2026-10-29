@@ -29,8 +29,44 @@ fn run(cli: cli::Cli) -> miette::Result<u8> {
             config,
             base,
             no_open,
-        }) => commands::visualize::run(&root, config.as_deref(), base.as_deref(), !no_open)
+            features,
+        }) => commands::visualize::run(
+            &root,
+            config.as_deref(),
+            base.as_deref(),
+            &features,
+            !no_open,
+        )
+        .map(|()| 0),
+        Some(cli::Command::Export {
+            root,
+            config,
+            out,
+            with_source,
+            base,
+        }) => commands::export::run(&root, config.as_deref(), &out, with_source, base.as_deref())
             .map(|()| 0),
+        Some(cli::Command::Features {
+            root,
+            config,
+            format,
+        }) => commands::features::run(&root, format, config.as_deref()).map(exit_code),
+        Some(cli::Command::C4 {
+            root,
+            config,
+            level,
+            features,
+            container,
+        }) => commands::c4::run(
+            &root,
+            config.as_deref(),
+            &stratum_lint::c4::Request {
+                level,
+                features: &features,
+                container: container.as_deref(),
+            },
+        )
+        .map(|()| 0),
         Some(cli::Command::Baseline {
             root,
             out,

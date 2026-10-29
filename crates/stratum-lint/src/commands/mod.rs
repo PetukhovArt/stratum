@@ -1,6 +1,9 @@
 pub mod baseline;
+pub mod c4;
 pub mod context;
 pub mod diff;
+pub mod export;
+pub mod features;
 pub mod init;
 pub mod lint;
 pub mod rules;

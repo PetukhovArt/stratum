@@ -100,6 +100,7 @@ mod tests {
             calls: vec![],
             imports: vec![],
             suppressions: vec![],
+            local_refs: vec![],
         }
     }
 
@@ -165,6 +166,8 @@ mod tests {
             }],
             rules,
             overrides: vec![],
+            features: std::collections::BTreeMap::new(),
+            systems: vec![],
         }
     }
 

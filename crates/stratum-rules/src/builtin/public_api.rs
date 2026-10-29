@@ -177,6 +177,7 @@ pub(crate) mod fixture {
                     calls: vec![],
                     imports: vec![],
                     suppressions: vec![],
+                    local_refs: vec![],
                 },
             );
             id

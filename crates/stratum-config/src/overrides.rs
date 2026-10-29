@@ -125,6 +125,8 @@ mod tests {
             }],
             rules,
             overrides: vec![],
+            features: std::collections::BTreeMap::new(),
+            systems: vec![],
         }
     }
 

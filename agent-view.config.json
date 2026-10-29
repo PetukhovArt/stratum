@@ -1,0 +1,6 @@
+{
+  "runtime": "browser",
+  "port": 9876,
+  "allowEval": true,
+  "launch": "cargo run -p stratum-lint -- visualize --no-open"
+}
