@@ -4,7 +4,9 @@ import './fonts.css'
 import './shell.css'
 import '../styles.css'
 import { CodePanel } from '../contract/code-panel'
+import { scopeOf } from '../features/scope'
 import { t } from '../i18n'
+import { Feature, fetchFeatures } from '../lib/api'
 import { loadSnapshot, SnapshotVersionMismatchError } from '../lib/snapshot'
 import { loadViolations } from '../lib/violations'
 import { buildModel, Model } from '../render/model'
@@ -27,25 +29,50 @@ const PANEL = {
 export const Shell: Component = () => {
   const [snapshot] = createResource(() => loadSnapshot('/api/snapshot'))
   const [violations] = createResource(() => loadViolations('/api/violations'))
+  const [features] = createResource(() => fetchFeatures())
   const isViolationsUnavailable = () => violations.state === 'errored'
+  const featureIndex = () => (features.state === 'ready' ? features() : null)
+  const isFeaturesSettled = () => features.state === 'ready' || features.state === 'errored'
+
+  const navFeatures = createMemo(() => nav().features)
+  const isHidingCommon = createMemo(() => nav().isHidingCommon)
+  const commonLimit = createMemo(() => nav().commonLimit)
+  const chosen = createMemo(() => navFeatures() ?? featureIndex()?.selected ?? [])
+  const scope = createMemo(() => {
+    const index = featureIndex()
+    if (!index) return null
+    return scopeOf(index.features, { chosen: chosen(), isHidingCommon: isHidingCommon(), commonLimit: commonLimit() })
+  })
 
   const model = createMemo<Model | null>(() => {
     const s = snapshot.state === 'ready' ? snapshot() : undefined
     const v = isViolationsUnavailable() ? [] : violations.state === 'ready' ? violations() : undefined
-    if (!s || !v) return null
-    return buildModel(s, v)
+    if (!s || !v || !isFeaturesSettled()) return null
+    return buildModel(s, v, scope())
   })
 
   return (
     <Show when={!snapshot.error} fallback={<ErrorView err={snapshot.error as Error} />}>
       <Show when={model()} fallback={<div class="loading">{t('shell.loading')}</div>}>
-        {(m) => <Layout model={m()} isViolationsUnavailable={isViolationsUnavailable()} />}
+        {(m) => (
+          <Layout
+            model={m()}
+            isViolationsUnavailable={isViolationsUnavailable()}
+            features={featureIndex()?.features ?? []}
+            chosenFeatures={chosen()}
+          />
+        )}
       </Show>
     </Show>
   )
 }
 
-const Layout: Component<{ model: Model; isViolationsUnavailable: boolean }> = (props) => {
+const Layout: Component<{
+  model: Model
+  isViolationsUnavailable: boolean
+  features: readonly Feature[]
+  chosenFeatures: readonly string[]
+}> = (props) => {
   const [isPaletteOpen, setPaletteOpen] = createSignal(false)
   const [isLeftCollapsed, setLeftCollapsed] = createSignal(false)
   const [isRightCollapsed, setRightCollapsed] = createSignal(false)
@@ -81,7 +108,12 @@ const Layout: Component<{ model: Model; isViolationsUnavailable: boolean }> = (p
 
   return (
     <div class="app">
-      <Header model={props.model} onOpenPalette={() => setPaletteOpen(true)} />
+      <Header
+        model={props.model}
+        features={props.features}
+        chosenFeatures={props.chosenFeatures}
+        onOpenPalette={() => setPaletteOpen(true)}
+      />
       <div class="body" style={bodyStyle()}>
         <div class="panel-slot">
           <Show when={!isLeftCollapsed()}>

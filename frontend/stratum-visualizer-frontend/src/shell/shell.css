@@ -13,6 +13,7 @@
   --err: oklch(64% 0.18 25);
   --warn: oklch(78% 0.14 70);
   --info: oklch(70% 0.10 230);
+  --shared: oklch(78% 0.12 175);
   --r-sm: 5px;
   --r-md: 8px;
   --ui: 'Inter Tight', system-ui, sans-serif;

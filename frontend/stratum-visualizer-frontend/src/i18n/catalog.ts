@@ -1,4 +1,5 @@
 import { en as contractEn, ru as contractRu } from '../contract/messages'
+import { en as featuresEn, ru as featuresRu } from '../features/messages'
 import { en as shellEn, ru as shellRu } from '../shell/messages'
 import { en as benchEn, ru as benchRu } from '../views/bench/messages'
 import { en as dsmEn, ru as dsmRu } from '../views/dsm/messages'
@@ -19,6 +20,7 @@ export const en = {
   ...setEn,
   ...benchEn,
   ...contractEn,
+  ...featuresEn,
 } as const
 
 export type MessageKey = keyof typeof en
@@ -34,4 +36,5 @@ export const ru: Messages = {
   ...setRu,
   ...benchRu,
   ...contractRu,
+  ...featuresRu,
 }
