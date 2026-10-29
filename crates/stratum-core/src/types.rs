@@ -134,12 +134,13 @@ pub struct ExportDecl {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ExportOrigin {
+    /// A top-level binding exported under its own name.
     Local,
+    /// A top-level binding exported under another name: `foo` of `export default function foo`,
+    /// `export default foo` or `export { foo as bar }`.
+    Alias { binding: String },
     /// `import` indexes [`Module::imports`]; `imported` is `*` for `export * as name from`.
-    Reexport {
-        import: usize,
-        imported: String,
-    },
+    Reexport { import: usize, imported: String },
 }
 
 /// A `stratum-ignore <slug>[, <slug>] -- <reason>` comment as written, not validated.

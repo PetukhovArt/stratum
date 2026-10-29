@@ -20,6 +20,7 @@ pub use cycles::{
 };
 pub use graph::{CompoundGraph, Declared, Manifest, NavDoc, PrivateZone, SideFile, SideRole};
 pub use index::{DirEntries, DirRole};
+pub use ownership::forwarding_imports;
 pub use snapshot::{
     GraphSnapshot, SnapshotContainer, SnapshotEdge, SnapshotLayer, SnapshotModule, SnapshotZone,
     snapshot_of,

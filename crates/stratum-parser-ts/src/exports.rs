@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use oxc_ast::ast::{Declaration, ExportDefaultDeclarationKind, ModuleDeclaration, Program};
+use oxc_ast::ast::{
+    Declaration, ExportDefaultDeclarationKind, Expression, ModuleDeclaration, Program,
+};
 use oxc_ast::syntax_directed_operations::BoundNames;
 use oxc_span::Span;
 use stratum_core::types::ExportOrigin;
@@ -34,13 +36,17 @@ pub(crate) fn top_level_exports(program: &Program<'_>, imports: &[RawImport]) ->
                 }
                 let reexport = export.source.as_ref().and_then(|_| import_of(export.span));
                 for spec in &export.specifiers {
-                    let origin =
-                        reexport.map_or(ExportOrigin::Local, |import| ExportOrigin::Reexport {
+                    let local = spec.local.name().to_string();
+                    let exported = spec.exported.name().to_string();
+                    let origin = match reexport {
+                        Some(import) => ExportOrigin::Reexport {
                             import,
-                            imported: spec.local.name().to_string(),
-                        });
+                            imported: local,
+                        },
+                        None => local_origin(&exported, Some(local)),
+                    };
                     exports.add(
-                        spec.exported.name().to_string(),
+                        exported,
                         export.export_kind.is_type() || spec.export_kind.is_type(),
                         span(spec.span),
                         origin,
@@ -52,18 +58,25 @@ pub(crate) fn top_level_exports(program: &Program<'_>, imports: &[RawImport]) ->
                     export.declaration,
                     ExportDefaultDeclarationKind::TSInterfaceDeclaration(_)
                 );
+                let binding = match &export.declaration {
+                    ExportDefaultDeclarationKind::FunctionDeclaration(f) => f.id.as_ref(),
+                    ExportDefaultDeclarationKind::ClassDeclaration(c) => c.id.as_ref(),
+                    _ => None,
+                }
+                .map(|id| id.name.to_string())
+                .or_else(|| identifier(export.declaration.as_expression()));
                 exports.add(
                     "default".to_owned(),
                     type_only,
                     span(export.span),
-                    ExportOrigin::Local,
+                    local_origin("default", binding),
                 );
             }
             ModuleDeclaration::TSExportAssignment(export) => exports.add(
                 "default".to_owned(),
                 false,
                 span(export.span),
-                ExportOrigin::Local,
+                local_origin("default", identifier(Some(&export.expression))),
             ),
             ModuleDeclaration::ExportAllDeclaration(all) => {
                 let Some(import) = import_of(all.span) else {
@@ -87,6 +100,20 @@ pub(crate) fn top_level_exports(program: &Program<'_>, imports: &[RawImport]) ->
         }
     }
     exports.raw
+}
+
+fn local_origin(exported: &str, binding: Option<String>) -> ExportOrigin {
+    match binding {
+        Some(binding) if binding != exported => ExportOrigin::Alias { binding },
+        _ => ExportOrigin::Local,
+    }
+}
+
+fn identifier(expression: Option<&Expression<'_>>) -> Option<String> {
+    match expression? {
+        Expression::Identifier(id) => Some(id.name.to_string()),
+        _ => None,
+    }
 }
 
 const fn span(s: Span) -> SourceSpan {
@@ -209,5 +236,20 @@ mod tests {
                 ("a", ExportOrigin::Local),
             ]
         );
+    }
+
+    #[test]
+    fn a_binding_exported_under_another_name_is_an_alias_of_it() {
+        let origin = |source: &str| ts(source).decls[0].origin.clone();
+        let alias = |binding: &str| ExportOrigin::Alias {
+            binding: binding.into(),
+        };
+        assert_eq!(origin("export default function load() {}"), alias("load"));
+        assert_eq!(origin("export default class Store {}"), alias("Store"));
+        assert_eq!(origin("const run = 1; export default run;"), alias("run"));
+        assert_eq!(origin("const run = 1; export = run;"), alias("run"));
+        assert_eq!(origin("const a = 1; export { a as b };"), alias("a"));
+        assert_eq!(origin("export default () => 1;"), ExportOrigin::Local);
+        assert_eq!(origin("const a = 1; export { a };"), ExportOrigin::Local);
     }
 }

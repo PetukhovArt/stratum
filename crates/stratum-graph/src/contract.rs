@@ -17,9 +17,11 @@ pub struct CrossingName {
     pub decl: Option<Declaration>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Declaration {
     pub module: ModuleId,
+    /// The top-level binding of `module` the name stands for; `None` for the whole module.
+    pub binding: Option<String>,
     pub location: SourceLocation,
 }
 
@@ -52,6 +54,7 @@ pub fn crossing_names(graph: &CompoundGraph, import: &Import) -> Vec<CrossingNam
                 .filter(|t| graph.modules.contains_key(t))
                 .map(|module| Declaration {
                     module,
+                    binding: None,
                     location: MODULE_START,
                 });
             vec![crossing("*", false, decl)]
@@ -75,6 +78,12 @@ fn declaration<'g>(
         return match &d.origin {
             ExportOrigin::Local => Some(Declaration {
                 module,
+                binding: Some(d.name.clone()),
+                location: d.location,
+            }),
+            ExportOrigin::Alias { binding } => Some(Declaration {
+                module,
+                binding: Some(binding.clone()),
                 location: d.location,
             }),
             ExportOrigin::Reexport { import, imported } => {
@@ -82,6 +91,7 @@ fn declaration<'g>(
                 if imported == "*" {
                     graph.modules.contains_key(&target).then_some(Declaration {
                         module: target,
+                        binding: None,
                         location: MODULE_START,
                     })
                 } else {
@@ -214,6 +224,13 @@ mod tests {
         ]);
         let edge = import(Some(1), names(&["Api"]));
         assert_eq!(resolved(&g, &edge), [("Api".to_owned(), Some((3, 7)))]);
+        let binding = crossing_names(&g, &edge)[0]
+            .decl
+            .as_ref()
+            .unwrap()
+            .binding
+            .clone();
+        assert_eq!(binding.as_deref(), Some("Impl"));
     }
 
     #[test]
