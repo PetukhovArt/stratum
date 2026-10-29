@@ -43,6 +43,23 @@ pub fn listing<T: Ord>(features: &Features, module: impl Fn(ModuleId) -> T) -> L
     }
 }
 
+/// # Errors
+/// The first id in `selected` that is not a feature, with the known ids in the message.
+pub fn ensure_known(features: &Features, selected: &[String]) -> miette::Result<()> {
+    let Some(unknown) = selected.iter().find(|id| features.get(id).is_none()) else {
+        return Ok(());
+    };
+    let known: Vec<&str> = features.features().iter().map(|f| f.id.as_str()).collect();
+    let known = if known.is_empty() {
+        "none".to_owned()
+    } else {
+        known.join(", ")
+    };
+    Err(miette::miette!(
+        "unknown feature {unknown:?}; known: {known}"
+    ))
+}
+
 pub fn run(
     root: &Utf8Path,
     format: FeaturesFormat,

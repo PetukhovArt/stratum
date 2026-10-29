@@ -118,17 +118,7 @@ struct ApiFeatures<'a> {
 
 fn features_json(input: &EngineInput, selected: &[String]) -> miette::Result<String> {
     let features = input.features().map_err(|e| miette::miette!("{e}"))?;
-    if let Some(unknown) = selected.iter().find(|id| features.get(id).is_none()) {
-        let known: Vec<&str> = features.features().iter().map(|f| f.id.as_str()).collect();
-        let known = if known.is_empty() {
-            "none".to_owned()
-        } else {
-            known.join(", ")
-        };
-        return Err(miette::miette!(
-            "unknown feature {unknown:?}; known: {known}"
-        ));
-    }
+    features::ensure_known(&features, selected)?;
     let api = ApiFeatures {
         listing: features::listing(&features, |m| m),
         selected,
