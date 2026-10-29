@@ -1,10 +1,12 @@
 import { createSignal } from 'solid-js'
 import { Loc } from '../lib/api'
 
+export type CodeSite = Loc & { kind: 'import' | 'call' }
+
 export interface CodeTarget {
   name: string
   decl: Loc | null
-  site: Loc | null
+  site: CodeSite | null
 }
 
 const [target, setTarget] = createSignal<CodeTarget | null>(null)

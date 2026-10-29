@@ -35,7 +35,7 @@ const More: Component<{ total: number; shown: number }> = (props) => (
 )
 
 const NameRow: Component<{ name: UsedName }> = (props) => {
-  const target = (): CodeTarget => ({ name: props.name.name, decl: props.name.decl, site: props.name.site })
+  const target = (): CodeTarget => ({ name: props.name.name, decl: props.name.decl, site: { ...props.name.site, kind: 'import' } })
   return (
     <button
       class={`ct-name${isOpen(target()) ? ' on' : ''}`}
@@ -87,7 +87,7 @@ const ContractBody: Component<{ contract: Contract }> = (props) => (
                       const target = (): CodeTarget => ({
                         name: n.name,
                         decl: n.decl,
-                        site: { path: imp.file, line: imp.line },
+                        site: { kind: 'import', path: imp.file, line: imp.line },
                       })
                       return (
                         <button

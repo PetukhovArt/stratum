@@ -20,6 +20,8 @@ export const en = {
   'code.loading': 'Loading source…',
   'code.missing': 'Source unavailable: {reason}',
   'code.unresolved': 'The declaration did not resolve; only the import is shown',
+  'code.call': 'Call',
+  'code.unresolvedCall': 'No declaration matched the call; only the call is shown',
 } as const
 
 export const ru: MessagesOf<typeof en> = {
@@ -52,4 +54,6 @@ export const ru: MessagesOf<typeof en> = {
   'code.loading': 'Загрузка исходника…',
   'code.missing': 'Исходник недоступен: {reason}',
   'code.unresolved': 'Объявление не найдено, показан только импорт',
+  'code.call': 'Вызов',
+  'code.unresolvedCall': 'Вызову не нашлось объявления, показан только вызов',
 }

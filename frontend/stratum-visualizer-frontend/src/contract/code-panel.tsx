@@ -2,11 +2,11 @@ import { Component, createMemo, createResource, For, Match, Show, Switch } from 
 import { t } from '../i18n'
 import { ApiStatusError, fetchSource, Loc } from '../lib/api'
 import { PathLabel } from '../shell/path-text'
-import { closeCode, codeTarget, CodeTarget } from './code'
+import { closeCode, CodeSite, codeTarget, CodeTarget } from './code'
 import { rowsOf } from './source'
 import './contract.css'
 
-const CONTEXT = { decl: 12, import: 4 } as const
+const CONTEXT = { decl: 12, import: 4, call: 4 } as const
 
 const loadHighlighter = () => import('./highlight')
 
@@ -22,7 +22,11 @@ const centerInBox = (row: HTMLElement): void => {
   })
 }
 
-const Snippet: Component<{ role: 'decl' | 'import'; at: Loc }> = (props) => {
+type SnippetRole = 'decl' | CodeSite['kind']
+
+const ROLE_TITLE = { decl: 'code.decl', import: 'code.import', call: 'code.call' } as const satisfies Record<SnippetRole, string>
+
+const Snippet: Component<{ role: SnippetRole; at: Loc }> = (props) => {
   const [source] = createResource(() => ({ ...props.at, context: CONTEXT[props.role] }), fetchSource)
   const [highlighter] = createResource(loadHighlighter)
   const rows = createMemo(() => {
@@ -34,7 +38,7 @@ const Snippet: Component<{ role: 'decl' | 'import'; at: Loc }> = (props) => {
   return (
     <div class="code-snippet" data-testid="code-snippet" data-role={props.role} data-at={`${props.at.path}:${props.at.line}`}>
       <div class="code-snippet-hd" title={`${props.at.path}:${props.at.line}`}>
-        <span class="code-role">{t(props.role === 'decl' ? 'code.decl' : 'code.import')}</span>
+        <span class="code-role">{t(ROLE_TITLE[props.role])}</span>
         <PathLabel path={`${props.at.path}:${props.at.line}`} />
       </div>
       <Switch>
@@ -77,7 +81,7 @@ const CodeDock: Component<{ target: CodeTarget }> = (props) => (
         {props.target.name}
       </span>
       <Show when={!props.target.decl}>
-        <span class="code-note">{t('code.unresolved')}</span>
+        <span class="code-note">{t(props.target.site?.kind === 'call' ? 'code.unresolvedCall' : 'code.unresolved')}</span>
       </Show>
       <span class="sp" />
       <kbd>Esc</kbd>
@@ -86,7 +90,7 @@ const CodeDock: Component<{ target: CodeTarget }> = (props) => (
       </button>
     </header>
     <div class="code-body">
-      <Show when={props.target.site}>{(site) => <Snippet role="import" at={site()} />}</Show>
+      <Show when={props.target.site}>{(site) => <Snippet role={site().kind} at={site()} />}</Show>
       <Show when={props.target.decl}>{(decl) => <Snippet role="decl" at={decl()} />}</Show>
     </div>
   </section>
