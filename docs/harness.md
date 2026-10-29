@@ -66,6 +66,18 @@ stratum-lint visualize [ROOT] [--config PATH] [--base REF] [--feature ID]... [--
                                                # prints "stratum-visualizer ready at <url>" to stderr; --no-open skips the browser;
                                                # --base REF: the Drift vs REF at /api/drift, as `diff --base REF` computes it;
                                                # --feature ID: opens with the feature filter set to these ids
+stratum-lint export [ROOT] [--config PATH] --out DIR [--with-source] [--base REF]
+                                               # the Visualizer as a static site: any file server serves DIR/ with every view of
+                                               # `visualize` except the Brief of files that do not exist yet; replaces DIR/data/;
+                                               # prints "stratum-visualizer exported to DIR: N modules, M edges, ..." to stderr.
+                                               # DIR/data/: snapshot.json, violations.json, features.json, systems.json (with `systems`),
+                                               #   drift.json (with --base) — the bodies of the same /api/* routes; edges.json
+                                               #   { from: { to: /api/edge answer } } per module pair; members.json { container: [module] }
+                                               #   (container bundles are joined from these); context/<module id>.txt — the Brief;
+                                               #   source/index.json { path: n } + source/<n>.json { path, lines } only with --with-source:
+                                               #   each module and each cross-system contract declaration (`system-id:rel/path`).
+                                               # Without --with-source no file contents leave the repo: only paths, names, signatures.
+                                               # All paths ROOT-relative; index.html carries window.__STRATUM_STATIC__ and relative assets
 stratum-lint features [ROOT] [--config PATH] [--format text|json]
                                                # every feature (config `features`, else one per folder or file in the first sliced layer),
                                                # its modules and the modules two or more features share; default text:
@@ -111,6 +123,7 @@ stratum-lint c4 [ROOT] [--config PATH] [--level system|container|component]
 | `snapshot` | snapshot written | | tool failure | |
 | `c4` | printed | | tool failure; `--level system` without `systems` in the config; unknown `--feature` id; `--level component` without `--container` or with an unknown one (each message lists the known ids or names) | |
 | `visualize` | server stopped with Ctrl+C | | tool failure; unknown `--base` REF; unknown `--feature` id (the message lists the known ids) | |
+| `export` | site written | | tool failure; unknown `--base` REF; DIR not writable | |
 
 Only `lint` returns 3. Precedence when several apply: 2 over 1 over 3 over 0.
 A baseline entry is fixed in scope when the run no longer produces it and its file is in scope: the whole project when the run has no `--files` / `--changed`, else one of those files. `--no-baseline` never returns 3, and `baseline --check` is unaffected. The caller's action on 3 is `stratum-lint baseline --prune`, as a change of its own. Both CI Templates treat 3 as a pass.

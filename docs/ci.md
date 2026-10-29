@@ -63,6 +63,48 @@ The container level shows one box per top-level layer; layers nested in another 
 
 Mermaid lays the boxes out in the reader's browser and starts a new row where a box would pass the screen width (`screen.availWidth`, the screen in CSS pixels, so a 1920-px screen at 150 % scaling counts as 1280). The output keeps every row at 2 or 3 boxes, which fit a screen 1280 px wide; on a narrower screen the rows wrap and arrows can cross boxes. A headless browser that renders the diagram (a screenshot job, for one) reports an 800-px screen unless told otherwise: start Chrome with `--screen-info={0,0 1920x1080}`.
 
+## The Visualizer on Pages
+
+`stratum-lint export --out DIR` writes the Visualizer as a static site; Pages serves it from a subpath. Add `--with-source` only if the site is private: without it, no file contents leave the repo. `--base` adds the Merge request view and needs the base commit in the clone.
+
+GitLab Pages publishes the `public/` artifact of a job named `pages`:
+
+```yaml
+pages:
+  image: node:22
+  script:
+    - npx -y @petukhovart/stratum-lint export --out public
+  artifacts:
+    paths: [public]
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+```
+
+GitHub Pages (Settings → Pages → Source: GitHub Actions):
+
+```yaml
+on:
+  push:
+    branches: [main]
+permissions:
+  pages: write
+  id-token: write
+jobs:
+  pages:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: npx -y @petukhovart/stratum-lint export --out public
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+      - id: deploy
+        uses: actions/deploy-pages@v4
+```
+
 ## Reproducing a pipeline locally
 
 ```
