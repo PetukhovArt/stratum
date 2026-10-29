@@ -44,10 +44,10 @@ pub enum C4Format {
 pub enum C4Level {
     /// The project as one system and the systems it calls; needs `systems` in the config
     System,
-    /// Layers and slices inside the project, and the systems they call
+    /// The top-level layers of the project, and the systems they call
     #[default]
     Container,
-    /// The first sub-folders of one `--container`
+    /// The folders and files directly inside one top-level layer (`--container`)
     Component,
 }
 
@@ -157,7 +157,7 @@ pub enum Command {
         /// Show only the modules of these features; repeatable
         #[arg(long = "feature", value_name = "ID")]
         features: Vec<String>,
-        /// The container the component level opens, by its name at the container level
+        /// The top-level layer the component level opens, by its id in the config
         #[arg(long, value_name = "NAME")]
         container: Option<String>,
     },

@@ -1,8 +1,11 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::Path,
+};
 
 use stratum_core::{
-    ids::{ContainerId, ModuleId},
-    types::{Container, ContainerKind},
+    ids::ModuleId,
+    types::{ContainerKind, Layer},
 };
 use stratum_engine::{Caller, EngineInput, SystemMap};
 
@@ -17,15 +20,12 @@ pub struct Request<'a> {
     pub level: C4Level,
     /// Restricts the diagram to the union of these features' modules; empty means every module.
     pub features: &'a [String],
-    /// The container the component level opens, by the name the container level gives it.
+    /// The top-level layer the component level opens, by its config id.
     pub container: Option<&'a str>,
 }
 
 /// Past this many elements inside the boundary, the smallest give way to one "… N more".
 const MAX_INNER: usize = 60;
-/// Contract ids named in a relationship label; the rest are counted.
-const TOP_CONTRACTS: usize = 3;
-const ROOT_SEGMENT: &str = "(root)";
 
 pub fn diagram(input: &EngineInput, request: &Request) -> miette::Result<Diagram> {
     let scope = scope(input, request.features)?;
@@ -168,27 +168,17 @@ fn calls(
     calls
 }
 
-fn contracts_label(called: &BTreeMap<String, usize>, unattributed: usize) -> String {
-    let mut top: Vec<(&String, &usize)> = called.iter().collect();
-    top.sort_by(|a, b| b.1.cmp(a.1).then_with(|| a.0.cmp(b.0)));
-    let mut names: Vec<&str> = top
-        .iter()
-        .take(TOP_CONTRACTS)
-        .map(|(id, _)| id.as_str())
-        .collect();
-    let rest = called.len().saturating_sub(TOP_CONTRACTS);
-    let more = format!("+{rest} more");
-    if rest > 0 {
-        names.push(&more);
-    }
+fn contracts_rel(
+    from: String,
+    to: String,
+    called: &BTreeMap<String, usize>,
+    unattributed: usize,
+) -> Rel {
     let mut label = count(called.len(), "contract");
-    if !names.is_empty() {
-        label = format!("{label}: {}", names.join(", "));
-    }
     if unattributed > 0 {
-        label = format!("{label}; {} not attributed", count(unattributed, "call"));
+        label = format!("{label}, {} not attributed", count(unattributed, "call"));
     }
-    label
+    Rel { from, to, label }
 }
 
 fn system_level(
@@ -224,11 +214,12 @@ fn system_level(
         if called.is_empty() && unattributed == 0 {
             continue;
         }
-        rels.push(Rel {
-            from: me.id.clone(),
-            to: to.clone(),
-            label: contracts_label(&called, unattributed),
-        });
+        rels.push(contracts_rel(
+            me.id.clone(),
+            to.clone(),
+            &called,
+            unattributed,
+        ));
     }
     rels.sort_by(|a, b| (&a.from, &a.to).cmp(&(&b.from, &b.to)));
     Diagram {
@@ -241,54 +232,112 @@ fn system_level(
     }
 }
 
-/// A layer, or a slice of a sliced layer: the container a module's [`outer_container`] gives.
-///
-/// [`outer_container`]: stratum_graph::CompoundGraph::outer_container
-struct Unit<'g> {
-    container: &'g Container,
-    name: String,
-    modules: Vec<ModuleId>,
+/// A layer whose folder sits in no other layer's folder, with the modules in scope under it.
+struct TopLayer<'g> {
+    layer: &'g Layer,
+    /// Each module with its ROOT-relative path.
+    modules: Vec<(ModuleId, String)>,
 }
 
-fn units<'g>(input: &'g EngineInput, scope: &Scope) -> BTreeMap<ContainerId, Unit<'g>> {
-    let graph = &input.graph;
-    let mut units: BTreeMap<ContainerId, Unit<'g>> = BTreeMap::new();
-    for &module in graph.modules.keys().filter(|&&m| in_scope(scope, m)) {
-        let Some(container) = graph.outer_container(module) else {
+/// Every top-level layer, dependents before their dependencies, so most arrows point one way:
+/// a layer comes once no layer left depends on it, the first in config order among those
+/// (the first left on a cycle). A nested layer's `depends_on` counts for the layer holding it.
+fn top_layers<'g>(input: &'g EngineInput, scope: &Scope) -> Vec<TopLayer<'g>> {
+    let layers: Vec<&Layer> = input.graph.layers.values().collect();
+    let tops: Vec<&Layer> = layers
+        .iter()
+        .copied()
+        .filter(|l| {
+            !layers
+                .iter()
+                .any(|o| o.path != l.path && l.path.starts_with(&o.path))
+        })
+        .collect();
+    let top_of = |path: &Path| tops.iter().position(|t| path.starts_with(&t.path));
+    let mut depends: BTreeSet<(usize, usize)> = BTreeSet::new();
+    for layer in &layers {
+        let Some(from) = top_of(&layer.path) else {
             continue;
         };
-        units
-            .entry(container.id)
-            .or_insert_with(|| Unit {
-                container,
-                name: unit_name(input, container),
-                modules: Vec::new(),
-            })
-            .modules
-            .push(module);
+        for dep in layer
+            .depends_on
+            .iter()
+            .filter_map(|d| input.graph.layers.get(d))
+        {
+            match top_of(&dep.path) {
+                Some(to) if to != from => {
+                    depends.insert((from, to));
+                }
+                _ => {}
+            }
+        }
     }
-    units
+    let mut left: Vec<usize> = (0..tops.len()).collect();
+    let mut order = Vec::with_capacity(tops.len());
+    while !left.is_empty() {
+        let next = left
+            .iter()
+            .position(|&j| !left.iter().any(|&i| depends.contains(&(i, j))))
+            .unwrap_or(0);
+        order.push(left.remove(next));
+    }
+    let mut modules: Vec<Vec<(ModuleId, String)>> = vec![Vec::new(); tops.len()];
+    for (&id, module) in input
+        .graph
+        .modules
+        .iter()
+        .filter(|(m, _)| in_scope(scope, **m))
+    {
+        let path = input.relative(&module.path);
+        if let Some(top) = top_of(Path::new(&path)) {
+            modules[top].push((id, path));
+        }
+    }
+    order
+        .into_iter()
+        .map(|i| TopLayer {
+            layer: tops[i],
+            modules: std::mem::take(&mut modules[i]),
+        })
+        .collect()
 }
 
-fn unit_name(input: &EngineInput, container: &Container) -> String {
-    match (container.kind, input.graph.layers.get(&container.layer)) {
-        (ContainerKind::Slice, Some(layer)) => format!("{}/{}", layer.name, container.name),
-        _ => container.name.clone(),
+/// `N modules`, then `N slices` when slices hold some of them, or `N parts` when nested layers
+/// do too.
+fn layer_description(input: &EngineInput, top: &TopLayer) -> String {
+    let mut slices = BTreeSet::new();
+    let mut nested = BTreeSet::new();
+    for container in top
+        .modules
+        .iter()
+        .filter_map(|&(m, _)| input.graph.outer_container(m))
+    {
+        if container.kind == ContainerKind::Slice {
+            slices.insert(container.id);
+        } else if Path::new(&input.relative(&container.path)) != top.layer.path {
+            nested.insert(container.id);
+        }
+    }
+    let modules = count(top.modules.len(), "module");
+    match (slices.len(), nested.len()) {
+        (0, 0) => modules,
+        (slices, 0) => format!("{modules}, {}", count(slices, "slice")),
+        (slices, nested) => format!("{modules}, {}", count(slices + nested, "part")),
     }
 }
 
-fn unit_element(input: &EngineInput, unit: &Unit, modules: usize, ids: &mut Ids) -> Element {
-    let technology = match unit.container.kind {
-        ContainerKind::Slice => "slice",
-        _ => "layer",
-    };
+fn layer_element(input: &EngineInput, top: &TopLayer, ids: &mut Ids) -> Element {
     Element {
-        id: ids.take("ctr", &input.relative(&unit.container.path)),
+        id: ids.take("ctr", &slashed(&top.layer.path)),
         kind: Kind::Container,
-        name: unit.name.clone(),
-        technology: technology.to_owned(),
-        description: count(modules, "module"),
+        name: top.layer.name.clone(),
+        technology: "layer".to_owned(),
+        description: layer_description(input, top),
     }
+}
+
+fn slashed(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
 }
 
 /// Distinct module pairs `from → to` with both ends in scope, by `key` of each end; pairs
@@ -322,14 +371,16 @@ struct Sized {
 }
 
 /// Keeps the `MAX_INNER - 1` largest elements and folds the rest into one "… N more", whose
-/// relationships are the sums of theirs. Ties go to the earlier name.
+/// relationships are the sums of theirs. Ties go to the earlier name. The kept elements stay
+/// in the order given, "… N more" last.
 fn cap(
-    mut sized: Vec<Sized>,
+    sized: Vec<Sized>,
     imports: &mut BTreeMap<(String, String), usize>,
     calls: &mut Calls,
     ids: &mut Ids,
 ) -> Vec<Element> {
-    sized.sort_by(|a, b| {
+    let mut sized: Vec<(usize, Sized)> = sized.into_iter().enumerate().collect();
+    sized.sort_by(|(_, a), (_, b)| {
         b.modules
             .cmp(&a.modules)
             .then_with(|| a.element.name.cmp(&b.element.name))
@@ -338,12 +389,12 @@ fn cap(
         let rest = sized.split_off(MAX_INNER - 1);
         let more = Element {
             id: ids.take("more", "elements"),
-            kind: rest[0].element.kind,
+            kind: rest[0].1.element.kind,
             name: format!("… {} more", rest.len()),
             technology: String::new(),
-            description: count(rest.iter().map(|s| s.modules).sum(), "module"),
+            description: count(rest.iter().map(|(_, s)| s.modules).sum(), "module"),
         };
-        let folded: BTreeSet<&str> = rest.iter().map(|s| s.element.id.as_str()).collect();
+        let folded: BTreeSet<&str> = rest.iter().map(|(_, s)| s.element.id.as_str()).collect();
         let fold = |id: String| {
             if folded.contains(id.as_str()) {
                 more.id.clone()
@@ -367,14 +418,16 @@ fn cap(
             }
         }
         *calls = kept_calls;
-        sized.push(Sized {
-            element: more,
-            modules: 0,
-        });
+        sized.push((
+            usize::MAX,
+            Sized {
+                element: more,
+                modules: 0,
+            },
+        ));
     }
-    let mut inner: Vec<Element> = sized.into_iter().map(|s| s.element).collect();
-    inner.sort_by(|a, b| (&a.name, &a.id).cmp(&(&b.name, &b.id)));
-    inner
+    sized.sort_by_key(|&(position, _)| position);
+    sized.into_iter().map(|(_, s)| s.element).collect()
 }
 
 fn rels(imports: BTreeMap<(String, String), usize>, calls: Calls) -> Vec<Rel> {
@@ -385,11 +438,11 @@ fn rels(imports: BTreeMap<(String, String), usize>, calls: Calls) -> Vec<Rel> {
             to,
             label: count(n, "import"),
         })
-        .chain(calls.into_iter().map(|((from, to), called)| Rel {
-            from,
-            to,
-            label: contracts_label(&called, 0),
-        }))
+        .chain(
+            calls
+                .into_iter()
+                .map(|((from, to), called)| contracts_rel(from, to, &called, 0)),
+        )
         .collect();
     rels.sort_by(|a, b| (&a.from, &a.to).cmp(&(&b.from, &b.to)));
     rels
@@ -402,27 +455,25 @@ fn container_level(
     me: Element,
     ids: &mut Ids,
 ) -> Diagram {
-    let mut units: Vec<Unit> = units(input, scope).into_values().collect();
-    units.sort_by_key(|u| input.relative(&u.container.path));
-    let mut unit_ids: BTreeMap<ContainerId, String> = BTreeMap::new();
-    let sized: Vec<Sized> = units
+    let mut layer_ids: BTreeMap<ModuleId, String> = BTreeMap::new();
+    let sized: Vec<Sized> = top_layers(input, scope)
         .iter()
-        .map(|unit| {
-            let element = unit_element(input, unit, unit.modules.len(), ids);
-            unit_ids.insert(unit.container.id, element.id.clone());
+        .filter(|top| !top.modules.is_empty())
+        .map(|top| {
+            let element = layer_element(input, top, ids);
+            for &(m, _) in &top.modules {
+                layer_ids.insert(m, element.id.clone());
+            }
             Sized {
                 element,
-                modules: unit.modules.len(),
+                modules: top.modules.len(),
             }
         })
         .collect();
     let (outer, system_ids) = other_systems(systems, ids);
-    let unit_of = |m: ModuleId| {
-        let container = input.graph.outer_container(m)?;
-        unit_ids.get(&container.id).cloned()
-    };
-    let mut imports = imports(input, scope, unit_of);
-    let mut calls = calls(systems, scope, &system_ids, unit_of);
+    let layer_of = |m: ModuleId| layer_ids.get(&m).cloned();
+    let mut imports = imports(input, scope, layer_of);
+    let mut calls = calls(systems, scope, &system_ids, layer_of);
     let inner = cap(sized, &mut imports, &mut calls, ids);
     Diagram {
         level: C4Level::Container,
@@ -441,45 +492,53 @@ fn component_level(
     me: Element,
     ids: &mut Ids,
 ) -> miette::Result<Diagram> {
-    let all = units(input, &None);
-    let mut known: Vec<&str> = all.values().map(|u| u.name.as_str()).collect();
+    let tops = top_layers(input, scope);
+    let mut known: Vec<&str> = tops.iter().map(|t| t.layer.name.as_str()).collect();
     known.sort_unstable();
     let known = known.join(", ");
     let wanted = wanted.ok_or_else(|| {
         miette::miette!("the component level needs `--container NAME`; containers: {known}")
     })?;
-    let unit = all
-        .values()
-        .find(|u| u.name == wanted)
+    let top = tops
+        .iter()
+        .find(|t| t.layer.name == wanted)
         .ok_or_else(|| miette::miette!("unknown container {wanted:?}; known: {known}"))?;
-    let base = input.relative(&unit.container.path);
-    let segment_of = |m: ModuleId| -> Option<String> {
-        if input.graph.outer_container(m)?.id != unit.container.id {
-            return None;
-        }
-        let path = input.relative(&input.graph.modules.get(&m)?.path);
-        let rest = path.strip_prefix(&base)?.trim_start_matches('/');
-        Some(
-            rest.split_once('/')
-                .map_or(ROOT_SEGMENT, |(first, _)| first)
-                .to_owned(),
-        )
-    };
-    let mut segments: BTreeMap<String, usize> = BTreeMap::new();
-    for &m in unit.modules.iter().filter(|&&m| in_scope(scope, m)) {
-        if let Some(segment) = segment_of(m) {
-            *segments.entry(segment).or_default() += 1;
-        }
+    let base = slashed(&top.layer.path);
+    let mut children: BTreeMap<&str, (usize, bool)> = BTreeMap::new();
+    let mut child_of: BTreeMap<ModuleId, &str> = BTreeMap::new();
+    for (m, path) in &top.modules {
+        let Some(rest) = path
+            .strip_prefix(base.as_str())
+            .and_then(|r| r.strip_prefix('/'))
+        else {
+            continue;
+        };
+        let (child, is_file) = rest
+            .split_once('/')
+            .map_or((rest, true), |(c, _)| (c, false));
+        let entry = children.entry(child).or_insert((0, is_file));
+        entry.0 += 1;
+        child_of.insert(*m, child);
     }
-    let boundary = unit_element(input, unit, segments.values().sum(), ids);
-    let mut segment_ids: BTreeMap<String, String> = BTreeMap::new();
-    let sized: Vec<Sized> = segments
+    let boundary = layer_element(input, top, ids);
+    let mut child_ids: BTreeMap<&str, String> = BTreeMap::new();
+    let sized: Vec<Sized> = children
         .into_iter()
-        .map(|(segment, modules)| {
-            let id = ids.take("cmp", &format!("{base}/{segment}"));
-            segment_ids.insert(segment.clone(), id.clone());
-            let technology = if segment == ROOT_SEGMENT {
-                "files"
+        .map(|(child, (modules, is_file))| {
+            let path = format!("{base}/{child}");
+            let id = ids.take("cmp", &path);
+            child_ids.insert(child, id.clone());
+            let technology = if is_file {
+                "file"
+            } else if input
+                .graph
+                .layers
+                .values()
+                .any(|l| slashed(&l.path) == path)
+            {
+                "layer"
+            } else if top.layer.slices {
+                "slice"
             } else {
                 "folder"
             };
@@ -487,7 +546,7 @@ fn component_level(
                 element: Element {
                     id,
                     kind: Kind::Component,
-                    name: segment,
+                    name: child.to_owned(),
                     technology: technology.to_owned(),
                     description: count(modules, "module"),
                 },
@@ -495,12 +554,12 @@ fn component_level(
             }
         })
         .collect();
-    let mut imports = imports(input, scope, |m| segment_ids.get(&segment_of(m)?).cloned());
+    let mut imports = imports(input, scope, |m| child_ids.get(child_of.get(&m)?).cloned());
     let mut calls = Calls::new();
     let inner = cap(sized, &mut imports, &mut calls, ids);
     Ok(Diagram {
         level: C4Level::Component,
-        title: format!("Components of {}", unit.name),
+        title: format!("Components of {}", top.layer.name),
         boundaries: vec![me, boundary],
         inner,
         outer: Vec::new(),
@@ -562,22 +621,6 @@ mod tests {
         assert_eq!(
             calls.keys().collect::<Vec<_>>(),
             [&("more_elements".to_owned(), "sys_api".to_owned())]
-        );
-    }
-
-    #[test]
-    fn a_contract_label_names_the_most_called_three_and_counts_the_rest() {
-        let called: BTreeMap<String, usize> = [("a", 1), ("b", 5), ("c", 1), ("d", 2), ("e", 1)]
-            .into_iter()
-            .map(|(id, n)| (id.to_owned(), n))
-            .collect();
-        assert_eq!(
-            contracts_label(&called, 2),
-            "5 contracts: b, d, a, +2 more; 2 calls not attributed"
-        );
-        assert_eq!(
-            contracts_label(&BTreeMap::new(), 1),
-            "0 contracts; 1 call not attributed"
         );
     }
 }

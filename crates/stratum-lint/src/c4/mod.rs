@@ -9,7 +9,8 @@ pub use model::Request;
 
 /// One C4 diagram, built once and written by any of the three renderers.
 ///
-/// Every list is sorted: elements by name, relationships by `from`, then `to`. Ids are made of
+/// Every list has a set order: containers dependents first by the layers' `depends_on`,
+/// components and other systems by name, relationships by `from`, then `to`. Ids are made of
 /// `[A-Za-z0-9_]` only and are unique across the whole diagram.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagram {

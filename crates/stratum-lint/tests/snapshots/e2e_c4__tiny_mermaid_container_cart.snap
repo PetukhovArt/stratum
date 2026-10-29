@@ -5,10 +5,10 @@ expression: cart
 C4Container
 title Containers of tiny-ts
 System_Boundary(sys_tiny_ts, "tiny-ts") {
-  Container(ctr_src_entities_user, "entities/user", "slice", "2 modules")
-  Container(ctr_src_features_cart, "features/cart", "slice", "2 modules")
+  Container(ctr_src_features, "features", "layer", "2 modules, 1 slice")
+  Container(ctr_src_entities, "entities", "layer", "2 modules, 1 slice")
   Container(ctr_src_shared, "shared", "layer", "2 modules")
 }
-Rel(ctr_src_entities_user, ctr_src_shared, "1 import")
-Rel(ctr_src_features_cart, ctr_src_entities_user, "1 import")
-Rel(ctr_src_features_cart, ctr_src_shared, "1 import")
+Rel(ctr_src_entities, ctr_src_shared, "1 import")
+Rel(ctr_src_features, ctr_src_entities, "1 import")
+Rel(ctr_src_features, ctr_src_shared, "1 import")

@@ -101,7 +101,7 @@ fn a_request_the_project_cannot_answer_exits_two_and_says_what_is_known() {
         ),
         (
             &[SYSTEMS, "--format", "plantuml", "--level", "component"],
-            "the component level needs `--container NAME`; containers: features/checkout, features/files, features/profile, shared",
+            "the component level needs `--container NAME`; containers: features, shared",
         ),
         (
             &[
@@ -113,7 +113,7 @@ fn a_request_the_project_cannot_answer_exits_two_and_says_what_is_known() {
                 "--container",
                 "api",
             ],
-            r#"unknown container "api"; known: features/checkout"#,
+            r#"unknown container "api"; known: features, shared"#,
         ),
     ];
     for (args, message) in cases {

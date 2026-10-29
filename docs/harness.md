@@ -77,12 +77,14 @@ stratum-lint c4 [ROOT] [--config PATH] --format mermaid|structurizr|plantuml [--
                 [--feature ID]... [--container NAME]
                                                # a C4 diagram as text on stdout, one view; default --level container.
                                                # system: the `self` system of config `systems` and the others as externals,
-                                               #   each arrow "N contracts: <3 most called ids>, +K more[; M calls not attributed]";
-                                               # container: one container per layer, or per slice of a sliced layer, named
-                                               #   "<layer>" or "<layer>/<slice>", arrows "N imports" (distinct module pairs),
-                                               #   and arrows to the other systems from the containers that call them;
-                                               # component: the first sub-folders of --container NAME ("(root)" for its own
-                                               #   files), arrows "N imports".
+                                               #   each arrow "N contracts[, M calls not attributed]";
+                                               # container: one container per top-level layer (a layer whose path is in no other
+                                               #   layer's path; a nested layer's modules count for the layer holding them), named
+                                               #   by its id, "N modules[, N slices | N parts]", in depends_on order; arrows
+                                               #   "N imports" (distinct module pairs) and "N contracts" to the other systems;
+                                               # component: one component per folder or file directly inside the top-level layer
+                                               #   --container NAME (its id), technology slice, layer, folder or file;
+                                               #   arrows "N imports".
                                                # --feature: only the union of these features' modules; the unattributed count is
                                                #   then left out. Past 60 elements inside the boundary, the 59 with the most
                                                #   modules stay and the rest become one "… N more" that carries their arrows.

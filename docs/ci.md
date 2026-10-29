@@ -44,7 +44,7 @@ The ratchet fails when a baseline entry's count grows, and a moved file counts a
 GitLab and GitHub render a ```` ```mermaid ```` block in markdown, C4 diagrams included. Print one and paste it into the MR or PR description:
 
 ```
-stratum-lint c4 --format mermaid                      # containers: layers and slices
+stratum-lint c4 --format mermaid                      # containers: the top-level layers
 stratum-lint c4 --format mermaid --level system       # needs `systems` in the config
 stratum-lint c4 --format mermaid --feature checkout   # only what one feature reaches
 ```
@@ -59,7 +59,7 @@ title Containers of Web UI
 ```
 ````
 
-Big projects: the diagram keeps the 59 containers with the most modules and folds the rest into one "… N more". For a narrower view, use `--feature`, or `--level component --container <name>` with a name the container level prints. `--format structurizr` writes a workspace for Structurizr Lite (`workspace.dsl`), and `--format plantuml` writes C4-PlantUML.
+The container level shows one box per top-level layer; layers nested in another layer's folder count for it. To look inside one, use `--level component --container <layer id>`: one box per folder or file directly in that layer, at most 60 (the smallest fold into one "… N more"). For a narrower view, use `--feature`. `--format structurizr` writes a workspace for Structurizr Lite (`workspace.dsl`), and `--format plantuml` writes C4-PlantUML.
 
 ## Reproducing a pipeline locally
 
