@@ -9,12 +9,8 @@ const SUMMARY_NAMES = 2
 const toggled = (chosen: readonly string[], id: string): string[] =>
   chosen.includes(id) ? chosen.filter((x) => x !== id) : [...chosen, id]
 
-const summaryOf = (features: readonly Feature[], chosen: readonly string[]): string => {
-  const names = features.filter((f) => chosen.includes(f.id)).map((f) => f.name)
-  if (!names.length) return t('features.all')
-  const shown = names.slice(0, SUMMARY_NAMES).join(', ')
-  return names.length > SUMMARY_NAMES ? `${shown} +${names.length - SUMMARY_NAMES}` : shown
-}
+const namesOf = (features: readonly Feature[], chosen: readonly string[]): string[] =>
+  features.filter((f) => chosen.includes(f.id)).map((f) => f.name)
 
 export const FeatureFilter: Component<{ features: readonly Feature[]; chosen: readonly string[] }> = (props) => {
   const [isOpen, setOpen] = createSignal(false)
@@ -41,6 +37,9 @@ export const FeatureFilter: Component<{ features: readonly Feature[]; chosen: re
     else e.currentTarget.value = String(nav().commonLimit)
   }
 
+  const names = () => namesOf(props.features, props.chosen)
+  const hidden = () => Math.max(0, names().length - SUMMARY_NAMES)
+
   return (
     <div class="ff" ref={root}>
       <button
@@ -48,11 +47,14 @@ export const FeatureFilter: Component<{ features: readonly Feature[]; chosen: re
         data-testid="feature-filter"
         aria-haspopup="listbox"
         aria-expanded={isOpen()}
-        title={t('features.title')}
+        title={names().length ? names().join(', ') : t('features.title')}
         onClick={() => setOpen(!isOpen())}
       >
         <span class="ff-lbl">{t('features.label')}</span>
-        <span class="ff-sum">{summaryOf(props.features, props.chosen)}</span>
+        <span class="ff-sum">{names().length ? names().slice(0, SUMMARY_NAMES).join(', ') : t('features.all')}</span>
+        <Show when={hidden()}>
+          <span class="ff-n" data-testid="feature-more">+{hidden()}</span>
+        </Show>
         <Show when={nav().isHidingCommon}>
           <span class="ff-n" data-testid="feature-hiding-common">
             {t('features.hidingCommon', { k: nav().commonLimit })}

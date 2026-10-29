@@ -8,6 +8,7 @@
 .ff-btn.on { border-color: var(--shared); color: var(--tx-1); }
 .ff-lbl { font-size: 10px; color: var(--tx-4); text-transform: uppercase; letter-spacing: .07em; }
 .ff-sum { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ff-btn .ff-n { flex-shrink: 0; }
 .ff-pop {
   position: absolute; top: 34px; right: 0; z-index: 30; width: 320px; max-height: 60vh; overflow: auto;
   display: flex; flex-wrap: wrap; gap: 6px; padding: 10px; background: var(--bg-1);
