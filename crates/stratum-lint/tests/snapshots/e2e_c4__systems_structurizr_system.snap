@@ -4,7 +4,7 @@ expression: output
 ---
 workspace "System context of Web UI" {
     model {
-        sys_ui = softwareSystem "Web UI" "5 modules"
+        sys_ui = softwareSystem "Web UI" "8 modules"
         sys_api = softwareSystem "Backend" "4 contracts declared" {
             tags "External"
         }

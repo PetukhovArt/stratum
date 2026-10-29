@@ -5,8 +5,8 @@ expression: output
 workspace "Components of shared" {
     model {
         sys_ui = softwareSystem "Web UI" "" {
-            ctr_src_shared = container "shared" "3 modules" "layer" {
-                cmp_src_shared_api = component "api" "2 modules" "folder"
+            ctr_src_shared = container "shared" "5 modules" "layer" {
+                cmp_src_shared_api = component "api" "4 modules" "folder"
                 cmp_src_shared_config = component "config" "1 module" "folder"
             }
         }

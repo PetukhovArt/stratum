@@ -9,12 +9,15 @@ title Containers of Web UI
 System_Boundary(sys_ui, "Web UI") {
   Container(ctr_src_features_checkout, "features/checkout", "slice", "1 module")
   Container(ctr_src_features_files, "features/files", "slice", "1 module")
-  Container(ctr_src_shared, "shared", "layer", "3 modules")
+  Container(ctr_src_features_profile, "features/profile", "slice", "1 module")
+  Container(ctr_src_shared, "shared", "layer", "5 modules")
 }
 System_Ext(sys_api, "Backend", "4 contracts declared")
 System_Ext(sys_host, "Desktop host", "2 contracts declared")
 System_Ext(sys_billing, "billing", "contracts unavailable: root ../billing/proto is not a directory")
-Rel(ctr_src_features_checkout, ctr_src_shared, "2 imports")
+Rel(ctr_src_features_checkout, ctr_src_shared, "3 imports")
 Rel(ctr_src_features_files, sys_host, "2 contracts: greet, save_file")
+Rel(ctr_src_features_profile, ctr_src_shared, "2 imports")
 Rel(ctr_src_shared, sys_api, "3 contracts: UserService.GetUser, UserService.WatchUsers, UserService.forgetUser")
+Rel(ctr_src_shared, sys_host, "2 contracts: greet, save_file")
 @enduml

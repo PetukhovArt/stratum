@@ -35,17 +35,19 @@ fn every_format_writes_every_level_of_a_project_with_systems() {
 }
 
 #[test]
-fn with_a_feature_the_system_level_counts_only_the_contracts_its_modules_call() {
-    let files = c4(&[
-        SYSTEMS,
-        "--format",
-        "mermaid",
-        "--level",
-        "system",
-        "--feature",
-        "files",
-    ]);
-    insta::assert_snapshot!("systems_mermaid_system_files", files);
+fn with_a_feature_the_system_level_counts_only_the_contracts_it_runs() {
+    for feature in ["files", "checkout"] {
+        let output = c4(&[
+            SYSTEMS,
+            "--format",
+            "mermaid",
+            "--level",
+            "system",
+            "--feature",
+            feature,
+        ]);
+        insta::assert_snapshot!(format!("systems_mermaid_system_{feature}"), output);
+    }
 }
 
 #[test]
@@ -99,7 +101,7 @@ fn a_request_the_project_cannot_answer_exits_two_and_says_what_is_known() {
         ),
         (
             &[SYSTEMS, "--format", "plantuml", "--level", "component"],
-            "the component level needs `--container NAME`; containers: features/checkout, features/files, shared",
+            "the component level needs `--container NAME`; containers: features/checkout, features/files, features/profile, shared",
         ),
         (
             &[

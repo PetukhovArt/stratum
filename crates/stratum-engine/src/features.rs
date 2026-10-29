@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use camino::Utf8Path;
 use stratum_config::{Config, ConfigError};
-use stratum_core::{edge::EdgeKind, ids::ModuleId};
-use stratum_graph::CompoundGraph;
+use stratum_core::{edge::EdgeKind, ids::ModuleId, types::Import};
+use stratum_graph::{CompoundGraph, crossing_names, forwarding_imports};
 
 use crate::paths::relative;
 
@@ -99,6 +99,115 @@ impl Features {
             .iter()
             .filter(|&&m| !self.is_shared(m))
             .count()
+    }
+}
+
+/// The code of a project each feature can run, per top-level declaration.
+pub(crate) struct Reach<'f> {
+    features: Vec<(&'f Feature, Runs)>,
+}
+
+/// What one feature runs: every declaration of `whole`, the `named` declarations, and the
+/// top-level statements of its modules.
+#[derive(Default)]
+struct Runs {
+    whole: BTreeSet<ModuleId>,
+    named: BTreeMap<ModuleId, BTreeSet<String>>,
+}
+
+impl<'f> Reach<'f> {
+    /// A feature runs its entry modules whole, and each declaration of another module that one
+    /// of its modules imports by a name resolving to it; a namespace import or a `require` of a
+    /// module runs it whole. Type-only names and `import()` run nothing. A re-export runs what it forwards only when its module runs
+    /// whole, so a name imported through a barrel runs only its own declaration. A declaration
+    /// that a run declaration calls is not followed.
+    pub(crate) fn of(features: &'f Features, graph: &CompoundGraph) -> Self {
+        let features = features
+            .features
+            .iter()
+            .map(|f| (f, Runs::of(f, graph)))
+            .collect();
+        Self { features }
+    }
+
+    /// The ids, ascending, of the features that run the code of `module` inside the top-level
+    /// declaration `owner`, or outside every declaration for `None`.
+    pub(crate) fn features_running(&self, module: ModuleId, owner: Option<&str>) -> Vec<String> {
+        let mut ids: Vec<String> = self
+            .features
+            .iter()
+            .filter(|(f, runs)| match owner {
+                None => f.modules.binary_search(&module).is_ok(),
+                Some(owner) => {
+                    runs.whole.contains(&module)
+                        || runs.named.get(&module).is_some_and(|n| n.contains(owner))
+                }
+            })
+            .map(|(f, _)| f.id.clone())
+            .collect();
+        ids.sort();
+        ids
+    }
+}
+
+impl Runs {
+    fn of(feature: &Feature, graph: &CompoundGraph) -> Self {
+        let mut runs = Self::default();
+        let mut whole: Vec<ModuleId> = Vec::new();
+        for &entry in &feature.entry {
+            if runs.whole.insert(entry) {
+                whole.push(entry);
+            }
+        }
+        for module in feature.modules.iter().filter_map(|m| graph.modules.get(m)) {
+            let forwarding = forwarding_imports(module);
+            let uses = module
+                .imports
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| !forwarding.contains(index))
+                .map(|(_, import)| import);
+            runs.take(graph, module.id, uses, &mut whole);
+        }
+        while let Some(id) = whole.pop() {
+            let Some(module) = graph.modules.get(&id) else {
+                continue;
+            };
+            let forwarded = forwarding_imports(module)
+                .into_iter()
+                .filter_map(|index| module.imports.get(index));
+            runs.take(graph, id, forwarded, &mut whole);
+        }
+        runs
+    }
+
+    /// Takes the names the static `imports` of module `from` resolve to in other modules,
+    /// queueing each module that newly runs whole on `whole`.
+    fn take<'g>(
+        &mut self,
+        graph: &CompoundGraph,
+        from: ModuleId,
+        imports: impl Iterator<Item = &'g Import>,
+        whole: &mut Vec<ModuleId>,
+    ) {
+        let names = imports
+            .filter(|i| i.kind == EdgeKind::Static)
+            .flat_map(|i| crossing_names(graph, i))
+            .filter(|n| !n.type_only)
+            .filter_map(|n| n.decl)
+            .filter(|d| d.module != from);
+        for decl in names {
+            match decl.binding {
+                None => {
+                    if self.whole.insert(decl.module) {
+                        whole.push(decl.module);
+                    }
+                }
+                Some(binding) => {
+                    self.named.entry(decl.module).or_default().insert(binding);
+                }
+            }
+        }
     }
 }
 

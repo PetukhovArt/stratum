@@ -4,7 +4,7 @@ use stratum_core::{
     ids::{ContainerId, ModuleId},
     types::{Container, ContainerKind},
 };
-use stratum_engine::{EngineInput, SystemMap};
+use stratum_engine::{Caller, EngineInput, SystemMap};
 
 use super::{
     Diagram, Element, Kind, Rel,
@@ -29,7 +29,7 @@ const ROOT_SEGMENT: &str = "(root)";
 
 pub fn diagram(input: &EngineInput, request: &Request) -> miette::Result<Diagram> {
     let scope = scope(input, request.features)?;
-    let systems = input.systems();
+    let systems = input.systems().map_err(|e| miette::miette!("{e}"))?;
     let mut ids = Ids::default();
     let me = self_system(input, systems.as_ref(), &mut ids);
     match request.level {
@@ -53,8 +53,15 @@ pub fn diagram(input: &EngineInput, request: &Request) -> miette::Result<Diagram
     }
 }
 
-/// The modules a diagram may show: `None` for every module.
-type Scope = Option<BTreeSet<ModuleId>>;
+/// What a diagram may show: `None` for every module and call.
+type Scope = Option<Selection>;
+
+/// The selected features.
+struct Selection {
+    /// The union of their modules.
+    modules: BTreeSet<ModuleId>,
+    ids: Vec<String>,
+}
 
 fn scope(input: &EngineInput, selected: &[String]) -> miette::Result<Scope> {
     if selected.is_empty() {
@@ -62,17 +69,24 @@ fn scope(input: &EngineInput, selected: &[String]) -> miette::Result<Scope> {
     }
     let features = input.features().map_err(|e| miette::miette!("{e}"))?;
     ensure_known(&features, selected)?;
-    Ok(Some(
-        selected
+    Ok(Some(Selection {
+        modules: selected
             .iter()
             .filter_map(|id| features.get(id))
             .flat_map(|f| f.modules.iter().copied())
             .collect(),
-    ))
+        ids: selected.to_vec(),
+    }))
 }
 
 fn in_scope(scope: &Scope, module: ModuleId) -> bool {
-    scope.as_ref().is_none_or(|s| s.contains(&module))
+    scope.as_ref().is_none_or(|s| s.modules.contains(&module))
+}
+
+fn runs(scope: &Scope, caller: &Caller) -> bool {
+    scope
+        .as_ref()
+        .is_none_or(|s| caller.features.iter().any(|f| s.ids.contains(f)))
 }
 
 fn self_system(input: &EngineInput, systems: Option<&SystemMap>, ids: &mut Ids) -> Element {
@@ -126,7 +140,8 @@ fn other_systems(
 /// Per relationship, each called contract id with its number of call sites.
 type Calls = BTreeMap<(String, String), BTreeMap<String, usize>>;
 
-/// Calls into other systems from modules in scope, keyed by `key(module)` and the system id.
+/// Calls into other systems that a selected feature runs, keyed by `key(module)` and the
+/// system id.
 fn calls(
     systems: Option<&SystemMap>,
     scope: &Scope,
@@ -139,11 +154,7 @@ fn calls(
             continue;
         };
         for contract in &channel.contracts {
-            for caller in contract
-                .callers
-                .iter()
-                .filter(|c| in_scope(scope, c.module))
-            {
+            for caller in contract.callers.iter().filter(|c| runs(scope, c)) {
                 if let Some(from) = key(caller.module) {
                     *calls
                         .entry((from, to.clone()))

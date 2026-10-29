@@ -97,9 +97,17 @@ impl EngineInput {
     }
 
     /// `None` without `systems` in the config. Reads the contract files of each system.
-    #[must_use]
-    pub fn systems(&self) -> Option<SystemMap> {
-        SystemMap::of(&self.graph, &self.config, &self.project_root)
+    ///
+    /// # Errors
+    /// The errors of [`Self::features`].
+    pub fn systems(&self) -> Result<Option<SystemMap>, ConfigError> {
+        let features = self.features()?;
+        Ok(SystemMap::of(
+            &self.graph,
+            &self.config,
+            &self.project_root,
+            &features,
+        ))
     }
 
     /// The directory of system `id`'s `root`, if it declares one.

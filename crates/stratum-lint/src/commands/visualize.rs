@@ -87,6 +87,7 @@ impl Api {
         let features = features_json(&input, selected)?;
         let systems = input
             .systems()
+            .map_err(|e| miette::miette!("{e}"))?
             .map(|map| serde_json::to_string(&map))
             .transpose()
             .into_diagnostic()?;

@@ -13,6 +13,7 @@ use stratum_core::{
 };
 use stratum_graph::{CompoundGraph, TrackedCalls};
 
+use crate::features::{Features, Reach};
 use crate::paths::canonicalize;
 
 /// The systems of `config.systems`, and per system the contracts the `self` modules call.
@@ -69,6 +70,8 @@ pub struct Caller {
     pub module: ModuleId,
     pub line: u32,
     pub owner: Option<String>,
+    /// The ids of the features that run the call, ascending.
+    pub features: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -81,7 +84,13 @@ struct Declared {
 impl SystemMap {
     /// `None` without `systems`. A system's `root` is relative to `project_root`.
     #[must_use]
-    pub fn of(graph: &CompoundGraph, config: &Config, project_root: &Utf8Path) -> Option<Self> {
+    pub fn of(
+        graph: &CompoundGraph,
+        config: &Config,
+        project_root: &Utf8Path,
+        features: &Features,
+    ) -> Option<Self> {
+        let reach = Reach::of(features, graph);
         let me = config.systems.iter().find(|s| s.is_self)?;
         let mut systems = Vec::new();
         let mut channels = Vec::new();
@@ -101,7 +110,7 @@ impl SystemMap {
             if system.is_self {
                 continue;
             }
-            let channel = channel(graph, &me.id, system, &contracts);
+            let channel = channel(graph, &reach, &me.id, system, &contracts);
             if !channel.contracts.is_empty() || channel.unattributed > 0 {
                 channels.push(channel);
             }
@@ -234,6 +243,7 @@ fn resolve<'c>(contracts: &'c Contracts, name: &str) -> Option<&'c (Declared, St
 
 fn channel(
     graph: &CompoundGraph,
+    reach: &Reach,
     from: &str,
     system: &SystemConfig,
     contracts: &Contracts,
@@ -267,6 +277,7 @@ fn channel(
                     module: module.id,
                     line: call.location.line,
                     owner: call.owner.clone(),
+                    features: reach.features_running(module.id, call.owner.as_deref()),
                 });
         }
     }
@@ -399,7 +410,15 @@ mod tests {
             .into_iter()
             .collect();
 
-        let channel = channel(&graph, "ui", &system, &contracts);
+        let features = Features::of(
+            &graph,
+            &stratum_config::parse_str(Utf8Path::new("inline"), r#"{ "version": 1 }"#).unwrap(),
+            Utf8Path::new("/"),
+        )
+        .unwrap();
+        let reach = Reach::of(&features, &graph);
+
+        let channel = channel(&graph, &reach, "ui", &system, &contracts);
 
         let summary: Vec<(&str, Option<u32>, Vec<u32>)> = channel
             .contracts
@@ -422,5 +441,59 @@ mod tests {
         );
         assert_eq!(channel.unattributed, 3);
         assert_eq!(channel.contracts[0].callers[0].owner.as_deref(), Some("f4"));
+    }
+
+    /// Per feature, the contracts it runs a call of.
+    fn contracts_per_feature(fixture: &str) -> BTreeMap<String, Vec<String>> {
+        let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(fixture);
+        let config = crate::config::load(&root, None).unwrap().config;
+        let (root, graph, ..) = crate::pipeline::graph(
+            &root,
+            &config,
+            crate::pipeline::Source::Overlaid(Vec::new()),
+        )
+        .unwrap();
+        let features = Features::of(&graph, &config, &root).unwrap();
+        let map = SystemMap::of(&graph, &config, &root, &features).unwrap();
+        let mut per_feature: BTreeMap<String, Vec<String>> = features
+            .features()
+            .iter()
+            .map(|f| (f.id.clone(), Vec::new()))
+            .collect();
+        for contract in map.channels.iter().flat_map(|c| &c.contracts) {
+            for feature in contract.callers.iter().flat_map(|c| &c.features) {
+                let ids = per_feature.entry(feature.clone()).or_default();
+                if !ids.contains(&contract.id) {
+                    ids.push(contract.id.clone());
+                }
+            }
+        }
+        per_feature
+    }
+
+    #[test]
+    fn a_feature_runs_what_it_imports_by_name_even_through_a_barrel_its_entries_and_top_level_code()
+    {
+        let per_feature = contracts_per_feature("../../tests/fixtures/tiny-systems/web");
+        let expected = |ids: &[&str]| ids.iter().map(|&id| id.to_owned()).collect::<Vec<_>>();
+        assert_eq!(
+            per_feature,
+            BTreeMap::from([
+                (
+                    "checkout".to_owned(),
+                    expected(&["greet", "save_file", "UserService.GetUser"])
+                ),
+                ("files".to_owned(), expected(&["greet", "save_file"])),
+                (
+                    "profile".to_owned(),
+                    expected(&[
+                        "greet",
+                        "UserService.GetUser",
+                        "UserService.WatchUsers",
+                        "UserService.forgetUser"
+                    ])
+                ),
+            ])
+        );
     }
 }

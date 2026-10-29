@@ -316,6 +316,7 @@ async fn systems_route_lists_the_called_contracts_per_channel_with_their_callers
     let module = |path| id_at(&snapshot, "modules", path);
     let files = module("src/features/files/index.ts");
     let users = module("src/shared/api/users.ts");
+    let session = module("src/shared/api/session.ts");
     let (status, body) = systems("/api/systems").await;
     assert_eq!(status, StatusCode::OK, "{body}");
     let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
@@ -333,23 +334,34 @@ async fn systems_route_lists_the_called_contracts_per_channel_with_their_callers
                 { "from": "ui", "to": "host", "unattributed": 1, "contracts": [
                     { "id": "greet", "signature": "pub fn greet(name: &str) -> String",
                       "decl": { "path": "host:commands.rs", "line": 4 },
-                      "callers": [{ "module": files, "line": 7, "owner": "greet" }] },
+                      "callers": [
+                          { "module": files, "line": 7, "owner": "greet", "features": ["files"] },
+                          { "module": session, "line": 3, "owner": null,
+                            "features": ["checkout", "profile"] },
+                      ] },
                     { "id": "save_file",
                       "signature": "pub async fn save_file(path: String, data: Vec<u8>) -> Result<(), String>",
                       "decl": { "path": "host:commands.rs", "line": 9 },
-                      "callers": [{ "module": files, "line": 4, "owner": "saveFile" }] },
+                      "callers": [
+                          { "module": files, "line": 4, "owner": "saveFile", "features": ["files"] },
+                          { "module": session, "line": 6, "owner": "restore",
+                            "features": ["checkout"] },
+                      ] },
                 ] },
                 { "from": "ui", "to": "api", "unattributed": 1, "contracts": [
                     { "id": "UserService.GetUser",
                       "signature": "rpc GetUser(GetUserRequest) returns (User)",
                       "decl": { "path": "api:user.proto", "line": 7 },
-                      "callers": [{ "module": users, "line": 7, "owner": "getUser" }] },
+                      "callers": [{ "module": users, "line": 7, "owner": "getUser",
+                                    "features": ["checkout", "profile"] }] },
                     { "id": "UserService.WatchUsers",
                       "signature": "rpc WatchUsers(WatchUsersRequest) returns (stream User)",
                       "decl": { "path": "api:user.proto", "line": 9 },
-                      "callers": [{ "module": users, "line": 10, "owner": "watchUsers" }] },
+                      "callers": [{ "module": users, "line": 10, "owner": "watchUsers",
+                                    "features": ["profile"] }] },
                     { "id": "UserService.forgetUser", "signature": null, "decl": null,
-                      "callers": [{ "module": users, "line": 12, "owner": "forget" }] },
+                      "callers": [{ "module": users, "line": 12, "owner": "forget",
+                                    "features": ["profile"] }] },
                 ] },
             ],
         })
