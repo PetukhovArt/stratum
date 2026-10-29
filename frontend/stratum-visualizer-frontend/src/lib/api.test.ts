@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiStatusError, fetchEdge, fetchSource } from './api'
+import { ApiStatusError, fetchEdge, fetchFeatures, fetchSource } from './api'
 
 const answer = (status: number, body: unknown) =>
   vi.fn(async () => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } }))
@@ -20,7 +20,9 @@ const EDGE = {
 }
 
 describe('fetchEdge', () => {
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
 
   it('asks the server once per module edge and parses the names', async () => {
     const fetch = answer(200, EDGE)
@@ -51,8 +53,31 @@ describe('fetchEdge', () => {
   })
 })
 
+describe('fetchFeatures', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('parses the wire shape of /api/features into features and the CLI selection', async () => {
+    vi.stubGlobal(
+      'fetch',
+      answer(200, {
+        features: [{ id: 'cart', name: 'Cart', entry: [1], modules: [1, 2] }],
+        shared: [],
+        selected: ['cart'],
+      }),
+    )
+    await expect(fetchFeatures()).resolves.toEqual({
+      features: [{ id: 'cart', name: 'Cart', entry: [1], modules: [1, 2] }],
+      selected: ['cart'],
+    })
+  })
+})
+
 describe('fetchSource', () => {
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
 
   it('encodes the path and rejects with the status of a missing file', async () => {
     const fetch = answer(404, {})

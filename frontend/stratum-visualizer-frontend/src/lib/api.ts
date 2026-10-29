@@ -141,3 +141,46 @@ export const fetchSource = cachedJson(
     `/api/source?path=${encodeURIComponent(at.path)}&line=${at.line}&context=${at.context}`,
   parseSource,
 )
+
+export interface Feature {
+  id: string
+  name: string
+  /** Snapshot module ids. */
+  entry: number[]
+  /** Snapshot module ids: the entries and everything they reach by static imports. */
+  modules: number[]
+}
+
+export interface FeatureIndex {
+  features: Feature[]
+  /** Feature ids chosen on the command line (`visualize --feature ID`). */
+  selected: string[]
+}
+
+const isIds = (value: unknown): value is number[] =>
+  Array.isArray(value) && value.every((id: unknown) => Number.isInteger(id))
+
+const isStrings = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((id: unknown) => typeof id === 'string')
+
+const parseFeatures = (raw: unknown, url: string): FeatureIndex => {
+  if (!isFields(raw) || !Array.isArray(raw.features) || !isStrings(raw.selected)) {
+    throw new ApiShapeError(url, 'not { features, shared, selected }')
+  }
+  const features = raw.features.map((item: unknown, i): Feature => {
+    if (
+      !isFields(item) ||
+      typeof item.id !== 'string' ||
+      typeof item.name !== 'string' ||
+      !isIds(item.entry) ||
+      !isIds(item.modules)
+    ) {
+      throw new ApiShapeError(url, `features[${i}]`)
+    }
+    return { id: item.id, name: item.name, entry: item.entry, modules: item.modules }
+  })
+  return { features, selected: raw.selected }
+}
+
+/** Cached like `fetchEdge`; rejects with `ApiStatusError` 404 when the server has no features. */
+export const fetchFeatures = cachedJson((_whole: void) => '/api/features', parseFeatures)
