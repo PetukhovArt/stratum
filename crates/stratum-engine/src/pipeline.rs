@@ -16,6 +16,7 @@ use stratum_rules::{DynRule, RuleRegistry};
 use crate::baseline::BaselineError;
 use crate::config::{ConfigSource, LoadedConfig};
 use crate::docs;
+use crate::features::{self, Features};
 use crate::finding::{EdgeRef, Finding};
 use crate::paths::{canonicalize, relative, relative_in_text};
 use crate::suppression::{self, Analysis, Reported, Suppressed};
@@ -35,6 +36,8 @@ pub enum EngineError {
         "`project.entry_points` glob {0:?} matches no file: an entry point is a source file, inside a layer or outside, that `project.ignore` does not ignore"
     )]
     EntryPointUnmatched(String),
+    #[error("`features.{feature}.entry` glob {glob:?} matches no module")]
+    FeatureEntryUnmatched { feature: String, glob: String },
 }
 
 #[derive(Debug)]
@@ -86,6 +89,10 @@ impl EngineInput {
             .map(|v| T::of(self, v))
             .collect();
         suppression::apply(self, reported)
+    }
+
+    pub fn features(&self) -> Result<Features, ConfigError> {
+        Features::of(&self.graph, &self.config, &self.project_root)
     }
 
     pub fn violations(&self) -> Result<Vec<Finding>, ConfigError> {
@@ -199,6 +206,9 @@ pub(crate) fn graph(
     }
     if let Some(i) = hit.iter().position(|h| !h) {
         return Err(EngineError::EntryPointUnmatched(entry.glob(i).to_owned()));
+    }
+    if let Some((feature, glob)) = features::unmatched_entry(&graph, config, &root_abs)? {
+        return Err(EngineError::FeatureEntryUnmatched { feature, glob });
     }
     if side::wants_ignored(config) {
         let ignored = walk.ignored_in_layers().into_iter();
