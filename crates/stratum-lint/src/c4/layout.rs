@@ -56,8 +56,9 @@ const EMPTY_CELL: f64 = 10.0;
 /// What a label costs over a box, a label, a boundary's title or each of its sides, crossed by
 /// an arrow, and per step away from the middle of its arrow.
 const LABEL_BLOCKED: f64 = 100.0;
-const LABEL_CROSSED: f64 = 25.0;
+const LABEL_CROSSED: f64 = 60.0;
 const LABEL_STEP: f64 = 0.5;
+const LABEL_FAR: f64 = 8.0;
 /// A label over or under both ends of its arrow, when no spot beside the arrow is free.
 const LABEL_AWAY: f64 = 80.0;
 
@@ -471,9 +472,11 @@ fn segments_cross(a: (f64, f64), b: (f64, f64), c: (f64, f64), d: (f64, f64)) ->
 const SAMPLES: u32 = 24;
 const ARROWS_CROSSING: f64 = 30.0;
 const ARROW_BLOCKED: f64 = 1000.0;
-/// The samples of an arrow a label may sit by, the middle first, a quarter of the arrow
-/// at most away from it.
-const ALONG: [usize; 13] = [12, 11, 13, 10, 14, 9, 15, 8, 16, 7, 17, 6, 18];
+/// The samples of an arrow a label may sit by, the middle first, up to the arrow's last
+/// eighth at either end.
+const ALONG: [usize; 19] = [
+    12, 11, 13, 10, 14, 9, 15, 8, 16, 7, 17, 6, 18, 5, 19, 4, 20, 3, 21,
+];
 
 /// A boundary's dashed frame, and its title when it has one: the name over the kind.
 struct Frame {
@@ -681,11 +684,16 @@ impl Scene {
             let beside = ALONG.into_iter().enumerate().flat_map(|(rank, sample)| {
                 let (x, y) = arrow.at(sample);
                 let step = real(rank) * LABEL_STEP;
+                let far = step + LABEL_FAR;
                 [
                     (step, Rect::around(x + 6.0 + w / 2.0, y, w, LABEL_HEIGHT)),
                     (step, Rect::around(x - 6.0 - w / 2.0, y, w, LABEL_HEIGHT)),
                     (step, Rect::around(x, y - 11.0, w, LABEL_HEIGHT)),
                     (step, Rect::around(x, y + 11.0, w, LABEL_HEIGHT)),
+                    (far, Rect::around(x + 24.0 + w / 2.0, y, w, LABEL_HEIGHT)),
+                    (far, Rect::around(x - 24.0 - w / 2.0, y, w, LABEL_HEIGHT)),
+                    (far, Rect::around(x, y - 26.0, w, LABEL_HEIGHT)),
+                    (far, Rect::around(x, y + 26.0, w, LABEL_HEIGHT)),
                 ]
             });
             let mut best: Option<(f64, Rect)> = None;
