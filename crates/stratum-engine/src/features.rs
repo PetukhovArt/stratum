@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use camino::Utf8Path;
 use stratum_config::{Config, ConfigError};
-use stratum_core::{edge::EdgeKind, ids::ModuleId, types::ContainerKind};
+use stratum_core::{edge::EdgeKind, ids::ModuleId};
 use stratum_graph::CompoundGraph;
 
 use crate::paths::relative;
@@ -25,8 +25,9 @@ pub struct Feature {
 }
 
 impl Features {
-    /// The `features` of `config`, in id order, else one feature per slice of the first sliced
-    /// layer, in graph order. An entry glob is matched against module paths relative to `root`.
+    /// The `features` of `config`, in id order, else one feature per folder or file directly in
+    /// the first sliced layer, by name. An entry glob is matched against module paths relative
+    /// to `root`.
     ///
     /// # Errors
     /// [`ConfigError::BadGlob`] for an entry glob that is not valid.
@@ -36,7 +37,7 @@ impl Features {
         root: &Utf8Path,
     ) -> Result<Self, ConfigError> {
         let seeds = if config.features.is_empty() {
-            slice_seeds(graph)
+            slice_seeds(graph, root)
         } else {
             configured_seeds(graph, config, root)?
         };
@@ -129,29 +130,29 @@ fn configured_seeds(
         .collect()
 }
 
-fn slice_seeds(graph: &CompoundGraph) -> Vec<Seed> {
+/// One seed per entry of the first sliced layer's folder, a folder another layer claims included.
+fn slice_seeds(graph: &CompoundGraph, root: &Utf8Path) -> Vec<Seed> {
     let Some(layer) = graph
         .layers
         .values()
         .filter(|l| l.slices)
-        .map(|l| l.id)
-        .min()
+        .min_by_key(|l| l.id)
     else {
         return Vec::new();
     };
-    graph
-        .containers
-        .values()
-        .filter(|c| c.kind == ContainerKind::Slice && c.layer == layer)
-        .map(|slice| {
-            let entry = graph
-                .modules
-                .keys()
-                .filter(|&&m| graph.outer_container(m).is_some_and(|c| c.id == slice.id))
-                .copied()
-                .collect();
-            (slice.name.clone(), slice.name.clone(), entry)
-        })
+    let folder = format!("{}/", relative(&layer.path, root));
+    let mut seeds: BTreeMap<String, BTreeSet<ModuleId>> = BTreeMap::new();
+    for module in graph.modules.values() {
+        let path = relative(&module.path, root);
+        if let Some(rest) = path.strip_prefix(&folder)
+            && let Some(name) = rest.split('/').next()
+        {
+            seeds.entry(name.to_owned()).or_default().insert(module.id);
+        }
+    }
+    seeds
+        .into_iter()
+        .map(|(name, entry)| (name.clone(), name, entry))
         .collect()
 }
 
@@ -204,7 +205,7 @@ mod tests {
     use super::*;
     use crate::pipeline::{EngineError, Source, graph};
 
-    const FILES: [(&str, &str); 10] = [
+    const FILES: [(&str, &str); 12] = [
         (
             "src/pages/a/index.ts",
             r#"import type { T } from "../../lib/t";
@@ -218,6 +219,11 @@ export const r = require("../../lib/req");
             r#"import { c } from "../../lib/c"; export const b = c;"#,
         ),
         ("src/pages/c.ts", "export const c = 1;"),
+        (
+            "src/pages/ed/index.ts",
+            r#"import { core } from "./core/core"; export const ed = core;"#,
+        ),
+        ("src/pages/ed/core/core.ts", "export const core = 1;"),
         ("src/widgets/w/index.ts", "export const w = 1;"),
         (
             "src/lib/b.ts",
@@ -254,6 +260,8 @@ export const r = require("../../lib/req");
             r#"{{ "version": 1, "features": {features}, "layers": [
                 {{ "id": "lib", "path": "src/lib" }},
                 {{ "id": "pages", "path": "src/pages", "slices": true }},
+                {{ "id": "ed-core", "path": "src/pages/ed/core" }},
+                {{ "id": "ed", "path": "src/pages/ed", "depends_on": ["ed-core"] }},
                 {{ "id": "widgets", "path": "src/widgets", "slices": true }}
             ] }}"#
         );
@@ -296,7 +304,7 @@ export const r = require("../../lib/req");
     }
 
     #[test]
-    fn without_features_each_slice_of_the_first_sliced_layer_is_one_and_shared_is_in_two() {
+    fn without_features_each_entry_of_the_first_sliced_layer_is_one_and_shared_is_in_two() {
         let (features, lines) = features_of("{}").unwrap();
         assert_eq!(
             lines,
@@ -304,6 +312,7 @@ export const r = require("../../lib/req");
                 "a (a): src/lib/b.ts src/lib/c.ts src/lib/req.ts src/lib/t.ts src/pages/a/index.ts",
                 "b (b): src/lib/b.ts src/lib/c.ts src/pages/b/index.ts",
                 "c.ts (c.ts): src/pages/c.ts",
+                "ed (ed): src/pages/ed/core/core.ts src/pages/ed/index.ts",
                 "shared: src/lib/b.ts src/lib/c.ts",
             ]
         );

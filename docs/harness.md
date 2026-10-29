@@ -67,7 +67,7 @@ stratum-lint visualize [ROOT] [--config PATH] [--base REF] [--feature ID]... [--
                                                # --base REF: the Drift vs REF at /api/drift, as `diff --base REF` computes it;
                                                # --feature ID: opens with the feature filter set to these ids
 stratum-lint features [ROOT] [--config PATH] [--format text|json]
-                                               # every feature (config `features`, else one per slice of the first sliced layer),
+                                               # every feature (config `features`, else one per folder or file in the first sliced layer),
                                                # its modules and the modules two or more features share; default text:
                                                # "<id> (<name>): N modules, M exclusive", its module paths, then "shared:" with each
                                                # shared module and the feature ids holding it.
