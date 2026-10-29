@@ -28,6 +28,8 @@ use stratum_graph::{CompoundGraph, crossing_names};
 use crate::brief;
 use crate::commands::{diff, features, lint};
 
+mod site;
+
 #[derive(RustEmbed)]
 #[folder = "../../frontend/stratum-visualizer-frontend/dist/"]
 struct VisualizerAssets;
@@ -409,18 +411,7 @@ fn read_source(
     let context = number("context")?
         .unwrap_or(SOURCE_CONTEXT)
         .min(SOURCE_CONTEXT_CAP);
-    let (system, root, inner) = match rel.split_once(':') {
-        Some((id, inner)) if let Some(root) = input.system_root(id) => (Some(id), root, inner),
-        _ => (None, input.project_root.clone(), rel.as_str()),
-    };
-    let whose = system.map_or_else(
-        || "the project root".to_owned(),
-        |id| format!("the root of system {id:?}"),
-    );
-    let (file, root) = source_file(&root, inner, &whose)?;
-    let bytes = std::fs::read(&file).map_err(|e| bad(format!("{rel}: {e}")))?;
-    let text = String::from_utf8_lossy(&bytes);
-    let all: Vec<&str> = text.lines().collect();
+    let SourceFile { path, lines: all } = source_lines(input, rel)?;
     let (start, count) = match line {
         Some(0) => return Err(bad("?line= starts at 1".into())),
         Some(n) => {
@@ -429,17 +420,42 @@ fn read_source(
         }
         None => (1, SOURCE_WHOLE_FILE_CAP),
     };
-    let path = paths::relative(file.as_std_path(), &root);
+    let total = all.len();
     Ok(ApiSource {
-        path: system.map_or_else(|| path.clone(), |id| format!("{id}:{path}")),
+        path,
         start,
-        lines: all
-            .iter()
-            .skip(start - 1)
-            .take(count)
-            .map(|l| (*l).to_owned())
+        lines: all.into_iter().skip(start - 1).take(count).collect(),
+        total,
+    })
+}
+
+#[derive(Debug, Serialize)]
+struct SourceFile {
+    /// Canonical and relative: `rel/path` under ROOT, `system-id:rel/path` under a system root.
+    path: String,
+    lines: Vec<String>,
+}
+
+/// The lines of `rel`, a path under ROOT or `system-id:rel/path` under that system's root.
+fn source_lines(input: &EngineInput, rel: &str) -> Result<SourceFile, (StatusCode, String)> {
+    let (system, root, inner) = match rel.split_once(':') {
+        Some((id, inner)) if let Some(root) = input.system_root(id) => (Some(id), root, inner),
+        _ => (None, input.project_root.clone(), rel),
+    };
+    let whose = system.map_or_else(
+        || "the project root".to_owned(),
+        |id| format!("the root of system {id:?}"),
+    );
+    let (file, root) = source_file(&root, inner, &whose)?;
+    let bytes =
+        std::fs::read(&file).map_err(|e| (StatusCode::BAD_REQUEST, format!("{rel}: {e}")))?;
+    let path = paths::relative(file.as_std_path(), &root);
+    Ok(SourceFile {
+        path: system.map_or_else(|| path.clone(), |id| format!("{id}:{path}")),
+        lines: String::from_utf8_lossy(&bytes)
+            .lines()
+            .map(str::to_owned)
             .collect(),
-        total: all.len(),
     })
 }
 

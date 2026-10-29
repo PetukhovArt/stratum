@@ -125,6 +125,22 @@ pub enum Command {
         #[arg(long = "feature", value_name = "ID")]
         features: Vec<String>,
     },
+    /// Write the visualizer as a static site that any file server serves (GitLab or GitHub Pages)
+    Export {
+        #[arg(default_value = ".")]
+        root: Utf8PathBuf,
+        #[arg(long)]
+        config: Option<Utf8PathBuf>,
+        /// The site folder; its `data/` is replaced
+        #[arg(long, value_name = "DIR")]
+        out: Utf8PathBuf,
+        /// Also write the source files the Code panel opens; without it no file contents leave the repo
+        #[arg(long)]
+        with_source: bool,
+        /// Also write the drift of the working tree vs REF (Merge request view)
+        #[arg(long, value_name = "REF")]
+        base: Option<String>,
+    },
     /// Features, the modules each one reaches, and the modules two or more share
     Features {
         #[arg(default_value = ".")]

@@ -38,6 +38,14 @@ fn run(cli: cli::Cli) -> miette::Result<u8> {
             !no_open,
         )
         .map(|()| 0),
+        Some(cli::Command::Export {
+            root,
+            config,
+            out,
+            with_source,
+            base,
+        }) => commands::export::run(&root, config.as_deref(), &out, with_source, base.as_deref())
+            .map(|()| 0),
         Some(cli::Command::Features {
             root,
             config,
