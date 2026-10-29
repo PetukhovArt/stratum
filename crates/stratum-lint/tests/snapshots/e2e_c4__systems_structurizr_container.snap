@@ -5,8 +5,8 @@ expression: output
 workspace "Containers of Web UI" {
     model {
         sys_ui = softwareSystem "Web UI" "" {
-            ctr_src_features = container "features" "2 modules, 2 slices" "layer"
-            ctr_src_shared = container "shared" "3 modules" "layer"
+            ctr_src_features = container "features" "3 modules, 3 slices" "layer"
+            ctr_src_shared = container "shared" "5 modules" "layer"
         }
         sys_api = softwareSystem "Backend" "4 contracts declared" {
             tags "External"
@@ -17,9 +17,10 @@ workspace "Containers of Web UI" {
         sys_billing = softwareSystem "billing" "contracts unavailable: root ../billing/proto is not a directory" {
             tags "External"
         }
-        ctr_src_features -> ctr_src_shared "2 imports"
+        ctr_src_features -> ctr_src_shared "6 imports"
         ctr_src_features -> sys_host "2 contracts"
-        ctr_src_shared -> sys_api "3 contracts"
+        ctr_src_shared -> sys_api "4 contracts"
+        ctr_src_shared -> sys_host "2 contracts"
     }
     views {
         container sys_ui "containers" {

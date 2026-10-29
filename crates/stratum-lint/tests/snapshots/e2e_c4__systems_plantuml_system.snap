@@ -9,7 +9,7 @@ title System context of Web UI
 System_Ext(sys_api, "Backend", "4 contracts declared")
 System_Ext(sys_host, "Desktop host", "2 contracts declared")
 System_Ext(sys_billing, "billing", "contracts unavailable: root ../billing/proto is not a directory")
-System(sys_ui, "Web UI", "5 modules")
-Rel(sys_ui, sys_api, "3 contracts, 1 call not attributed")
+System(sys_ui, "Web UI", "8 modules")
+Rel(sys_ui, sys_api, "4 contracts, 1 call not attributed")
 Rel(sys_ui, sys_host, "2 contracts, 1 call not attributed")
 @enduml
