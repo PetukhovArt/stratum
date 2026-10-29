@@ -1,6 +1,13 @@
 # Features, levels and contracts in the visualizer
 
-Status: proposal, 2026-10-29. Slices S1–S6 below, each shippable alone.
+Status: implemented, 2026-10-29, in slices S1–S6. Written as a proposal; the line references in section 1 point at that base and have since moved (call recording now lives in `crates/stratum-parser-ts/src/calls.rs`).
+
+Deviations from this proposal:
+
+- Without `features`, every folder or file directly in the first sliced layer is a feature, a folder a nested layer claims included (so `src/features/editor`, its own layer, is a feature too).
+- A caller is credited to a feature by the declaration it sits in and the declarations of its module that declaration reaches by name, not by the whole module.
+- `c4` writes Mermaid only, and its container is a top-level layer, with slices one level down (`--level component --container <layer>`).
+- The top level of the Architecture view is System when the config has `systems`, else Containers.
 
 ## 0. Goal
 
@@ -23,7 +30,7 @@ Not a goal: guessing features from folder names, runtime tracing, a general C4 e
 
 ```jsonc
 {
-  // Optional. Without it, every slice of the topmost sliced layer is one feature.
+  // Optional. Without it, every folder or file directly in the first sliced layer is one feature.
   "features": {
     "checkout": { "name": "Checkout", "entry": ["src/pages/checkout/**"] },
     "search":   { "entry": ["src/features/search/index.ts"] }
