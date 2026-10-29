@@ -30,16 +30,6 @@ pub enum FeaturesFormat {
     Json,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
-pub enum C4Format {
-    /// Mermaid C4, rendered inline by GitLab and GitHub markdown
-    Mermaid,
-    /// Structurizr DSL workspace, for Structurizr Lite
-    Structurizr,
-    /// C4-PlantUML, included from the standard library
-    Plantuml,
-}
-
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, ValueEnum)]
 pub enum C4Level {
     /// The project as one system and the systems it calls; needs `systems` in the config
@@ -144,14 +134,12 @@ pub enum Command {
         #[arg(long, value_enum, default_value = "text")]
         format: FeaturesFormat,
     },
-    /// A C4 diagram of the project as text: Mermaid, Structurizr DSL or C4-PlantUML
+    /// A C4 diagram of the project as Mermaid text, rendered inline by GitLab and GitHub markdown
     C4 {
         #[arg(default_value = ".")]
         root: Utf8PathBuf,
         #[arg(long)]
         config: Option<Utf8PathBuf>,
-        #[arg(long, value_enum)]
-        format: C4Format,
         #[arg(long, value_enum, default_value = "container")]
         level: C4Level,
         /// Show only the modules of these features; repeatable

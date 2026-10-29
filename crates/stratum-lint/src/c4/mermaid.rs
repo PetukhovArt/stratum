@@ -18,14 +18,12 @@ pub fn mermaid(diagram: &Diagram) -> String {
         C4Level::Component => "C4Component",
     };
     let layout = layout::arrange(diagram);
-    // A title ends at a line break, `;` or `#`:
-    // https://github.com/mermaid-js/mermaid/blob/develop/packages/mermaid/src/diagrams/c4/parser/c4Diagram.jison
     let cells = Cells {
         top: &layout.top,
         nested: &layout.nested,
         others: &layout.others,
     };
-    let mut out = format!("{header}\n{}", body(diagram, " ", &[';', '#'], &cells));
+    let mut out = format!("{header}\n{}", body(diagram, &cells));
     let empty = layout
         .top
         .iter()
@@ -54,26 +52,6 @@ pub fn mermaid(diagram: &Diagram) -> String {
     out
 }
 
-/// C4-PlantUML, included from the standard library (<https://plantuml.com/stdlib>).
-pub fn plantuml(diagram: &Diagram) -> String {
-    let library = match diagram.level {
-        C4Level::System => "C4_Context",
-        C4Level::Container => "C4_Container",
-        C4Level::Component => "C4_Component",
-    };
-    let outer: Vec<Option<&Element>> = diagram.outer.iter().map(Some).collect();
-    let inner: Vec<Option<&Element>> = diagram.inner.iter().map(Some).collect();
-    let cells = Cells {
-        top: &outer,
-        nested: &inner,
-        others: &[],
-    };
-    format!(
-        "@startuml\n!include <C4/{library}>\n\n{}@enduml\n",
-        body(diagram, "\\n", &[], &cells)
-    )
-}
-
 const EMPTY: &str = "empty";
 
 /// The elements in declaration order, a `None` for an empty shape.
@@ -84,13 +62,10 @@ struct Cells<'c, 'd> {
     others: &'c [Option<&'d Element>],
 }
 
-/// The macros both formats share: `title`, the `top` elements, nested boundaries around the
-/// `nested` ones, the boundary of the `others`, then `Rel`. A `None` is an empty shape,
-/// `empty_1`, `empty_2`… in order. A line break inside a quoted label is written `newline`;
-/// the title holds none of `title_forbidden`.
-fn body(diagram: &Diagram, newline: &str, title_forbidden: &[char], cells: &Cells) -> String {
-    let q = |s: &str| quoted(s, newline);
-    let mut out = format!("title {}\n", bare(&diagram.title, title_forbidden));
+/// `title`, the `top` elements, nested boundaries around the `nested` ones, the boundary of the
+/// `others`, then `Rel`. A `None` is an empty shape, `empty_1`, `empty_2`… in order.
+fn body(diagram: &Diagram, cells: &Cells) -> String {
+    let mut out = format!("title {}\n", bare(&diagram.title));
     let mut empty = 0;
     let mut line = |cell: Option<&Element>| {
         cell.map_or_else(
@@ -98,7 +73,7 @@ fn body(diagram: &Diagram, newline: &str, title_forbidden: &[char], cells: &Cell
                 empty += 1;
                 format!("Container({EMPTY}_{empty}, \"\", \"\", \"\")")
             },
-            |element| element_line(element, &q),
+            element_line,
         )
     };
     for &cell in cells.top {
@@ -116,7 +91,7 @@ fn body(diagram: &Diagram, newline: &str, title_forbidden: &[char], cells: &Cell
             "{}{macro_name}({}, {}) {{",
             "  ".repeat(level),
             boundary.id,
-            q(&boundary.name)
+            quoted(&boundary.name)
         );
     }
     for &cell in cells.nested {
@@ -133,23 +108,27 @@ fn body(diagram: &Diagram, newline: &str, title_forbidden: &[char], cells: &Cell
         out.push_str("}\n");
     }
     for rel in &diagram.rels {
-        let _ = writeln!(out, "Rel({}, {}, {})", rel.from, rel.to, q(&rel.label));
+        let _ = writeln!(out, "Rel({}, {}, {})", rel.from, rel.to, quoted(&rel.label));
     }
     out
 }
 
-fn element_line(element: &Element, q: &impl Fn(&str) -> String) -> String {
-    let (id, name, description) = (&element.id, q(&element.name), q(&element.description));
+fn element_line(element: &Element) -> String {
+    let (id, name, description) = (
+        &element.id,
+        quoted(&element.name),
+        quoted(&element.description),
+    );
     match element.kind {
         Kind::System => format!("System({id}, {name}, {description})"),
         Kind::SystemExt => format!("System_Ext({id}, {name}, {description})"),
         Kind::Container => format!(
             "Container({id}, {name}, {}, {description})",
-            q(&element.technology)
+            quoted(&element.technology)
         ),
         Kind::Component => format!(
             "Component({id}, {name}, {}, {description})",
-            q(&element.technology)
+            quoted(&element.technology)
         ),
     }
 }

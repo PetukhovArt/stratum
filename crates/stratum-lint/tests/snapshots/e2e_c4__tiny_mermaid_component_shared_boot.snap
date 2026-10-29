@@ -1,0 +1,14 @@
+---
+source: crates/stratum-lint/tests/e2e_c4.rs
+expression: shared
+---
+C4Component
+title Components of shared
+System_Boundary(sys_tiny_ts, "tiny-ts") {
+  Container_Boundary(ctr_src_shared, "shared") {
+    Component(cmp_src_shared_api, "api", "folder", "1 module")
+    Component(cmp_src_shared_ui, "ui", "folder", "1 module")
+    Component(cmp_src_shared_utils, "utils", "folder", "1 module")
+  }
+}
+UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")

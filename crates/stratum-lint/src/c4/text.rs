@@ -23,23 +23,24 @@ impl Ids {
     }
 }
 
-/// `label` inside `"…"` of any of the three formats: none of them escapes a quote reliably, so
-/// `"` becomes `'`, a `\` becomes `/` so it cannot escape the closing quote, and each line
-/// break becomes `newline`.
-pub fn quoted(label: &str, newline: &str) -> String {
+/// `label` inside `"…"`: Mermaid does not escape a quote reliably, so `"` becomes `'`, a `\` becomes
+/// `/` so it cannot escape the closing quote, and each line break becomes a space.
+pub fn quoted(label: &str) -> String {
     let flat = label
         .replace("\r\n", "\n")
         .replace('\r', "\n")
         .replace('"', "'")
         .replace('\\', "/");
-    format!("\"{}\"", flat.replace('\n', newline))
+    format!("\"{}\"", flat.replace('\n', " "))
 }
 
-/// `text` on one line outside quotes, each line break and each of `forbidden` made a space.
-pub fn bare(text: &str, forbidden: &[char]) -> String {
+/// `text` on one line outside quotes, each line break, `;` and `#` made a space: a Mermaid
+/// title ends at any of them
+/// (<https://github.com/mermaid-js/mermaid/blob/develop/packages/mermaid/src/diagrams/c4/parser/c4Diagram.jison>).
+pub fn bare(text: &str) -> String {
     text.chars()
         .map(|c| {
-            if c == '\n' || c == '\r' || forbidden.contains(&c) {
+            if matches!(c, '\n' | '\r' | ';' | '#') {
                 ' '
             } else {
                 c
@@ -89,15 +90,14 @@ mod tests {
     #[test]
     fn quoted_labels_hold_no_quote_backslash_or_raw_line_break() {
         assert_eq!(
-            quoted("say \"hi\"\r\nto C:\\dir\nnow", "\\n"),
-            r#""say 'hi'\nto C:/dir\nnow""#
+            quoted("say \"hi\"\r\nto C:\\dir\nnow"),
+            r#""say 'hi' to C:/dir now""#
         );
-        assert_eq!(quoted("a\rb", " "), r#""a b""#);
+        assert_eq!(quoted("a\rb"), r#""a b""#);
     }
 
     #[test]
-    fn a_bare_title_holds_no_line_break_and_none_of_the_forbidden_characters() {
-        assert_eq!(bare("a; b #c\nd", &[';', '#']), "a  b  c d");
-        assert_eq!(bare("a; b #c\r\nd", &[]), "a; b #c  d");
+    fn a_bare_title_holds_no_line_break_semicolon_or_hash() {
+        assert_eq!(bare("a; b #c\r\nd"), "a  b  c  d");
     }
 }

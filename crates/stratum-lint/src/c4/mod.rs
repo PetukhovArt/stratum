@@ -1,14 +1,13 @@
 mod layout;
-mod macros;
+mod mermaid;
 mod model;
-mod structurizr;
 mod text;
 
-use crate::cli::{C4Format, C4Level};
+use crate::cli::C4Level;
 
 pub use model::Request;
 
-/// One C4 diagram, built once and written by any of the three renderers.
+/// One C4 diagram, built once and written as Mermaid.
 ///
 /// Every list has a set order: containers dependents first by the layers' `depends_on`,
 /// components and other systems by name, relationships by `from`, then `to`. Ids are made of
@@ -62,11 +61,7 @@ impl Diagram {
     }
 
     #[must_use]
-    pub fn render(&self, format: C4Format) -> String {
-        match format {
-            C4Format::Mermaid => macros::mermaid(self),
-            C4Format::Structurizr => structurizr::render(self),
-            C4Format::Plantuml => macros::plantuml(self),
-        }
+    pub fn render(&self) -> String {
+        mermaid::mermaid(self)
     }
 }

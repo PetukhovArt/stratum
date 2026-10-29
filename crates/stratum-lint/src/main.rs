@@ -46,14 +46,12 @@ fn run(cli: cli::Cli) -> miette::Result<u8> {
         Some(cli::Command::C4 {
             root,
             config,
-            format,
             level,
             features,
             container,
         }) => commands::c4::run(
             &root,
             config.as_deref(),
-            format,
             &stratum_lint::c4::Request {
                 level,
                 features: &features,
