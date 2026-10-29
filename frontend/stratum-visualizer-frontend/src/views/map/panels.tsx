@@ -18,7 +18,7 @@ const unitPath = (m: Model, id: number): string => m.containers.get(id)?.path ??
 
 const byCount = (a: UnitLink, b: UnitLink): number => b.count - a.count || a.key.localeCompare(b.key)
 
-const Swatch: Component<{ model: Model; layer: number }> = (props) => (
+export const Swatch: Component<{ model: Model; layer: number }> = (props) => (
   <span class="map-sw" style={{ background: layerTone(props.model, props.layer) }} />
 )
 
@@ -212,7 +212,7 @@ const UnitDetails: Component<{ model: Model; info: UnitInfo }> = (props) => {
   )
 }
 
-const LinkDetails: Component<{ model: Model; link: UnitLink }> = (props) => {
+export const LinkDetails: Component<{ model: Model; link: UnitLink }> = (props) => {
   const pairs = createMemo(() =>
     props.model.edges
       .filter((e) => props.model.unitOf(e.from) === props.link.from && props.model.unitOf(e.to) === props.link.to)

@@ -82,9 +82,14 @@ const clip = (from: Point, toward: Point, half: { w: number; h: number }): Point
   return { x: from.x + dx * t, y: from.y + dy * t }
 }
 
-const centre = (b: UnitBox): Point => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 })
+export interface Rect extends Point {
+  w: number
+  h: number
+}
 
-const curveOf = (link: UnitLink, a: UnitBox, b: UnitBox): Curve => {
+const centre = (b: Rect): Point => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 })
+
+export const curveBetween = (a: Rect, b: Rect): { d: string; label: Point } => {
   const p = centre(a)
   const q = centre(b)
   const dx = q.x - p.x
@@ -96,7 +101,6 @@ const curveOf = (link: UnitLink, a: UnitBox, b: UnitBox): Curve => {
   const end = clip(q, control, { w: (b.w + CURVE.arrowClearance) / 2, h: (b.h + CURVE.arrowClearance) / 2 })
   const r = (n: number) => Math.round(n * 10) / 10
   return {
-    link,
     d: `M${r(start.x)},${r(start.y)} Q${r(control.x)},${r(control.y)} ${r(end.x)},${r(end.y)}`,
     label: { x: (start.x + 2 * control.x + end.x) / 4, y: (start.y + 2 * control.y + end.y) / 4 },
   }
@@ -130,7 +134,7 @@ export const layoutLanes = (m: Model, data: MapData, expanded: ReadonlySet<numbe
   const curves = data.links.flatMap((link) => {
     const a = boxes.get(link.from)
     const b = boxes.get(link.to)
-    return a && b ? [curveOf(link, a, b)] : []
+    return a && b ? [{ link, ...curveBetween(a, b) }] : []
   })
   const margin = LANES.margin
   return { lanes, boxes, curves, bounds: { x: -margin, y: -margin, w: LANES.width + margin * 2, h: top + margin } }

@@ -5,12 +5,12 @@ import { sharedAttr, sharedNote } from '../../features/shared-mark'
 import { t } from '../../i18n'
 import { CANVAS_DEFS, EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR, SHARED_COLOR } from '../../render/encoding'
 import { edgeKey, Model, worst } from '../../render/model'
-import { go, nav, set } from '../../shell/nav'
+import { go, MapGate, set } from '../../shell/nav'
 import { trunc } from '../../render/labels'
 import { entryOf, layerName, layerTone } from '../focus/paint'
 import { Curve, defaultCurves, GRID, Lane, LANES, layoutLanes, UnitBox } from './layout'
 import { MapLegend } from './legend'
-import { selectedUnit, selectedUnitPair, toggleExpanded } from './selection'
+import { selectedUnit, selectedUnitPair } from './selection'
 import { mapDataOf, MapData } from './units'
 
 const EDGE_WIDTH = { base: 0.8, max: 4, perLog: 0.8, highlight: 1.2 } as const
@@ -29,9 +29,15 @@ const DASHED_KINDS: ReadonlySet<string> = new Set(['sub_unit', 'nested'])
 
 const unitPath = (m: Model, id: number): string => m.containers.get(id)?.path ?? ''
 
+export interface LanesMarks {
+  unit: string
+  bundle?: string
+}
+
 const EdgeMark: Component<{
   curve: Curve
   model: Model
+  testId: string | undefined
   isFocused: () => boolean
   isHighlighted: () => boolean
 }> = (props) => {
@@ -56,6 +62,9 @@ const EdgeMark: Component<{
     <>
       <path
         class="map-edge"
+        data-testid={props.testId}
+        data-from={link.from}
+        data-to={link.to}
         d={props.curve.d}
         data-edge={`unit:${link.key}`}
         data-ch={sev() ? 'sev' : 'edge'}
@@ -122,6 +131,8 @@ const UnitMark: Component<{
   isHovered: () => boolean
   isPaired: () => boolean
   onHover: (id: number | null) => void
+  onDblClick: (id: number) => void
+  testId: string
 }> = (props) => {
   const b = props.box
   const u = b.unit
@@ -141,13 +152,13 @@ const UnitMark: Component<{
   return (
     <g
       class="map-unit"
-      data-testid="map-unit"
+      data-testid={props.testId}
       data-id={u.id}
       transform={`translate(${b.x},${b.y})`}
       onMouseEnter={() => props.onHover(u.id)}
       onMouseLeave={() => props.onHover(null)}
       onClick={() => set({ sel: { kind: 'container', id: u.id } })}
-      onDblClick={() => toggleExpanded(u.id)}
+      onDblClick={() => props.onDblClick(u.id)}
     >
       <rect
         width={b.w}
@@ -210,9 +221,15 @@ const UnitMark: Component<{
   )
 }
 
-export const LanesScene: Component<{ model: Model }> = (props) => {
+export const LanesScene: Component<{
+  model: Model
+  gate: MapGate
+  expanded: readonly number[]
+  onUnitDblClick: (id: number) => void
+  marks: LanesMarks
+}> = (props) => {
   const data = createMemo(() => mapDataOf(props.model))
-  const expandedIds = createMemo(() => nav().mapExpanded)
+  const expandedIds = createMemo(() => props.expanded)
   const expanded = createMemo(() => new Set(expandedIds()))
   const layout = createMemo(() => layoutLanes(props.model, data(), expanded()))
   const [hover, setHover] = createSignal<number | null>(null)
@@ -221,7 +238,7 @@ export const LanesScene: Component<{ model: Model }> = (props) => {
     const p = selectedUnitPair()
     return p ? edgeKey(p.from, p.to) : null
   }
-  const byDefault = createMemo(() => defaultCurves(layout(), data(), nav().mapGate, expanded(), pairKey()))
+  const byDefault = createMemo(() => defaultCurves(layout(), data(), props.gate, expanded(), pairKey()))
   const visible = createMemo(() => {
     const f = focusUnit()
     if (f !== null) return layout().curves.filter((c) => c.link.from === f || c.link.to === f)
@@ -231,7 +248,7 @@ export const LanesScene: Component<{ model: Model }> = (props) => {
     const p = selectedUnitPair()
     return p !== null && (p.from === id || p.to === id)
   }
-  const fitKey = () => `lanes:${nav().mapExpanded.join(',')}`
+  const fitKey = () => `lanes:${expandedIds().join(',')}`
 
   return (
     <Canvas
@@ -252,6 +269,7 @@ export const LanesScene: Component<{ model: Model }> = (props) => {
               <EdgeMark
                 curve={curve}
                 model={props.model}
+                testId={props.marks.bundle}
                 isFocused={() => focusUnit() !== null}
                 isHighlighted={() => curve.link.key === pairKey()}
               />
@@ -267,6 +285,8 @@ export const LanesScene: Component<{ model: Model }> = (props) => {
               isHovered={() => hover() === box.unit.id}
               isPaired={() => isPaired(box.unit.id)}
               onHover={setHover}
+              onDblClick={props.onUnitDblClick}
+              testId={props.marks.unit}
             />
           )}
         </For>
