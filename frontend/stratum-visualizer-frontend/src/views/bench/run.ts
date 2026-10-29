@@ -2,6 +2,7 @@ import { createSignal } from 'solid-js'
 import { SCENE_MARK_BUDGET } from '../../render/budget'
 import { edgeKey, Model } from '../../render/model'
 import { go, nav, NavPatch } from '../../shell/nav'
+import { ARCH_TOP } from '../arch/path'
 import { layoutBands } from '../focus/bands'
 import { layoutColumns } from '../focus/columns'
 import { driftReport } from '../mr/drift'
@@ -29,7 +30,7 @@ const STAGE_REGION = '.stage-region'
 const PANELS = '.panel-slot'
 
 export interface RenderRun {
-  view: 'focus' | 'dsm' | 'mr' | 'set' | 'map'
+  view: 'focus' | 'dsm' | 'mr' | 'set' | 'map' | 'arch'
   variant: string
   scenario: string
   renderMs: number
@@ -198,7 +199,25 @@ const mapScenarios = (m: Model): Scenario[] => {
   ]
 }
 
-const auditPanels = (colours: ReadonlySet<string>): ChannelAudit => {
+const archScenarios = (m: Model): Scenario[] => {
+  const [largest] = [...m.units].sort((a, b) => b.modules.length - a.modules.length || a.id - b.id)
+  const components: Scenario[] = largest
+    ? [
+        {
+          view: 'arch',
+          variant: 'components',
+          scenario: `${largest.path} (${largest.modules.length} modules)`,
+          patch: { view: 'arch', arch: { level: 'components', container: largest.id }, sel: null },
+        },
+      ]
+    : []
+  return [
+    { view: 'arch', variant: 'containers', scenario: 'whole project', patch: { view: 'arch', arch: ARCH_TOP, sel: null } },
+    ...components,
+  ]
+}
+
+const auditPanels =(colours: ReadonlySet<string>): ChannelAudit => {
   const audits = [...document.querySelectorAll(PANELS)].map((panel) => auditChannel(panel, colours))
   return {
     checked: audits.reduce((n, a) => n + a.checked, 0),
@@ -315,6 +334,7 @@ export const runBench = (): BenchResult => {
     ...mrScenarios,
     ...setScenarios(m, subjects),
     ...mapScenarios(m),
+    ...archScenarios(m),
   ].map((sc) => measureRun(sc, colours, tally))
   const territory = tally.result()
   const targets = judge(runs, tasks, territory)

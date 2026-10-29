@@ -1,6 +1,8 @@
 import { edgeKey, Model, sccs } from '../../render/model'
 import { NavPatch } from '../../shell/nav'
 import { CROSS_LAYER_RULE, SnapshotLayer } from '../../types'
+import { crossSliceBundles } from '../arch/bundles'
+import { ARCH_TOP } from '../arch/path'
 import { DriftReport, driftReport } from '../mr/drift'
 import { analyzeSet, bestCut, moduleCycles, SET_LIMIT } from '../set/analysis'
 import { Subjects } from './subjects'
@@ -305,4 +307,41 @@ const fanInHotspotTask = (m: Model): TaskDef => {
 
 const mapTasks: TaskBlock = (m) => [fanInHotspotTask(m)]
 
-export const TASK_BLOCKS: readonly TaskBlock[] = [focusTasks, mrTasks, dsmTasks, setTasks, mapTasks]
+const crossSliceContractTask = (m: Model): TaskDef => {
+  const [bundle] = crossSliceBundles(m)
+  const base = {
+    order: 9,
+    id: 'cross-slice-contract',
+    question: 'Where is a name that one slice imports from another declared?',
+    who: 'developer' as const,
+    view: 'arch',
+  }
+  const open: Step = { label: 'open Architecture at Containers', patch: { view: 'arch', arch: ARCH_TOP, sel: null } }
+  if (!bundle) {
+    return {
+      ...base,
+      answer: 'no bundles between slices',
+      steps: [open],
+      isAnswerShown: () =>
+        document.querySelector('[data-testid="arch-stage"][data-level="containers"]') !== null &&
+        document.querySelector('[data-testid="arch-bundle-row"]') === null,
+    }
+  }
+  const ends = `[data-from="${bundle.from}"][data-to="${bundle.to}"]`
+  const pair = `${m.unitLabel(bundle.from)} → ${m.unitLabel(bundle.to)}`
+  return {
+    ...base,
+    answer: `${pair}: its Contract lists the names with their declarations; a name opens Code`,
+    steps: [
+      open,
+      { label: `click the bundle ${pair}`, patch: { sel: { kind: 'cell', level: 'unit', from: bundle.from, to: bundle.to } } },
+    ],
+    isAnswerShown: () =>
+      document.querySelector(`[data-testid="arch-stage"] [data-testid="arch-bundle"]${ends}`) !== null &&
+      document.querySelector(`[data-testid="arch-bundle-details"]${ends} [data-testid="contract"]`) !== null,
+  }
+}
+
+const archTasks: TaskBlock = (m) => [crossSliceContractTask(m)]
+
+export const TASK_BLOCKS: readonly TaskBlock[] = [focusTasks, mrTasks, dsmTasks, setTasks, mapTasks, archTasks]
