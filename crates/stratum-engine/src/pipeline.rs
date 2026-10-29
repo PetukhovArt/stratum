@@ -20,6 +20,7 @@ use crate::features::{self, Features};
 use crate::finding::{EdgeRef, Finding};
 use crate::paths::{canonicalize, relative, relative_in_text};
 use crate::suppression::{self, Analysis, Reported, Suppressed};
+use crate::systems::{self, SystemMap};
 use crate::{manifest, side};
 
 #[derive(Debug, thiserror::Error)]
@@ -93,6 +94,18 @@ impl EngineInput {
 
     pub fn features(&self) -> Result<Features, ConfigError> {
         Features::of(&self.graph, &self.config, &self.project_root)
+    }
+
+    /// `None` without `systems` in the config. Reads the contract files of each system.
+    #[must_use]
+    pub fn systems(&self) -> Option<SystemMap> {
+        SystemMap::of(&self.graph, &self.config, &self.project_root)
+    }
+
+    /// The directory of system `id`'s `root`, if it declares one.
+    #[must_use]
+    pub fn system_root(&self, id: &str) -> Option<Utf8PathBuf> {
+        systems::system_root(&self.config, &self.project_root, id)
     }
 
     pub fn violations(&self) -> Result<Vec<Finding>, ConfigError> {
@@ -249,11 +262,13 @@ pub(crate) fn graph_without_entry_points(
             slices: l.slices,
         })
         .collect();
+    let mut tracked_calls = stratum_rules::tracked_calls(config);
+    systems::track_calls(config, &mut tracked_calls);
     let build_cfg = BuildConfig {
         project_root: root_abs.clone(),
         layers,
         structure: config.structure.clone(),
-        tracked_calls: stratum_rules::tracked_calls(config),
+        tracked_calls,
         default_purity: Purity::DEFAULT,
     };
     let ignore = IgnoreSet::new(config)?;
