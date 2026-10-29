@@ -39,6 +39,28 @@ The ratchet fails when a baseline entry's count grows, and a moved file counts a
 1. Regenerate the baseline in the MR (`stratum-lint baseline`) and commit it.
 2. Add the label `stratum:accept-debt`: the template skips `baseline --check` ([when the label takes effect](../ci/README.md#stratum-ci-templates)).
 
+## A C4 diagram in an MR description
+
+GitLab and GitHub render a ```` ```mermaid ```` block in markdown, C4 diagrams included. Print one and paste it into the MR or PR description:
+
+```
+stratum-lint c4 --format mermaid                      # containers: layers and slices
+stratum-lint c4 --format mermaid --level system       # needs `systems` in the config
+stratum-lint c4 --format mermaid --feature checkout   # only what one feature reaches
+```
+
+Wrap the output in a fence:
+
+````
+```mermaid
+C4Container
+title Containers of Web UI
+...
+```
+````
+
+Big projects: the diagram keeps the 59 containers with the most modules and folds the rest into one "… N more". For a narrower view, use `--feature`, or `--level component --container <name>` with a name the container level prints. `--format structurizr` writes a workspace for Structurizr Lite (`workspace.dsl`), and `--format plantuml` writes C4-PlantUML.
+
 ## Reproducing a pipeline locally
 
 ```

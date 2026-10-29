@@ -73,6 +73,20 @@ stratum-lint features [ROOT] [--config PATH] [--format text|json]
                                                # shared module and the feature ids holding it.
                                                # json: { features: [{ id, name, entry, modules }], shared }; ROOT-relative paths
                                                # with "/", every list ascending
+stratum-lint c4 [ROOT] [--config PATH] --format mermaid|structurizr|plantuml [--level system|container|component]
+                [--feature ID]... [--container NAME]
+                                               # a C4 diagram as text on stdout, one view; default --level container.
+                                               # system: the `self` system of config `systems` and the others as externals,
+                                               #   each arrow "N contracts: <3 most called ids>, +K more[; M calls not attributed]";
+                                               # container: one container per layer, or per slice of a sliced layer, named
+                                               #   "<layer>" or "<layer>/<slice>", arrows "N imports" (distinct module pairs),
+                                               #   and arrows to the other systems from the containers that call them;
+                                               # component: the first sub-folders of --container NAME ("(root)" for its own
+                                               #   files), arrows "N imports".
+                                               # --feature: only the union of these features' modules; the unattributed count is
+                                               #   then left out. Past 60 elements inside the boundary, the 59 with the most
+                                               #   modules stay and the rest become one "… N more" that carries their arrows.
+                                               # Ids [A-Za-z0-9_] from the system id or the path; a `"` in a label is written `'`.
 ```
 
 ### Exit codes
@@ -88,6 +102,7 @@ stratum-lint features [ROOT] [--config PATH] [--format text|json]
 | `rules`, `context`, `features` | printed, whatever violations exist | | tool failure; `context` FILE outside ROOT; a `features` entry glob matching no module | |
 | `init` | config written | | tool failure; config already exists | |
 | `snapshot` | snapshot written | | tool failure | |
+| `c4` | printed | | tool failure; `--level system` without `systems` in the config; unknown `--feature` id; `--level component` without `--container` or with an unknown one (each message lists the known ids or names) | |
 | `visualize` | server stopped with Ctrl+C | | tool failure; unknown `--base` REF; unknown `--feature` id (the message lists the known ids) | |
 
 Only `lint` returns 3. Precedence when several apply: 2 over 1 over 3 over 0.
