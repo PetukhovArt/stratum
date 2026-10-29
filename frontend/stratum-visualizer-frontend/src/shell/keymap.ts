@@ -1,4 +1,5 @@
 import { activeCanvas } from '../canvas/active'
+import { closeCode } from '../contract/code'
 import { availableViews, viewById } from '../views'
 import { back, go, nav, set } from './nav'
 import { variantIndex, variantPatch } from './variants'
@@ -43,7 +44,7 @@ const onKeyDown = (e: KeyboardEvent, actions: KeymapActions): void => {
   if (e.key === 'Escape') {
     if (actions.isPaletteOpen()) {
       actions.setPaletteOpen(false)
-    } else {
+    } else if (!closeCode()) {
       back()
     }
     return

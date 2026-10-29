@@ -3,6 +3,7 @@ import { Dynamic } from 'solid-js/web'
 import './fonts.css'
 import './shell.css'
 import '../styles.css'
+import { CodePanel } from '../contract/code-panel'
 import { t } from '../i18n'
 import { loadSnapshot, SnapshotVersionMismatchError } from '../lib/snapshot'
 import { loadViolations } from '../lib/violations'
@@ -95,6 +96,7 @@ const Layout: Component<{ model: Model; isViolationsUnavailable: boolean }> = (p
           <div class="stage-region">
             <Dynamic component={view().Stage} {...viewProps()} />
           </div>
+          <CodePanel />
         </div>
         <Show when={!isRightCollapsed()} fallback={<div />}>
           <ResizeHandle side="right" width={rightWidth} setWidth={setRightWidth} />
