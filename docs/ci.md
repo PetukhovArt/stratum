@@ -59,7 +59,7 @@ title Containers of Web UI
 ```
 ````
 
-The container level shows one box per top-level layer; layers nested in another layer's folder count for it. To look inside one, use `--level component --container <layer id>`: one box per folder or file directly in that layer, at most 60 (the smallest fold into one "… N more"). For a narrower view, use `--feature`. `--format structurizr` writes a workspace for Structurizr Lite (`workspace.dsl`), and `--format plantuml` writes C4-PlantUML.
+The container level shows one box per top-level layer; layers nested in another layer's folder count for it. To look inside one, use `--level component --container <layer id>`: one box per folder or file directly in that layer, at most 60 (the smallest fold into one "… N more"). For a narrower view, use `--feature`. The Mermaid output places the boxes and moves the labels itself (`UpdateRelStyle`, transparent filler boxes), so arrows stay out of boxes and labels apart; keep those lines when you paste it. `--format structurizr` writes a workspace for Structurizr Lite (`workspace.dsl`), and `--format plantuml` writes C4-PlantUML.
 
 ## Reproducing a pipeline locally
 

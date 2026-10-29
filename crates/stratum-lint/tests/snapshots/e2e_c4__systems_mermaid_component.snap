@@ -11,3 +11,5 @@ System_Boundary(sys_ui, "Web UI") {
   }
 }
 Rel(cmp_src_shared_api, cmp_src_shared_config, "1 import")
+UpdateRelStyle(cmp_src_shared_api, cmp_src_shared_config, $offsetX="-24", $offsetY="-11")
+UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")

@@ -1,3 +1,4 @@
+mod layout;
 mod macros;
 mod model;
 mod structurizr;
@@ -48,6 +49,8 @@ pub struct Rel {
     pub from: String,
     pub to: String,
     pub label: String,
+    /// What the label counts: imports, or contracts plus calls not attributed.
+    pub weight: usize,
 }
 
 impl Diagram {

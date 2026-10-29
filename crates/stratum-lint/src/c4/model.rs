@@ -178,7 +178,12 @@ fn contracts_rel(
     if unattributed > 0 {
         label = format!("{label}, {} not attributed", count(unattributed, "call"));
     }
-    Rel { from, to, label }
+    Rel {
+        from,
+        to,
+        label,
+        weight: called.len() + unattributed,
+    }
 }
 
 fn system_level(
@@ -437,6 +442,7 @@ fn rels(imports: BTreeMap<(String, String), usize>, calls: Calls) -> Vec<Rel> {
             from,
             to,
             label: count(n, "import"),
+            weight: n,
         })
         .chain(
             calls

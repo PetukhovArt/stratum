@@ -12,3 +12,7 @@ System_Boundary(sys_tiny_ts, "tiny-ts") {
 Rel(ctr_src_entities, ctr_src_shared, "1 import")
 Rel(ctr_src_features, ctr_src_entities, "1 import")
 Rel(ctr_src_features, ctr_src_shared, "1 import")
+UpdateRelStyle(ctr_src_entities, ctr_src_shared, $offsetX="6", $offsetY="0")
+UpdateRelStyle(ctr_src_features, ctr_src_entities, $offsetX="-37", $offsetY="-11")
+UpdateRelStyle(ctr_src_features, ctr_src_shared, $offsetX="6", $offsetY="0")
+UpdateLayoutConfig($c4ShapeInRow="2", $c4BoundaryInRow="1")

@@ -1,21 +1,52 @@
 use std::fmt::Write as _;
 
 use super::{
-    Diagram, Element, Kind,
+    Diagram, Element, Kind, layout,
     text::{bare, quoted},
 };
 use crate::cli::C4Level;
 
-/// Mermaid C4 (<https://mermaid.js.org/syntax/c4.html>), which GitLab and GitHub render inline.
+/// Mermaid C4 (<https://mermaid.js.org/syntax/c4.html>), which GitLab and GitHub render inline,
+/// with the shapes placed and the labels moved by [`layout::arrange`]; an empty cell of the
+/// grid is a shape drawn transparent.
 pub fn mermaid(diagram: &Diagram) -> String {
     let header = match diagram.level {
         C4Level::System => "C4Context",
         C4Level::Container => "C4Container",
         C4Level::Component => "C4Component",
     };
+    let layout = layout::arrange(diagram);
     // A title ends at a line break, `;` or `#`:
     // https://github.com/mermaid-js/mermaid/blob/develop/packages/mermaid/src/diagrams/c4/parser/c4Diagram.jison
-    format!("{header}\n{}", body(diagram, " ", &[';', '#']))
+    let mut out = format!(
+        "{header}\n{}",
+        body(diagram, " ", &[';', '#'], &layout.top, &layout.nested)
+    );
+    let empty = layout
+        .top
+        .iter()
+        .chain(&layout.nested)
+        .filter(|c| c.is_none())
+        .count();
+    for n in 1..=empty {
+        let _ = writeln!(
+            out,
+            "UpdateElementStyle({EMPTY}_{n}, $fontColor=\"transparent\", $bgColor=\"transparent\", $borderColor=\"transparent\")"
+        );
+    }
+    for (rel, (x, y)) in diagram.rels.iter().zip(&layout.offsets) {
+        let _ = writeln!(
+            out,
+            "UpdateRelStyle({}, {}, $offsetX=\"{x}\", $offsetY=\"{y}\")",
+            rel.from, rel.to
+        );
+    }
+    let _ = writeln!(
+        out,
+        "UpdateLayoutConfig($c4ShapeInRow=\"{}\", $c4BoundaryInRow=\"1\")",
+        layout.shapes_in_row
+    );
+    out
 }
 
 /// C4-PlantUML, included from the standard library (<https://plantuml.com/stdlib>).
@@ -25,17 +56,42 @@ pub fn plantuml(diagram: &Diagram) -> String {
         C4Level::Container => "C4_Container",
         C4Level::Component => "C4_Component",
     };
+    let outer: Vec<Option<&Element>> = diagram.outer.iter().map(Some).collect();
+    let inner: Vec<Option<&Element>> = diagram.inner.iter().map(Some).collect();
     format!(
         "@startuml\n!include <C4/{library}>\n\n{}@enduml\n",
-        body(diagram, "\\n", &[])
+        body(diagram, "\\n", &[], &outer, &inner)
     )
 }
 
-/// The macros both formats share: `title`, nested boundaries, elements and `Rel`. A line break
-/// inside a quoted label is written `newline`; the title holds none of `title_forbidden`.
-fn body(diagram: &Diagram, newline: &str, title_forbidden: &[char]) -> String {
+const EMPTY: &str = "empty";
+
+/// The macros both formats share: `title`, the `top` elements, then nested boundaries around
+/// the `nested` ones, then `Rel`. A `None` is an empty shape, `empty_1`, `empty_2`… in
+/// order. A line break inside a quoted label is written `newline`; the title holds none of
+/// `title_forbidden`.
+fn body(
+    diagram: &Diagram,
+    newline: &str,
+    title_forbidden: &[char],
+    top: &[Option<&Element>],
+    nested: &[Option<&Element>],
+) -> String {
     let q = |s: &str| quoted(s, newline);
     let mut out = format!("title {}\n", bare(&diagram.title, title_forbidden));
+    let mut empty = 0;
+    let mut line = |cell: Option<&Element>| {
+        cell.map_or_else(
+            || {
+                empty += 1;
+                format!("Container({EMPTY}_{empty}, \"\", \"\", \"\")")
+            },
+            |element| element_line(element, &q),
+        )
+    };
+    for &cell in top {
+        let _ = writeln!(out, "{}", line(cell));
+    }
     let depth = diagram.boundaries.len();
     for (level, boundary) in diagram.boundaries.iter().enumerate() {
         let macro_name = if boundary.kind == Kind::System {
@@ -51,14 +107,11 @@ fn body(diagram: &Diagram, newline: &str, title_forbidden: &[char]) -> String {
             q(&boundary.name)
         );
     }
-    for element in &diagram.inner {
-        let _ = writeln!(out, "{}{}", "  ".repeat(depth), element_line(element, &q));
+    for &cell in nested {
+        let _ = writeln!(out, "{}{}", "  ".repeat(depth), line(cell));
     }
     for level in (0..depth).rev() {
         let _ = writeln!(out, "{}}}", "  ".repeat(level));
-    }
-    for element in &diagram.outer {
-        let _ = writeln!(out, "{}", element_line(element, &q));
     }
     for rel in &diagram.rels {
         let _ = writeln!(out, "Rel({}, {}, {})", rel.from, rel.to, q(&rel.label));
