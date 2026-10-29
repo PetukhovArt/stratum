@@ -74,7 +74,10 @@ const build = (index: SystemIndex, m: Model): SystemsInModel => {
 
 const cache = new WeakMap<SystemIndex, WeakMap<Model, SystemsInModel>>()
 
-/** A contract stays only with the callers whose module the Model holds, and only if one is left. */
+/**
+ * A contract stays only with its shown callers, and only if one is left: with features chosen, a
+ * caller one of them runs; otherwise a caller whose module the Model holds.
+ */
 export const systemsOf = (index: SystemIndex, m: Model): SystemsInModel => {
   const byModel = cache.get(index) ?? new WeakMap<Model, SystemsInModel>()
   cache.set(index, byModel)

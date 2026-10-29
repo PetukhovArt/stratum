@@ -27,8 +27,9 @@ pub struct Config {
     #[serde(default)]
     pub overrides: Vec<OverrideBlock>,
     /// Keyed by feature id (`^[\w.-]+$`). A feature is its `entry` modules plus every module they
-    /// reach by static imports, type-only imports included. Without it, every slice of the first
-    /// layer with `slices: true` is a feature. A child map replaces the `extends` parent's map.
+    /// reach by static imports, type-only imports included. Without it, every folder or file
+    /// directly in the first layer with `slices: true` is a feature, a folder a nested layer
+    /// claims included. A child map replaces the `extends` parent's map.
     #[serde(default)]
     #[schemars(schema_with = "crate::features::schema")]
     pub features: BTreeMap<String, FeatureConfig>,

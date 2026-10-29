@@ -326,7 +326,7 @@ const parseFeatures = (raw: unknown, url: string): FeatureIndex => {
   return { features, selected: raw.selected }
 }
 
-/** Cached like `fetchEdge`; rejects with `ApiStatusError` 404 when the server has no features. */
+/** Cached like `fetchEdge`. */
 export const fetchFeatures = wholeJson('features', parseFeatures)
 
 export interface SystemInfo {
