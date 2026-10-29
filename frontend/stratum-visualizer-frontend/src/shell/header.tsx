@@ -5,6 +5,7 @@ import type { Feature } from '../lib/api'
 import { Model } from '../render/model'
 import { Severity } from '../types'
 import { availableViews } from '../views'
+import { openGuide } from './guide'
 import { go, nav } from './nav'
 
 export const Header: Component<{
@@ -71,6 +72,9 @@ export const Header: Component<{
         <button class="pal-btn" onClick={() => props.onOpenPalette()}>
           <span>{t('shell.jump')}</span>
           <kbd>Ctrl K</kbd>
+        </button>
+        <button class="help-btn" data-testid="guide-open" title={t('shell.guide')} aria-label={t('shell.guide')} onClick={openGuide}>
+          ?
         </button>
       </div>
     </header>

@@ -1,6 +1,7 @@
 import { activeCanvas } from '../canvas/active'
 import { closeCode } from '../contract/code'
 import { availableViews, viewById } from '../views'
+import { closeGuide, isGuideOpen, openGuide } from './guide'
 import { back, go, nav, set } from './nav'
 import { isTypingTarget } from './typing'
 import { variantIndex, variantPatch } from './variants'
@@ -38,6 +39,7 @@ const onKeyDown = (e: KeyboardEvent, actions: KeymapActions): void => {
     return
   }
   if (e.key === 'Escape') {
+    if (closeGuide()) return
     if (actions.isPaletteOpen()) {
       actions.setPaletteOpen(false)
     } else if (!closeCode()) {
@@ -46,6 +48,12 @@ const onKeyDown = (e: KeyboardEvent, actions: KeymapActions): void => {
     return
   }
   if (isTyping || hasCommandModifier || e.altKey) return
+  if (e.key === '?') {
+    e.preventDefault()
+    openGuide()
+    return
+  }
+  if (isGuideOpen()) return
   if (e.key === '/') {
     e.preventDefault()
     actions.setPaletteOpen(true)

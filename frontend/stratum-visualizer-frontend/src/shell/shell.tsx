@@ -11,6 +11,7 @@ import { SnapshotVersionMismatchError } from '../lib/snapshot'
 import { buildModel, Model } from '../render/model'
 import { viewById, ViewDef } from '../views'
 import { requestSystems } from '../views/arch/systems'
+import { Guide, isGuideOpen } from './guide'
 import { Header } from './header'
 import { bindKeymap } from './keymap'
 import { nav, set } from './nav'
@@ -136,6 +137,9 @@ const Layout: Component<{
       <StatusBar model={props.model} />
       <Show when={isPaletteOpen()}>
         <Palette model={props.model} onClose={() => setPaletteOpen(false)} />
+      </Show>
+      <Show when={isGuideOpen()}>
+        <Guide />
       </Show>
     </div>
   )

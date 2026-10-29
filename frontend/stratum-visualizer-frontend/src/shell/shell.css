@@ -85,6 +85,39 @@ kbd {
   font-size: 12px; min-width: 200px;
 }
 .pal-btn:hover { border-color: var(--bd-2); }
+.help-btn {
+  appearance: none; border: 1px solid var(--bd-1); background: var(--bg-2); height: 28px; width: 28px; border-radius: 7px;
+  color: var(--tx-3); cursor: pointer; font-size: 13px; font-weight: 600;
+}
+.help-btn:hover { border-color: var(--bd-2); color: var(--tx-1); }
+.guide-scrim { padding-top: 6vh; }
+.guide {
+  width: 760px; max-width: calc(100vw - 40px); max-height: 86vh; display: flex; flex-direction: column;
+  background: oklch(22% 0.012 260 / .98); border: 1px solid var(--bd-2); border-radius: 12px;
+  box-shadow: 0 24px 80px oklch(0% 0 0 / .55); overflow: hidden;
+}
+.guide-hd { display: flex; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--bd-1); }
+.guide-hd h1 { flex: 1; margin: 0; font-size: 15px; font-weight: 600; color: var(--tx-1); }
+.guide-x {
+  appearance: none; border: 0; background: transparent; color: var(--tx-3); cursor: pointer;
+  height: 26px; width: 26px; border-radius: 6px; font-size: 16px;
+}
+.guide-x:hover { background: var(--bg-3); color: var(--tx-1); }
+.guide-body { overflow: auto; padding: 4px 22px 22px; font-size: 12.5px; line-height: 1.55; color: var(--tx-2); }
+.guide-body p { margin: 10px 0; }
+.guide-body h2 {
+  margin: 22px 0 8px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--tx-3);
+}
+.guide-body h3 { margin: 0 0 4px; font-size: 13px; font-weight: 600; color: var(--tx-1); }
+.guide-body ol, .guide-body ul { margin: 0; padding-left: 20px; }
+.guide-run { font-family: var(--mono); font-size: 11.5px; }
+.guide-views { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0; }
+.guide-views dt { color: var(--tx-1); font-weight: 600; white-space: nowrap; }
+.guide-views dd { margin: 0; }
+.guide-case { margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--bd-1); border-radius: 8px; background: var(--bg-2); }
+.guide-keys { border-collapse: collapse; }
+.guide-keys td { padding: 3px 14px 3px 0; vertical-align: top; }
+.guide-keys td:first-child { white-space: nowrap; }
 .pal-btn span { flex: 1; text-align: left; }
 .pal-btn kbd { white-space: nowrap; }
 
