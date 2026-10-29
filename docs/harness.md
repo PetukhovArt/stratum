@@ -61,10 +61,18 @@ stratum-lint snapshot [ROOT] [--out PATH] [--config PATH]
                                                # Graph Snapshot v3 JSON, default stratum.snapshot.json; config default ROOT/stratum.config.jsonc.
                                                # { version: 3, project, modules[{id, path, container, layer, purity, zone?, territory}],
                                                #   containers, layers, edges, zones[{id, path, root}], territories[] }; paths ROOT-relative with "/"
-stratum-lint visualize [ROOT] [--config PATH] [--base REF] [--no-open]
+stratum-lint visualize [ROOT] [--config PATH] [--base REF] [--feature ID]... [--no-open]
                                                # serves the Visualizer on 127.0.0.1:<random port> until Ctrl+C;
                                                # prints "stratum-visualizer ready at <url>" to stderr; --no-open skips the browser;
-                                               # --base REF: the Drift vs REF at /api/drift, as `diff --base REF` computes it
+                                               # --base REF: the Drift vs REF at /api/drift, as `diff --base REF` computes it;
+                                               # --feature ID: opens with the feature filter set to these ids
+stratum-lint features [ROOT] [--config PATH] [--format text|json]
+                                               # every feature (config `features`, else one per slice of the first sliced layer),
+                                               # its modules and the modules two or more features share; default text:
+                                               # "<id> (<name>): N modules, M exclusive", its module paths, then "shared:" with each
+                                               # shared module and the feature ids holding it.
+                                               # json: { features: [{ id, name, entry, modules }], shared }; ROOT-relative paths
+                                               # with "/", every list ascending
 ```
 
 ### Exit codes
@@ -77,10 +85,10 @@ stratum-lint visualize [ROOT] [--config PATH] [--base REF] [--no-open]
 | `baseline --check` | no entry count grew: equal, shrunk, introduced (absent at REF), or no baseline in the working tree | some entry count grew | tool failure; unknown REF; invalid baseline on either side; `--out` outside ROOT | |
 | `diff` | no drift | drift (advisory: CI Templates let it pass) | tool failure; unknown REF; a graph fails to build on either side | |
 | `explain` | printed | | tool failure; unknown slug | |
-| `rules`, `context` | printed, whatever violations exist | | tool failure; `context` FILE outside ROOT | |
+| `rules`, `context`, `features` | printed, whatever violations exist | | tool failure; `context` FILE outside ROOT; a `features` entry glob matching no module | |
 | `init` | config written | | tool failure; config already exists | |
 | `snapshot` | snapshot written | | tool failure | |
-| `visualize` | server stopped with Ctrl+C | | tool failure; unknown `--base` REF | |
+| `visualize` | server stopped with Ctrl+C | | tool failure; unknown `--base` REF; unknown `--feature` id (the message lists the known ids) | |
 
 Only `lint` returns 3. Precedence when several apply: 2 over 1 over 3 over 0.
 A baseline entry is fixed in scope when the run no longer produces it and its file is in scope: the whole project when the run has no `--files` / `--changed`, else one of those files. `--no-baseline` never returns 3, and `baseline --check` is unaffected. The caller's action on 3 is `stratum-lint baseline --prune`, as a change of its own. Both CI Templates treat 3 as a pass.
