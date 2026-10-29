@@ -2,7 +2,7 @@ import { Component, createMemo, createSignal, For, Show } from 'solid-js'
 import { BudgetNote } from '../../canvas/budget-note'
 import { Canvas } from '../../canvas/canvas'
 import { sharedAttr, sharedNote } from '../../features/shared-mark'
-import { t } from '../../i18n'
+import { MessageKey, t } from '../../i18n'
 import { CANVAS_DEFS, EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR, SHARED_COLOR } from '../../render/encoding'
 import { edgeKey, Model, worst } from '../../render/model'
 import { go, MapGate, set } from '../../shell/nav'
@@ -32,6 +32,7 @@ const unitPath = (m: Model, id: number): string => m.containers.get(id)?.path ??
 export interface LanesMarks {
   unit: string
   bundle?: string
+  dblClickHint?: MessageKey
 }
 
 const EdgeMark: Component<{
@@ -132,7 +133,7 @@ const UnitMark: Component<{
   isPaired: () => boolean
   onHover: (id: number | null) => void
   onDblClick: (id: number) => void
-  testId: string
+  marks: LanesMarks
 }> = (props) => {
   const b = props.box
   const u = b.unit
@@ -147,12 +148,12 @@ const UnitMark: Component<{
   }
   const title = () =>
     `${u.path}\n${t('map.unit.title', { kind: u.kind, stage, modules: t('map.modules', { n: u.modules.length }) })}\n${
-      isExpanded ? t('map.unit.collapse') : t('map.unit.expand')
+      props.marks.dblClickHint ? t(props.marks.dblClickHint) : isExpanded ? t('map.unit.collapse') : t('map.unit.expand')
     }`
   return (
     <g
       class="map-unit"
-      data-testid={props.testId}
+      data-testid={props.marks.unit}
       data-id={u.id}
       transform={`translate(${b.x},${b.y})`}
       onMouseEnter={() => props.onHover(u.id)}
@@ -286,7 +287,7 @@ export const LanesScene: Component<{
               isPaired={() => isPaired(box.unit.id)}
               onHover={setHover}
               onDblClick={props.onUnitDblClick}
-              testId={props.marks.unit}
+              marks={props.marks}
             />
           )}
         </For>

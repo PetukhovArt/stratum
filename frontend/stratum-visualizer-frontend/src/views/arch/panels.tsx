@@ -217,7 +217,9 @@ const ComponentsDetails: Component<{ model: Model; unit: Unit }> = (props) => {
   }
   const module = () => {
     const s = sel()
-    return s?.kind === 'module' && props.model.unitOf(s.id) === props.unit.id ? s.id : null
+    if (s?.kind === 'module' && props.model.unitOf(s.id) === props.unit.id) return s.id
+    const path = archPathOf(props.model)
+    return s === null && path.level === 'code' ? path.module : null
   }
   return (
     <Switch fallback={<ComponentsOverview model={props.model} unit={props.unit} />}>

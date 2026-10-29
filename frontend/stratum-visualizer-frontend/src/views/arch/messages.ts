@@ -9,6 +9,7 @@ export const en = {
   'arch.keys.down': 'down',
   'arch.keys.up': 'up',
   'arch.root': '(root)',
+  'arch.container.hint': 'double-click or Enter: its components',
   'arch.containers.title': 'Containers',
   'arch.containers.hint':
     'Double-click a container or press Enter on it to see its modules. Click a bundle to read its contract.',
@@ -44,6 +45,7 @@ export const ru: MessagesOf<typeof en> = {
   'arch.keys.down': 'вниз',
   'arch.keys.up': 'вверх',
   'arch.root': '(корень)',
+  'arch.container.hint': 'двойной клик или Enter — его компоненты',
   'arch.containers.title': 'Контейнеры',
   'arch.containers.hint':
     'Двойной клик по контейнеру или Enter на нём покажет его модули. Клик по связке покажет её контракт.',

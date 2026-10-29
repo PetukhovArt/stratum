@@ -3,7 +3,7 @@ import { Model } from '../../render/model'
 import { nav } from '../../shell/nav'
 import { isTypingTarget } from '../../shell/typing'
 import { GateBar } from '../map/gate-bar'
-import { LanesScene } from '../map/lanes-scene'
+import { LanesMarks, LanesScene } from '../map/lanes-scene'
 import '../map/map.css'
 import { mapDataOf } from '../map/units'
 import { ViewDef, ViewProps } from '../view-def'
@@ -13,7 +13,7 @@ import { ComponentsScene } from './components-scene'
 import { Crumbs } from './crumbs'
 import { ArchOutline, ArchDetails } from './panels'
 
-const MARKS = { unit: 'arch-container', bundle: 'arch-bundle' } as const
+const MARKS: LanesMarks = { unit: 'arch-container', bundle: 'arch-bundle', dblClickHint: 'arch.container.hint' }
 const NO_EXPANDED: readonly number[] = []
 
 const isControl = (target: EventTarget | null): boolean =>
