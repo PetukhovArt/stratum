@@ -5,6 +5,7 @@ export type CodeSite = Loc & { kind: 'import' | 'call' }
 
 export interface CodeTarget {
   name: string
+  signature: string | null
   decl: Loc | null
   site: CodeSite | null
 }

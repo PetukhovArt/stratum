@@ -1,4 +1,5 @@
 import { createSignal } from 'solid-js'
+import { fetchDrift } from '../../lib/api'
 import { ContainerKind, EdgeKind } from '../../types'
 import { SeverityLabel } from '../../render/encoding'
 
@@ -39,16 +40,12 @@ export interface DriftReport {
 
 type DriftState = { kind: 'loading' } | { kind: 'absent' } | { kind: 'ready'; drift: DriftReport }
 
-const DRIFT_URL = '/api/drift'
-
 const [state, setState] = createSignal<DriftState>({ kind: 'loading' })
 let isRequested = false
 
-const fetchDrift = async (): Promise<DriftState> => {
+const driftState = async (): Promise<DriftState> => {
   try {
-    const resp = await fetch(DRIFT_URL)
-    if (!resp.ok) return { kind: 'absent' }
-    return { kind: 'ready', drift: (await resp.json()) as DriftReport }
+    return { kind: 'ready', drift: (await fetchDrift()) as DriftReport }
   } catch {
     return { kind: 'absent' }
   }
@@ -58,7 +55,7 @@ const fetchDrift = async (): Promise<DriftState> => {
 export const driftReport = (): DriftReport | null => {
   if (!isRequested) {
     isRequested = true
-    void fetchDrift().then(setState)
+    void driftState().then(setState)
   }
   const s = state()
   return s.kind === 'ready' ? s.drift : null

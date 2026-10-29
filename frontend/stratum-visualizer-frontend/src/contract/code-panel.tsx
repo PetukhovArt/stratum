@@ -1,6 +1,6 @@
 import { Component, createMemo, createResource, For, Match, Show, Switch } from 'solid-js'
 import { t } from '../i18n'
-import { ApiStatusError, fetchSource, Loc } from '../lib/api'
+import { ApiStatusError, fetchSource, Loc, SourceNotExportedError } from '../lib/api'
 import { PathLabel } from '../shell/path-text'
 import { closeCode, CodeSite, codeTarget, CodeTarget } from './code'
 import { rowsOf } from './source'
@@ -42,6 +42,11 @@ const Snippet: Component<{ role: SnippetRole; at: Loc }> = (props) => {
         <PathLabel path={`${props.at.path}:${props.at.line}`} />
       </div>
       <Switch>
+        <Match when={source.state === 'errored' && source.error instanceof SourceNotExportedError}>
+          <div class="empty code-msg" data-testid="code-not-exported">
+            {t('code.notExported')}
+          </div>
+        </Match>
         <Match when={source.state === 'errored'}>
           <div class="empty code-msg">{t('code.missing', { reason: reasonOf(source.error) })}</div>
         </Match>
@@ -80,6 +85,13 @@ const CodeDock: Component<{ target: CodeTarget }> = (props) => (
       <span class="code-name mono" data-testid="code-name">
         {props.target.name}
       </span>
+      <Show when={props.target.signature}>
+        {(signature) => (
+          <span class="code-sig mono" data-testid="code-signature" title={signature()}>
+            {signature()}
+          </span>
+        )}
+      </Show>
       <Show when={!props.target.decl}>
         <span class="code-note">{t(props.target.site?.kind === 'call' ? 'code.unresolvedCall' : 'code.unresolved')}</span>
       </Show>

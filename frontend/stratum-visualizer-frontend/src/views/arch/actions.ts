@@ -11,6 +11,7 @@ export const archPathOf = (m: Model): ArchPath => deepestShownPrefix(nav().arch,
 
 export const moduleCode = (m: Model, id: number): CodeTarget => ({
   name: m.label(id),
+  signature: null,
   decl: { path: m.modules.get(id)?.path ?? '', line: 1 },
   site: null,
 })
@@ -19,6 +20,7 @@ export const contractCode = (m: Model, contract: SystemContract, caller = contra
   const path = caller ? m.modules.get(caller.module)?.path : undefined
   return {
     name: contract.id,
+    signature: contract.signature,
     decl: contract.decl,
     site: path ? { kind: 'call', path, line: caller.line } : null,
   }

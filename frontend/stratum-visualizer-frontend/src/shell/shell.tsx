@@ -6,9 +6,8 @@ import '../styles.css'
 import { CodePanel } from '../contract/code-panel'
 import { scopeOf } from '../features/scope'
 import { t } from '../i18n'
-import { Feature, fetchFeatures } from '../lib/api'
-import { loadSnapshot, SnapshotVersionMismatchError } from '../lib/snapshot'
-import { loadViolations } from '../lib/violations'
+import { Feature, fetchFeatures, fetchSnapshot, fetchViolations } from '../lib/api'
+import { SnapshotVersionMismatchError } from '../lib/snapshot'
 import { buildModel, Model } from '../render/model'
 import { viewById, ViewDef } from '../views'
 import { requestSystems } from '../views/arch/systems'
@@ -28,8 +27,8 @@ const PANEL = {
 } as const
 
 export const Shell: Component = () => {
-  const [snapshot] = createResource(() => loadSnapshot('/api/snapshot'))
-  const [violations] = createResource(() => loadViolations('/api/violations'))
+  const [snapshot] = createResource(() => fetchSnapshot())
+  const [violations] = createResource(() => fetchViolations())
   const [features] = createResource(() => fetchFeatures())
   const isViolationsUnavailable = () => violations.state === 'errored'
   const featureIndex = () => (features.state === 'ready' ? features() : null)
