@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiStatusError, fetchEdge, fetchFeatures, fetchSource } from './api'
+import { ApiStatusError, fetchEdge, fetchFeatures, fetchSource, fetchSystems } from './api'
 
 const answer = (status: number, body: unknown) =>
   vi.fn(async () => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } }))
@@ -70,6 +70,54 @@ describe('fetchFeatures', () => {
     await expect(fetchFeatures()).resolves.toEqual({
       features: [{ id: 'cart', name: 'Cart', entry: [1], modules: [1, 2] }],
       selected: ['cart'],
+    })
+  })
+})
+
+describe('fetchSystems', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('parses the wire shape of /api/systems, splitting off the self system', async () => {
+    vi.stubGlobal(
+      'fetch',
+      answer(200, {
+        systems: [
+          { id: 'ui', name: 'Web UI', self: true, contracts_total: 0 },
+          { id: 'api', name: 'Backend', self: false, contracts_total: 4 },
+          { id: 'billing', name: 'billing', self: false, contracts_total: 0, unavailable: 'root is not a directory' },
+        ],
+        channels: [
+          {
+            from: 'ui',
+            to: 'api',
+            contracts: [
+              {
+                id: 'UserService.GetUser',
+                signature: 'rpc GetUser(GetUserRequest) returns (User)',
+                decl: { path: 'api:user.proto', line: 7 },
+                callers: [{ module: 3, line: 7, owner: 'getUser' }],
+              },
+              { id: 'UserService.forgetUser', signature: null, decl: null, callers: [{ module: 3, line: 12, owner: null }] },
+            ],
+            unattributed: 1,
+          },
+        ],
+      }),
+    )
+    const index = await fetchSystems()
+    expect(index.self).toEqual({ id: 'ui', name: 'Web UI', contractsTotal: 0, unavailableReason: null })
+    expect(index.others.map((s) => [s.id, s.unavailableReason])).toEqual([
+      ['api', null],
+      ['billing', 'root is not a directory'],
+    ])
+    expect(index.channels[0]).toMatchObject({ from: 'ui', to: 'api', unattributedCalls: 1 })
+    expect(index.channels[0].contracts[1]).toEqual({
+      id: 'UserService.forgetUser',
+      signature: null,
+      decl: null,
+      callers: [{ module: 3, line: 12, owner: null }],
     })
   })
 })

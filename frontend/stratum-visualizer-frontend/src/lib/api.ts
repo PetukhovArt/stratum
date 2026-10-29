@@ -184,3 +184,125 @@ const parseFeatures = (raw: unknown, url: string): FeatureIndex => {
 
 /** Cached like `fetchEdge`; rejects with `ApiStatusError` 404 when the server has no features. */
 export const fetchFeatures = cachedJson((_whole: void) => '/api/features', parseFeatures)
+
+export interface SystemInfo {
+  id: string
+  name: string
+  contractsTotal: number
+  unavailableReason: string | null
+}
+
+export interface ContractCaller {
+  /** Snapshot module id. */
+  module: number
+  line: number
+  owner: string | null
+}
+
+export interface SystemContract {
+  id: string
+  signature: string | null
+  /** At a `system-id:rel/path` that `fetchSource` serves as is; `null` when no declaration matched the call. */
+  decl: Loc | null
+  callers: ContractCaller[]
+}
+
+export interface Channel {
+  from: string
+  to: string
+  contracts: SystemContract[]
+  unattributedCalls: number
+}
+
+export interface SystemIndex {
+  self: SystemInfo
+  others: SystemInfo[]
+  channels: Channel[]
+}
+
+type ParsedSystem = SystemInfo & { isSelf: boolean }
+
+const isCount = (value: unknown): value is number => Number.isInteger(value) && (value as number) >= 0
+
+const parseSystem = (raw: unknown, url: string, where: string): ParsedSystem => {
+  if (
+    !isFields(raw) ||
+    typeof raw.id !== 'string' ||
+    typeof raw.name !== 'string' ||
+    typeof raw.self !== 'boolean' ||
+    !isCount(raw.contracts_total) ||
+    (raw.unavailable !== undefined && typeof raw.unavailable !== 'string')
+  ) {
+    throw new ApiShapeError(url, where)
+  }
+  return {
+    id: raw.id,
+    name: raw.name,
+    isSelf: raw.self,
+    contractsTotal: raw.contracts_total,
+    unavailableReason: raw.unavailable ?? null,
+  }
+}
+
+const parseCaller = (raw: unknown, url: string, where: string): ContractCaller => {
+  if (!isFields(raw) || !isCount(raw.module) || !isLine(raw.line) || (raw.owner !== null && typeof raw.owner !== 'string')) {
+    throw new ApiShapeError(url, where)
+  }
+  return { module: raw.module, line: raw.line, owner: raw.owner }
+}
+
+const parseSystemContract = (raw: unknown, url: string, where: string): SystemContract => {
+  if (
+    !isFields(raw) ||
+    typeof raw.id !== 'string' ||
+    (raw.signature !== null && typeof raw.signature !== 'string') ||
+    !Array.isArray(raw.callers)
+  ) {
+    throw new ApiShapeError(url, where)
+  }
+  const decl = parseLoc(raw.decl)
+  if (raw.decl !== null && !decl) throw new ApiShapeError(url, `${where}.decl`)
+  return {
+    id: raw.id,
+    signature: raw.signature,
+    decl,
+    callers: raw.callers.map((c: unknown, i) => parseCaller(c, url, `${where}.callers[${i}]`)),
+  }
+}
+
+const parseChannel = (raw: unknown, url: string, where: string): Channel => {
+  if (
+    !isFields(raw) ||
+    typeof raw.from !== 'string' ||
+    typeof raw.to !== 'string' ||
+    !Array.isArray(raw.contracts) ||
+    !isCount(raw.unattributed)
+  ) {
+    throw new ApiShapeError(url, where)
+  }
+  return {
+    from: raw.from,
+    to: raw.to,
+    contracts: raw.contracts.map((c: unknown, i) => parseSystemContract(c, url, `${where}.contracts[${i}]`)),
+    unattributedCalls: raw.unattributed,
+  }
+}
+
+const infoOf = ({ isSelf: _isSelf, ...system }: ParsedSystem): SystemInfo => system
+
+const parseSystems = (raw: unknown, url: string): SystemIndex => {
+  if (!isFields(raw) || !Array.isArray(raw.systems) || !Array.isArray(raw.channels)) {
+    throw new ApiShapeError(url, 'not { systems, channels }')
+  }
+  const systems = raw.systems.map((s: unknown, i) => parseSystem(s, url, `systems[${i}]`))
+  const selves = systems.filter((s) => s.isSelf)
+  if (selves.length !== 1) throw new ApiShapeError(url, `${selves.length} systems are self, expected 1`)
+  return {
+    self: infoOf(selves[0]),
+    others: systems.filter((s) => !s.isSelf).map(infoOf),
+    channels: raw.channels.map((c: unknown, i) => parseChannel(c, url, `channels[${i}]`)),
+  }
+}
+
+/** Cached like `fetchEdge`; rejects with `ApiStatusError` 404 when the config declares no `systems`. */
+export const fetchSystems = cachedJson((_whole: void) => '/api/systems', parseSystems)
