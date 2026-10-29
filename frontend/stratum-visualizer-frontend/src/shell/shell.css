@@ -88,7 +88,17 @@ kbd {
 .pal-btn span { flex: 1; text-align: left; }
 .pal-btn kbd { white-space: nowrap; }
 
-@media (max-width: 1300px) {
+@media (max-width: 2000px) {
+  .tab kbd { display: none; }
+}
+@media (max-width: 1800px) {
+  .pal-btn span { display: none; }
+  .pal-btn { min-width: 0; }
+}
+@media (max-width: 1600px) {
+  .hd-proj, .hd-div { display: none; }
+}
+@media (max-width: 1440px) {
   .brand-dim, .tab kbd, .varbar .lbl, .varbar kbd, .hd-stats, .hd-proj, .hd-div, .pal-btn span { display: none; }
   .tab { padding: 5px 9px; }
   .pal-btn { min-width: 0; }

@@ -10,6 +10,7 @@ export const en = {
   'features.commonLimit': 'Most features a shown module may belong to',
   'features.shared': 'shared',
   'features.sharedTitle': 'shared by two or more chosen features',
+  'features.hidingCommon': 'common >{k} hidden',
 } as const
 
 export const ru: MessagesOf<typeof en> = {
@@ -22,4 +23,5 @@ export const ru: MessagesOf<typeof en> = {
   'features.commonLimit': 'Сколько фич может использовать показанный модуль',
   'features.shared': 'общий',
   'features.sharedTitle': 'используется двумя и более выбранными фичами',
+  'features.hidingCommon': 'общие >{k} скрыты',
 }

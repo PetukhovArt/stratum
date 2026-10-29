@@ -53,6 +53,11 @@ export const FeatureFilter: Component<{ features: readonly Feature[]; chosen: re
       >
         <span class="ff-lbl">{t('features.label')}</span>
         <span class="ff-sum">{summaryOf(props.features, props.chosen)}</span>
+        <Show when={nav().isHidingCommon}>
+          <span class="ff-n" data-testid="feature-hiding-common">
+            {t('features.hidingCommon', { k: nav().commonLimit })}
+          </span>
+        </Show>
       </button>
       <Show when={isOpen()}>
         <div class="ff-pop" role="listbox" aria-multiselectable="true" aria-label={t('features.title')}>
@@ -77,27 +82,27 @@ export const FeatureFilter: Component<{ features: readonly Feature[]; chosen: re
               {t('features.clear')}
             </button>
           </Show>
+          <div class="seg ff-common ff-foot" title={t('features.hideCommonTitle', { k: nav().commonLimit })}>
+            <button
+              class={nav().isHidingCommon ? 'on' : ''}
+              data-testid="feature-hide-common"
+              aria-pressed={nav().isHidingCommon}
+              onClick={() => go({ isHidingCommon: !nav().isHidingCommon })}
+            >
+              {t('features.hideCommon')}
+            </button>
+            <input
+              class="ff-k"
+              type="number"
+              min="1"
+              data-testid="feature-common-limit"
+              aria-label={t('features.commonLimit')}
+              value={nav().commonLimit}
+              onChange={onLimit}
+            />
+          </div>
         </div>
       </Show>
-      <div class="seg ff-common" title={t('features.hideCommonTitle', { k: nav().commonLimit })}>
-        <button
-          class={nav().isHidingCommon ? 'on' : ''}
-          data-testid="feature-hide-common"
-          aria-pressed={nav().isHidingCommon}
-          onClick={() => go({ isHidingCommon: !nav().isHidingCommon })}
-        >
-          {t('features.hideCommon')}
-        </button>
-        <input
-          class="ff-k"
-          type="number"
-          min="1"
-          data-testid="feature-common-limit"
-          aria-label={t('features.commonLimit')}
-          value={nav().commonLimit}
-          onChange={onLimit}
-        />
-      </div>
     </div>
   )
 }
