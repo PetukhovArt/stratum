@@ -51,6 +51,8 @@ pub struct Api {
     snapshot: String,
     violations: String,
     features: String,
+    /// `None` without `systems` in the config: `/api/systems` answers 404.
+    systems: Option<String>,
     /// `None` without `--base`: `/api/drift` answers 404.
     drift: Option<String>,
 }
@@ -83,6 +85,11 @@ impl Api {
     ) -> miette::Result<Self> {
         let drift = base.map(|base| drift_json(&input, base)).transpose()?;
         let features = features_json(&input, selected)?;
+        let systems = input
+            .systems()
+            .map(|map| serde_json::to_string(&map))
+            .transpose()
+            .into_diagnostic()?;
         let snapshot = input.snapshot().map_err(|e| miette::miette!("{e}"))?;
         let (api_violations, findings): (Vec<ApiViolation>, Vec<Finding>) = input
             .analyze_violations()
@@ -94,6 +101,7 @@ impl Api {
             snapshot: serde_json::to_string(&snapshot).into_diagnostic()?,
             violations: serde_json::to_string(&api_violations).into_diagnostic()?,
             features,
+            systems,
             input,
             findings,
             drift,
@@ -189,6 +197,19 @@ pub fn build_router(api: Arc<Api>) -> Router {
             "/api/features",
             get(|State(api): State<Arc<Api>>| async move {
                 text(StatusCode::OK, "application/json", api.features.clone())
+            }),
+        )
+        .route(
+            "/api/systems",
+            get(|State(api): State<Arc<Api>>| async move {
+                match &api.systems {
+                    Some(systems) => text(StatusCode::OK, "application/json", systems.clone()),
+                    None => text(
+                        StatusCode::NOT_FOUND,
+                        PLAIN,
+                        "no systems: declare `systems` in the config".into(),
+                    ),
+                }
             }),
         )
         .route("/api/context", get(context_brief))
@@ -397,7 +418,15 @@ fn read_source(
     let context = number("context")?
         .unwrap_or(SOURCE_CONTEXT)
         .min(SOURCE_CONTEXT_CAP);
-    let file = source_file(&input.project_root, rel)?;
+    let (system, root, inner) = match rel.split_once(':') {
+        Some((id, inner)) if let Some(root) = input.system_root(id) => (Some(id), root, inner),
+        _ => (None, input.project_root.clone(), rel.as_str()),
+    };
+    let whose = system.map_or_else(
+        || "the project root".to_owned(),
+        |id| format!("the root of system {id:?}"),
+    );
+    let (file, root) = source_file(&root, inner, &whose)?;
     let bytes = std::fs::read(&file).map_err(|e| bad(format!("{rel}: {e}")))?;
     let text = String::from_utf8_lossy(&bytes);
     let all: Vec<&str> = text.lines().collect();
@@ -409,8 +438,9 @@ fn read_source(
         }
         None => (1, SOURCE_WHOLE_FILE_CAP),
     };
+    let path = paths::relative(file.as_std_path(), &root);
     Ok(ApiSource {
-        path: input.relative(file.as_std_path()),
+        path: system.map_or_else(|| path.clone(), |id| format!("{id}:{path}")),
         start,
         lines: all
             .iter()
@@ -422,13 +452,13 @@ fn read_source(
     })
 }
 
-fn source_file(root: &Utf8Path, rel: &str) -> Result<Utf8PathBuf, (StatusCode, String)> {
-    let outside = || {
-        (
-            StatusCode::BAD_REQUEST,
-            format!("{rel} is outside the project root"),
-        )
-    };
+/// The file at `rel` under `root`, and `root`, both canonical; `whose` names the root in errors.
+fn source_file(
+    root: &Utf8Path,
+    rel: &str,
+    whose: &str,
+) -> Result<(Utf8PathBuf, Utf8PathBuf), (StatusCode, String)> {
+    let outside = || (StatusCode::BAD_REQUEST, format!("{rel} is outside {whose}"));
     let escapes = Utf8Path::new(rel).components().any(|c| {
         matches!(
             c,
@@ -444,7 +474,7 @@ fn source_file(root: &Utf8Path, rel: &str) -> Result<Utf8PathBuf, (StatusCode, S
     })?;
     let root = paths::canonicalize(root).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     if file.starts_with(&root) {
-        Ok(file)
+        Ok((file, root))
     } else {
         Err(outside())
     }

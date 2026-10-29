@@ -302,3 +302,89 @@ fn an_unknown_selected_feature_is_an_error_naming_the_known_ones() {
         r#"unknown feature "chekout"; known: boot, cart, legacy"#
     );
 }
+
+const SYSTEMS: &str = "../../tests/fixtures/tiny-systems/web";
+
+async fn systems(uri: &str) -> (StatusCode, String) {
+    get_from(router_at(Utf8Path::new(SYSTEMS), None), uri).await
+}
+
+#[tokio::test]
+async fn systems_route_lists_the_called_contracts_per_channel_with_their_callers() {
+    let snapshot: serde_json::Value =
+        serde_json::from_str(&systems("/api/snapshot").await.1).unwrap();
+    let module = |path| id_at(&snapshot, "modules", path);
+    let files = module("src/features/files/index.ts");
+    let users = module("src/shared/api/users.ts");
+    let (status, body) = systems("/api/systems").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(
+        parsed,
+        serde_json::json!({
+            "systems": [
+                { "id": "ui", "name": "Web UI", "self": true, "contracts_total": 0 },
+                { "id": "host", "name": "Desktop host", "self": false, "contracts_total": 2 },
+                { "id": "api", "name": "Backend", "self": false, "contracts_total": 4 },
+                { "id": "billing", "name": "billing", "self": false, "contracts_total": 0,
+                  "unavailable": "root ../billing/proto is not a directory" },
+            ],
+            "channels": [
+                { "from": "ui", "to": "host", "unattributed": 1, "contracts": [
+                    { "id": "greet", "signature": "pub fn greet(name: &str) -> String",
+                      "decl": { "path": "host:commands.rs", "line": 4 },
+                      "callers": [{ "module": files, "line": 7, "owner": "greet" }] },
+                    { "id": "save_file",
+                      "signature": "pub async fn save_file(path: String, data: Vec<u8>) -> Result<(), String>",
+                      "decl": { "path": "host:commands.rs", "line": 9 },
+                      "callers": [{ "module": files, "line": 4, "owner": "saveFile" }] },
+                ] },
+                { "from": "ui", "to": "api", "unattributed": 1, "contracts": [
+                    { "id": "UserService.GetUser",
+                      "signature": "rpc GetUser(GetUserRequest) returns (User)",
+                      "decl": { "path": "api:user.proto", "line": 7 },
+                      "callers": [{ "module": users, "line": 7, "owner": "getUser" }] },
+                    { "id": "UserService.WatchUsers",
+                      "signature": "rpc WatchUsers(WatchUsersRequest) returns (stream User)",
+                      "decl": { "path": "api:user.proto", "line": 9 },
+                      "callers": [{ "module": users, "line": 10, "owner": "watchUsers" }] },
+                    { "id": "UserService.forgetUser", "signature": null, "decl": null,
+                      "callers": [{ "module": users, "line": 12, "owner": "forget" }] },
+                ] },
+            ],
+        })
+    );
+}
+
+#[tokio::test]
+async fn systems_route_is_404_without_systems() {
+    assert_eq!(tiny("/api/systems").await.0, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn source_route_serves_a_system_path_from_under_its_root_only() {
+    let (status, body) = systems("/api/source?path=api:user.proto&line=7&context=1").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(
+        parsed,
+        serde_json::json!({
+            "path": "api:user.proto", "start": 6, "total": 20,
+            "lines": [
+                "service UserService {",
+                "  rpc GetUser(GetUserRequest) returns (User);",
+                "  /* Streams every change. */",
+            ],
+        })
+    );
+    for path in ["api:../../host/src/commands.rs", "api:/user.proto"] {
+        let (status, _) = systems(&format!("/api/source?path={path}")).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{path}");
+    }
+    let (status, _) = systems("/api/source?path=api:missing.proto").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, body) = systems("/api/source?path=src/features/files/index.ts&line=1").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(parsed["path"], "src/features/files/index.ts");
+}

@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package acme.user;
+
+// The user directory.
+service UserService {
+  rpc GetUser(GetUserRequest) returns (User);
+  /* Streams every change. */
+  rpc WatchUsers(WatchUsersRequest)
+      returns (stream User);
+  rpc DeleteUser(DeleteUserRequest) returns (Empty) {
+    option deprecated = true;
+  }
+}
+
+message GetUserRequest { string id = 1; }
+message WatchUsersRequest {}
+message DeleteUserRequest { string id = 1; }
+message User { string id = 1; string name = 2; }
+message Empty {}
