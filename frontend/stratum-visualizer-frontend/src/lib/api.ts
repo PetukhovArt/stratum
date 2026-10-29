@@ -1,0 +1,143 @@
+export interface Loc {
+  /** Root-relative, `/`-separated. */
+  path: string
+  /** 1-based. */
+  line: number
+}
+
+export interface ContractName {
+  /** `*` for a namespace import or a re-export of the whole module; its `decl` is the module's line 1. */
+  name: string
+  isTypeOnly: boolean
+  /** `null` when the name did not resolve to a declaration. */
+  decl: Loc | null
+}
+
+export interface EdgeImport {
+  file: string
+  line: number
+  isTypeOnly: boolean
+  kind: string
+  names: ContractName[]
+}
+
+export type EdgeEnds = { level: 'module' | 'container'; from: number; to: number }
+
+export interface SourceText {
+  path: string
+  /** 1-based line number of `lines[0]`. */
+  start: number
+  lines: string[]
+  total: number
+}
+
+export class ApiStatusError extends Error {
+  constructor(
+    readonly url: string,
+    readonly status: number,
+  ) {
+    super(`${url} answered ${status}`)
+    this.name = 'ApiStatusError'
+  }
+}
+
+export class ApiShapeError extends Error {
+  constructor(url: string, where: string) {
+    super(`Malformed answer of ${url}: ${where}`)
+    this.name = 'ApiShapeError'
+  }
+}
+
+type Fields = Record<string, unknown>
+
+const isFields = (value: unknown): value is Fields => typeof value === 'object' && value !== null
+
+const isLine = (value: unknown): value is number => Number.isInteger(value) && (value as number) >= 1
+
+const parseLoc = (raw: unknown): Loc | null => {
+  if (!isFields(raw) || typeof raw.path !== 'string' || !isLine(raw.line)) return null
+  return { path: raw.path, line: raw.line }
+}
+
+const parseName = (raw: unknown, url: string, where: string): ContractName => {
+  if (!isFields(raw) || typeof raw.name !== 'string' || typeof raw.type_only !== 'boolean') {
+    throw new ApiShapeError(url, where)
+  }
+  const decl = parseLoc(raw.decl)
+  if (raw.decl !== null && raw.decl !== undefined && !decl) throw new ApiShapeError(url, `${where}.decl`)
+  return { name: raw.name, isTypeOnly: raw.type_only, decl }
+}
+
+const parseEdge = (raw: unknown, url: string): EdgeImport[] => {
+  if (!isFields(raw) || !Array.isArray(raw.imports)) throw new ApiShapeError(url, '`imports` is not an array')
+  return raw.imports.map((item: unknown, i) => {
+    const where = `imports[${i}]`
+    if (
+      !isFields(item) ||
+      typeof item.file !== 'string' ||
+      !isLine(item.line) ||
+      typeof item.type_only !== 'boolean' ||
+      typeof item.kind !== 'string' ||
+      !Array.isArray(item.names)
+    ) {
+      throw new ApiShapeError(url, where)
+    }
+    return {
+      file: item.file,
+      line: item.line,
+      isTypeOnly: item.type_only,
+      kind: item.kind,
+      names: item.names.map((name: unknown, j) => parseName(name, url, `${where}.names[${j}]`)),
+    }
+  })
+}
+
+const parseSource = (raw: unknown, url: string): SourceText => {
+  if (
+    !isFields(raw) ||
+    typeof raw.path !== 'string' ||
+    !isLine(raw.start) ||
+    !Array.isArray(raw.lines) ||
+    !raw.lines.every((line: unknown) => typeof line === 'string') ||
+    typeof raw.total !== 'number'
+  ) {
+    throw new ApiShapeError(url, 'not { path, start, lines, total }')
+  }
+  return { path: raw.path, start: raw.start, lines: raw.lines, total: raw.total }
+}
+
+const cachedJson = <K, T>(urlOf: (key: K) => string, parse: (raw: unknown, url: string) => T) => {
+  const cache = new Map<string, Promise<T>>()
+  const load = async (url: string): Promise<T> => {
+    const resp = await fetch(url)
+    if (!resp.ok) throw new ApiStatusError(url, resp.status)
+    return parse(await resp.json(), url)
+  }
+  return (key: K): Promise<T> => {
+    const url = urlOf(key)
+    const hit = cache.get(url)
+    if (hit) return hit
+    const pending = load(url)
+    cache.set(url, pending)
+    pending.catch(() => cache.delete(url))
+    return pending
+  }
+}
+
+const edgeUrl = (ends: EdgeEnds): string =>
+  ends.level === 'module'
+    ? `/api/edge?from=${ends.from}&to=${ends.to}`
+    : `/api/edge?from_container=${ends.from}&to_container=${ends.to}`
+
+/** Cached per edge; a rejected request is dropped from the cache so the next call retries. */
+export const fetchEdge = cachedJson(edgeUrl, parseEdge)
+
+/**
+ * `context` lines on each side of `line`, cached like `fetchEdge`.
+ * Rejects with `ApiStatusError` 404 for a missing file and 400 for a path outside ROOT.
+ */
+export const fetchSource = cachedJson(
+  (at: Loc & { context: number }) =>
+    `/api/source?path=${encodeURIComponent(at.path)}&line=${at.line}&context=${at.context}`,
+  parseSource,
+)
