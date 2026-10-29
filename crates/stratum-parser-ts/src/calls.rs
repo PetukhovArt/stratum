@@ -31,6 +31,7 @@ struct Client {
     call: Span,
     args: Vec<CallArg>,
     owner: Option<String>,
+    module_level: bool,
 }
 
 struct MemberCall {
@@ -126,12 +127,16 @@ impl<'t> CallRecorder<'t> {
         let Some(factory) = self.factory_of(call) else {
             return;
         };
+        let owner = self.owner(call.span);
+        let module_level =
+            owner.is_none() || self.owners.iter().any(|(span, _)| *span == decl.span);
         self.clients.push(Client {
             variable: variable.name.to_string(),
             factory,
             call: call.span,
             args: args(call),
-            owner: self.owner(call.span),
+            owner,
+            module_level,
         });
     }
 
@@ -211,16 +216,13 @@ impl<'t> CallRecorder<'t> {
             .collect()
     }
 
-    /// The recorded calls in source order. A member call is matched to a client by variable
-    /// name, wherever in the module either stands.
+    /// The recorded calls in source order. A member call is matched to the client of its
+    /// variable name declared inside the same top-level declaration, the nearest preceding one
+    /// first; without one, to the module-level client of that name, wherever it stands.
     pub(crate) fn finish(mut self) -> Vec<RawCall> {
         let mut used = vec![false; self.clients.len()];
         for member in self.members {
-            let Some(at) = self
-                .clients
-                .iter()
-                .position(|c| c.variable == member.object)
-            else {
+            let Some(at) = client_of(&self.clients, &member) else {
                 continue;
             };
             used[at] = true;
@@ -301,6 +303,21 @@ impl<'t> CallRecorder<'t> {
             _ => false,
         }
     }
+}
+
+fn client_of(clients: &[Client], member: &MemberCall) -> Option<usize> {
+    let named = || {
+        clients
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| c.variable == member.object)
+    };
+    let local = || named().filter(|(_, c)| !c.module_level && c.owner == member.owner);
+    local()
+        .rfind(|(_, c)| c.call.start <= member.span.start)
+        .or_else(|| local().next())
+        .or_else(|| named().find(|(_, c)| c.module_level))
+        .map(|(at, _)| at)
 }
 
 fn args(call: &CallExpression<'_>) -> Vec<CallArg> {
@@ -447,6 +464,36 @@ other.getUser();
                     method: "getUser".into()
                 }
             )]
+        );
+    }
+
+    #[test]
+    fn a_member_call_uses_the_client_of_its_own_declaration_before_a_module_level_one_of_the_same_name()
+     {
+        let found = calls(
+            "const client = createClient(CartService);
+function a() { const client = createClient(UserService); client.getUser(); }
+function b() { const client = createClient(OrderService); client.placeOrder(); }
+function c() { client.addItem(); }
+",
+        );
+        let client = |arg: &str, owner: &str, method: &str| {
+            (
+                "createClient".into(),
+                vec![id(arg)],
+                Some(owner.into()),
+                CallForm::Client {
+                    method: method.into(),
+                },
+            )
+        };
+        assert_eq!(
+            found,
+            [
+                client("UserService", "a", "getUser"),
+                client("OrderService", "b", "placeOrder"),
+                client("CartService", "c", "addItem"),
+            ]
         );
     }
 
