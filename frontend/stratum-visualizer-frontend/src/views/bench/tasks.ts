@@ -2,7 +2,8 @@ import { edgeKey, Model, sccs } from '../../render/model'
 import { NavPatch } from '../../shell/nav'
 import { CROSS_LAYER_RULE, SnapshotLayer } from '../../types'
 import { crossSliceBundles } from '../arch/bundles'
-import { ARCH_TOP } from '../arch/path'
+import { ARCH_CONTAINERS } from '../arch/path'
+import { systemsIn } from '../arch/systems'
 import { DriftReport, driftReport } from '../mr/drift'
 import { analyzeSet, bestCut, moduleCycles, SET_LIMIT } from '../set/analysis'
 import { Subjects } from './subjects'
@@ -34,7 +35,7 @@ export interface SkippedTask {
   question: string
   who: Asker
   view: string
-  skip: 'no /api/drift: run visualize --base REF'
+  skip: 'no /api/drift: run visualize --base REF' | 'no /api/systems: declare systems in the config'
 }
 
 type TaskBlock = (m: Model, s: Subjects) => (TaskDef | SkippedTask)[]
@@ -316,7 +317,7 @@ const crossSliceContractTask = (m: Model): TaskDef => {
     who: 'developer' as const,
     view: 'arch',
   }
-  const open: Step = { label: 'open Architecture at Containers', patch: { view: 'arch', arch: ARCH_TOP, sel: null } }
+  const open: Step = { label: 'open Architecture at Containers', patch: { view: 'arch', arch: ARCH_CONTAINERS, sel: null } }
   if (!bundle) {
     return {
       ...base,
@@ -342,6 +343,71 @@ const crossSliceContractTask = (m: Model): TaskDef => {
   }
 }
 
-const archTasks: TaskBlock = (m) => [crossSliceContractTask(m)]
+const SYSTEM_CONTRACTS = {
+  order: 10,
+  id: 'system-contracts',
+  who: 'architect',
+  view: 'arch',
+} as const
+
+const NO_SYSTEMS = 'no /api/systems: declare systems in the config'
+
+const sameIds = (selector: string, attr: string, expected: readonly string[]): boolean =>
+  sameList(
+    [...document.querySelectorAll(selector)].map((el) => el.getAttribute(attr) ?? ''),
+    expected,
+  )
+
+const systemContractsTask = (m: Model): TaskDef | SkippedTask => {
+  const systems = systemsIn(m)
+  if (!systems) {
+    return { ...SYSTEM_CONTRACTS, question: 'Which contracts of another system does the busiest container call?', skip: NO_SYSTEMS }
+  }
+  const open: Step = { label: 'open Architecture at Containers', patch: { view: 'arch', arch: ARCH_CONTAINERS, sel: null } }
+  const [link] = systems.portLinks
+  if (!link) {
+    return {
+      ...SYSTEM_CONTRACTS,
+      question: 'Which contracts of another system does the busiest container call?',
+      answer: 'no container calls another system',
+      steps: [open],
+      isAnswerShown: () =>
+        document.querySelector('[data-testid="arch-stage"][data-level="containers"]') !== null &&
+        document.querySelector('[data-testid="arch-port-link"]') === null,
+    }
+  }
+  const system = systems.others.find((s) => s.id === link.system)?.name ?? link.system
+  const container = m.unitLabel(link.container)
+  const ends = `[data-container="${link.container}"][data-system="${link.system}"]`
+  const details = `[data-testid="arch-port-details"]${ends}`
+  const callers = link.contracts.flatMap((c) => c.callers.map((caller) => `${caller.module}:${caller.line}`))
+  return {
+    ...SYSTEM_CONTRACTS,
+    question: `Which ${system} contracts does ${container} call, and from where?`,
+    answer: `${link.contracts.map((c) => c.id).join(', ')}: each with its callers file:line`,
+    steps: [
+      open,
+      {
+        label: `click the arrow ${container} → ${system}`,
+        patch: { sel: { kind: 'port', container: link.container, system: link.system } },
+      },
+    ],
+    isAnswerShown: () =>
+      document.querySelector(`[data-testid="arch-stage"] [data-testid="arch-port-link"]${ends}`) !== null &&
+      sameIds(
+        `${details} [data-testid="arch-contract"]`,
+        'data-id',
+        link.contracts.map((c) => c.id),
+      ) &&
+      sameList(
+        [...document.querySelectorAll(`${details} [data-testid="arch-caller"]`)].map(
+          (el) => `${el.getAttribute('data-module')}:${el.getAttribute('data-line')}`,
+        ),
+        callers,
+      ),
+  }
+}
+
+const archTasks: TaskBlock = (m) => [crossSliceContractTask(m), systemContractsTask(m)]
 
 export const TASK_BLOCKS: readonly TaskBlock[] = [focusTasks, mrTasks, dsmTasks, setTasks, mapTasks, archTasks]

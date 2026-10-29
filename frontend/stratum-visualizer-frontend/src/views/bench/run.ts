@@ -2,7 +2,8 @@ import { createSignal } from 'solid-js'
 import { SCENE_MARK_BUDGET } from '../../render/budget'
 import { edgeKey, Model } from '../../render/model'
 import { go, nav, NavPatch } from '../../shell/nav'
-import { ARCH_TOP } from '../arch/path'
+import { ARCH_CONTAINERS, ARCH_TOP } from '../arch/path'
+import { systemIndex } from '../arch/systems'
 import { layoutBands } from '../focus/bands'
 import { layoutColumns } from '../focus/columns'
 import { driftReport } from '../mr/drift'
@@ -211,8 +212,17 @@ const archScenarios = (m: Model): Scenario[] => {
         },
       ]
     : []
+  const system: Scenario[] = systemIndex()
+    ? [{ view: 'arch', variant: 'system', scenario: 'systems', patch: { view: 'arch', arch: ARCH_TOP, sel: null } }]
+    : []
   return [
-    { view: 'arch', variant: 'containers', scenario: 'whole project', patch: { view: 'arch', arch: ARCH_TOP, sel: null } },
+    ...system,
+    {
+      view: 'arch',
+      variant: 'containers',
+      scenario: 'whole project',
+      patch: { view: 'arch', arch: ARCH_CONTAINERS, sel: null },
+    },
     ...components,
   ]
 }
