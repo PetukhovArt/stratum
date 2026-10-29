@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use stratum_core::{severity::Severity, structure::Structure};
 
-use crate::FeatureConfig;
+use crate::{FeatureConfig, SystemConfig};
 
 /// The whole `stratum.config.jsonc` document.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -32,6 +32,10 @@ pub struct Config {
     #[serde(default)]
     #[schemars(schema_with = "crate::features::schema")]
     pub features: BTreeMap<String, FeatureConfig>,
+    /// The systems this project talks to, and this project itself as the one with `self`. A
+    /// child list replaces the `extends` parent's list.
+    #[serde(default)]
+    pub systems: Vec<SystemConfig>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

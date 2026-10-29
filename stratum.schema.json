@@ -2,6 +2,88 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
   "definitions": {
+    "CallMatcher": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "description": "`callee(…)` whose argument at `name_arg` (from 0) is a string literal naming the contract. `callee` is `name`, `obj.name` or `*.name`, as in `stratum/restricted-calls`.",
+          "properties": {
+            "callee": {
+              "type": "string"
+            },
+            "name_arg": {
+              "format": "uint",
+              "minimum": 0.0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "callee",
+            "name_arg"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "`const c = factory(…)` whose argument at `service_arg` (from 0) is an identifier naming the service, then `c.method(…)` in the same module: the contract `Service.method`.",
+          "properties": {
+            "factory": {
+              "type": "string"
+            },
+            "service_arg": {
+              "format": "uint",
+              "minimum": 0.0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "factory",
+            "service_arg"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ContractSource": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Each `rpc M(…) returns (…)` of a `service S` in a `*.proto` file is the contract `S.M`.",
+          "properties": {
+            "kind": {
+              "enum": [
+                "proto"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Each `fn` of a `*.rs` file under `#[attr]` or `#[attr(…)]` is a contract named after the function; `attr` is a path such as `tauri::command`, and its last segment matches too.",
+          "properties": {
+            "attr": {
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "rust-attr"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "attr",
+            "kind"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "FeatureConfig": {
       "additionalProperties": false,
       "properties": {
@@ -191,6 +273,59 @@
         }
       },
       "type": "object"
+    },
+    "SystemConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "calls": {
+          "default": [],
+          "description": "How a call in this project names a contract of this system.",
+          "items": {
+            "$ref": "#/definitions/CallMatcher"
+          },
+          "type": "array"
+        },
+        "contracts": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ContractSource"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "description": "`^[\\w.-]+$`; source paths of the system are addressed as `id:rel/path`.",
+          "type": "string"
+        },
+        "name": {
+          "default": null,
+          "description": "Shown instead of the id; defaults to the id.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "root": {
+          "default": null,
+          "description": "Directory relative to the project root where `contracts` are read from.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "self": {
+          "default": false,
+          "description": "The system this project is: its modules are the callers. Exactly one system has it.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
     }
   },
   "description": "The whole `stratum.config.jsonc` document.",
@@ -263,6 +398,14 @@
         "segments": []
       },
       "description": "Merged with the `extends` parent field by field; a child list replaces the parent's list."
+    },
+    "systems": {
+      "default": [],
+      "description": "The systems this project talks to, and this project itself as the one with `self`. A child list replaces the `extends` parent's list.",
+      "items": {
+        "$ref": "#/definitions/SystemConfig"
+      },
+      "type": "array"
     },
     "version": {
       "format": "uint32",

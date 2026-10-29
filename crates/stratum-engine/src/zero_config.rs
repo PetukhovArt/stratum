@@ -49,6 +49,7 @@ pub fn infer(root: &Utf8Path) -> Config {
         rules,
         overrides: vec![],
         features: std::collections::BTreeMap::new(),
+        systems: vec![],
     }
 }
 
