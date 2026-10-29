@@ -2,6 +2,30 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
   "definitions": {
+    "FeatureConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "entry": {
+          "description": "Globs relative to the project root of the modules the feature starts from; each must match a module.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "name": {
+          "default": null,
+          "description": "Shown instead of the id; defaults to the id.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "entry"
+      ],
+      "type": "object"
+    },
     "LayerConfig": {
       "additionalProperties": false,
       "properties": {
@@ -173,6 +197,17 @@
   "properties": {
     "$schema": {
       "type": "string"
+    },
+    "features": {
+      "additionalProperties": {
+        "$ref": "#/definitions/FeatureConfig"
+      },
+      "default": {},
+      "description": "Keyed by feature id (`^[\\w.-]+$`). A feature is its `entry` modules plus every module they reach by static imports, type-only imports included. Without it, every slice of the first layer with `slices: true` is a feature. A child map replaces the `extends` parent's map.",
+      "propertyNames": {
+        "pattern": "^[\\w.-]+$"
+      },
+      "type": "object"
     },
     "layers": {
       "default": [],

@@ -100,6 +100,7 @@ fn config_with_custom_rule() -> Config {
         }],
         rules,
         overrides: vec![],
+        features: std::collections::BTreeMap::new(),
     }
 }
 

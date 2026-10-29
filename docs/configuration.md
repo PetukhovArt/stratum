@@ -28,12 +28,17 @@
   },
   "overrides": [
     { "files": ["src/app/**"], "rules": { "stratum/purity": { "severity": "off" } } }
-  ]
+  ],
+  "features": {
+    "checkout": { "name": "Checkout", "entry": ["src/pages/checkout/**"] },
+    "search":   { "entry": ["src/features/search/index.ts"] }
+  }
 }
 ```
 
 - `layers`: a module belongs to the layer with the longest matching `path`; `depends_on` lists the layers it may import. With `slices: true`, each direct child of the layer is a slice.
 - `structure`: `entries` (default `index.ts`, `index.tsx`, `index.js`, `index.jsx`, `index.vue`) make a folder a container with one public entry; `segments` group a container's files by purpose; `private` folders (`stratum:recommended` sets `_shared`) are visible only under their parent.
+- `features`: a feature is its `entry` modules plus every module they reach by static `import` and `export … from`, type-only included; `import()`, `require()` and `import.meta.glob()` are not followed. The id matches `^[\w.-]+$`, `name` defaults to the id, and each `entry` glob must match a module, else the run fails with exit 2. Without `features`, every slice of the first layer with `slices: true` is a feature named after the slice. A module of two or more features is shared. `stratum-lint features` prints them; `stratum-lint visualize --feature ID` opens the Visualizer filtered to them. A child config's `features` replaces the `extends` parent's.
 - `overrides` change severity only. Unknown keys, slugs or options fail the run with exit 2.
 - `.rhai` scripts add project-specific rules without rebuilding Stratum.
 

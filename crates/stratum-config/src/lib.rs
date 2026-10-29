@@ -4,6 +4,7 @@ pub mod config;
 mod entry_points;
 pub mod error;
 mod extends;
+mod features;
 mod ignore;
 pub mod overrides;
 pub mod parse;
@@ -14,6 +15,7 @@ pub use config::{Config, LayerConfig, OverrideBlock, OverrideRule, ProjectConfig
 pub use entry_points::{EntryPoints, literal_dir};
 pub use error::ConfigError;
 pub use extends::config_files;
+pub use features::FeatureConfig;
 pub use ignore::{DEFAULT_IGNORE, IgnoreSet};
 pub use overrides::{EffectiveRules, Overrides};
 pub use parse::{parse_file, parse_str};

@@ -65,6 +65,7 @@ fn tiny_ts_config() -> Config {
         ],
         rules,
         overrides: vec![],
+        features: std::collections::BTreeMap::new(),
     }
 }
 
