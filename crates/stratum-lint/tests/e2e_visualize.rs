@@ -317,6 +317,7 @@ async fn systems_route_lists_the_called_contracts_per_channel_with_their_callers
     let files = module("src/features/files/index.ts");
     let users = module("src/shared/api/users.ts");
     let session = module("src/shared/api/session.ts");
+    let orders = module("src/shared/api/orders.ts");
     let (status, body) = systems("/api/systems").await;
     assert_eq!(status, StatusCode::OK, "{body}");
     let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
@@ -349,6 +350,11 @@ async fn systems_route_lists_the_called_contracts_per_channel_with_their_callers
                       ] },
                 ] },
                 { "from": "ui", "to": "api", "unattributed": 1, "contracts": [
+                    { "id": "OrderService.PlaceOrder",
+                      "signature": "rpc PlaceOrder(PlaceOrderRequest) returns (Order)",
+                      "decl": { "path": "api:order.proto", "line": 6 },
+                      "callers": [{ "module": orders, "line": 7, "owner": "createOrdersApi",
+                                    "features": ["checkout"] }] },
                     { "id": "UserService.GetUser",
                       "signature": "rpc GetUser(GetUserRequest) returns (User)",
                       "decl": { "path": "api:user.proto", "line": 7 },

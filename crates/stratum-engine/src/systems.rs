@@ -482,7 +482,12 @@ mod tests {
             BTreeMap::from([
                 (
                     "checkout".to_owned(),
-                    expected(&["greet", "save_file", "UserService.GetUser"])
+                    expected(&[
+                        "greet",
+                        "save_file",
+                        "OrderService.PlaceOrder",
+                        "UserService.GetUser"
+                    ])
                 ),
                 ("files".to_owned(), expected(&["greet", "save_file"])),
                 (
@@ -495,6 +500,21 @@ mod tests {
                     ])
                 ),
             ])
+        );
+    }
+
+    #[test]
+    fn a_feature_importing_what_a_factory_returns_runs_the_calls_inside_the_factory_and_only_it() {
+        let per_feature = contracts_per_feature("../../tests/fixtures/tiny-systems/web");
+        let runs = |feature: &str| {
+            per_feature
+                .get(feature)
+                .is_some_and(|ids| ids.iter().any(|id| id == "OrderService.PlaceOrder"))
+        };
+        assert!(runs("checkout"), "imports ordersApi: {per_feature:?}");
+        assert!(
+            !runs("profile"),
+            "imports only orderStatuses: {per_feature:?}"
         );
     }
 }

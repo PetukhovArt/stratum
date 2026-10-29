@@ -2,7 +2,11 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use camino::Utf8Path;
 use stratum_config::{Config, ConfigError};
-use stratum_core::{edge::EdgeKind, ids::ModuleId, types::Import};
+use stratum_core::{
+    edge::EdgeKind,
+    ids::ModuleId,
+    types::{Import, Module},
+};
 use stratum_graph::{CompoundGraph, crossing_names, forwarding_imports};
 
 use crate::paths::relative;
@@ -118,9 +122,11 @@ struct Runs {
 impl<'f> Reach<'f> {
     /// A feature runs its entry modules whole, and each declaration of another module that one
     /// of its modules imports by a name resolving to it; a namespace import or a `require` of a
-    /// module runs it whole. Type-only names and `import()` run nothing. A re-export runs what it forwards only when its module runs
-    /// whole, so a name imported through a barrel runs only its own declaration. A declaration
-    /// that a run declaration calls is not followed.
+    /// module runs it whole. Type-only names and `import()` run nothing. A re-export runs what
+    /// it forwards only when its module runs whole, so a name imported through a barrel runs only
+    /// its own declaration. A run declaration also runs every declaration of its module it
+    /// reaches through [`Module::local_refs`], transitively; what it calls in another module is
+    /// run through the imports of its module, which every feature holding the module takes.
     pub(crate) fn of(features: &'f Features, graph: &CompoundGraph) -> Self {
         let features = features
             .features
@@ -178,6 +184,11 @@ impl Runs {
                 .filter_map(|index| module.imports.get(index));
             runs.take(graph, id, forwarded, &mut whole);
         }
+        for (id, names) in &mut runs.named {
+            if let Some(module) = graph.modules.get(id) {
+                follow_local_refs(module, names);
+            }
+        }
         runs
     }
 
@@ -206,6 +217,25 @@ impl Runs {
                 Some(binding) => {
                     self.named.entry(decl.module).or_default().insert(binding);
                 }
+            }
+        }
+    }
+}
+
+/// Adds to `names` every top-level declaration of `module` that one of them reaches through
+/// [`Module::local_refs`], transitively.
+fn follow_local_refs(module: &Module, names: &mut BTreeSet<String>) {
+    let mut queue: Vec<String> = names.iter().cloned().collect();
+    while let Some(name) = queue.pop() {
+        let Ok(at) = module
+            .local_refs
+            .binary_search_by(|(owner, _)| owner.as_str().cmp(&name))
+        else {
+            continue;
+        };
+        for referenced in &module.local_refs[at].1 {
+            if names.insert(referenced.clone()) {
+                queue.push(referenced.clone());
             }
         }
     }
