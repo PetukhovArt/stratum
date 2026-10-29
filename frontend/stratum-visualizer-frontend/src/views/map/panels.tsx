@@ -1,4 +1,5 @@
 import { Component, createMemo, createSignal, For, Show } from 'solid-js'
+import { ContractSection } from '../../contract/contract-section'
 import { t } from '../../i18n'
 import { Model, worst } from '../../render/model'
 import { go, nav, set } from '../../shell/nav'
@@ -304,7 +305,14 @@ export const MapDetails: Component<ViewProps> = (props) => {
         <span class="panel-count">{unit()?.unit.kind ?? t('map.units', { n: props.model.units.length })}</span>
       </div>
       <div class="panel-body">
-        <Show when={link()}>{(l) => <LinkDetails model={props.model} link={l()} />}</Show>
+        <Show when={link()}>
+          {(l) => (
+            <>
+              <LinkDetails model={props.model} link={l()} />
+              <ContractSection edges={[{ level: 'container', from: l().from, to: l().to }]} />
+            </>
+          )}
+        </Show>
         <Show when={layerLink()}>{(l) => <LayerLinkDetails model={props.model} link={l()} />}</Show>
         <Show when={unit()} fallback={<WholeGraph model={props.model} data={data()} />}>
           {(info) => <UnitDetails model={props.model} info={info()} />}

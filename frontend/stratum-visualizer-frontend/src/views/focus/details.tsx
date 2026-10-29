@@ -1,5 +1,6 @@
 import { Component, createResource, For, Show } from 'solid-js'
 import { exportSvg } from '../../canvas/canvas'
+import { ContractSection } from '../../contract/contract-section'
 import { t } from '../../i18n'
 import { SEV_COLOR } from '../../render/encoding'
 import { Model, worst } from '../../render/model'
@@ -158,7 +159,12 @@ export const FocusDetails: Component<ViewProps> = (props) => {
       <Show when={focus() !== null}>
         <div class="panel-body">
           <Show when={importsSelection()}>
-            {(s) => <ImportsDetail model={props.model} focus={focus()!} pairs={s().pairs} />}
+            {(s) => (
+              <>
+                <ImportsDetail model={props.model} focus={focus()!} pairs={s().pairs} />
+                <ContractSection edges={s().pairs.map(([from, to]) => ({ level: 'module', from, to }))} />
+              </>
+            )}
           </Show>
           <div class="fo-det-title">{props.model.label(focus()!)}</div>
           <div class="det-path">

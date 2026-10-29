@@ -1,0 +1,70 @@
+.ct-note { margin: 0 0 6px; font-size: 11px; color: var(--tx-4); }
+.ct-names, .ct-files { display: flex; flex-direction: column; margin-bottom: 12px; }
+.ct-name {
+  appearance: none; border: 0; background: transparent; text-align: left; cursor: pointer;
+  display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 4px; min-width: 0;
+  font-size: 11px; color: var(--tx-2);
+}
+.ct-name:hover, .ct-name.on { background: var(--bg-2); color: var(--tx-1); }
+.ct-name.on { box-shadow: inset 2px 0 0 var(--accent); }
+.ct-nm { font-family: var(--mono); color: var(--tx-1); white-space: nowrap; }
+.ct-decl { flex: 1; min-width: 0; font-family: var(--mono); font-size: 10.5px; color: var(--tx-4); overflow: hidden; }
+.ct-unresolved { color: var(--warn); }
+.ct-n { font-size: 10.5px; color: var(--tx-4); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ct-type {
+  font-size: 9.5px; padding: 0 4px; border-radius: 3px; border: 1px solid var(--bd-2); color: var(--info);
+  text-transform: uppercase; letter-spacing: .05em;
+}
+.ct-file { padding: 4px 0; border-top: 1px solid var(--bd-1); }
+.ct-file-hd { font-family: var(--mono); font-size: 10.5px; color: var(--tx-3); padding: 2px 6px; overflow: hidden; }
+.ct-site { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 2px 6px; }
+.ct-line { font-family: var(--mono); font-size: 10.5px; color: var(--tx-4); min-width: 30px; }
+.ct-chip {
+  appearance: none; border: 1px solid var(--bd-1); background: var(--bg-2); cursor: pointer;
+  font-family: var(--mono); font-size: 10.5px; color: var(--tx-1); padding: 0 6px; border-radius: 4px;
+}
+.ct-chip:hover, .ct-chip.on { border-color: var(--accent); }
+.ct-chip-type { color: var(--info); }
+.ct-chip-lost { color: var(--warn); }
+
+.code-dock {
+  flex: none; height: 42%; min-height: 160px; display: flex; flex-direction: column;
+  border-top: 1px solid var(--bd-2); background: var(--bg-1);
+}
+.code-hd {
+  flex: none; display: flex; align-items: center; gap: 10px; padding: 5px 10px; border-bottom: 1px solid var(--bd-1);
+}
+.code-hd .sp { flex: 1; }
+.code-title { font-size: 10px; color: var(--tx-4); text-transform: uppercase; letter-spacing: .07em; }
+.code-name { font-size: 12px; color: var(--tx-1); }
+.code-note { font-size: 11px; color: var(--warn); }
+.code-x {
+  appearance: none; border: 0; background: transparent; color: var(--tx-3); cursor: pointer; font-size: 15px;
+  line-height: 1; padding: 2px 6px; border-radius: 4px;
+}
+.code-x:hover { background: var(--bg-3); color: var(--tx-1); }
+.code-body {
+  flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-auto-rows: minmax(0, 1fr); gap: 1px; background: var(--bd-1);
+}
+.code-snippet { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--bg-0); }
+.code-snippet-hd {
+  flex: none; display: flex; gap: 8px; align-items: center; padding: 4px 10px; font-family: var(--mono);
+  font-size: 10.5px; color: var(--tx-3); border-bottom: 1px solid var(--bd-1); overflow: hidden;
+}
+.code-role { font-family: var(--ui); font-size: 10px; color: var(--tx-4); text-transform: uppercase; letter-spacing: .07em; }
+.code-msg { padding: 8px 10px; }
+.code-lines { position: relative; flex: 1; min-height: 0; overflow: auto; padding: 4px 0; font-family: var(--mono); font-size: 11.5px; line-height: 1.55; }
+.code-line { display: flex; white-space: pre; color: var(--tx-2); }
+.code-line.on { background: oklch(84% 0.06 260 / .13); box-shadow: inset 2px 0 0 var(--accent); }
+.code-n { flex: none; width: 46px; padding-right: 12px; text-align: right; color: var(--tx-4); user-select: none; }
+.code-t { padding-right: 12px; }
+
+.hljs-keyword, .hljs-meta .hljs-keyword { color: oklch(76% 0.11 300); }
+.hljs-built_in, .hljs-type, .hljs-title.class_ { color: oklch(80% 0.09 190); }
+.hljs-title, .hljs-title.function_ { color: oklch(82% 0.10 240); }
+.hljs-string, .hljs-regexp { color: oklch(80% 0.11 140); }
+.hljs-number, .hljs-literal { color: oklch(80% 0.11 60); }
+.hljs-comment { color: var(--tx-4); font-style: italic; }
+.hljs-attr, .hljs-property, .hljs-variable, .hljs-params { color: var(--tx-1); }
+.hljs-meta { color: oklch(72% 0.06 80); }
