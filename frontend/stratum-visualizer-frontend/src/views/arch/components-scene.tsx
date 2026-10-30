@@ -9,7 +9,7 @@ import { Model, Unit, worst } from '../../render/model'
 import { nav, set } from '../../shell/nav'
 import { layerTone } from '../focus/paint'
 import { goToLevel } from './actions'
-import { ImportArrow, layoutComponents, marksWithinBudget, ModuleNode, NODE, ROOT_SEGMENT, SegmentBox } from './components'
+import { ImportArrow, componentMarks, layoutComponents, ModuleNode, NODE, ROOT_SEGMENT, SegmentBox } from './components'
 
 const LABEL_CHAR_PX = 6
 const LABEL_PAD = 12
@@ -143,7 +143,9 @@ const ComponentsLegend: Component = () => (
 
 export const ComponentsScene: Component<{ model: Model; unit: Unit }> = (props) => {
   const layout = createMemo(() => layoutComponents(props.model, props.unit))
-  const marks = createMemo(() => marksWithinBudget(layout(), selectedModule()))
+  const marks = createMemo(() =>
+    componentMarks(layout(), selectedModule(), (a) => props.model.findingsOnEdge(a.from, a.to).length > 0),
+  )
   return (
     <Canvas
       bounds={layout().bounds}

@@ -155,19 +155,22 @@ const NODE_MARKS = 2
 const SEGMENT_LINK_MARKS = 2
 
 /**
- * Past `SCENE_MARK_BUDGET` the module imports give way to segment arrows plus the imports of `focus`,
- * then the module labels go too.
+ * One arrow per import turns a segment of a few dozen modules into a hairball, so segments join by one counted
+ * arrow each, and only the imports of `focus` and the imports `isFlagged` marks (findings) are drawn one by one.
+ * Past `SCENE_MARK_BUDGET` the module labels go too.
  */
-export const marksWithinBudget = (layout: ComponentsLayout, focus: number | null): ComponentsMarks => {
+export const componentMarks = (
+  layout: ComponentsLayout,
+  focus: number | null,
+  isFlagged: (a: ImportArrow) => boolean,
+): ComponentsMarks => {
   const base = layout.boxes.length * BOX_MARKS + layout.nodes.size * NODE_MARKS
-  const all = layout.imports
-  if (base + all.length <= SCENE_MARK_BUDGET) return { imports: all, segmentLinks: [], hasLabels: true, hidden: 0 }
-  const focused = focus === null ? [] : all.filter((a) => a.from === focus || a.to === focus)
-  const arrows = layout.segmentLinks.length * SEGMENT_LINK_MARKS + focused.length
+  const shown = layout.imports.filter((a) => a.from === focus || a.to === focus || isFlagged(a))
+  const arrows = layout.segmentLinks.length * SEGMENT_LINK_MARKS + shown.length
   return {
-    imports: focused,
+    imports: shown,
     segmentLinks: layout.segmentLinks,
     hasLabels: base + arrows <= SCENE_MARK_BUDGET,
-    hidden: all.length - focused.length,
+    hidden: layout.imports.length - shown.length,
   }
 }

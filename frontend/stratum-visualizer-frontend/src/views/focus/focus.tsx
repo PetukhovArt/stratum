@@ -44,20 +44,7 @@ const Toolbar: Component<{ model: Model; focus: number }> = (p) => (
         </For>
       </div>
     </Show>
-    <Show when={nav().isTerritoryOpen}>
-      <TerritoryStrip model={p.model} id={p.focus} />
-    </Show>
-    <div class="seg">
-      <button
-        class={nav().isTerritoryOpen ? 'on' : ''}
-        data-testid="focus-territory-toggle"
-        aria-pressed={nav().isTerritoryOpen}
-        title={t(nav().isTerritoryOpen ? 'focus.territoryHide' : 'focus.territoryShow')}
-        onClick={toggleTerritory}
-      >
-        {nav().isTerritoryOpen ? '▴' : '▾'} {t('focus.territory')}
-      </button>
-    </div>
+    <TerritoryStrip model={p.model} id={p.focus} isOpen={nav().isTerritoryOpen} onToggle={toggleTerritory} />
   </div>
 )
 

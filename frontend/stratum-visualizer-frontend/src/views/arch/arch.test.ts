@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { buildModel, Model } from '../../render/model'
 import { snapshotV3 } from '../../test/snapshot'
 import { EdgeKind, SnapshotContainer } from '../../types'
-import { layoutComponents, marksWithinBudget, segmentsOf } from './components'
+import { componentMarks, layoutComponents, segmentsOf } from './components'
 import { ArchPath, crumbsOf, deepestShownPrefix, downOf, parseArchPath, upOf } from './path'
 
 const container = (id: number, name: string, path: string, kind: SnapshotContainer['kind'], parent: number | null) => ({
@@ -74,7 +74,7 @@ describe('Components level', () => {
     expect(layout.nodes.get(2)?.label).toBe('forms/Address.tsx')
   })
 
-  it('keeps every import within the label budget and past it only the imports of the selected module', () => {
+  it('draws only the imports of the selected module and the flagged ones, and joins segments by counted arrows', () => {
     const chain = (n: number) => {
       const m = buildModel(
         snapshotV3({
@@ -87,13 +87,15 @@ describe('Components level', () => {
       )
       return layoutComponents(m, m.units[0])
     }
-    expect(marksWithinBudget(chain(100), null)).toMatchObject({ hidden: 0, hasLabels: true })
-    const past = marksWithinBudget(chain(600), 10)
-    expect(past.imports.map((a) => [a.from, a.to]).sort((x, y) => x[0] - y[0])).toEqual([
+    const none = () => false
+    expect(componentMarks(chain(100), null, none)).toMatchObject({ imports: [], hidden: 99, hasLabels: true })
+    const focused = componentMarks(chain(600), 10, (a) => a.from === 50)
+    expect(focused.imports.map((a) => [a.from, a.to]).sort((x, y) => x[0] - y[0])).toEqual([
       [9, 10],
       [10, 11],
+      [50, 51],
     ])
-    expect(past.hidden).toBe(599 - 2)
+    expect(focused.hidden).toBe(599 - 3)
   })
 })
 
