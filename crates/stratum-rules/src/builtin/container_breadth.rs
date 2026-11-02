@@ -28,7 +28,7 @@ impl Rule for ContainerBreadth {
         "stratum/container-breadth"
     }
     fn default_severity(&self) -> Severity {
-        Severity::Info
+        Severity::Off
     }
 
     fn check(

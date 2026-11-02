@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Changed `stratum/container-breadth`, `stratum/miller-limit` and `stratum/module-docs` to `off` by default and in both presets: code is now read mostly by agents, and folder-breadth limits, fan-in-per-file limits and navigation docs no longer pay for their noise; a config that sets a severity still turns them on
+
 ## 0.5.0 (2026-10-28)
 
 - Breaking: `stratum-lint baseline` writes `stratum.baseline.json` version 2, which 0.4.0 and older cannot read: upgrade every `stratum-lint` and `stratum-lsp` that reads the baseline, including CI pins, to 0.5.0, then run `stratum-lint baseline --prune` once to convert it
