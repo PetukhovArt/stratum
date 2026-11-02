@@ -4,6 +4,7 @@
 
 - Added config block `messages`: `texts` replaces the English template of a message or fix by its catalog key and `titles` prints `<title>. ` before every message of a rule, in every reporter; the baseline and GitLab Code Quality fingerprints stay keyed on the English text, so adding a translation keeps every baseline entry and fingerprint. An unknown key or rule slug, or a text with other placeholders than its template, fails the run with exit 2. Stratum ships English only: the `language` setting and `lint --language` of earlier development builds are gone, they were never released
 - Added `stratum-lint messages`: every message key with its English template and placeholders, and every built-in rule slug, as text or `--format json`, the starting point for a project's translation
+- Changed the fix of `stratum/no-cross-layer-import` to warn against moving business logic into shared to get around the rule and to suggest an interface in the lower layer with the implementation in the upper one; the message, the baseline and fingerprints are unchanged
 
 ## 0.5.0 (2026-10-28)
 

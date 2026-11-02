@@ -50,7 +50,7 @@ catalog! {
         en: "Module imports from layer '{to}' which '{from}' does not depend on",
     }
     CrossLayerImportFix {
-        en: "Move the imported symbol into a layer '{from}' may reach, or add '{to}' to '{from}'.depends_on if the dependency is legitimate.",
+        en: "Move the imported code into a layer '{from}' may import, or add '{to}' to '{from}'.depends_on if the dependency is legitimate. Do not move business logic into shared to get around the rule: shared is common code without domain logic. Introduce an abstraction instead: an interface in the lower layer, the implementation in the upper one.",
     }
 
     Cycle {
