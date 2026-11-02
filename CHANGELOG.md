@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Changed `stratum/container-breadth`, `stratum/miller-limit` and `stratum/module-docs` to `off` by default and in both presets: code is now read mostly by agents, and folder-breadth limits, fan-in-per-file limits and navigation docs no longer pay for their noise; a config that sets a severity still turns them on
+- Changed `stratum-lint init` to write the full `structure` (entries, segments, private zones) and each rule's `options`, so the written config is usable as is
+- Changed zero-config and `init` to infer `slices: true` for a layer where at least half of the folders, and at least 2, hold an entry file, and `structure.segments` from folder names under at least 3 units and 30% of the units of one layer; with a sliced layer, `public-api` and `sibling-isolation` stay at their `stratum:recommended` severity
 
 ## 0.5.0 (2026-10-28)
 
