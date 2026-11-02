@@ -1,3 +1,4 @@
+use stratum_core::text::{Key, Text};
 use stratum_core::{
     ids::{ModuleId, RuleId},
     severity::Severity,
@@ -59,12 +60,16 @@ pub(crate) fn judge(graph: &CompoundGraph, from: ModuleId, to: ModuleId) -> Opti
     let rel = |c: &Container| project_relative(graph, c.layer, &c.path);
     let (from_unit, to_unit, parent) = (rel(from_unit), rel(to_unit), rel(parent));
     Some(Finding {
-        message: format!(
-            "`{from_unit}` imports its sibling `{to_unit}`; siblings inside `{parent}` must stay independent"
+        message: Text::new(Key::SiblingIsolation)
+            .arg("from", &from_unit)
+            .arg("to", &to_unit)
+            .arg("parent", &parent),
+        fix: Some(
+            Text::new(Key::SiblingIsolationFix)
+                .arg("from", from_unit)
+                .arg("to", to_unit)
+                .arg("parent", parent),
         ),
-        fix: Some(format!(
-            "Move the shared code down (a lower layer or a private zone of `{parent}`), or compose `{from_unit}` and `{to_unit}` in `{parent}`."
-        )),
     })
 }
 

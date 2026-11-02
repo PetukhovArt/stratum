@@ -1,3 +1,4 @@
+use stratum_core::text::{Key, Text};
 use stratum_core::{
     ids::{LayerId, ModuleId, RuleId},
     severity::Severity,
@@ -60,12 +61,14 @@ pub(crate) fn judge(graph: &CompoundGraph, from: ModuleId, to: ModuleId) -> Opti
         .get(&to_layer)
         .map_or_else(|| format!("layer#{}", to_layer.raw()), |l| l.name.clone());
     Some(Finding {
-        message: format!(
-            "Module imports from layer '{to_layer_name}' which '{from_layer_name}' does not depend on"
+        message: Text::new(Key::CrossLayerImport)
+            .arg("from", from_layer_name)
+            .arg("to", &to_layer_name),
+        fix: Some(
+            Text::new(Key::CrossLayerImportFix)
+                .arg("from", from_layer_name)
+                .arg("to", to_layer_name),
         ),
-        fix: Some(format!(
-            "Move the imported symbol into a layer '{from_layer_name}' may reach, or add '{to_layer_name}' to '{from_layer_name}'.depends_on if the dependency is legitimate."
-        )),
     })
 }
 

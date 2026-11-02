@@ -142,7 +142,7 @@ impl RuleRegistry {
 
     /// # Errors
     /// [`ConfigError::Rule`] naming the slug, and the option key when one is at fault,
-    /// for an unknown slug in `rules` or `overrides` or options its rule rejects.
+    /// for an unknown slug in `rules`, `overrides` or `messages.titles`, or options its rule rejects.
     pub fn validate(&self, config: &Config) -> Result<(), ConfigError> {
         let rule_of = |slug: &String| {
             self.by_slug(slug).ok_or_else(|| ConfigError::Rule {
@@ -167,6 +167,15 @@ impl RuleRegistry {
         }
         for slug in config.overrides.iter().flat_map(|o| o.rules.keys()) {
             rule_of(slug)?;
+        }
+        for slug in config.messages.titles.keys() {
+            rule_of(slug).map_err(|e| match e {
+                ConfigError::Rule { slug, message } => ConfigError::Rule {
+                    slug,
+                    message: format!("messages.titles: {message}"),
+                },
+                other => other,
+            })?;
         }
         Ok(())
     }
@@ -308,5 +317,24 @@ mod tests {
         let n = slugs.len();
         slugs.dedup();
         assert_eq!(slugs.len(), n);
+    }
+
+    #[test]
+    fn a_title_for_an_unknown_rule_is_an_error_naming_the_slug() {
+        let titles = |titles: serde_json::Value| {
+            let config: Config = serde_json::from_value(serde_json::json!({
+                "version": 1, "messages": { "titles": titles },
+            }))
+            .unwrap();
+            RuleRegistry::with_builtins().validate(&config)
+        };
+        assert!(titles(serde_json::json!({ "stratum/purity": "Чистота" })).is_ok());
+        let err = titles(serde_json::json!({ "stratum/purety": "Чистота" }))
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("stratum/purety") && err.contains("messages.titles"),
+            "{err}"
+        );
     }
 }

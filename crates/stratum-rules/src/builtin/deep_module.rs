@@ -1,3 +1,4 @@
+use stratum_core::text::{Arg, Key, Text};
 use stratum_core::{
     ids::{ModuleId, RuleId},
     severity::Severity,
@@ -40,27 +41,26 @@ impl Rule for DeepModule {
         if exports.count() <= options.max_exports {
             return vec![];
         }
-        let stars = match exports.star_reexports() {
-            0 => String::new(),
-            n => {
-                format!(", {n} of them `export *` re-exports counted as 1 each that may hide more")
-            }
+        let stars: Arg = match exports.star_reexports() {
+            0 => "".into(),
+            n => Text::new(Key::DeepModuleStars).arg("stars", n).into(),
         };
+        let message = Text::new(Key::DeepModule)
+            .arg("count", exports.count())
+            .arg("stars", stars)
+            .arg("limit", options.max_exports);
+        let fix = Text::new(Key::DeepModuleFix);
         vec![Violation {
             rule: self.id(),
             severity,
-            message: format!(
-                "Module exports {count} names{stars} (limit {limit}); split it or hide some exports",
-                count = exports.count(),
-                limit = options.max_exports
-            ),
+            message: message.en(),
             file: m.path.clone(),
             location: SourceLocation { line: 1, column: 1 },
             modules: vec![scope],
             edge: None,
-            fix: Some(
-                "Group related exports behind a single facade or split the module along the natural fault lines.".into(),
-            ),
+            fix: Some(fix.en()),
+            message_text: Some(message),
+            fix_text: Some(fix),
         }]
     }
 }

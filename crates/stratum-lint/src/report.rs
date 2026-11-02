@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use serde::Serialize;
-use stratum_core::severity::Severity;
+use stratum_core::{severity::Severity, text::Messages};
 pub use stratum_engine::{EdgeRef, Finding, Suppressed};
 
 const EXIT_ERRORS: i32 = 1;
@@ -42,6 +42,8 @@ pub struct Report {
     pub summary: Summary,
     pub findings: Vec<Finding>,
     pub suppressed: Vec<Suppressed>,
+    /// The project's titles and texts reporters print messages and fixes with.
+    pub messages: Messages,
 }
 
 impl Report {
@@ -55,6 +57,7 @@ impl Report {
             summary,
             findings,
             suppressed,
+            messages: Messages::default(),
         }
     }
 

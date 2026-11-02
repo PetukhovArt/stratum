@@ -1,4 +1,5 @@
 use std::path::Path;
+use stratum_core::text::{Key, Text};
 
 use stratum_core::{ids::RuleId, severity::Severity, violation::Violation};
 use stratum_graph::{CompoundGraph, DirRole};
@@ -49,13 +50,12 @@ impl Rule for MissingEntry {
                     severity,
                     dir,
                     None,
-                    format!(
-                        "Folder '{name}' has internal structure ({parts}) but no entry file",
-                        parts = parts.join(", "),
-                    ),
-                    format!(
-                        "Add {entry} to '{name}' exporting its public surface, or flatten the folder if it is not a unit."
-                    ),
+                    Text::new(Key::MissingEntry)
+                        .arg("name", &*name)
+                        .arg("parts", parts.join(", ")),
+                    Text::new(Key::MissingEntryFix)
+                        .arg("entry", entry.clone())
+                        .arg("name", &*name),
                 )
             })
             .collect()

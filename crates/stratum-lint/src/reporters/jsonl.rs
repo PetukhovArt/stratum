@@ -1,5 +1,7 @@
+use std::borrow::Cow;
+
 use serde::Serialize;
-use stratum_core::severity::Severity;
+use stratum_core::{severity::Severity, text::Messages};
 
 use super::Reporter;
 use crate::report::{Finding, Report};
@@ -18,12 +20,12 @@ struct Row<'a> {
     severity: Severity,
     file: &'a str,
     line: u32,
-    message: &'a str,
-    fix: &'a str,
+    message: Cow<'a, str>,
+    fix: Cow<'a, str>,
 }
 
-impl<'a> From<&'a Finding> for Row<'a> {
-    fn from(f: &'a Finding) -> Self {
+impl<'a> Row<'a> {
+    fn new(f: &'a Finding, messages: &Messages) -> Self {
         Self {
             v: CONTRACT_VERSION,
             tool: "stratum",
@@ -31,8 +33,8 @@ impl<'a> From<&'a Finding> for Row<'a> {
             severity: f.severity,
             file: &f.file,
             line: f.location.line,
-            message: &f.message,
-            fix: &f.fix,
+            message: f.message_in(messages),
+            fix: f.fix_in(messages),
         }
     }
 }
@@ -40,7 +42,7 @@ impl<'a> From<&'a Finding> for Row<'a> {
 impl Reporter for JsonlReporter {
     fn write(&self, report: &Report, out: &mut dyn std::io::Write) -> std::io::Result<()> {
         for finding in &report.findings {
-            serde_json::to_writer(&mut *out, &Row::from(finding))?;
+            serde_json::to_writer(&mut *out, &Row::new(finding, &report.messages))?;
             out.write_all(b"\n")?;
         }
         Ok(())

@@ -32,6 +32,29 @@
       ],
       "type": "object"
     },
+    "Messages": {
+      "additionalProperties": false,
+      "description": "A project's own texts for the output of `lint`: the config block `messages`.",
+      "properties": {
+        "texts": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Keyed by catalog key name (`stratum-lint messages` lists them): replaces the English template, with the same `{placeholders}`.",
+          "type": "object"
+        },
+        "titles": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Keyed by rule slug: printed as `<title>. ` before every message of the rule.",
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
     "OverrideBlock": {
       "additionalProperties": false,
       "properties": {
@@ -181,6 +204,18 @@
         "$ref": "#/definitions/LayerConfig"
       },
       "type": "array"
+    },
+    "messages": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/Messages"
+        }
+      ],
+      "default": {
+        "texts": {},
+        "titles": {}
+      },
+      "description": "The project's own texts for `lint` output: `titles` by rule slug, `texts` by catalog key (`stratum-lint messages` lists both). Display only: the baseline and Code Quality fingerprints stay keyed on the English text. Merged with the `extends` parent key by key."
     },
     "overrides": {
       "default": [],

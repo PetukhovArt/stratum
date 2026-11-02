@@ -54,6 +54,8 @@ stratum-lint diff [ROOT] --base REF [--config PATH]
                                                # Drift of the working tree vs REF, as markdown on stdout
 stratum-lint explain <SLUG> [ROOT] [--format agent|json] [--config PATH]   # slug with or without "stratum/"
 stratum-lint rules [ROOT] [--format agent|json] [--config PATH]           # every rule incl. plugins, effective severity, one-line summary
+stratum-lint messages [--format agent|json]    # every message key with its English template and placeholders, every built-in rule slug:
+                                               # the keys of the config's "messages" block (configuration.md#messages)
 stratum-lint context <FILE> [--root ROOT] [--format agent|json] [--config PATH]
                                                # ROOT default: nearest ancestor of FILE with stratum.config.jsonc, else package.json, else cwd
 stratum-lint init [ROOT]                       # writes ROOT/stratum.config.jsonc from zero-config inference

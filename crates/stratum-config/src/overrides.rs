@@ -125,6 +125,7 @@ mod tests {
             }],
             rules,
             overrides: vec![],
+            messages: stratum_core::text::Messages::default(),
         }
     }
 

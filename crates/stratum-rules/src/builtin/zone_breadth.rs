@@ -1,3 +1,4 @@
+use stratum_core::text::{Key, Text};
 use stratum_core::{
     ids::{ContainerId, RuleId},
     severity::Severity,
@@ -51,14 +52,12 @@ impl Rule for ZoneBreadth {
                     ZONE_BREADTH,
                     severity,
                     *zone.files.first()?,
-                    format!(
-                        "Private zone '{name}' of '{owner}' holds {kinds} kinds directly inside it (limit {max})",
-                        owner = c.name,
-                        max = options.max_kinds,
-                    ),
-                    format!(
-                        "Group the files of '{name}' into folders by purpose, or promote a cohesive group into a sub-unit with its own entry file."
-                    ),
+                    Text::new(Key::ZoneBreadth)
+                        .arg("name", &name)
+                        .arg("owner", &c.name)
+                        .arg("kinds", kinds)
+                        .arg("max", options.max_kinds),
+                    Text::new(Key::ZoneBreadthFix).arg("name", name),
                 )
             })
             .collect()

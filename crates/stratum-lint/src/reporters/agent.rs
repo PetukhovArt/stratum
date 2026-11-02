@@ -1,7 +1,8 @@
+use std::borrow::Cow;
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::Write as _;
 
-use stratum_core::severity::Severity;
+use stratum_core::{severity::Severity, text::Messages};
 
 use super::Reporter;
 use crate::report::{Finding, Report, Summary};
@@ -52,11 +53,11 @@ impl Reporter for AgentReporter {
             writeln!(out, "{severity} {rule} ({}){hint}", hits.len())?;
             let shown = hits.len().min(EXAMPLES_PER_RULE).min(budget);
             budget -= shown;
-            let common = common_fix(&hits);
+            let common = common_fix(&hits, &report.messages);
             for f in &hits[..shown] {
-                writeln!(out, "  {}", example(f))?;
+                writeln!(out, "  {}", example(f, &report.messages))?;
                 if common.is_none() {
-                    writeln!(out, "    fix: {}", f.fix)?;
+                    writeln!(out, "    fix: {}", f.fix_in(&report.messages))?;
                 }
             }
             if hits.len() > shown {
@@ -126,7 +127,7 @@ fn summary_line(s: &Summary) -> String {
     line
 }
 
-fn example(f: &Finding) -> String {
+fn example(f: &Finding, messages: &Messages) -> String {
     let target = f
         .edge
         .as_ref()
@@ -137,7 +138,7 @@ fn example(f: &Finding) -> String {
         "{}:{}{target}  {}",
         f.file,
         f.location.line,
-        clip(&f.message)
+        clip(&f.message_in(messages))
     )
 }
 
@@ -152,9 +153,11 @@ fn clip(message: &str) -> String {
     }
 }
 
-fn common_fix<'a>(hits: &[&'a Finding]) -> Option<&'a str> {
-    let first = hits.first()?.fix.as_str();
-    hits.iter().all(|f| f.fix == first).then_some(first)
+fn common_fix<'a>(hits: &[&'a Finding], messages: &Messages) -> Option<Cow<'a, str>> {
+    let first = hits.first()?.fix_in(messages);
+    hits.iter()
+        .all(|f| f.fix_in(messages) == first)
+        .then_some(first)
 }
 
 #[cfg(test)]
@@ -181,6 +184,8 @@ mod tests {
             }),
             fix: "move it".into(),
             members: Vec::new(),
+            message_text: None,
+            fix_text: None,
         }
     }
 

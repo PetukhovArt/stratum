@@ -15,7 +15,8 @@ use crate::{Config, ConfigError, EntryPoints, IgnoreSet, extends, overrides};
 /// [`ConfigError::Io`] when an extended file cannot be read,
 /// [`ConfigError::UnknownPreset`] / [`ConfigError::ExtendsCycle`] for a bad `extends` chain, or
 /// [`ConfigError::Validation`] when the merged document does not match the [`Config`] schema
-/// or a layer depends on an undeclared layer;
+/// or a layer depends on an undeclared layer, or a `messages.texts` entry names an unknown key
+/// or other placeholders than the English template;
 /// [`ConfigError::BadGlob`] for an invalid `project.ignore` glob.
 pub fn parse_str(path: &Utf8Path, text: &str) -> Result<Config, ConfigError> {
     let document = parse_jsonc(path, text)?;
@@ -27,6 +28,13 @@ pub fn parse_str(path: &Utf8Path, text: &str) -> Result<Config, ConfigError> {
         path: path.to_path_buf(),
         message: e.to_string(),
     })?;
+    config
+        .messages
+        .check_texts()
+        .map_err(|message| ConfigError::Validation {
+            path: path.to_path_buf(),
+            message,
+        })?;
     check_layer_refs(path, &config)?;
     check_entry_points(path, &config)?;
     IgnoreSet::new(&config)?;
