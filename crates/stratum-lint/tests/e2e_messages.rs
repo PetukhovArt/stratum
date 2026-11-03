@@ -10,7 +10,7 @@ use stratum_core::text::Key;
 use stratum_rules::RuleRegistry;
 use support::{PROJECT_SUBDIR, repo_with_committed_fixture_in_subdir};
 
-const MARK: &str = "Ж ";
+const MARK: &str = "@@ ";
 
 fn stratum(root: &Path, args: &[&str]) -> std::process::Output {
     Command::cargo_bin("stratum-lint")
@@ -26,7 +26,7 @@ fn json(root: &Path, args: &[&str]) -> Value {
 }
 
 fn title(slug: &str) -> String {
-    format!("Правило {slug}")
+    format!("Rule {slug}")
 }
 
 /// A title for every built-in rule and every template marked, placeholders kept.
@@ -75,21 +75,21 @@ fn messages_change_gitlab_descriptions_and_no_fingerprint() {
         let root = repo.path().join(PROJECT_SUBDIR);
         let plain = json(&root, &["--format", "gitlab", "--no-baseline"]);
         with_messages(&root, &messages());
-        let translated = json(&root, &["--format", "gitlab", "--no-baseline"]);
+        let overridden = json(&root, &["--format", "gitlab", "--no-baseline"]);
         assert!(!plain.as_array().unwrap().is_empty(), "{fixture}");
         assert_eq!(
             without(&plain, "description"),
-            without(&translated, "description"),
+            without(&overridden, "description"),
             "{fixture}"
         );
-        for (plain, translated) in plain
+        for (plain, overridden) in plain
             .as_array()
             .unwrap()
             .iter()
-            .zip(translated.as_array().unwrap())
+            .zip(overridden.as_array().unwrap())
         {
-            let rule = translated["check_name"].as_str().unwrap();
-            let description = translated["description"].as_str().unwrap();
+            let rule = overridden["check_name"].as_str().unwrap();
+            let description = overridden["description"].as_str().unwrap();
             assert!(
                 description.starts_with(&format!("{}. {MARK}", title(rule))),
                 "{description}"
@@ -107,7 +107,7 @@ fn messages_keep_the_baseline_written_without_them() {
     let plain_baseline = std::fs::read_to_string(root.join("stratum.baseline.json")).unwrap();
 
     with_messages(&root, &messages());
-    let out_path = root.join("translated.baseline.json");
+    let out_path = root.join("overridden.baseline.json");
     let out = stratum(&root, &["baseline", "--out", out_path.to_str().unwrap()]);
     assert_eq!(out.status.code(), Some(0));
     assert_eq!(std::fs::read_to_string(&out_path).unwrap(), plain_baseline);
@@ -138,7 +138,7 @@ fn a_bad_messages_block_is_a_config_error_naming_the_key() {
             "NoSuchKey",
         ),
         (
-            serde_json::json!({ "texts": { "UnusedExport": "`{nme}` не используется" } }),
+            serde_json::json!({ "texts": { "UnusedExport": "`{nme}` is unused" } }),
             "messages.texts.UnusedExport",
         ),
         (

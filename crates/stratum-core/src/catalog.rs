@@ -1,7 +1,7 @@
-//! Every violation message and fix of the built-in rules, in English. `{name}` is a placeholder.
-//! The English text is the canonical one: changing it changes baseline entries and GitLab
-//! fingerprints. The key names are public: a project's `messages.texts` replaces a template by
-//! its key name for output only.
+//! The built-in text of every violation message and fix of the built-in rules. `{name}` is a
+//! placeholder. The built-in text is the canonical one: changing it changes baseline entries and
+//! GitLab fingerprints. The key names are public: a project's `messages.texts` overrides a
+//! template by its key name for output only.
 
 macro_rules! catalog {
     ($($key:ident { en: $en:literal $(,)? })*) => {
@@ -13,7 +13,7 @@ macro_rules! catalog {
         impl Key {
             pub const ALL: &[Self] = &[$(Self::$key,)*];
 
-            /// The English template.
+            /// The built-in template.
             #[must_use]
             pub const fn template(self) -> &'static str {
                 match self {

@@ -40,23 +40,23 @@
 
 ## Messages
 
-Stratum prints English. A project that wants its output in another language, or in its own words, puts the texts in `messages`:
+Stratum prints its built-in texts. A project that wants its own wording for messages and rule titles puts the texts in `messages`; they override the built-in text:
 
 ```jsonc
 "messages": {
-  "titles": { "stratum/no-circular-deps": "Цикл импортов" },
+  "titles": { "stratum/no-circular-deps": "Import loop" },
   "texts": {
-    "Cycle": "Файлы через {name} импортируют друг друга (файлов в цикле: {count}). Чтобы разорвать цикл, достаточно убрать импортов: ~{closing}",
-    "ListAnd": " и "
+    "Cycle": "Files through {name} import each other ({count} files in the loop); removing ~{closing} imports breaks it",
+    "ListAnd": " plus "
   }
 }
 ```
 
-- `texts` is keyed by catalog key. A key that is present replaces that English template, for messages, fixes and the pieces they are built from (list separators, parts of a sentence). A key that is absent stays English. A text must use the same `{placeholders}` as its English template.
+- `texts` is keyed by catalog key. A key that is present overrides that built-in template, for messages, fixes and the pieces they are built from (list separators, parts of a sentence). A key that is absent keeps the built-in text. A text must use the same `{placeholders}` as its built-in template.
 - `titles` is keyed by rule slug, plugin rules included. A rule with a title prints `<title>. <message>`; a rule without one prints the message alone.
-- `stratum-lint messages` lists every key with its English template and placeholders, and every built-in rule slug; `--format json` gives the same as JSON, a starting point for a translation.
-- An unknown key, an unknown rule slug in `titles`, or a text whose placeholders differ from its English template's fails the run with exit 2 and names the key.
-- `extends` merges `titles` and `texts` key by key, so a shared preset can carry a translation.
-- Display only: every reporter (`terminal`, `agent`, `json`, `jsonl`, `sarif`, `gitlab`, `github`) prints the texts, but baseline entries and Code Quality fingerprints stay keyed on the English message, so adding or changing `messages` keeps every baseline entry and fingerprint. Text written in the config (`message`, `fix` of a rule option) and by `.rhai` rules is printed as written; rule docs (`explain`, `rules`) stay English.
+- `stratum-lint messages` lists every key with its built-in template and placeholders, and every built-in rule slug; `--format json` gives the same as JSON, a starting point for a project's own wording.
+- An unknown key, an unknown rule slug in `titles`, or a text whose placeholders differ from its built-in template's fails the run with exit 2 and names the key.
+- `extends` merges `titles` and `texts` key by key, so a shared preset can carry a set of texts.
+- Display only: every reporter (`terminal`, `agent`, `json`, `jsonl`, `sarif`, `gitlab`, `github`) prints the texts, but baseline entries and Code Quality fingerprints stay keyed on the built-in message, so adding or changing `messages` keeps every baseline entry and fingerprint. Text written in the config (`message`, `fix` of a rule option) and by `.rhai` rules is printed as written; rule docs (`explain`, `rules`) keep their built-in text.
 
 Every rule, its options and its severity per preset: [custom-rules.md](custom-rules.md). It also shows a config translated from eslint-plugin-boundaries.

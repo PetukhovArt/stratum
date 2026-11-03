@@ -21,7 +21,7 @@ pub fn run(format: BriefFormat) -> miette::Result<i32> {
 
 fn text(slugs: &[&str]) -> String {
     let mut out = String::from(
-        "Translate in stratum.config.jsonc: \"messages\": { \"titles\": { \"<rule>\": \"...\" }, \"texts\": { \"<key>\": \"...\" } }; a text keeps the placeholders of its template\n\nrules (messages.titles):\n",
+        "Override the built-in texts with a project's own wording in stratum.config.jsonc: \"messages\": { \"titles\": { \"<rule>\": \"...\" }, \"texts\": { \"<key>\": \"...\" } }; a text keeps the placeholders of its template\n\nrules (messages.titles):\n",
     );
     for slug in slugs {
         let _ = writeln!(out, "  {slug}");

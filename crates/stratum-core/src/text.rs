@@ -1,5 +1,5 @@
-//! Violation text: a [`Key`] of the catalog plus named arguments, rendered with the English
-//! templates or a project's [`Messages`]. The English rendering is the canonical text the
+//! Violation text: a [`Key`] of the catalog plus named arguments, rendered with the built-in
+//! templates or a project's [`Messages`]. The built-in rendering is the canonical text the
 //! baseline and the GitLab fingerprint are keyed on; [`Messages`] are display only.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -16,7 +16,7 @@ pub struct Messages {
     /// Keyed by rule slug: printed as `<title>. ` before every message of the rule.
     #[serde(default)]
     pub titles: BTreeMap<String, String>,
-    /// Keyed by catalog key name (`stratum-lint messages` lists them): replaces the English
+    /// Keyed by catalog key name (`stratum-lint messages` lists them): overrides the built-in
     /// template, with the same `{placeholders}`.
     #[serde(default)]
     pub texts: BTreeMap<String, String>,
@@ -37,7 +37,7 @@ impl Messages {
 
     /// # Errors
     /// The first text whose key is not in the catalog or whose placeholders differ from the
-    /// English template's, named in the message.
+    /// built-in template's, named in the message.
     pub fn check_texts(&self) -> Result<(), String> {
         for (name, text) in &self.texts {
             let Some(key) = Key::from_name(name) else {
@@ -48,7 +48,7 @@ impl Messages {
             let (want, got) = (placeholders(key.template()), placeholders(text));
             if want != got {
                 return Err(format!(
-                    "messages.texts.{name}: placeholders {} differ from the English template's {}",
+                    "messages.texts.{name}: placeholders {} differ from the built-in template's {}",
                     braced(&got),
                     braced(&want)
                 ));
@@ -174,7 +174,7 @@ impl Text {
         self.render(&Messages::default())
     }
 
-    /// The text with the templates of `messages`, English where it has none.
+    /// The text with the templates of `messages`, built-in where it has none.
     #[must_use]
     pub fn render(&self, messages: &Messages) -> String {
         let template = messages.template(self.key);
@@ -284,27 +284,27 @@ mod tests {
     }
 
     #[test]
-    fn messages_replace_templates_at_every_depth_and_leave_the_rest_english() {
+    fn messages_replace_templates_at_every_depth_and_leave_the_rest_built_in() {
         let messages = texts(&[
             (
                 "SuppressionInvalid",
-                "Комментарий `{names}` ничего не отключает: {problems}",
+                "Directive `{names}` disables nothing: {problems}",
             ),
-            ("ListAnd", " и "),
-            ("ProblemNoRule", "не указано правило"),
+            ("ListAnd", " plus "),
+            ("ProblemNoRule", "no rule named"),
         ]);
         assert_eq!(
             suppression_invalid().render(&messages),
-            "Комментарий `x` ничего не отключает: не указано правило и it has no reason after `--`"
+            "Directive `x` disables nothing: no rule named plus it has no reason after `--`"
         );
     }
 
     #[test]
     fn check_texts_names_an_unknown_key_and_a_placeholder_mismatch() {
-        assert!(texts(&[("ListAnd", " и ")]).check_texts().is_ok());
+        assert!(texts(&[("ListAnd", " plus ")]).check_texts().is_ok());
         let unknown = texts(&[("NoSuchKey", "x")]).check_texts().unwrap_err();
         assert!(unknown.contains("\"NoSuchKey\""), "{unknown}");
-        let mismatch = texts(&[("UnusedExport", "`{nme}` не используется")])
+        let mismatch = texts(&[("UnusedExport", "`{nme}` is unused")])
             .check_texts()
             .unwrap_err();
         assert!(

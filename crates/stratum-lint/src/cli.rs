@@ -168,7 +168,7 @@ pub enum Command {
         config: Option<Utf8PathBuf>,
     },
     /// Every message template with its placeholders and every built-in rule slug: the keys a
-    /// config's `messages` block translates
+    /// config's `messages` block overrides
     Messages {
         #[arg(long, value_enum, default_value = "agent")]
         format: BriefFormat,

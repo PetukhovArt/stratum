@@ -41,7 +41,7 @@
             "type": "string"
           },
           "default": {},
-          "description": "Keyed by catalog key name (`stratum-lint messages` lists them): replaces the English template, with the same `{placeholders}`.",
+          "description": "Keyed by catalog key name (`stratum-lint messages` lists them): overrides the built-in template, with the same `{placeholders}`.",
           "type": "object"
         },
         "titles": {
@@ -215,7 +215,7 @@
         "texts": {},
         "titles": {}
       },
-      "description": "The project's own texts for `lint` output: `titles` by rule slug, `texts` by catalog key (`stratum-lint messages` lists both). Display only: the baseline and Code Quality fingerprints stay keyed on the English text. Merged with the `extends` parent key by key."
+      "description": "A project's own wording for `lint` output, overriding the built-in text: `titles` by rule slug, `texts` by catalog key (`stratum-lint messages` lists both). Display only: the baseline and Code Quality fingerprints stay keyed on the built-in text. Merged with the `extends` parent key by key."
     },
     "overrides": {
       "default": [],

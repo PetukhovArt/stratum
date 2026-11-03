@@ -328,8 +328,8 @@ mod tests {
             .unwrap();
             RuleRegistry::with_builtins().validate(&config)
         };
-        assert!(titles(serde_json::json!({ "stratum/purity": "Чистота" })).is_ok());
-        let err = titles(serde_json::json!({ "stratum/purety": "Чистота" }))
+        assert!(titles(serde_json::json!({ "stratum/purity": "Purity check" })).is_ok());
+        let err = titles(serde_json::json!({ "stratum/purety": "Purity check" }))
             .unwrap_err()
             .to_string();
         assert!(

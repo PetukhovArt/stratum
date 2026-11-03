@@ -24,9 +24,10 @@ pub struct Config {
     /// Appended after the `extends` parent's overrides; the last matching block wins per rule.
     #[serde(default)]
     pub overrides: Vec<OverrideBlock>,
-    /// The project's own texts for `lint` output: `titles` by rule slug, `texts` by catalog key
-    /// (`stratum-lint messages` lists both). Display only: the baseline and Code Quality
-    /// fingerprints stay keyed on the English text. Merged with the `extends` parent key by key.
+    /// A project's own wording for `lint` output, overriding the built-in text: `titles` by rule
+    /// slug, `texts` by catalog key (`stratum-lint messages` lists both). Display only: the
+    /// baseline and Code Quality fingerprints stay keyed on the built-in text. Merged with the
+    /// `extends` parent key by key.
     #[serde(default)]
     pub messages: Messages,
 }

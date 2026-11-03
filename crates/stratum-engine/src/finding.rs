@@ -37,7 +37,7 @@ pub struct Finding {
 
 impl Finding {
     /// The message to print: the project's text for it, after the rule's title when
-    /// `messages` has one. `message` itself stays English: the baseline and fingerprints are
+    /// `messages` has one. `message` itself stays the built-in text: the baseline and fingerprints are
     /// keyed on it.
     #[must_use]
     pub fn message_in(&self, messages: &Messages) -> Cow<'_, str> {
@@ -89,37 +89,37 @@ mod tests {
         Messages {
             titles: [(
                 "stratum/no-circular-deps".to_owned(),
-                "Цикл импортов".to_owned(),
+                "Import loop".to_owned(),
             )]
             .into(),
             texts: [(
                 "Cycle".to_owned(),
-                "Файлы через {name} импортируют друг друга ({count}, ~{closing})".to_owned(),
+                "Loop through {name} ({count}, ~{closing})".to_owned(),
             )]
             .into(),
         }
     }
 
     #[test]
-    fn messages_print_the_title_and_the_text_and_no_messages_print_the_english_message() {
+    fn messages_print_the_title_and_the_text_and_no_messages_print_the_built_in_message() {
         let f = cycle();
         assert_eq!(f.message_in(&Messages::default()), f.message);
         assert_eq!(
             f.message_in(&messages()),
-            "Цикл импортов. Файлы через a.ts импортируют друг друга (2, ~1)"
+            "Import loop. Loop through a.ts (2, ~1)"
         );
         assert!(f.message.starts_with("Import cycle of 2 modules"));
     }
 
     #[test]
-    fn a_title_alone_goes_before_the_english_message() {
+    fn a_title_alone_goes_before_the_built_in_message() {
         let f = Finding {
             message_text: None,
             ..cycle()
         };
         assert_eq!(
             f.message_in(&messages()),
-            format!("Цикл импортов. {}", f.message)
+            format!("Import loop. {}", f.message)
         );
     }
 }
