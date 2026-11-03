@@ -14,8 +14,11 @@ const launcherSource = path.join(repoRoot, 'npm', 'stratum-lint')
 
 const NPM_PLATFORMS = {
   'x86_64-pc-windows-msvc': { os: 'win32', cpu: 'x64' },
+  'aarch64-pc-windows-msvc': { os: 'win32', cpu: 'arm64' },
   'aarch64-apple-darwin': { os: 'darwin', cpu: 'arm64' },
+  'x86_64-apple-darwin': { os: 'darwin', cpu: 'x64' },
   'x86_64-unknown-linux-gnu': { os: 'linux', cpu: 'x64', libc: 'glibc' },
+  'aarch64-unknown-linux-gnu': { os: 'linux', cpu: 'arm64', libc: 'glibc' },
 }
 
 const [archivesArg, version, outArg] = process.argv.slice(2)

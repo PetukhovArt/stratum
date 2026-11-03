@@ -1,118 +1,118 @@
 # Stratum Visualizer — requirements & wishlist
 
-Живой документ: *что должно быть и почему*. Как это сделано — в коде `frontend/stratum-visualizer-frontend/src/`.
+A living document: *what must exist and why*. How it is built is in the code, `frontend/stratum-visualizer-frontend/src/`.
 
-## Цель
+## Goal
 
-Визуализатор — это интерактивная карта зависимостей кодовой базы, на которой видно:
+The visualizer is an interactive dependency map of a codebase. It shows:
 
-1. **Структуру** — слои, контейнеры (слайсы, sub-units, вложенные), модули, рёбра между ними.
-2. **Состояние** — где нарушены правила Stratum: какие модули и рёбра ломают архитектуру.
-3. **Динамику** — как нарушения появляются/исчезают между ревизиями: вид Merge request против `--base REF`.
+1. **Structure** — layers, containers (slices, sub-units, nested), modules, edges between them.
+2. **State** — where Stratum rules are broken: which modules and edges violate the architecture.
+3. **Dynamics** — how violations appear and disappear between revisions: the Merge request view against `--base REF`.
 
-Пользователь визуализатора — разработчик команды, который хочет за минуту понять «куда я попал?» в незнакомой части кода, и архитектор, который хочет за минуту понять «насколько мы отъехали от заявленной архитектуры?».
+The visualizer's users are a team developer who wants to understand "where am I?" in an unfamiliar part of the code within a minute, and an architect who wants to understand "how far have we drifted from the declared architecture?" within a minute.
 
-Не цель: заменить редактор, реплицировать UI VS Code, рендерить полную AST, давать quick-fix. Stratum — линтер, не рефакторер.
+Not goals: replacing the editor, replicating the VS Code UI, rendering a full AST, offering quick-fix. Stratum is a linter, not a refactoring tool.
 
-## Архитектурный контракт
+## Architectural contract
 
-- **Источник данных** — `GraphSnapshot v3` (`EngineInput::snapshot` в `stratum-engine`, графовые факты из `stratum_graph::snapshot_of`): `version: 3`, `project` (имя папки ROOT), `modules [{ id, path, container, layer, purity, zone?, territory }]`, `containers [{ id, name, path, kind, layer, parent, stage, entry }]`, `layers [{ id, name, depends_on }]`, `edges [{ from, to, kind }]`, `zones [{ id, path, root }]`, `territories [{ may_import_layers, imported_by_layers, max_import_purity, visible_zones, may_not: [{ rule, region }] }]`. Все пути — от ROOT через `/`, абсолютных путей машины в снапшоте нет. `purity` — ранг модуля 1–4, `stage` — стадия эволюции контейнера 1–4, `kind` — `layer | slice | sub_unit | nested`. `zone` — индекс в `zones` (приватная зона, в которой лежит модуль; нет поля — модуль не в зоне). `territory` — индекс в `territories`: одинаковые **Territory** хранятся один раз. `rule` — slug, `region` — `{ kind: 'siblings', parent, containerKind, containers }` или `{ kind: 'internals' }`. Фронт принимает ровно версию 3; при другой показывает экран «Visualizer out of date». Bump = координированный фронт-релиз (см. `RELEASE.md`). Типы фронта — `src/types.ts`; фикстура `tests/fixtures/tiny-ts-snapshot.json` генерируется тестом `stratum-lint` (`INSTA_UPDATE=always cargo test -p stratum-lint --test e2e_snapshot`).
-- **Транспорт** — HTTP-сервер встроен в `stratum-lint`: `stratum-lint visualize [ROOT] [--config PATH] [--base REF] [--no-open]`, Axum + `rust-embed` для бандла, `127.0.0.1` на случайном порту. `/api/snapshot` — снапшот, `/api/violations` — нарушения (`rule` — slug, `file` — путь от ROOT, `modules`, `edge`), `/api/context?path=REL` — `text/plain`, байт в байт `stratum-lint context REL --format agent` (REL — путь от ROOT, файл может ещё не существовать; путь вне ROOT — 400), `/api/drift` — **Drift** против `--base REF`: `{ base: { ref, sha }, markdown, breaking, edges, layer_edges, slice_edges, cycles, stages, fan_in }`, где `markdown` — ровно отчёт `stratum-lint diff --base REF`, `breaking` — индексы в `edges` импортов, нарушающих правила, в порядке отчёта; без `--base` — 404, и вкладки Merge request нет. Остальное — статика фронта. Снапшот, нарушения, находки для `/api/context` и Drift считаются один раз при старте; неизвестный REF — exit 2 с подсказкой `git fetch`, как у `diff`. Адрес печатается в stderr (`stratum-visualizer ready at <url>`); `--no-open` не открывает браузер (для скриптов и агентов). `Ctrl+C` останавливает сервер.
-- **Рендер** — SolidJS + SVG. Общий холст `src/canvas/` (пан, зум колесом, fit, экспорт SVG), модель графа `src/render/model.ts` (юниты, агрегированные рёбра, SCC, находки по модулям и рёбрам), у каждого вида своя раскладка в `src/views/<id>/`.
-- **Конфиг** — `visualize` читает `ROOT/stratum.config.jsonc` или `--config`, fallback на zero-config. Тот же путь, что у `lint`; невалидный конфиг — exit 2.
-- **Без сервера-снаружи** — всё через локальный binary, нет аккаунтов, телеметрии, облака. Открыто в браузере = всё.
+- **Data source** — `GraphSnapshot v3` (`EngineInput::snapshot` in `stratum-engine`, graph facts from `stratum_graph::snapshot_of`): `version: 3`, `project` (ROOT folder name), `modules [{ id, path, container, layer, purity, zone?, territory }]`, `containers [{ id, name, path, kind, layer, parent, stage, entry }]`, `layers [{ id, name, depends_on }]`, `edges [{ from, to, kind }]`, `zones [{ id, path, root }]`, `territories [{ may_import_layers, imported_by_layers, max_import_purity, visible_zones, may_not: [{ rule, region }] }]`. All paths are relative to ROOT with `/`; the snapshot has no absolute machine paths. `purity` is the module rank 1–4, `stage` is the container evolution stage 1–4, `kind` is `layer | slice | sub_unit | nested`. `zone` is an index into `zones` (the private zone the module lies in; no field means the module is not in a zone). `territory` is an index into `territories`: identical **Territories** are stored once. `rule` is a slug, `region` is `{ kind: 'siblings', parent, containerKind, containers }` or `{ kind: 'internals' }`. The frontend accepts exactly version 3; on any other it shows the "Visualizer out of date" screen. A bump is a coordinated frontend release (see `RELEASE.md`). Frontend types are in `src/types.ts`; the fixture `tests/fixtures/tiny-ts-snapshot.json` is generated by a `stratum-lint` test (`INSTA_UPDATE=always cargo test -p stratum-lint --test e2e_snapshot`).
+- **Transport** — an HTTP server built into `stratum-lint`: `stratum-lint visualize [ROOT] [--config PATH] [--base REF] [--no-open]`, Axum + `rust-embed` for the bundle, `127.0.0.1` on a random port. `/api/snapshot` is the snapshot, `/api/violations` the violations (`rule` is a slug, `file` is a path from ROOT, `modules`, `edge`), `/api/context?path=REL` is `text/plain`, byte for byte `stratum-lint context REL --format agent` (REL is a path from ROOT, the file may not exist yet; a path outside ROOT gives 400), `/api/drift` is the **Drift** against `--base REF`: `{ base: { ref, sha }, markdown, breaking, edges, layer_edges, slice_edges, cycles, stages, fan_in }`, where `markdown` is exactly the `stratum-lint diff --base REF` report and `breaking` holds indices into the `edges` of imports that break rules, in report order; without `--base` it gives 404 and there is no Merge request tab. Everything else is frontend static files. The snapshot, violations, findings for `/api/context` and the Drift are computed once at start; an unknown REF is exit 2 with a `git fetch` hint, as in `diff`. The address is printed to stderr (`stratum-visualizer ready at <url>`); `--no-open` does not open the browser (for scripts and agents). `Ctrl+C` stops the server.
+- **Render** — SolidJS + SVG. A shared canvas `src/canvas/` (pan, wheel zoom, fit, SVG export), the graph model `src/render/model.ts` (units, aggregated edges, SCC, findings per module and edge), and each view has its own layout in `src/views/<id>/`.
+- **Config** — `visualize` reads `ROOT/stratum.config.jsonc` or `--config`, with a zero-config fallback. The same path as `lint`; an invalid config is exit 2.
+- **No external server** — everything goes through the local binary, no accounts, telemetry or cloud. Open in the browser = everything.
 
-## Перформанс-бюджет
+## Performance budget
 
-| Метрика | Бюджет | Текущее (на 2026-10-16) |
+| Metric | Budget | Current (as of 2026-10-16) |
 |---|---|---|
-| Первая отрисовка вида | ≤ 100 ms (в отчёт стенда) | ≤ 30.7 ms на большом реальном проекте |
-| Отрисованных меток на сцене | ≤ 1 500 | ≤ 1 483 на большом реальном проекте |
-| p95 обновления при пане/зуме | ≤ 16,7 ms | ≤ 7.5 ms на большом реальном проекте |
-| Bundle (без sourcemaps) | < 1.5 MB | 385 KB |
-| Cold lint feeding `visualize` | < 5 s на ~3K файлов | ≈ 0.36 s холодный (≈ 0.18 s с тёплым кэшем) на реальном проекте в ~4K модулей |
+| First view render | ≤ 100 ms (in the bench report) | ≤ 30.7 ms on a large real project |
+| Labels drawn on a scene | ≤ 1 500 | ≤ 1 483 on a large real project |
+| p95 update on pan/zoom | ≤ 16.7 ms | ≤ 7.5 ms on a large real project |
+| Bundle (without sourcemaps) | < 1.5 MB | 385 KB |
+| Cold lint feeding `visualize` | < 5 s on ~3K files | ≈ 0.36 s cold (≈ 0.18 s with a warm cache) on a real project of ~4K modules |
 
-Первые три строки меряет **Bench** (`9`) на большом реальном проекте, см. ниже.
+The first three rows are measured by **Bench** (`9`) on a large real project, see below.
 
-## Test target — большой реальный проект
+## Test target — a large real project
 
-Визуализатор проверяют на большом реальном проекте (~4K модулей, ~14K рёбер, закрытый). На нём ловятся проблемы, которых нет на tiny-ts: широкие графы, циклы, перформанс отрисовки. Репозитория проекта здесь нет, цифры в таблице выше сняты на нём.
+The visualizer is checked on a large real project (~4K modules, ~14K edges, closed source). It catches problems tiny-ts does not have: wide graphs, cycles, render performance. The project's repository is not here; the figures in the table above were taken on it.
 
-Проверка после существенной правки рендера или раскладки:
+Check after a significant render or layout change:
 
-1. `stratum-lint visualize <project> --base <REF> --no-open` — стартует, снапшот грузится без ошибки версии, есть вкладка Merge request.
-2. Вид **Bench** (`9`), кнопка «Run bench» — стенд проходит все пороги.
+1. `stratum-lint visualize <project> --base <REF> --no-open` — starts, the snapshot loads without a version error, the Merge request tab is present.
+2. The **Bench** view (`9`), the "Run bench" button — the bench passes all thresholds.
 
-Tiny-ts (`tests/fixtures/tiny-ts`) остаётся unit/CI-фикстурой.
+Tiny-ts (`tests/fixtures/tiny-ts`) stays the unit/CI fixture.
 
-## Что есть
+## What exists
 
-- [x] Сервер `stratum-lint visualize [ROOT]` — случайный порт, открывает браузер (`open` crate), `--no-open` без браузера, `--config`, `--base REF`.
-- [x] `/api/snapshot` отдаёт `GraphSnapshot` v3, `/api/violations` — нарушения по тому же конфигу, что у `lint`, `/api/context` — **Brief** файла, `/api/drift` — **Drift**.
-- [x] Виды (вкладки в шапке, клавиши, палитра; реестр — `src/views/index.ts`). У каждого вида своя левая панель (outline) и правая (детали выделения).
-  - `1` **Module focus** — модуль с импортёрами и импортами по колонкам слоёв (`h` — второй хоп) или полосами (Bands), лента **Territory**: что модулю можно и нельзя импортировать. В деталях — **Brief** файла, экспорт SVG и «Add to set» (модуль уходит в Module set).
-  - `2` **Matrix** — DSM слоёв или юнитов, разбиение на блоки циклов (SCC), клетки против `depends_on`. В деталях клетки — «Show in map»: Container map с выделенной парой (юниты — Lanes + bundles, слои — Layer graph).
-  - `3` **Merge request** — только с `--base REF`: регион изменённых рёбер (добавленные, удалённые, файлы, которых нет в head) или карточка комментария (≤ 800×600, экспорт SVG) с markdown `stratum-lint diff` для копирования.
-  - `4` **Container map** — вся архитектура на уровне юнитов (слайс или слой без слайсов), два варианта:
-    - **Lanes + bundles** — полоса на слой, в ней юниты (размер ∝ √модулей, sub-units пунктиром, точка — есть ошибки), импорты между юнитами — связки (толщина ∝ log числа импортов, цвет severity — нарушение между слоями или в соседний слайс). Гейт рёбер: `rule breaks` (по умолчанию), `≥ 12 imports`, `all N`. Наведение или клик показывают рёбра одного юнита, двойной клик раскрывает юнит в сетку модулей и сворачивает обратно (раскрытые юниты хранятся в навигации).
-    - **Layer graph** — слои колонкой, слева дуги, заявленные в `depends_on`, справа — незаявленные, с числом импортов и пар юнитов и слагами правил находок.
-    - Детали: без выделения — число рёбер юнитов, рёбер с нарушениями, наибольший цикл юнитов, горячие точки по fan-in и ошибкам, список рёбер с нарушениями; юнит — входящие и исходящие юниты, находки, «Expand modules», «Focus entry» (Module focus на entry), «Find in matrix»; связка — импорты модулей (клик — Module focus). Outline — юниты по слоям с фильтром по подстроке пути.
-  - `5` **Module set** — набор модулей и всё, что их связывает. Набор собирается из «Add to set» в Module focus, из циклов модулей в outline (циклы больше 40 модулей — только счётчик со ссылкой на Matrix) и поиском модуля по пути в outline. Варианты:
-    - **Ring** — модули набора по кругу, импорты изогнутыми рёбрами.
-    - **Arc** — модули в линию, импорт назад (замыкающий петлю) дугой над линией.
-    - **Set matrix** — матрица «строка импортирует столбец», циклы — пунктирные блоки.
-    - Модули не из набора, лежащие на кратчайших соединяющих путях (≤ 4 импортов, до 24 таких модулей), рисуются вместе с набором; список этих путей — «Paths outside the set».
-    - **Cut score** импорта — сколько модулей петли выйдут из наибольшего цикла, если его убрать. Лучший разрез помечен на сцене (`✂ cut frees k/n`), в деталях — кратчайшая петля через него и список кандидатов по score. Экспорт SVG, «Clear set», удаление модуля из набора.
-  - `9` **Bench** — стенд, см. ниже.
-- [x] `v` переключает вариант вида (Columns/Bands, слой/юнит, регион/карточка, Lanes/Layer graph, Ring/Arc/Set matrix). Состояние навигации (вид, фокус, варианты, гейт рёбер карты, раскрытые юниты, набор) хранится в `localStorage`, выделение — нет.
-- [x] **Палитра** (Ctrl+K, Ctrl+P, `/`): виды и модули по подстроке пути, до 60 строк; модуль открывается в Module focus.
-- [x] Язык интерфейса `EN | RU` в шапке, выбор в `localStorage`. Шрифты (Inter Tight, JetBrains Mono, латиница и кириллица) в бандле, без сети.
-- [x] **Bench** (`9`): прогоняет канонические вопросы для Module focus, Matrix, Merge request, Container map и Module set (ответ ищется в DOM по `data-testid`, ≤ 3 действия) и замеры отрисовки (время, метки ≤ 1 500, p95 пана/зума ≤ 16,7 мс, цвета severity только на метках severity, правила на рёбрах против линтера, карточка MR ≤ 800×600). Без `/api/drift` вопрос MR пропускается, а не проваливается. Запускается кнопкой «Run bench» на живом `visualize`.
-- [x] Счётчики в шапке: модули, рёбра, ошибки, предупреждения.
-- [x] CI: bundle-size budget (без sourcemaps), unit + Playwright smoke.
+- [x] Server `stratum-lint visualize [ROOT]` — random port, opens the browser (`open` crate), `--no-open` for no browser, `--config`, `--base REF`.
+- [x] `/api/snapshot` serves `GraphSnapshot` v3, `/api/violations` the violations from the same config as `lint`, `/api/context` the file **Brief**, `/api/drift` the **Drift**.
+- [x] Views (tabs in the header, keys, palette; registry in `src/views/index.ts`). Each view has its own left panel (outline) and right panel (selection details).
+  - `1` **Module focus** — a module with its importers and imports by layer columns (`h` — second hop) or by bands (Bands), the **Territory** strip: what the module may and may not import. Details hold the file **Brief**, SVG export and "Add to set" (the module goes to Module set).
+  - `2` **Matrix** — a DSM of layers or units, split into cycle blocks (SCC), cells against `depends_on`. In the cell details, "Show in map": Container map with the pair selected (units — Lanes + bundles, layers — Layer graph).
+  - `3` **Merge request** — only with `--base REF`: a region of changed edges (added, removed, files absent from head) or a comment card (≤ 800×600, SVG export) with the `stratum-lint diff` markdown to copy.
+  - `4` **Container map** — the whole architecture at unit level (a slice, or a layer without slices), two variants:
+    - **Lanes + bundles** — a lane per layer holding units (size ∝ √modules, sub-units dashed, a dot means there are errors); imports between units are bundles (thickness ∝ log of the import count, severity color — a violation between layers or into a sibling slice). Edge gate: `rule breaks` (default), `≥ 12 imports`, `all N`. Hover or click shows one unit's edges, double click expands the unit into a grid of modules and collapses it back (expanded units are kept in navigation).
+    - **Layer graph** — layers in a column, declared `depends_on` arcs on the left, undeclared ones on the right, with the number of imports and unit pairs and the rule slugs of the findings.
+    - Details: with no selection — the number of unit edges, edges with violations, the largest unit cycle, hot spots by fan-in and errors, a list of edges with violations; for a unit — incoming and outgoing units, findings, "Expand modules", "Focus entry" (Module focus on the entry), "Find in matrix"; for a bundle — the module imports (click — Module focus). The outline lists units by layer with a path substring filter.
+  - `5` **Module set** — a set of modules and everything that connects them. The set is built from "Add to set" in Module focus, from module cycles in the outline (cycles over 40 modules show only a count with a link to Matrix) and from a module path search in the outline. Variants:
+    - **Ring** — the set's modules in a circle, imports as curved edges.
+    - **Arc** — modules in a line, a back import (closing a loop) as an arc above the line.
+    - **Set matrix** — a "row imports column" matrix, cycles as dashed blocks.
+    - Modules outside the set that lie on the shortest connecting paths (≤ 4 imports, up to 24 such modules) are drawn with the set; the list of these paths is "Paths outside the set".
+    - The **Cut score** of an import is how many modules of the loop leave the largest cycle if it is removed. The best cut is marked on the scene (`✂ cut frees k/n`); the details hold the shortest loop through it and a list of candidates by score. SVG export, "Clear set", removing a module from the set.
+  - `9` **Bench** — the bench, see below.
+- [x] `v` switches the view variant (Columns/Bands, layer/unit, region/card, Lanes/Layer graph, Ring/Arc/Set matrix). The navigation state (view, focus, variants, map edge gate, expanded units, set) is kept in `localStorage`; the selection is not.
+- [x] **Palette** (Ctrl+K, Ctrl+P, `/`): views and modules by path substring, up to 60 rows; a module opens in Module focus.
+- [x] Interface language `EN | RU` in the header, the choice kept in `localStorage`. Fonts (Inter Tight, JetBrains Mono, Latin and Cyrillic) are in the bundle, no network.
+- [x] **Bench** (`9`): runs the canonical questions for Module focus, Matrix, Merge request, Container map and Module set (the answer is found in the DOM by `data-testid`, ≤ 3 actions) and render measurements (time, labels ≤ 1 500, pan/zoom p95 ≤ 16.7 ms, severity colors only on severity labels, rules on edges against the linter, MR card ≤ 800×600). Without `/api/drift` the MR question is skipped, not failed. Started with the "Run bench" button on a live `visualize`.
+- [x] Header counters: modules, edges, errors, warnings.
+- [x] CI: bundle-size budget (without sourcemaps), unit + Playwright smoke.
 
-## Что хочется (приоритизировано)
+## Wishlist (prioritized)
 
-### P1 — повышает ценность
+### P1 — raises value
 
-- [ ] **Сохранение viewport** (пан, зум) в `localStorage` — чтобы перезагрузка не сбрасывала. Сейчас хранится только навигация.
-- [ ] **Layout-direction toggle** (LR ↔ TB) — для презентаций удобно TB.
-- [ ] **Live-reload** через `--watch`: при изменении файлов пересчитать snapshot + violations и обновить сцену, включая правки `.rhai` плагинов.
+- [ ] **Saving the viewport** (pan, zoom) in `localStorage` — so a reload does not reset it. Now only navigation is stored.
+- [ ] **Layout-direction toggle** (LR ↔ TB) — TB is handy for presentations.
+- [ ] **Live-reload** via `--watch`: on file changes, recompute the snapshot + violations and update the scene, including edits to `.rhai` plugins.
 
-### P2 — желательно
+### P2 — desirable
 
-- [x] **Diff-режим** — вид Merge request на `stratum-lint visualize --base REF` (рабочее дерево против git-ревизии, без файлов снапшотов).
-- [ ] **Экспорт картинки** любого вида — для PR-описаний и презентаций. Сейчас SVG экспортируют только Module focus, Module set и карточка Merge request, PNG нет.
-- [ ] **Shareable URL** — состояние навигации кодируется в hash; копируешь ссылку, у коллеги открывается тот же вид и тот же модуль. Работает локально (snapshot тот же), не требует сервера.
-- [ ] **Анимация переходов** при раскрытии и фокусе.
-- [ ] **Кастомные цвета слоёв** — конфигурируется в `stratum.config.jsonc`, чтобы цветовая схема совпадала с дизайн-системой команды.
+- [x] **Diff mode** — the Merge request view on `stratum-lint visualize --base REF` (working tree against a git revision, no snapshot files).
+- [ ] **Image export** of any view — for PR descriptions and presentations. Now only Module focus, Module set and the Merge request card export SVG; no PNG.
+- [ ] **Shareable URL** — the navigation state is encoded in the hash; you copy the link and a colleague opens the same view and the same module. Works locally (same snapshot), needs no server.
+- [ ] **Transition animation** on expand and focus.
+- [ ] **Custom layer colors** — configured in `stratum.config.jsonc`, so the color scheme matches the team's design system.
 
-### P3 — позже / опционально
+### P3 — later / optional
 
-- [ ] **Server-side layout для огромных графов** (> 5K модулей). Раскладки видов проверены на большом реальном проекте (~4K модулей).
-- [x] **Агрегация** — Container map показывает юниты и связки, модули — по двойному клику на юните.
-- [ ] **Multi-snapshot** — открыть несколько проектов в одной вкладке, видеть зависимости между ними (если они есть через workspace/monorepo links).
-- [ ] **Voice-over / a11y** — keyboard navigation по графу, screen-reader для outline.
+- [ ] **Server-side layout for huge graphs** (> 5K modules). The view layouts are checked on a large real project (~4K modules).
+- [x] **Aggregation** — Container map shows units and bundles, modules on a double click on a unit.
+- [ ] **Multi-snapshot** — open several projects in one tab, see dependencies between them (if they exist through workspace/monorepo links).
+- [ ] **Voice-over / a11y** — keyboard navigation over the graph, a screen reader for the outline.
 
-## UX-принципы
+## UX principles
 
-- **Тёмная тема** — большинство IDE тёмные, контраст лучше. Светлой темы нет.
-- **Никаких блокирующих диалогов** — всё inline: левая outline-панель, правая панель деталей. Единственный модальный оверлей — палитра.
-- **Клавиатура**: `1`–`5`, `9` — виды; `v` — вариант вида; `f` — fit; `/`, Ctrl+P, Ctrl+K — палитра; Esc закрывает палитру, затем снимает выделение, затем возвращает к предыдущему состоянию навигации; Ctrl+[ / Ctrl+] — левая / правая панель.
-- **Подсказки** на узлах и рёбрах — нативные SVG `<title>` с задержкой браузера; подсказка клетки Matrix появляется сразу.
+- **Dark theme** — most IDEs are dark, contrast is better. There is no light theme.
+- **No blocking dialogs** — everything is inline: the left outline panel, the right details panel. The only modal overlay is the palette.
+- **Keyboard**: `1`–`5`, `9` — views; `v` — view variant; `f` — fit; `/`, Ctrl+P, Ctrl+K — palette; Esc closes the palette, then clears the selection, then returns to the previous navigation state; Ctrl+[ / Ctrl+] — left / right panel.
+- **Tooltips** on nodes and edges are native SVG `<title>` with the browser's delay; the Matrix cell tooltip appears immediately.
 
-## Известные ограничения
+## Known limitations
 
-- **Hot-reload снапшота** не сделан (P1): snapshot и нарушения считаются один раз при старте, после правки кода надо перезапустить `stratum-lint visualize`.
+- **Snapshot hot-reload** is not done (P1): the snapshot and violations are computed once at start, after a code change `stratum-lint visualize` must be restarted.
 
-## Не-цели (явно)
+## Non-goals (explicit)
 
-- **Edit-in-place** — визуализатор только смотрит, не правит. Кнопка «исправить нарушение» = открыть файл в редакторе, не делать правку из браузера.
-- **Auto-layout оптимизация** через ML / прочую магию — раскладки видов (колонки, полосы, матрица, кольцо, дуги) покрывают MVP. Custom Sugiyama — крайний случай.
-- **Замена graphviz / mermaid для ad-hoc диаграмм** — это инструмент для конкретно Stratum-снапшотов, не общий граф-вьюер.
-- **Облачный SaaS** — всё локально. Если команда хочет share — `stratum-lint snapshot --out` + статический хостинг JSON.
+- **Edit-in-place** — the visualizer only views, it does not edit. A "fix the violation" button = open the file in the editor, not make an edit from the browser.
+- **Auto-layout optimization** through ML / other magic — the view layouts (columns, bands, matrix, ring, arcs) cover the MVP. A custom Sugiyama is a last resort.
+- **Replacing graphviz / mermaid for ad-hoc diagrams** — this is a tool for Stratum snapshots specifically, not a general graph viewer.
+- **Cloud SaaS** — everything is local. If a team wants to share — `stratum-lint snapshot --out` + static JSON hosting.
 
 ## Referenced docs
 
 - `RELEASE.md` — Snapshot version policy.
-- `UBIQUITOUS_LANGUAGE.md` — глоссарий (Graph Snapshot, Compound DAG, Container, Stage, Purity, Module, Layer, Territory, Drift).
+- `UBIQUITOUS_LANGUAGE.md` — the glossary (Graph Snapshot, Compound DAG, Container, Stage, Purity, Module, Layer, Territory, Drift).

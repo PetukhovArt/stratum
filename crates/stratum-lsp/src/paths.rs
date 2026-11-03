@@ -19,7 +19,11 @@ pub fn path_to_uri(path: &Path) -> Option<Url> {
 #[must_use]
 pub fn path_key(path: &Path) -> String {
     let s = strip_verbatim(path).to_string_lossy().replace('\\', "/");
-    if cfg!(windows) { s.to_lowercase() } else { s }
+    if cfg!(any(windows, target_os = "macos")) {
+        s.to_lowercase()
+    } else {
+        s
+    }
 }
 
 fn strip_verbatim(path: &Path) -> PathBuf {
