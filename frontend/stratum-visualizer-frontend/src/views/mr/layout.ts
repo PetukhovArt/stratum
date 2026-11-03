@@ -60,8 +60,9 @@ export interface FoldMark {
 export interface OverviewLayout {
   lanes: LaneBox[]
   boxes: FolderBox[]
-  folds: FoldMark[]
   breaks: EdgeMark[]
+  obstacles: Rect[]
+  boxOf: ReadonlyMap<string, FolderBox>
   bounds: Bounds
 }
 
@@ -223,30 +224,41 @@ export const layoutOverview = (m: Model, review: Review, size: Size = DEFAULT_SI
       weight: BREAK_WEIGHT,
       bundle: bundleOf(groupOf(e.from), groupOf(e.to), e),
     })),
-    ...review.folds.map((f): RouteLink => ({
-      key: f.key,
-      from: boxOf.get(f.from)!,
-      to: boxOf.get(f.to)!,
-      weight: f.added + f.removed,
-      bundle: `into:${f.to}`,
-      joinAt: 'to',
-    })),
   ]
-  const routes = routeAround(links, { obstacles: [...boxes, ...packed.labels], bend: ROUTE_BEND, track: FOLD_TRACK })
-  const routeOf = (key: string, from: Rect, to: Rect) => routes.get(key) ?? curveBetween(from, to)
+  const obstacles = [...boxes, ...packed.labels]
+  const routes = routeAround(links, { obstacles, bend: ROUTE_BEND, track: FOLD_TRACK })
   return {
     lanes: packed.lanes,
     boxes,
-    folds: review.folds.map((fold): FoldMark => {
-      const r = routeOf(fold.key, boxOf.get(fold.from)!, boxOf.get(fold.to)!)
-      return { fold, d: r.d, mid: r.label }
-    }),
     breaks: crossing.map((edge): EdgeMark => {
-      const r = routeOf(edge.key, boxOf.get(groupOf(edge.from))!, boxOf.get(groupOf(edge.to))!)
+      const from = boxOf.get(groupOf(edge.from))!
+      const to = boxOf.get(groupOf(edge.to))!
+      const r = routes.get(edge.key) ?? curveBetween(from, to)
       return { edge, d: r.d, mid: r.label }
     }),
+    obstacles,
+    boxOf,
     bounds: packed.bounds,
   }
+}
+
+export const routeFolds = (layout: OverviewLayout, folds: readonly Fold[]): FoldMark[] => {
+  if (!folds.length) return []
+  const links = folds.map(
+    (f): RouteLink => ({
+      key: f.key,
+      from: layout.boxOf.get(f.from)!,
+      to: layout.boxOf.get(f.to)!,
+      weight: f.added + f.removed,
+      bundle: `into:${f.to}`,
+      joinAt: 'to',
+    }),
+  )
+  const routes = routeAround(links, { obstacles: layout.obstacles, bend: ROUTE_BEND, track: FOLD_TRACK })
+  return folds.map((fold): FoldMark => {
+    const r = routes.get(fold.key) ?? curveBetween(layout.boxOf.get(fold.from)!, layout.boxOf.get(fold.to)!)
+    return { fold, d: r.d, mid: r.label }
+  })
 }
 
 export const neighboursOf = (review: Review, key: string): Set<string> => {

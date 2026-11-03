@@ -17,6 +17,7 @@ import {
   LaneBox,
   layoutFolder,
   layoutOverview,
+  routeFolds,
   metaWidth,
   OPEN,
   routeFolderEdges,
@@ -261,9 +262,14 @@ const ChipMeta: Component<{ box: FolderBox; review: Review; y: number }> = (prop
   )
 }
 
-const FolderChip: Component<{ box: FolderBox; model: Model; review: Review; isDimmed: boolean; onClick: () => void }> = (
-  props,
-) => {
+const FolderChip: Component<{
+  box: FolderBox
+  model: Model
+  review: Review
+  isDimmed: boolean
+  onClick: () => void
+  onHover?: (over: boolean) => void
+}> = (props) => {
   const b = props.box
   const f = b.folder
   const isStage = f.container !== null && props.review.stageOf.has(f.container)
@@ -276,6 +282,8 @@ const FolderChip: Component<{ box: FolderBox; model: Model; review: Review; isDi
       data-state={props.isDimmed ? 'dimmed' : undefined}
       opacity={props.isDimmed ? NODE_DIMMED : undefined}
       onClick={() => props.onClick()}
+      onMouseEnter={() => props.onHover?.(true)}
+      onMouseLeave={() => props.onHover?.(false)}
     >
       <rect
         x={b.x}
@@ -437,18 +445,27 @@ const Overview: Component<{ model: Model; review: Review; size: Size }> = (props
     const sel = nav().sel
     return sel?.kind === 'link' ? props.review.folds.find((f) => f.from === sel.from && f.to === sel.to) ?? null : null
   })
-  const foldState = (f: Fold): EdgeState => (fold() === null ? 'idle' : fold()!.key === f.key ? 'selected' : 'dimmed')
-  const isDimmed = (key: string) => fold() !== null && fold()!.from !== key && fold()!.to !== key
+  const [hovered, setHovered] = createSignal<string | null>(null)
+  const shown = createMemo(() => {
+    const f = fold()
+    if (f) return [f]
+    const key = hovered()
+    return key ? props.review.folds.filter((x) => x.from === key || x.to === key) : []
+  })
+  const folds = createMemo(() => routeFolds(layout(), shown()))
+  const foldState = (f: Fold): EdgeState => (fold() !== null && fold()!.key === f.key ? 'selected' : 'idle')
+  const isLit = (key: string) => shown().some((f) => f.from === key || f.to === key)
+  const isDimmed = (key: string) => shown().length > 0 && !isLit(key)
   return (
     <Canvas bounds={layout().bounds} fitKey={layout()} legend={<OverviewLegend />}>
       <For each={layout().lanes}>{(l) => <Lane lane={l} model={props.model} />}</For>
-      <g data-testid="mr-folds">
-        <For each={layout().folds}>{(mark) => <FoldEdge mark={mark} review={props.review} state={foldState(mark.fold)} />}</For>
-      </g>
       <g data-testid="mr-edges">
         <For each={layout().breaks}>
-          {(mark) => <ChangeEdge mark={mark} review={props.review} state={fold() ? 'dimmed' : 'idle'} isRuled />}
+          {(mark) => <ChangeEdge mark={mark} review={props.review} state={shown().length ? 'dimmed' : 'idle'} isRuled />}
         </For>
+      </g>
+      <g data-testid="mr-folds">
+        <For each={folds()}>{(mark) => <FoldEdge mark={mark} review={props.review} state={foldState(mark.fold)} />}</For>
       </g>
       <For each={layout().boxes}>
         {(b) => (
@@ -458,13 +475,12 @@ const Overview: Component<{ model: Model; review: Review; size: Size }> = (props
             review={props.review}
             isDimmed={isDimmed(b.folder.key)}
             onClick={() => set({ sel: { kind: 'box', key: b.folder.key } })}
+            onHover={(over) => setHovered(over ? b.folder.key : null)}
           />
         )}
       </For>
       <g data-testid="mr-fold-labels">
-        <For each={layout().folds.filter((mark) => foldState(mark.fold) === 'selected')}>
-          {(mark) => <FoldLabel mark={mark} state="selected" />}
-        </For>
+        <For each={folds()}>{(mark) => <FoldLabel mark={mark} state="selected" />}</For>
       </g>
     </Canvas>
   )

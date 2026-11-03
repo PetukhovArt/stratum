@@ -3,7 +3,7 @@ import { buildModel, ModuleScope } from '../../render/model'
 import { snapshotV3 } from '../../test/snapshot'
 import { EdgeKind, SnapshotContainer } from '../../types'
 import { DriftReport } from './drift'
-import { layoutFolder, layoutOverview } from './layout'
+import { layoutFolder, layoutOverview, routeFolds } from './layout'
 import { linesOfModule, toReview } from './review'
 
 const container = (id: number, name: string, path: string, kind: SnapshotContainer['kind'], parent: number | null) => ({
@@ -100,6 +100,6 @@ describe('toReview', () => {
     expect(review.folds).toEqual([expect.objectContaining({ from: 'c2', to: 'c1', added: 1, removed: 0 })])
     expect(review.folderOf.get('c2')).toMatchObject({ added: 2, removed: 2, breaks: 1, worst: 'error', ghosts: 1 })
     const overview = layoutOverview(m, review)
-    expect([overview.folds.length, overview.breaks.length, overview.boxes.length]).toEqual([1, 1, 2])
+    expect([routeFolds(overview, review.folds).length, overview.breaks.length, overview.boxes.length]).toEqual([1, 1, 2])
   })
 })
