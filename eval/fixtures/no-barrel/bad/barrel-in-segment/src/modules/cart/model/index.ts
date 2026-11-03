@@ -1,1 +1,3 @@
-export const value = 1;
+import { value } from "./a";
+
+export { value };

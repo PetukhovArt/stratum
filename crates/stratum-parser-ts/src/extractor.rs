@@ -51,6 +51,8 @@ pub struct RawExports {
     /// Indices into [`ExtractedData::imports`] of every `export * from`.
     pub stars: Vec<usize>,
     pub unimportable: u32,
+    #[serde(default)]
+    pub reexports_only: bool,
 }
 
 /// A `stratum-ignore` comment; `span` covers the comment with its delimiters.

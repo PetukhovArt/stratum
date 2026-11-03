@@ -76,6 +76,12 @@ impl Rule for NoBarrel {
             });
         in_segments
             .chain(at_layer_roots)
+            .filter(|(entry, _, _)| {
+                graph
+                    .modules
+                    .get(entry)
+                    .is_some_and(|m| m.exports.reexports_only)
+            })
             .filter_map(|(entry, message, fix)| {
                 at_module(graph, NO_BARREL, severity, entry, message, fix)
             })

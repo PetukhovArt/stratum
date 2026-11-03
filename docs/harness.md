@@ -104,7 +104,7 @@ An unknown REF carries the hint `git fetch --depth=1 origin <REF>`: a shallow CI
 - Groups are ordered by severity, then count. Past `--max` printed examples, the remaining groups collapse into one `+N more rules over --max M` line.
 - Info-severity rules are advisory: one count line, no examples, not counted against `--max`.
 - Messages longer than 240 chars are clipped, with a `(+N chars, full text in --format json)` note.
-- A zero-config run appends `| zero-config: layers inferred from src/*, run "stratum-lint init" to pin them` to the summary line. Zero-config makes every `src/*` folder a layer and applies the `stratum:recommended` severities with `stratum/public-api`, `stratum/sibling-isolation`, `stratum/container-breadth`, `stratum/zone-breadth` and `stratum/missing-entry` off, since they need declared layers and structure.
+- A zero-config run appends `| zero-config: layers inferred from src/*, run "stratum-lint init" to pin them` to the summary line. Zero-config makes every `src/*` folder a layer, infers slices and segments from the folders, and applies the `stratum:recommended` severities with `stratum/container-breadth`, `stratum/zone-breadth` and `stratum/missing-entry` off, since they need declared layers and structure; `stratum/public-api` and `stratum/sibling-isolation` are off too unless some layer is inferred sliced.
 
 ### Finding contract (`--format jsonl`)
 
@@ -249,7 +249,7 @@ warning stratum/no-cross-layer-import (1) - stratum-lint explain stratum/no-cros
 `rules --format json`: `{ "version": 1, "rules": [{ slug, severity, default_severity, summary }] }`, every registered rule including those that are off. The agent format lists active rules only, after a `N active rules (M off: ...)` line:
 
 ```
-18 active rules (6 off: stratum/slice-fan-in, stratum/restricted-calls, stratum/stage-mixing, stratum/container-breadth, stratum/unused-exports, stratum/unreachable-modules)
+16 active rules (8 off: stratum/slice-fan-in, stratum/restricted-calls, stratum/stage-mixing, stratum/container-breadth, stratum/miller-limit, stratum/module-docs, stratum/unused-exports, stratum/unreachable-modules)
 error   stratum/no-cross-layer-import  A module may import only from its own layer and from the layers listed in its layer's `depends_on`.
 error   stratum/no-circular-deps  Reports every import cycle: two or more modules that reach each other through imports, or a module importing itself.
 ...

@@ -26,7 +26,7 @@ impl Rule for ModuleDocs {
         "stratum/module-docs"
     }
     fn default_severity(&self) -> Severity {
-        Severity::Warning
+        Severity::Off
     }
 
     fn check(

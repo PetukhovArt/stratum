@@ -24,7 +24,7 @@ impl Rule for MillerLimit {
         "stratum/miller-limit"
     }
     fn default_severity(&self) -> Severity {
-        Severity::Info
+        Severity::Off
     }
 
     fn check(

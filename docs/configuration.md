@@ -1,6 +1,6 @@
 # Configuration
 
-`stratum.config.jsonc` at the project root. Without it (zero-config), every `src/*` folder becomes a layer and the rules that need declared structure (`public-api`, `sibling-isolation`, `container-breadth`, `zone-breadth`, `missing-entry`) stay off; `stratum-lint init` writes the inferred config.
+`stratum.config.jsonc` at the project root. Without it (zero-config), every `src/*` folder becomes a layer, with `slices: true` when at least half of its folders, and at least 2, hold an entry file; a folder name under at least 3 units of one layer and at least 30% of them becomes a segment, unless it is a private zone or a unit of that layer. The rules that need declared structure (`public-api`, `sibling-isolation`, `container-breadth`, `zone-breadth`, `missing-entry`) stay off, except that `public-api` and `sibling-isolation` keep their `stratum:recommended` severity once some layer is inferred sliced. `stratum-lint init` writes the inferred config: the full `structure`, the layers and every rule with its options.
 
 ```jsonc
 {
