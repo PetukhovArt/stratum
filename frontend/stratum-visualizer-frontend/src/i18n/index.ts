@@ -4,15 +4,21 @@ import type { Plural } from './types'
 
 export type { MessageKey }
 
-export type Lang = 'en' | 'ru'
-export const LANGS: readonly Lang[] = ['en', 'ru']
+const CATALOG = { en, ru } satisfies Record<string, Messages>
+export type Lang = keyof typeof CATALOG
+export const LANGS = Object.keys(CATALOG) as Lang[]
+const isLang = (value: string | null): value is Lang => value !== null && Object.hasOwn(CATALOG, value)
 
 type Params = Record<string, string | number>
 
 const STORAGE_KEY = 'stratum.lang'
-const CATALOG: Record<Lang, Messages> = { en, ru }
 
-const storedLang = (): Lang => (localStorage.getItem(STORAGE_KEY) === 'ru' ? 'ru' : 'en')
+const storedLang = (): Lang => {
+  const stored = localStorage.getItem(STORAGE_KEY)
+  if (isLang(stored)) return stored
+  const browser = navigator.languages.map((tag) => tag.split('-')[0]).find(isLang)
+  return browser ?? 'en'
+}
 
 const [lang, setLangSignal] = createSignal<Lang>(storedLang())
 document.documentElement.lang = lang()

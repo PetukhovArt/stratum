@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use stratum_core::text::{Key, Text};
 
 use stratum_core::{
     ids::{ContainerId, ModuleId, RuleId},
@@ -28,7 +29,7 @@ impl Rule for ContainerBreadth {
         "stratum/container-breadth"
     }
     fn default_severity(&self) -> Severity {
-        Severity::Info
+        Severity::Off
     }
 
     fn check(
@@ -80,8 +81,8 @@ impl Rule for ContainerBreadth {
 struct Finding {
     dir: PathBuf,
     entry: Option<ModuleId>,
-    message: String,
-    fix: String,
+    message: Text,
+    fix: Text,
     single_file: bool,
 }
 
@@ -99,12 +100,11 @@ fn sliced_layer(
     (sliced && items > limit(options.max_items)).then(|| Finding {
         dir: layer.path.clone(),
         entry: layer.entry,
-        message: format!(
-            "Layer '{name}' holds {items} slices and files directly inside it (limit {max})",
-            name = layer.name,
-            max = options.max_items,
-        ),
-        fix: "Group related slices under a shared parent slice, or move the ones several layers use into a lower layer.".into(),
+        message: Text::new(Key::LayerBreadth)
+            .arg("name", &layer.name)
+            .arg("items", items)
+            .arg("max", options.max_items),
+        fix: Text::new(Key::LayerBreadthFix),
         single_file: false,
     })
 }
@@ -119,22 +119,22 @@ fn heterogeneous(
         return None;
     }
     let next = if c.stage < Stage::SEGMENTED {
-        "evolve it to stage 3 by grouping files into segment folders"
+        Key::KindsBreadthToStage3
     } else if c.stage < Stage::COMPOSED {
-        "evolve it to stage 4 by splitting it into sub-units with their own entry file"
+        Key::KindsBreadthToStage4
     } else {
-        "it is at stage 4 already: group its sub-units into fewer, larger ones"
+        Key::KindsBreadthAtStage4
     };
     Some(Finding {
         dir: c.path.clone(),
         entry: c.entry,
-        message: format!(
-            "Container '{name}' (stage {stage}) holds {kinds} kinds directly inside it (limit {max}); {next}",
-            name = c.name,
-            stage = c.stage.rank(),
-            max = options.max_kinds,
-        ),
-        fix: "Group the files into segment folders (stage 3), or split them into sub-units with their own entry file (stage 4).".into(),
+        message: Text::new(Key::KindsBreadth)
+            .arg("name", &c.name)
+            .arg("stage", c.stage.rank())
+            .arg("kinds", kinds)
+            .arg("max", options.max_kinds)
+            .arg("next", next),
+        fix: Text::new(Key::KindsBreadthFix),
         single_file: false,
     })
 }
@@ -148,15 +148,11 @@ fn composer(
     (c.stage == Stage::COMPOSED && files > limit(options.max_root_files)).then(|| Finding {
         dir: c.path.clone(),
         entry: c.entry,
-        message: format!(
-            "Composer '{name}' holds {files} files at its root besides its entry (limit {max}); a composer only wires its sub-units",
-            name = c.name,
-            max = options.max_root_files,
-        ),
-        fix: format!(
-            "Move the logic in the root files of '{name}' into its sub-units or a new sub-unit, and keep only the wiring at the root.",
-            name = c.name,
-        ),
+        message: Text::new(Key::ComposerBreadth)
+            .arg("name", &c.name)
+            .arg("files", files)
+            .arg("max", options.max_root_files),
+        fix: Text::new(Key::ComposerBreadthFix).arg("name", &c.name),
         single_file: false,
     })
 }
@@ -172,14 +168,12 @@ fn homogeneous(
     (items > limit(options.max_items)).then(|| Finding {
         dir: dir.to_path_buf(),
         entry: None,
-        message: format!(
-            "Folder '{path}' of '{name}' holds {items} items directly inside it (limit {max})",
-            name = c.name,
-            max = options.max_items,
-        ),
-        fix: format!(
-            "Split '{path}' into sub-folders by theme, or into sub-units with their own entry file."
-        ),
+        message: Text::new(Key::FolderBreadth)
+            .arg("path", &path)
+            .arg("name", &c.name)
+            .arg("items", items)
+            .arg("max", options.max_items),
+        fix: Text::new(Key::FolderBreadthFix).arg("path", &path),
         single_file: false,
     })
 }
@@ -198,10 +192,12 @@ fn single_file(graph: &CompoundGraph, dir: &Path, entry: Option<ModuleId>) -> Op
     Some(Finding {
         dir: dir.to_path_buf(),
         entry,
-        message: format!("Folder '{name}' holds a single file, '{file}'"),
-        fix: format!(
-            "Move '{file}' up into the parent folder and delete '{name}', unless more files are about to join it."
-        ),
+        message: Text::new(Key::SingleFile)
+            .arg("name", &name)
+            .arg("file", file),
+        fix: Text::new(Key::SingleFileFix)
+            .arg("file", file)
+            .arg("name", &name),
         single_file: true,
     })
 }

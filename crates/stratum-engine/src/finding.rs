@@ -1,5 +1,12 @@
+use std::borrow::Cow;
+
 use serde::Serialize;
-use stratum_core::{edge::EdgeKind, severity::Severity, violation::SourceLocation};
+use stratum_core::{
+    edge::EdgeKind,
+    severity::Severity,
+    text::{Messages, Text},
+    violation::SourceLocation,
+};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct EdgeRef {
@@ -20,4 +27,94 @@ pub struct Finding {
     pub fix: String,
     #[serde(skip)]
     pub members: Vec<String>,
+    #[serde(skip)]
+    pub message_text: Option<Text>,
+    #[serde(skip)]
+    pub fix_text: Option<Text>,
+}
+
+impl Finding {
+    #[must_use]
+    pub fn message_in(&self, messages: &Messages) -> Cow<'_, str> {
+        let message = shown(&self.message, self.message_text.as_ref(), messages);
+        match messages.title(&self.rule) {
+            Some(title) => Cow::Owned(format!("{title}. {message}")),
+            None => message,
+        }
+    }
+
+    #[must_use]
+    pub fn fix_in(&self, messages: &Messages) -> Cow<'_, str> {
+        shown(&self.fix, self.fix_text.as_ref(), messages)
+    }
+}
+
+fn shown<'f>(canonical: &'f str, text: Option<&Text>, messages: &Messages) -> Cow<'f, str> {
+    match text {
+        Some(text) if !messages.texts.is_empty() => Cow::Owned(text.render(messages)),
+        _ => Cow::Borrowed(canonical),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use stratum_core::text::Key;
+
+    fn cycle() -> Finding {
+        let text = Text::new(Key::Cycle)
+            .arg("name", "a.ts")
+            .arg("count", 2u32)
+            .arg("closing", 1u32);
+        Finding {
+            rule: "stratum/no-circular-deps".into(),
+            severity: Severity::Error,
+            message: text.en(),
+            file: "a.ts".into(),
+            location: SourceLocation { line: 1, column: 1 },
+            edge: None,
+            fix: "fix".into(),
+            members: Vec::new(),
+            message_text: Some(text),
+            fix_text: None,
+        }
+    }
+
+    fn messages() -> Messages {
+        Messages {
+            titles: [(
+                "stratum/no-circular-deps".to_owned(),
+                "Import loop".to_owned(),
+            )]
+            .into(),
+            texts: [(
+                "Cycle".to_owned(),
+                "Loop through {name} ({count}, ~{closing})".to_owned(),
+            )]
+            .into(),
+        }
+    }
+
+    #[test]
+    fn messages_print_the_title_and_the_text_and_no_messages_print_the_built_in_message() {
+        let f = cycle();
+        assert_eq!(f.message_in(&Messages::default()), f.message);
+        assert_eq!(
+            f.message_in(&messages()),
+            "Import loop. Loop through a.ts (2, ~1)"
+        );
+        assert!(f.message.starts_with("Import cycle of 2 modules"));
+    }
+
+    #[test]
+    fn a_title_alone_goes_before_the_built_in_message() {
+        let f = Finding {
+            message_text: None,
+            ..cycle()
+        };
+        assert_eq!(
+            f.message_in(&messages()),
+            format!("Import loop. {}", f.message)
+        );
+    }
 }

@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use stratum_core::text::{Key, Text};
 
 use stratum_core::{
     ids::{ContainerId, RuleId},
@@ -66,22 +67,23 @@ impl Rule for SliceFanIn {
         let Some(file) = graph.modules.get(&rep).map(|m| m.path.clone()) else {
             return vec![];
         };
+        let message = Text::new(Key::SliceFanIn)
+            .arg("slice", qualified(graph, slice))
+            .arg("fan_in", fan_in)
+            .arg("limit", options.max_fan_in)
+            .arg("list", importers.into_iter().collect::<Vec<_>>().join(", "));
+        let fix = Text::new(Key::SliceFanInFix);
         vec![Violation {
             rule: self.id(),
             severity,
-            message: format!(
-                "Slice {slice} is imported by {fan_in} other slices (limit {limit}): {list}",
-                slice = qualified(graph, slice),
-                limit = options.max_fan_in,
-                list = importers.into_iter().collect::<Vec<_>>().join(", "),
-            ),
+            message: message.en(),
             file,
             location: SourceLocation { line: 1, column: 1 },
             modules: vec![rep],
             edge: None,
-            fix: Some(
-                "Narrow the slice's entry or split it so each importer reaches only the part it needs; code every slice needs may belong in a lower layer.".into(),
-            ),
+            fix: Some(fix.en()),
+            message_text: Some(message),
+            fix_text: Some(fix),
         }]
     }
 }

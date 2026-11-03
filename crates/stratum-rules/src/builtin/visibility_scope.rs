@@ -1,3 +1,4 @@
+use stratum_core::text::{Key, Text};
 use stratum_core::{
     ids::{ModuleId, RuleId},
     severity::Severity,
@@ -57,12 +58,10 @@ pub(crate) fn judge(graph: &CompoundGraph, from: ModuleId, to: ModuleId) -> Opti
     let root = project_relative(graph, target.layer, root);
     let target = project_relative(graph, target.layer, &target.path);
     Some(Finding {
-        message: format!(
-            "`{target}` is in a private zone of `{root}`; only modules under `{root}` may import it"
-        ),
-        fix: Some(format!(
-            "Import it through the entry of the container that owns `{root}`, move the importer under `{root}`, or move the code out of the private zone if it is meant to be shared."
-        )),
+        message: Text::new(Key::VisibilityScope)
+            .arg("target", target)
+            .arg("root", &root),
+        fix: Some(Text::new(Key::VisibilityScopeFix).arg("root", root)),
     })
 }
 

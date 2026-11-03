@@ -1,4 +1,5 @@
 use std::path::Path;
+use stratum_core::text::{Key, Text};
 
 use stratum_core::{
     ids::{ModuleId, RuleId},
@@ -59,8 +60,10 @@ impl Rule for Naming {
                     severity,
                     dir,
                     entry,
-                    format!("Folder '{name}' is not kebab-case"),
-                    format!("Rename '{name}' to '{}'.", to_kebab(&name)),
+                    Text::new(Key::NotKebabCase).arg("name", &name),
+                    Text::new(Key::NotKebabCaseFix)
+                        .arg("name", &name)
+                        .arg("kebab", to_kebab(&name)),
                 ));
             }
             if options.reserved.contains(&name) {
@@ -69,10 +72,8 @@ impl Rule for Naming {
                     severity,
                     dir,
                     entry,
-                    format!("Folder '{name}' has a reserved name"),
-                    format!(
-                        "Name '{name}' after what it holds, not its kind, or move its files next to the code that uses them."
-                    ),
+                    Text::new(Key::ReservedName).arg("name", &name),
+                    Text::new(Key::ReservedNameFix).arg("name", &name),
                 ));
             }
         }
@@ -88,8 +89,8 @@ fn finding(
     severity: Severity,
     dir: &Path,
     entry: Option<ModuleId>,
-    message: String,
-    fix: String,
+    message: Text,
+    fix: Text,
 ) -> Option<Violation> {
     at_folder(graph, NAMING, severity, dir, entry, message, fix)
 }
@@ -165,17 +166,14 @@ fn duplicate_slices(graph: &CompoundGraph, severity: Severity) -> Vec<Violation>
                 severity,
                 &slice.path,
                 slice.entry,
-                format!(
-                    "Slice '{}' in layer '{}' repeats the name of slice '{}' in layer '{}'",
-                    slice.name,
-                    layer_of(slice),
-                    twin.name,
-                    layer_of(twin),
-                ),
-                format!(
-                    "Merge '{}' and '{}' into one slice, or rename one so the two names mean different things.",
-                    slice.name, twin.name
-                ),
+                Text::new(Key::DuplicateSlice)
+                    .arg("slice", &slice.name)
+                    .arg("layer", layer_of(slice))
+                    .arg("twin", &twin.name)
+                    .arg("twin_layer", layer_of(twin)),
+                Text::new(Key::DuplicateSliceFix)
+                    .arg("slice", &slice.name)
+                    .arg("twin", &twin.name),
             )
         })
         .collect()

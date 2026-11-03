@@ -1,3 +1,4 @@
+use stratum_core::text::{Key, Text};
 use stratum_core::{ids::RuleId, severity::Severity, violation::Violation};
 use stratum_graph::{CompoundGraph, ownership};
 
@@ -34,18 +35,20 @@ impl Rule for UnusedExports {
             .into_iter()
             .filter(|(_, decl)| !(options.ignore_type_exports && decl.type_only))
             .filter_map(|(id, decl)| Some((graph.modules.get(&id)?, decl)))
-            .map(|(m, decl)| Violation {
-                rule: self.id(),
-                severity,
-                message: format!(
-                    "Export `{}` is imported by no module reachable from the entry points",
-                    decl.name
-                ),
-                file: m.path.clone(),
-                location: decl.location,
-                modules: vec![m.id],
-                edge: None,
-                fix: None,
+            .map(|(m, decl)| {
+                let message = Text::new(Key::UnusedExport).arg("name", &decl.name);
+                Violation {
+                    rule: self.id(),
+                    severity,
+                    message: message.en(),
+                    file: m.path.clone(),
+                    location: decl.location,
+                    modules: vec![m.id],
+                    edge: None,
+                    fix: None,
+                    message_text: Some(message),
+                    fix_text: None,
+                }
             })
             .collect()
     }

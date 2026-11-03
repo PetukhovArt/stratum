@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
+use stratum_core::text::{Key, Text};
 
 use serde::Deserialize;
 use stratum_core::{
@@ -145,19 +146,21 @@ impl Rule for UnusedDependencies {
                 if skip(package) || used.uses(package) {
                     continue;
                 }
+                let message = Text::new(Key::UnusedDependency)
+                    .arg("package", package)
+                    .arg("field", field);
+                let fix = Text::new(Key::UnusedDependencyFix).arg("package", package);
                 out.push(Violation {
                     rule: self.id(),
                     severity,
-                    message: format!(
-                        "Package `{package}` is declared in `{field}` but nothing imports it"
-                    ),
+                    message: message.en(),
                     file: manifest.path.clone(),
                     location,
                     modules: vec![],
                     edge: None,
-                    fix: Some(format!(
-                        "Remove `{package}` from package.json, or add it to the rule's `ignore` if it is used another way (a CLI not in `scripts`, a plugin loaded by name, global types)"
-                    )),
+                    fix: Some(fix.en()),
+                    message_text: Some(message),
+                    fix_text: Some(fix),
                 });
             }
         }
@@ -291,24 +294,28 @@ fn unlisted(
             if listed || skip(package) || !seen.insert(package) {
                 continue;
             }
-            out.push(Violation {
-                rule,
-                severity,
-                message: format!(
-                    "Package `{package}` is imported but not declared in package.json ({})",
+            let message = Text::new(Key::UnlistedDependency)
+                .arg("package", package)
+                .arg(
+                    "fields",
                     fields
                         .iter()
                         .map(|f| format!("`{f}`"))
                         .collect::<Vec<_>>()
-                        .join(", ")
-                ),
+                        .join(", "),
+                );
+            let fix = Text::new(Key::UnlistedDependencyFix).arg("package", package);
+            out.push(Violation {
+                rule,
+                severity,
+                message: message.en(),
                 file: importer.path.to_path_buf(),
                 location: import.location,
                 modules: importer.module.into_iter().collect(),
                 edge: None,
-                fix: Some(format!(
-                    "Add `{package}` to package.json, or add it to the rule's `ignore` if it is an alias or a virtual module"
-                )),
+                fix: Some(fix.en()),
+                message_text: Some(message),
+                fix_text: Some(fix),
             });
         }
     }

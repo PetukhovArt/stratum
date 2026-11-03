@@ -49,6 +49,11 @@ fn render(
 fn gate(root: &Utf8Path, args: &LintArgs) -> miette::Result<Report> {
     let started = Instant::now();
     let loaded = load_config(root, args.config.as_deref())?;
+    let messages = loaded.config.messages.clone();
+    let report = |findings, suppressed, summary| Report {
+        messages: messages.clone(),
+        ..Report::new(findings, suppressed, summary)
+    };
     let baseline = load_baseline(root, args)?;
     let root_abs =
         paths::canonicalize(root).map_err(|e| miette::miette!("Project root {root}: {e}"))?;
@@ -60,7 +65,7 @@ fn gate(root: &Utf8Path, args: &LintArgs) -> miette::Result<Report> {
     };
     if scope.as_ref().is_some_and(Scope::is_empty) {
         summary.elapsed = started.elapsed();
-        return Ok(Report::new(Vec::new(), Vec::new(), summary));
+        return Ok(report(Vec::new(), Vec::new(), summary));
     }
 
     let input = build(root, &loaded)?;
@@ -84,7 +89,7 @@ fn gate(root: &Utf8Path, args: &LintArgs) -> miette::Result<Report> {
         .filter(|s| in_scope(&s.finding))
         .collect();
     summary.elapsed = started.elapsed();
-    Ok(Report::new(kept, suppressed, summary))
+    Ok(report(kept, suppressed, summary))
 }
 
 pub fn load_config(root: &Utf8Path, path: Option<&Utf8Path>) -> miette::Result<LoadedConfig> {

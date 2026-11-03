@@ -120,7 +120,7 @@ pub fn builtin(slug: &str) -> Option<RuleDoc> {
             &[],
         ),
         "stratum/no-barrel" => (
-            "Reports an entry file (`structure.entries`) used as a barrel where it hurts: directly inside a segment folder, and, in the layers named in `layers`, at the layer root.",
+            "Reports an entry file (`structure.entries`) that only re-exports, every statement an `export … from`, an `export * from` or an import whose bindings it re-exports, used as a barrel where it hurts: directly inside a segment folder, and, in the layers named in `layers`, at the layer root.",
             "A segment is a group of files, not a unit. A barrel over it, or over a layer every other layer imports, makes each importer load all of it, hides which file provides a name and invites import cycles.",
             "Delete the barrel and import the files directly; in a global layer, import from the file or from a sub-unit's entry.",
             &[

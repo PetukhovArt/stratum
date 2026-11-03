@@ -9,7 +9,7 @@ use crate::rule::Rule;
 use crate::scope::ProjectScope;
 
 pub const CO_CHANGE_SLUG: &str = "stratum/co-change";
-const DEFAULT_MESSAGE: &str = "Files that change together changed alone";
+pub const DEFAULT_MESSAGE: &str = "Files that change together changed alone";
 
 /// A diff-mode rule: the engine runs it on the changed files of `lint --changed` and
 /// `diff --base`. On the graph alone it reports nothing.

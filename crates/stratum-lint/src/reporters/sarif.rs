@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use serde_json::json;
-use stratum_core::severity::Severity;
+use stratum_core::{severity::Severity, text::Messages};
 
 use super::Reporter;
 use crate::report::{Finding, Report};
@@ -31,7 +31,9 @@ impl Reporter for SarifReporter {
                 })
             })
             .collect();
-        let results: Vec<_> = all().map(|(f, reason)| result(f, reason)).collect();
+        let results: Vec<_> = all()
+            .map(|(f, reason)| result(f, reason, &report.messages))
+            .collect();
         let doc = json!({
             "version": "2.1.0",
             "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
@@ -54,11 +56,11 @@ impl Reporter for SarifReporter {
     }
 }
 
-fn result(f: &Finding, suppression_reason: Option<&str>) -> serde_json::Value {
+fn result(f: &Finding, suppression_reason: Option<&str>, messages: &Messages) -> serde_json::Value {
     let mut result = json!({
         "ruleId": f.rule,
         "level": sarif_level(f.severity),
-        "message": { "text": f.message },
+        "message": { "text": f.message_in(messages) },
         "locations": [{
             "physicalLocation": {
                 "artifactLocation": { "uri": f.file, "uriBaseId": "%SRCROOT%" },

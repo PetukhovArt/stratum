@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 0.6.0 (2026-11-03)
+
+- Added config block `messages`, a project's own wording for messages and rule titles: `texts` overrides the built-in template of a message or fix by its catalog key and `titles` prints `<title>. ` before every message of a rule, in every reporter; the baseline and GitLab Code Quality fingerprints stay keyed on the built-in text, so adding or changing `messages` keeps every baseline entry and fingerprint. An unknown key or rule slug, or a text with other placeholders than its template, fails the run with exit 2
+- Added `stratum-lint messages`: every message key with its built-in template and placeholders, and every built-in rule slug, as text or `--format json`, the starting point for a project's own wording
+- Added prebuilt binaries for macOS x64, Linux arm64 and Windows arm64, on npm, Homebrew and Scoop
+- Changed the visualizer to open in the browser's language when one of its languages matches and none was chosen before
+- Changed the fix of `stratum/no-cross-layer-import` to warn against moving business logic into shared to get around the rule and to suggest an interface in the lower layer with the implementation in the upper one; the message, the baseline and fingerprints are unchanged
+- Changed `stratum/container-breadth`, `stratum/miller-limit` and `stratum/module-docs` to `off` by default and in both presets: code is now read mostly by agents, and folder-breadth limits, fan-in-per-file limits and navigation docs no longer pay for their noise; a config that sets a severity still turns them on
+- Changed `stratum-lint init` to write the full `structure` (entries, segments, private zones) and each rule's `options`, so the written config is usable as is
+- Changed zero-config and `init` to infer `slices: true` for a layer where at least half of the folders, and at least 2, hold an entry file, and `structure.segments` from folder names under at least 3 units and 30% of the units of one layer; with a sliced layer, `public-api` and `sibling-isolation` stay at their `stratum:recommended` severity
+- Changed `stratum/no-barrel` to report only an entry file that re-exports and does nothing else: every statement an `export … from`, an `export * from` or an import whose bindings it re-exports; an index with its own functions, constants or dynamic `import()` is no longer a barrel
+- Fixed a slice whose name is listed in `structure.segments`, such as `src/services/config`, being read as a segment: a direct folder of a `slices: true` layer is always a slice
+- macOS: Fixed `stratum-lsp` treating a file as two documents when the editor and the disk spell its path in different case
+
 ## 0.5.0 (2026-10-28)
 
 - Breaking: `stratum-lint baseline` writes `stratum.baseline.json` version 2, which 0.4.0 and older cannot read: upgrade every `stratum-lint` and `stratum-lsp` that reads the baseline, including CI pins, to 0.5.0, then run `stratum-lint baseline --prune` once to convert it

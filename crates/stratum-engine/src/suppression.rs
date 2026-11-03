@@ -4,6 +4,7 @@ use stratum_config::ConfigError;
 use stratum_core::{
     ids::ModuleId,
     severity::Severity,
+    text::{Arg, Key, Text},
     types::Suppression,
     violation::{SourceLocation, Violation},
 };
@@ -31,7 +32,7 @@ struct Directive<'g> {
     module: ModuleId,
     file: String,
     at: &'g Suppression,
-    problems: Vec<String>,
+    problems: Vec<Arg>,
 }
 
 impl Directive<'_> {
@@ -148,18 +149,18 @@ fn directives(input: &EngineInput) -> Vec<Directive<'_>> {
     out
 }
 
-fn problems_of(input: &EngineInput, at: &Suppression) -> Vec<String> {
+fn problems_of(input: &EngineInput, at: &Suppression) -> Vec<Arg> {
     let mut problems = Vec::new();
     if at.slugs.is_empty() {
-        problems.push("it names no rule".to_owned());
+        problems.push(Key::ProblemNoRule.into());
     }
     for slug in &at.slugs {
         if input.registry.by_slug(slug).is_none() {
-            problems.push(format!("`{slug}` is not a rule"));
+            problems.push(Text::new(Key::ProblemNotARule).arg("slug", slug).into());
         }
     }
     if at.reason.is_none() {
-        problems.push("it has no reason after `--`".to_owned());
+        problems.push(Key::ProblemNoReason.into());
     }
     problems
 }
@@ -181,21 +182,17 @@ fn problems<T: Reported>(
         let (severity, message) = if !d.is_valid() {
             (
                 Severity::Error,
-                format!(
-                    "Suppression `{}` suppresses nothing: {}.",
-                    d.names(),
-                    d.problems.join(" and ")
-                ),
+                Text::new(Key::SuppressionInvalid)
+                    .arg("names", d.names())
+                    .arg("problems", Arg::Join(d.problems.clone(), Key::ListAnd)),
             )
         } else if !used && !d.at.slugs.iter().any(|s| s == CO_CHANGE_SLUG) {
             // A `stratum/co-change` acknowledgement is read only on a diff, never per line.
             (
                 Severity::Warning,
-                format!(
-                    "Suppression `{}` hides nothing on line {}; delete it.",
-                    d.names(),
-                    d.at.applies_to
-                ),
+                Text::new(Key::SuppressionUnused)
+                    .arg("names", d.names())
+                    .arg("line", d.at.applies_to),
             )
         } else {
             continue;
@@ -212,12 +209,14 @@ fn problems<T: Reported>(
             Violation {
                 rule: SUPPRESSION,
                 severity: severity.clamp(Severity::Info, cap),
-                message,
+                message: message.en(),
                 file: module.path.clone(),
                 location: d.at.location,
                 modules: vec![d.module],
                 edge: None,
                 fix: None,
+                message_text: Some(message),
+                fix_text: None,
             },
         ));
     }
@@ -255,21 +254,23 @@ fn forbidden<T: Reported>(input: &EngineInput) -> Result<Vec<T>, ConfigError> {
             continue;
         };
         for (at, written, listed) in foreign_directives(&text, &forbid) {
+            let message = Text::new(Key::SuppressionForbidden)
+                .arg("written", written)
+                .arg("listed", listed);
+            let fix = Text::new(Key::SuppressionForbiddenFix);
             out.push(T::of(
                 input,
                 Violation {
                     rule: SUPPRESSION,
                     severity: Severity::Error.clamp(Severity::Info, cap),
-                    message: format!(
-                        "Directive `{written}` is forbidden: `stratum/suppression` `forbid` lists `{listed}`."
-                    ),
+                    message: message.en(),
                     file: m.path.clone(),
                     location: at,
                     modules: vec![m.id],
                     edge: None,
-                    fix: Some(
-                        "Fix what the directive hides and delete it. To keep existing ones, accept them into the baseline (`stratum-lint baseline`); for a folder, turn the rule off in an `overrides` block.".to_owned(),
-                    ),
+                    fix: Some(fix.en()),
+                    message_text: Some(message),
+                    fix_text: Some(fix),
                 },
             ));
         }

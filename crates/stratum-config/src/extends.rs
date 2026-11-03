@@ -91,7 +91,7 @@ fn merge(parent: Value, child: Value) -> Value {
         let inherited = base.remove(&key);
         let merged = match key.as_str() {
             "layers" => merge_layers(inherited, value),
-            "rules" => merge_rules(inherited, value),
+            "rules" | "messages" => merge_rules(inherited, value),
             "overrides" => append(inherited, value),
             "project" => merge_project(inherited, value),
             "structure" => merge_fields(inherited, value),

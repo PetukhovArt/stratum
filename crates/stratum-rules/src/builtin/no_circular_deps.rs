@@ -1,4 +1,5 @@
 use std::path::Path;
+use stratum_core::text::{Arg, Key, Text};
 
 use rustc_hash::FxHashSet;
 use stratum_core::{
@@ -122,17 +123,18 @@ impl NoCircularDeps {
                     .collect::<String>()
             })
             .unwrap_or_default();
-        let message = format!(
-            "Import cycle of {} modules through {name}; about {} imports close it",
-            members.len(),
-            closing,
-        );
-        let fix = format!(
-            "Break it at one of: {}; extract the shared piece into a lower module or invert the dependency",
-            cuts.iter()
-                .map(|cut| describe(deps, cut, members.len()))
-                .collect::<Vec<_>>()
-                .join(", "),
+        let message = Text::new(Key::Cycle)
+            .arg("count", members.len())
+            .arg("name", name)
+            .arg("closing", closing);
+        let fix = Text::new(Key::CycleFix).arg(
+            "cuts",
+            Arg::Join(
+                cuts.iter()
+                    .map(|cut| describe(deps, cut, members.len()).into())
+                    .collect(),
+                Key::ListComma,
+            ),
         );
 
         let mut modules: Vec<ModuleId> = Vec::with_capacity(members.len());
@@ -153,7 +155,7 @@ impl NoCircularDeps {
         Violation {
             rule: self.id(),
             severity,
-            message,
+            message: message.en(),
             file: anchor
                 .map(|m| path_of(graph, m).to_path_buf())
                 .unwrap_or_default(),
@@ -163,7 +165,9 @@ impl NoCircularDeps {
             },
             modules,
             edge: None,
-            fix: Some(fix),
+            fix: Some(fix.en()),
+            message_text: Some(message),
+            fix_text: Some(fix),
         }
     }
 }
@@ -179,17 +183,17 @@ fn display(graph: &CompoundGraph, m: ModuleId) -> String {
     path_of(graph, m).to_string_lossy().replace('\\', "/")
 }
 
-fn describe(deps: &Deps<'_>, cut: &Cut, size: usize) -> String {
+fn describe(deps: &Deps<'_>, cut: &Cut, size: usize) -> Text {
     let at = deps
         .import_line(cut.from, cut.to)
         .map(|line| format!(":{line}"))
         .unwrap_or_default();
-    format!(
-        "`{}{at} -> {}` (frees {} of {size})",
-        display(deps.graph, cut.from),
-        display(deps.graph, cut.to),
-        cut.freed,
-    )
+    Text::new(Key::CycleCut)
+        .arg("from", display(deps.graph, cut.from))
+        .arg("at", at)
+        .arg("to", display(deps.graph, cut.to))
+        .arg("freed", cut.freed)
+        .arg("size", size)
 }
 
 fn first_import_line(deps: &Deps<'_>, anchor: ModuleId, members: &[ModuleId]) -> u32 {

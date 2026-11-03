@@ -237,6 +237,7 @@ mod tests {
                     .collect(),
                 stars,
                 unimportable: 0,
+                reexports_only: false,
             },
             calls: vec![],
             imports,

@@ -6,6 +6,7 @@ use stratum_config::{Config, ConfigError, EntryPoints, IgnoreSet};
 use stratum_core::{
     ids::{LayerId, ModuleId, RuleId},
     purity::Purity,
+    text::{Key, Text},
     types::Layer,
     violation::Violation,
 };
@@ -109,20 +110,40 @@ impl EngineInput {
             .map_or_else(|| format!("<module {id:?}>"), |m| self.relative(&m.path))
     }
 
-    fn fix_of(&self, rule: RuleId, slug: &str, own: Option<String>) -> String {
-        own.filter(|fix| !fix.is_empty())
-            .or_else(|| {
-                let doc = self.registry.by_id(rule)?.doc()?;
-                Some(doc.fix).filter(|fix| !fix.is_empty())
-            })
-            .unwrap_or_else(|| format!("Run \"stratum-lint explain {slug}\""))
+    fn fix_of(
+        &self,
+        rule: RuleId,
+        slug: &str,
+        own: Option<String>,
+        own_text: Option<Text>,
+    ) -> (String, Option<Text>) {
+        if let Some(fix) = own.filter(|fix| !fix.is_empty()) {
+            return (fix, own_text);
+        }
+        let doc = self
+            .registry
+            .by_id(rule)
+            .and_then(DynRule::doc)
+            .map(|doc| doc.fix)
+            .filter(|fix| !fix.is_empty());
+        doc.map_or_else(
+            || {
+                let text = Text::new(Key::RunExplain).arg("slug", slug);
+                (text.en(), Some(text))
+            },
+            |fix| (fix, None),
+        )
     }
 
     #[must_use]
     pub fn finding(&self, v: Violation) -> Finding {
         let slug = self.slug_of(v.rule);
+        let (fix, fix_text) = self.fix_of(v.rule, slug, v.fix, v.fix_text);
+        let root = &self.project_root;
         Finding {
-            fix: relative_in_text(&self.fix_of(v.rule, slug, v.fix), &self.project_root),
+            fix: relative_in_text(&fix, root),
+            fix_text: fix_text.map(|t| t.map_plain(&|s| relative_in_text(s, root))),
+            message_text: v.message_text,
             rule: slug.to_owned(),
             severity: v.severity,
             file: self.relative(&v.file),

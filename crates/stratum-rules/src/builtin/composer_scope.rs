@@ -1,4 +1,5 @@
 use globset::Glob;
+use stratum_core::text::{Key, Text};
 use stratum_core::{
     ids::{ContainerId, RuleId},
     severity::Severity,
@@ -64,14 +65,13 @@ impl Rule for ComposerScope {
             severity,
             &c.path,
             c.entry,
-            format!(
-                "Composer '{name}' has no file matching '{pattern}' in its private zone",
-                name = c.name,
-            ),
-            format!(
-                "Add a file matching '{pattern}' to {zone} inside '{name}' and move the wiring of its sub-units into it.",
-                name = c.name,
-            ),
+            Text::new(Key::ComposerScope)
+                .arg("name", &c.name)
+                .arg("pattern", pattern),
+            Text::new(Key::ComposerScopeFix)
+                .arg("pattern", pattern)
+                .arg("zone", zone)
+                .arg("name", &c.name),
         )
         .into_iter()
         .collect()

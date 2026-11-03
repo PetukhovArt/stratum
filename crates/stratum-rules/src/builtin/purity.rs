@@ -1,3 +1,4 @@
+use stratum_core::text::{Key, Text};
 use stratum_core::{
     ids::{ModuleId, RuleId},
     severity::Severity,
@@ -50,15 +51,10 @@ pub(crate) fn judge(graph: &CompoundGraph, from: ModuleId, to: ModuleId) -> Opti
         return None;
     }
     Some(Finding {
-        message: format!(
-            "Module at purity {} imports from purity {}: purer code cannot depend on impurer code",
-            from.rank(),
-            to.rank()
-        ),
-        fix: Some(
-            "Move shared logic into a module at or below the lower purity, or inject the impure dependency at composition root."
-                .into(),
-        ),
+        message: Text::new(Key::Purity)
+            .arg("from", from.rank())
+            .arg("to", to.rank()),
+        fix: Some(Text::new(Key::PurityFix)),
     })
 }
 

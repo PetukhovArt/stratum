@@ -100,6 +100,7 @@ fn config_with_custom_rule() -> Config {
         }],
         rules,
         overrides: vec![],
+        messages: stratum_core::text::Messages::default(),
     }
 }
 

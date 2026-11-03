@@ -75,6 +75,8 @@ pub struct Exports {
     pub stars: Vec<usize>,
     /// Names counted toward the surface that no import can take (Vue `defineProps` members).
     pub unimportable: u32,
+    #[serde(default)]
+    pub reexports_only: bool,
 }
 
 impl Exports {

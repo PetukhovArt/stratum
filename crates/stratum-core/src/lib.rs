@@ -6,12 +6,14 @@
 
 #![forbid(unsafe_code)]
 
+mod catalog;
 pub mod edge;
 pub mod ids;
 pub mod purity;
 pub mod severity;
 pub mod stage;
 pub mod structure;
+pub mod text;
 pub mod types;
 pub mod violation;
 pub mod visibility;
@@ -23,6 +25,7 @@ pub use crate::{
     severity::Severity,
     stage::{InvalidStage, Stage},
     structure::Structure,
+    text::{Arg, Key, Messages, Text},
     types::{
         Bindings, Call, Container, ContainerKind, ExportDecl, ExportOrigin, Exports, Import,
         ImportedName, Layer, Module, Suppression,

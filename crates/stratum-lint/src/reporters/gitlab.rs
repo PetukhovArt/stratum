@@ -26,7 +26,7 @@ impl Reporter for GitlabReporter {
             .zip(fingerprints)
             .map(|(f, fingerprint)| {
                 json!({
-                    "description": f.message,
+                    "description": f.message_in(&report.messages),
                     "check_name": f.rule,
                     "fingerprint": fingerprint,
                     "severity": severity(f.severity),
@@ -108,6 +108,8 @@ mod tests {
             edge: None,
             fix: "fix".into(),
             members: Vec::new(),
+            message_text: None,
+            fix_text: None,
         }
     }
 

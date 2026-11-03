@@ -656,6 +656,7 @@ fn located(lines: &LineIndex<'_>, data: ExtractedData) -> Parsed {
             .collect(),
         stars: data.exports.stars,
         unimportable: data.exports.unimportable,
+        reexports_only: data.exports.reexports_only,
     };
     let calls = data
         .calls
