@@ -75,8 +75,6 @@ pub struct Exports {
     pub stars: Vec<usize>,
     /// Names counted toward the surface that no import can take (Vue `defineProps` members).
     pub unimportable: u32,
-    /// Every top-level statement re-exports: `export … from`, `export * from`, or an import
-    /// whose bindings are only re-exported. Read by `stratum/no-barrel`.
     #[serde(default)]
     pub reexports_only: bool,
 }

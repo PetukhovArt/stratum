@@ -1,8 +1,3 @@
-//! The built-in text of every violation message and fix of the built-in rules. `{name}` is a
-//! placeholder. The built-in text is the canonical one: changing it changes baseline entries and
-//! GitLab fingerprints. The key names are public: a project's `messages.texts` overrides a
-//! template by its key name for output only.
-
 macro_rules! catalog {
     ($($key:ident { en: $en:literal $(,)? })*) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -13,7 +8,6 @@ macro_rules! catalog {
         impl Key {
             pub const ALL: &[Self] = &[$(Self::$key,)*];
 
-            /// The built-in template.
             #[must_use]
             pub const fn template(self) -> &'static str {
                 match self {
@@ -21,7 +15,6 @@ macro_rules! catalog {
                 }
             }
 
-            /// The key name a config's `messages.texts` uses.
             #[must_use]
             pub const fn name(self) -> &'static str {
                 match self {

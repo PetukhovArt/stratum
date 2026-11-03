@@ -1,7 +1,3 @@
-//! Violation text: a [`Key`] of the catalog plus named arguments, rendered with the built-in
-//! templates or a project's [`Messages`]. The built-in rendering is the canonical text the
-//! baseline and the GitLab fingerprint are keyed on; [`Messages`] are display only.
-
 use std::collections::{BTreeMap, BTreeSet};
 
 use schemars::JsonSchema;

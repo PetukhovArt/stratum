@@ -7,17 +7,6 @@ use stratum_core::severity::Severity;
 
 use crate::{Config, ConfigError, EntryPoints, IgnoreSet, extends, overrides};
 
-/// Parse a JSONC string into a [`Config`], resolving `project.extends`
-/// (paths relative to `path`'s directory, or `stratum:*` presets).
-///
-/// # Errors
-/// Returns [`ConfigError::Parse`] when the document is not valid JSONC,
-/// [`ConfigError::Io`] when an extended file cannot be read,
-/// [`ConfigError::UnknownPreset`] / [`ConfigError::ExtendsCycle`] for a bad `extends` chain, or
-/// [`ConfigError::Validation`] when the merged document does not match the [`Config`] schema
-/// or a layer depends on an undeclared layer, or a `messages.texts` entry names an unknown key
-/// or other placeholders than the built-in template;
-/// [`ConfigError::BadGlob`] for an invalid `project.ignore` glob.
 pub fn parse_str(path: &Utf8Path, text: &str) -> Result<Config, ConfigError> {
     let document = parse_jsonc(path, text)?;
     let mut merged = extends::resolve(path, document)?;

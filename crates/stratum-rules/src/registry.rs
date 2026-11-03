@@ -140,9 +140,6 @@ impl RuleRegistry {
         self.rules.iter().find(|r| r.id() == id).map(AsRef::as_ref)
     }
 
-    /// # Errors
-    /// [`ConfigError::Rule`] naming the slug, and the option key when one is at fault,
-    /// for an unknown slug in `rules`, `overrides` or `messages.titles`, or options its rule rejects.
     pub fn validate(&self, config: &Config) -> Result<(), ConfigError> {
         let rule_of = |slug: &String| {
             self.by_slug(slug).ok_or_else(|| ConfigError::Rule {

@@ -27,18 +27,13 @@ pub struct Finding {
     pub fix: String,
     #[serde(skip)]
     pub members: Vec<String>,
-    /// `message` as a catalog key and arguments, when it comes from the catalog.
     #[serde(skip)]
     pub message_text: Option<Text>,
-    /// `fix` as a catalog key and arguments, when it comes from the catalog.
     #[serde(skip)]
     pub fix_text: Option<Text>,
 }
 
 impl Finding {
-    /// The message to print: the project's text for it, after the rule's title when
-    /// `messages` has one. `message` itself stays the built-in text: the baseline and fingerprints are
-    /// keyed on it.
     #[must_use]
     pub fn message_in(&self, messages: &Messages) -> Cow<'_, str> {
         let message = shown(&self.message, self.message_text.as_ref(), messages);

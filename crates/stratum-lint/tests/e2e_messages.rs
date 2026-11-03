@@ -29,7 +29,6 @@ fn title(slug: &str) -> String {
     format!("Rule {slug}")
 }
 
-/// A title for every built-in rule and every template marked, placeholders kept.
 fn messages() -> Value {
     let titles: serde_json::Map<String, Value> = RuleRegistry::with_builtins()
         .rules()

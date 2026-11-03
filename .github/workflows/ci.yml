@@ -35,6 +35,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
@@ -43,6 +45,9 @@ jobs:
       - name: npm install
         working-directory: frontend/stratum-visualizer-frontend
         run: npm install --no-audit --no-fund
+      - name: no new comments
+        if: github.event_name == 'pull_request'
+        run: node scripts/check-comments.mjs --base "${{ github.event.pull_request.base.sha }}"
       - name: npm run build
         working-directory: frontend/stratum-visualizer-frontend
         run: npm run build

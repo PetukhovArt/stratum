@@ -44,6 +44,8 @@ panic = "deny"
 todo = "warn"
 unimplemented = "warn"
 assert_is_empty = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
 
 [profile.release]
 lto = "thin"

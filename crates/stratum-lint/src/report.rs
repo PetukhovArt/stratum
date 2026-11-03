@@ -42,7 +42,6 @@ pub struct Report {
     pub summary: Summary,
     pub findings: Vec<Finding>,
     pub suppressed: Vec<Suppressed>,
-    /// The project's titles and texts reporters print messages and fixes with.
     pub messages: Messages,
 }
 
