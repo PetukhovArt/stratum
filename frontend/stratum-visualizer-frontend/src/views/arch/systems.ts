@@ -1,22 +1,31 @@
 import { createSignal } from 'solid-js'
-import { ContractCaller, fetchSystems, SystemContract, SystemIndex, SystemInfo } from '../../lib/api'
+import { Actor, ContractCaller, DeclaredLink, fetchSystems, SystemContract, SystemIndex, SystemInfo, ViaModule } from '../../lib/api'
 import { Model } from '../../render/model'
 
 export interface ChannelInUse {
   to: SystemInfo
   contracts: readonly SystemContract[]
   unattributedCalls: number
+  via: readonly ViaModule[]
 }
+
+export const channelWeight = (c: { contracts: readonly unknown[]; via: readonly unknown[] }): number =>
+  c.contracts.length || c.via.length
 
 export interface PortLink {
   container: number
   system: string
   contracts: readonly SystemContract[]
+  via: readonly ViaModule[]
 }
 
 export interface SystemsInModel {
   self: SystemInfo
   others: readonly SystemInfo[]
+  internal: readonly SystemInfo[]
+  external: readonly SystemInfo[]
+  actors: readonly Actor[]
+  links: readonly DeclaredLink[]
   channels: readonly ChannelInUse[]
   channelTo: (system: string) => ChannelInUse | null
   portLinks: readonly PortLink[]
@@ -29,22 +38,28 @@ const narrowed = (contracts: readonly SystemContract[], keeps: (caller: Contract
     return callers.length ? [{ ...c, callers }] : []
   })
 
-const byContractsDesc = (a: PortLink, b: PortLink): number => b.contracts.length - a.contracts.length
+const byWeightDesc = (a: PortLink, b: PortLink): number => channelWeight(b) - channelWeight(a)
+
+type Reach = Pick<ContractCaller, 'module' | 'features'>
 
 const portLinksOf = (m: Model, channels: readonly ChannelInUse[]): PortLink[] => {
   const links: PortLink[] = []
   for (const channel of channels) {
-    const unitOf = (caller: ContractCaller) => (m.modules.has(caller.module) ? m.unitOf(caller.module) : null)
-    const containers = new Set(channel.contracts.flatMap((c) => c.callers.flatMap((caller) => unitOf(caller) ?? [])))
+    const unitOf = (r: Reach) => (m.modules.has(r.module) ? m.unitOf(r.module) : null)
+    const containers = new Set([
+      ...channel.contracts.flatMap((c) => c.callers.flatMap((caller) => unitOf(caller) ?? [])),
+      ...channel.via.flatMap((v) => unitOf(v) ?? []),
+    ])
     for (const container of [...containers].sort((a, b) => a - b)) {
       const contracts = narrowed(channel.contracts, (caller) => unitOf(caller) === container)
-      links.push({ container, system: channel.to.id, contracts })
+      const via = channel.via.filter((v) => unitOf(v) === container)
+      links.push({ container, system: channel.to.id, contracts, via })
     }
   }
-  return links.sort(byContractsDesc)
+  return links.sort(byWeightDesc)
 }
 
-const shownBy = (m: Model): ((caller: ContractCaller) => boolean) => {
+const shownBy = (m: Model): ((caller: Reach) => boolean) => {
   const chosen = new Set(m.chosenFeatures)
   return (caller) =>
     chosen.size && caller.features
@@ -59,12 +74,16 @@ const build = (index: SystemIndex, m: Model): SystemsInModel => {
     const to = byId.get(channel.to)
     if (channel.from !== index.self.id || !to) return []
     const contracts = narrowed(channel.contracts, isShown)
-    return [{ to, contracts, unattributedCalls: channel.unattributedCalls }]
+    return [{ to, contracts, unattributedCalls: channel.unattributedCalls, via: channel.via.filter(isShown) }]
   })
   const portLinks = portLinksOf(m, channels)
   return {
     self: index.self,
     others: index.others,
+    internal: index.others.filter((o) => !o.isExternal),
+    external: index.others.filter((o) => o.isExternal),
+    actors: index.actors,
+    links: index.links,
     channels,
     channelTo: (system) => channels.find((c) => c.to.id === system) ?? null,
     portLinks,

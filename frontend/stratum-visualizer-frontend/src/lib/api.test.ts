@@ -107,7 +107,15 @@ describe('fetchSystems', () => {
       }),
     )
     const index = await fetchSystems()
-    expect(index.self).toEqual({ id: 'ui', name: 'Web UI', contractsTotal: 0, unavailableReason: null })
+    expect(index.self).toEqual({
+      id: 'ui',
+      name: 'Web UI',
+      contractsTotal: 0,
+      unavailableReason: null,
+      isExternal: false,
+      description: null,
+    })
+    expect([index.actors, index.links, index.channels[0].via]).toEqual([[], [], []])
     expect(index.others.map((s) => [s.id, s.unavailableReason])).toEqual([
       ['api', null],
       ['billing', 'root is not a directory'],

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { SystemContract, SystemIndex } from '../../lib/api'
 import { buildModel } from '../../render/model'
 import { snapshotV3 } from '../../test/snapshot'
+import { layoutSystems } from './system-layout'
 import { systemsOf } from './systems'
 
 const container = (id: number, name: string, path: string, kind: 'layer' | 'slice', layer: number, parent: number | null) => ({
@@ -42,7 +43,7 @@ const contract = (id: string, callers: [module: number, line: number, features?:
   callers: callers.map(([module, line, features]) => ({ module, line, owner: null, features: features ?? null })),
 })
 
-const system = (id: string) => ({ id, name: id, contractsTotal: 2, unavailableReason: null })
+const system = (id: string) => ({ id, name: id, contractsTotal: 2, unavailableReason: null, isExternal: false, description: null })
 
 const INDEX: SystemIndex = {
   self: { ...system('ui'), contractsTotal: 0 },
@@ -53,14 +54,18 @@ const INDEX: SystemIndex = {
       to: 'host',
       contracts: [contract('greet', [[1, 7]]), contract('save_file', [[1, 4], [0, 9]])],
       unattributedCalls: 1,
+      via: [],
     },
     {
       from: 'ui',
       to: 'api',
       contracts: [contract('UserService.GetUser', [[3, 7]]), contract('UserService.WatchUsers', [[3, 10]])],
       unattributedCalls: 0,
+      via: [],
     },
   ],
+  actors: [],
+  links: [],
 }
 
 const only = (ids: number[], chosen: string[] = []) =>
@@ -110,11 +115,39 @@ describe('systems in the model', () => {
             contract('UserService.WatchUsers', [[3, 10, ['search']]]),
           ],
           unattributedCalls: 0,
+          via: [],
         },
       ],
     }
     const s = systemsOf(byName, only([0, 2, 3], ['checkout']))
     expect(s.channelTo('api')?.contracts.map((c) => c.id)).toEqual(['UserService.GetUser'])
     expect(s.portLinks.map((l) => [l.container, l.contracts.map((c) => c.id)])).toEqual([[1, ['UserService.GetUser']]])
+  })
+})
+
+describe('system level zones', () => {
+  it('puts roles above the system, external systems beside it, and draws a via-only channel and the declared links', () => {
+    const index: SystemIndex = {
+      ...INDEX,
+      others: [...INDEX.others, { ...system('gateway'), contractsTotal: 0, isExternal: true, description: 'field bus' }],
+      channels: [
+        ...INDEX.channels,
+        { from: 'ui', to: 'gateway', contracts: [], unattributedCalls: 0, via: [{ module: 3, features: null }] },
+      ],
+      actors: [{ id: 'operator', name: 'Operator', description: null }],
+      links: [
+        { from: 'operator', to: 'ui', label: 'monitors' },
+        { from: 'host', to: 'gateway', label: 'reads' },
+      ],
+    }
+    const s = systemsOf(index, only([0, 1, 2, 3]))
+    expect(s.external.map((e) => e.id)).toEqual(['gateway'])
+    const layout = layoutSystems(s)
+    const zone = (kind: string) => layout.zones.find((z) => z.kind === kind)!
+    expect(layout.zones.map((z) => z.kind)).toEqual(['actors', 'system', 'external'])
+    expect(zone('actors').y + zone('actors').h).toBeLessThan(zone('system').y)
+    expect(zone('external').x).toBeGreaterThan(zone('system').x + zone('system').w)
+    expect(layout.arrows.map((a) => a.channel.to.id)).toContain('gateway')
+    expect(layout.links.map((l) => l.link.label)).toEqual(['monitors', 'reads'])
   })
 })

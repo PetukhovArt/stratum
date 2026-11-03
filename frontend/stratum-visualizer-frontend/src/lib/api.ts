@@ -334,6 +334,25 @@ export interface SystemInfo {
   name: string
   contractsTotal: number
   unavailableReason: string | null
+  isExternal: boolean
+  description: string | null
+}
+
+export interface ViaModule {
+  module: number
+  features: readonly string[] | null
+}
+
+export interface Actor {
+  id: string
+  name: string
+  description: string | null
+}
+
+export interface DeclaredLink {
+  from: string
+  to: string
+  label: string | null
 }
 
 export interface ContractCaller {
@@ -358,12 +377,15 @@ export interface Channel {
   to: string
   contracts: SystemContract[]
   unattributedCalls: number
+  via: ViaModule[]
 }
 
 export interface SystemIndex {
   self: SystemInfo
   others: SystemInfo[]
   channels: Channel[]
+  actors: Actor[]
+  links: DeclaredLink[]
 }
 
 type ParsedSystem = SystemInfo & { isSelf: boolean }
@@ -377,7 +399,9 @@ const parseSystem = (raw: unknown, url: string, where: string): ParsedSystem => 
     typeof raw.name !== 'string' ||
     typeof raw.self !== 'boolean' ||
     !isCount(raw.contracts_total) ||
-    (raw.unavailable !== undefined && typeof raw.unavailable !== 'string')
+    (raw.unavailable !== undefined && typeof raw.unavailable !== 'string') ||
+    (raw.external !== undefined && typeof raw.external !== 'boolean') ||
+    !isOptionalText(raw.description)
   ) {
     throw new ApiShapeError(url, where)
   }
@@ -387,7 +411,39 @@ const parseSystem = (raw: unknown, url: string, where: string): ParsedSystem => 
     isSelf: raw.self,
     contractsTotal: raw.contracts_total,
     unavailableReason: raw.unavailable ?? null,
+    isExternal: raw.external === true,
+    description: raw.description ?? null,
   }
+}
+
+const isOptionalText = (value: unknown): value is string | null | undefined =>
+  value === undefined || value === null || typeof value === 'string'
+
+const parseVia = (raw: unknown, url: string, where: string): ViaModule => {
+  if (!isFields(raw) || !isCount(raw.module) || (raw.features !== undefined && !isStrings(raw.features))) {
+    throw new ApiShapeError(url, where)
+  }
+  return { module: raw.module, features: raw.features ?? null }
+}
+
+const parseActor = (raw: unknown, url: string, where: string): Actor => {
+  if (!isFields(raw) || typeof raw.id !== 'string' || typeof raw.name !== 'string' || !isOptionalText(raw.description)) {
+    throw new ApiShapeError(url, where)
+  }
+  return { id: raw.id, name: raw.name, description: raw.description ?? null }
+}
+
+const parseLink = (raw: unknown, url: string, where: string): DeclaredLink => {
+  if (!isFields(raw) || typeof raw.from !== 'string' || typeof raw.to !== 'string' || !isOptionalText(raw.label)) {
+    throw new ApiShapeError(url, where)
+  }
+  return { from: raw.from, to: raw.to, label: raw.label ?? null }
+}
+
+const listOf = <T>(raw: unknown, url: string, where: string, parse: (r: unknown, url: string, where: string) => T): T[] => {
+  if (raw === undefined) return []
+  if (!Array.isArray(raw)) throw new ApiShapeError(url, where)
+  return raw.map((r: unknown, i) => parse(r, url, `${where}[${i}]`))
 }
 
 const parseCaller = (raw: unknown, url: string, where: string): ContractCaller => {
@@ -437,6 +493,7 @@ const parseChannel = (raw: unknown, url: string, where: string): Channel => {
     to: raw.to,
     contracts: raw.contracts.map((c: unknown, i) => parseSystemContract(c, url, `${where}.contracts[${i}]`)),
     unattributedCalls: raw.unattributed,
+    via: listOf(raw.via, url, `${where}.via`, parseVia),
   }
 }
 
@@ -453,6 +510,8 @@ const parseSystems = (raw: unknown, url: string): SystemIndex => {
     self: infoOf(selves[0]),
     others: systems.filter((s) => !s.isSelf).map(infoOf),
     channels: raw.channels.map((c: unknown, i) => parseChannel(c, url, `channels[${i}]`)),
+    actors: listOf(raw.actors, url, 'actors', parseActor),
+    links: listOf(raw.links, url, 'links', parseLink),
   }
 }
 

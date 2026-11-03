@@ -18,19 +18,49 @@
 }
 .arch-crumb-sep { color: var(--tx-4); font-size: 12px; }
 .arch-crumbs .sp { flex: 1; }
+.arch-c4 {
+  flex: none; display: flex; align-items: center; gap: 6px; padding-right: 10px; margin-right: 4px;
+  border-right: 1px solid var(--bd-1);
+}
+.arch-c4-tag { font-size: 10.5px; font-weight: 700; color: var(--accent); letter-spacing: .02em; }
+.arch-c4 ol { display: flex; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.arch-c4-step {
+  display: flex; align-items: center; gap: 5px; padding: 2px 8px 2px 3px; border-radius: 10px;
+  font-size: 11px; color: var(--tx-3); white-space: nowrap; cursor: help;
+}
+.arch-c4-step.deeper { color: var(--tx-4); }
+.arch-c4-n {
+  display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%;
+  font-size: 10px; font-variant-numeric: tabular-nums; border: 1px solid var(--bd-2);
+}
+.arch-c4-step.on { background: color-mix(in oklch, var(--accent) 18%, transparent); color: var(--tx-1); font-weight: 600; }
+.arch-c4-step.on .arch-c4-n { background: var(--accent); border-color: var(--accent); color: var(--bg-1); }
+.arch-c4-caption {
+  position: absolute; top: 10px; left: 12px; z-index: 1; max-width: min(60ch, 70%); margin: 0;
+  font-size: 12px; line-height: 1.4; color: var(--tx-3); pointer-events: none;
+}
+.arch-c4-caption strong { color: var(--tx-1); font-weight: 600; margin-right: 4px; }
 .arch-keys { font-size: 10.5px; color: var(--tx-4); white-space: nowrap; }
 
 .arch-components text { font-family: var(--mono); }
 .arch-segment-name { font-size: 11px; font-weight: 600; fill: oklch(86% 0.01 260); }
-.arch-segment-meta { font-size: 9.5px; font-weight: 400; fill: oklch(62% 0.012 260); }
+.arch-segment-meta { font-size: 9.5px; font-weight: 400; fill: oklch(74% 0.01 260); }
 .arch-module-name { font-size: 10px; fill: oklch(88% 0.005 260); pointer-events: none; }
 .arch-lg-module { background: oklch(30% 0.02 260); }
 
 .arch-system, .arch-port, .arch-channel, .arch-port-link { cursor: pointer; }
 .arch-systems text, .arch-ports text { font-family: var(--mono); pointer-events: none; }
 .arch-system-name { font-size: 12px; font-weight: 600; fill: oklch(92% 0.005 260); }
-.arch-system-meta { font-size: 10px; fill: oklch(66% 0.012 260); }
-.arch-system-reason { font-size: 9.5px; fill: oklch(58% 0.01 260); }
+.arch-system-meta { font-size: 10px; fill: oklch(76% 0.012 260); }
+.arch-system-reason { font-size: 9.5px; fill: oklch(70% 0.01 260); }
+.arch-box, .arch-boxes .arch-port { cursor: pointer; }
+.arch-boxes text { font-family: var(--mono); pointer-events: none; }
+.arch-boxes .arch-count { font-size: 11px; font-weight: 600; text-anchor: middle; stroke-width: 3; paint-order: stroke; }
+.arch-box-name { font-size: 12.5px; font-weight: 600; fill: oklch(95% 0.005 260); }
+.arch-box-meta { font-size: 10.5px; fill: oklch(80% 0.012 260); }
+.arch-zone-name { font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.arch-link-label { font-size: 10px; text-anchor: middle; stroke-width: 3; paint-order: stroke; }
+.arch-actor { cursor: default; }
 .arch-systems .arch-count, .arch-ports .arch-count {
   font-size: 11px; font-weight: 600; text-anchor: middle; stroke-width: 3; paint-order: stroke; pointer-events: auto;
 }
@@ -49,3 +79,18 @@
 .arch-caller.on { box-shadow: inset 2px 0 0 var(--accent); }
 .arch-unattributed { color: var(--warn); }
 .arch-muted { color: var(--tx-4); }
+.arch-components .map-count { font-size: 12px; font-weight: 600; dominant-baseline: central; }
+.arch-components .arch-import { stroke-linejoin: round; stroke-linecap: round; }
+.arch-boxes-orient {
+  position: absolute; top: 8px; right: 10px; z-index: 2; display: flex; padding: 2px; gap: 2px;
+  background: oklch(20% 0.012 260 / .85); border: 1px solid var(--bd-1); border-radius: 8px; backdrop-filter: blur(10px);
+}
+.arch-boxes-orient button {
+  appearance: none; border: 0; background: transparent; color: var(--tx-3); cursor: pointer;
+  font-size: 11px; padding: 3px 10px; border-radius: 6px;
+}
+.arch-boxes-orient button:hover { color: var(--tx-1); background: var(--bg-3); }
+.arch-boxes .arch-box-stub { cursor: pointer; }
+.arch-boxes .arch-stub-name { font-size: 10px; fill: oklch(84% 0.01 260); }
+.arch-boxes .arch-area-name { font-size: 10px; fill: oklch(66% 0.015 260); }
+.arch-boxes-orient button.on { color: var(--tx-1); background: color-mix(in oklch, var(--accent) 22%, transparent); }

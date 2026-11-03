@@ -2,11 +2,10 @@ import { Bounds } from '../../render/viewport'
 import { SeverityLabel } from '../../render/encoding'
 import { ellipsizePath, monoWidth } from '../../render/labels'
 import { AggregateEdge, edgeKey, Model, sccs, worst } from '../../render/model'
-import { CROSS_LAYER_RULE, Violation } from '../../types'
+import { CROSS_LAYER_RULE, SIBLING_RULE, Violation } from '../../types'
 
 export type MatrixLevel = 'layer' | 'unit'
 
-const SIBLING_RULE = 'stratum/sibling-isolation'
 const BREAK_RULES: ReadonlySet<string> = new Set([CROSS_LAYER_RULE, SIBLING_RULE])
 
 export const GEOMETRY = {
