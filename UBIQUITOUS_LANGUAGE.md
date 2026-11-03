@@ -42,13 +42,13 @@
 | **Stage** | The evolution stage of a **Container**: 1 a single file, 2 a flat folder, 3 a folder split into **Segments**, 4 a folder composed of **Sub-units**. Computed from the folder tree, never annotated. Not **Purity**. | phase, level |
 | **Slice** | A **Container** at the first level of a **Layer** declared `slices: true`: each direct child folder or source file, except the layer's own **Entry**. A file slice has **Stage** 1 and is its own **Entry**. In FSD, `features/cart` is a slice. | feature, package |
 | **Sub-unit** | An entry-bearing folder directly under a **Slice**, **Sub-unit** or nested **Container**. Isolated from its siblings; it makes its parent **Stage** 4. | sub-feature, submodule |
-| **Segment** | A folder named in `structure.segments` that groups a **Container**'s files by purpose (FSD: `model`, `ui`, `api`). Never a **Container**, even with an **Entry** file; it makes its parent **Stage** 3. | layer folder |
+| **Segment** | A folder named in `structure.segments` that groups a **Container**'s files by purpose (FSD: `model`, `ui`, `api`). A **Slice** is never a segment, whatever its name. Never a **Container**, even with an **Entry** file; it makes its parent **Stage** 3. | layer folder |
 | **Entry** | The file named in `structure.entries` (default `index.ts` and its siblings) that is a **Container**'s only import target from outside. A folder that holds one is a **Container**. | barrel, public API file |
 | **Private Zone** | A folder named in `structure.private` (`_shared` in `stratum:recommended`), visible only inside its parent folder's subtree. Never a **Container**; counts toward no **Stage**. | local shared |
 | **Collection Folder** | A folder with no **Entry**. Its files belong to the enclosing **Container**. | group folder |
 | **Dir Role** | What a folder inside a **Layer** is, decided once in placement from `structure` and the file tree: layer root, **Container**, **Segment**, **Private Zone** or **Collection Folder**. Rules read it; none derives a role from a folder name. | folder type |
 | **Composer** | A stage-4 **Container**: it has **Sub-units** and only wires them together, so its root holds the **Entry** and little else. | orchestrator |
-| **Barrel** | An **Entry** file that sits where no unit is: directly in a **Segment**, or at the root of a global-shared **Layer**. | index file |
+| **Barrel** | An **Entry** file that only re-exports (every statement an `export … from`, `export * from` or an import whose bindings it re-exports) and sits where no unit is: directly in a **Segment**, or at the root of a global-shared **Layer**. | index file |
 | **Domain Folder** | A **Collection Folder** next to **Segments** in one **Container**: a second way of splitting the same code. | |
 | **Kind** | A distinct thing directly inside a folder: a child folder, or the child files sharing a stem before the first dot. A folder's **Entry** and **Private Zones** do not count. | item type |
 
