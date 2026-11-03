@@ -1,13 +1,27 @@
-import { Component, createMemo, For, Show } from 'solid-js'
+import { Component, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
 import { Canvas } from '../../canvas/canvas'
 import { t } from '../../i18n'
 import { sharedNote } from '../../features/shared-mark'
 import { Edge, EdgeState } from '../../render/edge'
 import { EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR, SHARED_COLOR } from '../../render/encoding'
 import { Model } from '../../render/model'
+import { ellipsizePath } from '../../render/labels'
 import { go, nav, Selection, set } from '../../shell/nav'
-import { EdgeMark, FoldMark, GroupBox, groupHead, layoutRegion, RegionLayout, routeEdges, stageText } from './layout'
-import { ellipsizePath, trunc } from '../../render/labels'
+import {
+  CHIP,
+  DEFAULT_SIZE,
+  EdgeMark,
+  FoldMark,
+  FolderBox,
+  FolderLayout,
+  LaneBox,
+  layoutFolder,
+  layoutOverview,
+  metaWidth,
+  OPEN,
+  routeFolderEdges,
+  Size,
+} from './layout'
 import { ADDED_STROKE, labelOf, layerTint, REMOVED_DASH, rulesOf } from './paint'
 import { edgeOf, Fold, linesOfModule, Review, ReviewEdge, ReviewNode, worstBreak } from './review'
 
@@ -19,52 +33,59 @@ const LEGEND_HALO = 'oklch(18% 0.012 260)'
 const LABEL_HALO = 'oklch(16% 0.012 260)'
 const LABEL_DIMMED = 0.3
 const LEGEND_SPAN = { badge: 26, fold: 58 } as const
-const OPACITY = { removed: 0.6, changed: 0.95, same: 0.6, fold: 0.85 } as const
+const OPACITY = { removed: 0.6, changed: 0.95, same: 0.6, fold: 0.5 } as const
 const WIDTH = { changed: 2, same: 1.4 } as const
 const NODE_DIMMED = 0.3
 const SELECTED_STROKE = 'oklch(97% 0.005 260)'
-const FOLD_WIDTH = { base: 2, perDoubling: 1, max: 8 } as const
+const FOLD_WIDTH = { base: 1.6, perDoubling: 0.7, max: 5 } as const
+const FOLD_STROKE = 'oklch(80% 0.01 260)'
+const SIZE_STEP = 50
+const TEXT = { name: 'oklch(90% 0.006 260)', quiet: 'oklch(66% 0.01 260)', meta: 'oklch(90% 0.008 260)' } as const
 
 const foldWidth = (f: Fold): number =>
   Math.min(FOLD_WIDTH.max, FOLD_WIDTH.base + Math.log2(f.added + f.removed + 1) * FOLD_WIDTH.perDoubling)
+
+const ruleName = (slug: string): string => slug.slice(slug.lastIndexOf('/') + 1)
+
+export const openFolderOf = (review: Review, sel: Selection | null): string | null => {
+  if (sel?.kind === 'box') return review.folderOf.has(sel.key) ? sel.key : null
+  if (sel?.kind === 'module') return review.nodes.get(sel.id)?.group.key ?? null
+  if (sel?.kind === 'edge') return review.nodes.get(sel.from)?.group.key ?? null
+  return null
+}
 
 interface RegionFocus {
   lines: ReviewEdge[]
   litLines: ReadonlySet<string> | null
   litNodes: ReadonlySet<number> | null
-  fold: string | null
   edge: string | null
   module: number | null
 }
-
-const IDLE: Omit<RegionFocus, 'lines'> = { litLines: null, litNodes: null, fold: null, edge: null, module: null }
 
 const lit = (edges: readonly ReviewEdge[], also: readonly number[] = []) => ({
   litLines: new Set(edges.map((e) => e.key)),
   litNodes: new Set([...also, ...edges.flatMap((e) => [e.from, e.to])]),
 })
 
-const withAlways = (review: Review, extra: readonly ReviewEdge[]): ReviewEdge[] => {
-  const byKey = new Map(review.alwaysDrawn.map((e) => [e.key, e]))
-  for (const e of extra) byKey.set(e.key, e)
+const merged = (...lists: readonly (readonly ReviewEdge[])[]): ReviewEdge[] => {
+  const byKey = new Map<string, ReviewEdge>()
+  for (const list of lists) for (const e of list) byKey.set(e.key, e)
   return [...byKey.values()]
 }
 
-const focusOf = (m: Model, review: Review, sel: Selection | null): RegionFocus => {
-  const idle = { ...IDLE, lines: [...review.alwaysDrawn] }
+const folderFocus = (m: Model, review: Review, key: string, sel: Selection | null): RegionFocus => {
+  const inside = (id: number) => review.nodes.get(id)?.group.key === key
+  const touches = (e: ReviewEdge) => inside(e.from) || inside(e.to)
+  const base = merged(review.changes.filter(touches), review.alwaysDrawn.filter(touches))
+  const idle: RegionFocus = { lines: base, litLines: null, litNodes: null, edge: null, module: null }
   if (sel?.kind === 'module' && review.nodes.has(sel.id)) {
     const own = linesOfModule(m, review, sel.id)
-    return { ...idle, ...lit(own, [sel.id]), lines: withAlways(review, own), module: sel.id }
-  }
-  if (sel?.kind === 'link') {
-    const fold = review.folds.find((f) => f.from === sel.from && f.to === sel.to)
-    if (!fold) return idle
-    return { ...idle, ...lit(fold.edges), lines: withAlways(review, fold.edges), fold: fold.key }
+    return { ...idle, ...lit(own, [sel.id]), lines: merged(base, own), module: sel.id }
   }
   if (sel?.kind === 'edge') {
     const edge = edgeOf(m, review, sel.from, sel.to)
     if (!edge) return idle
-    return { ...idle, ...lit([edge]), lines: withAlways(review, [edge]), edge: edge.key }
+    return { ...idle, ...lit([edge]), lines: merged(base, [edge]), edge: edge.key }
   }
   return idle
 }
@@ -82,12 +103,18 @@ const edgeTitle = (review: Review, e: ReviewEdge): string => {
   return `${from}\n→ ${to}\n${t(`mr.tag.${e.tag}`)}${rules}`
 }
 
-const ChangeEdge: Component<{ mark: EdgeMark; review: Review; focus: RegionFocus }> = (props) => {
+const ChangeEdge: Component<{ mark: EdgeMark; review: Review; state: EdgeState; isRuled?: boolean }> = (props) => {
   const e = props.mark.edge
-  const sev = worstBreak(e.breaks)
+  const sev = e.tag === 'removed' ? null : worstBreak(e.breaks)
   const isChanged = e.tag !== 'same'
   const color = sev ? SEV_COLOR[sev] : e.tag === 'added' ? ADDED_STROKE : EDGE_NEUTRAL
-  const state = () => lineState(props.focus, e.key)
+  const badge = () => {
+    if (props.isRuled && e.breaks.length) {
+      const rule = ruleName(e.breaks[0][0])
+      return { text: sev ? rule : `${t('mr.item.fixed')} ${rule}`, class: 'mr-rule-label' }
+    }
+    return isChanged ? { text: e.tag === 'added' ? '+' : '−', class: 'mr-badge' } : null
+  }
   return (
     <Edge
       d={props.mark.d}
@@ -98,23 +125,16 @@ const ChangeEdge: Component<{ mark: EdgeMark; review: Review; focus: RegionFocus
       color={color}
       width={isChanged ? WIDTH.changed : WIDTH.same}
       opacity={e.tag === 'removed' ? OPACITY.removed : isChanged || sev ? OPACITY.changed : OPACITY.same}
-      state={state()}
+      state={props.state}
       testId="mr-edge"
       class="mr-edge"
       pathData={{ 'data-edge': e.key, 'data-tag': e.tag, 'data-rule': sev ? rulesOf(e.breaks) : undefined }}
-      label={
-        isChanged
-          ? {
-              x: props.mark.mid.x,
-              y: props.mark.mid.y + BADGE_BASELINE,
-              text: e.tag === 'added' ? '+' : '−',
-              class: 'mr-badge',
-              color,
-            }
-          : null
-      }
+      label={(() => {
+        const b = badge()
+        return b ? { x: props.mark.mid.x, y: props.mark.mid.y + BADGE_BASELINE, text: b.text, class: b.class, color } : null
+      })()}
       hit={false}
-      onClick={() => set({ sel: state() === 'selected' ? null : { kind: 'edge', from: e.from, to: e.to } })}
+      onClick={() => set({ sel: props.state === 'selected' ? null : { kind: 'edge', from: e.from, to: e.to } })}
       title={edgeTitle(props.review, e)}
     />
   )
@@ -122,105 +142,188 @@ const ChangeEdge: Component<{ mark: EdgeMark; review: Review; focus: RegionFocus
 
 const foldText = (f: Fold): string => `+${f.added} −${f.removed}`
 
-const foldColor = (f: Fold): string => (f.worst ? SEV_COLOR[f.worst] : f.added ? ADDED_STROKE : EDGE_NEUTRAL)
+const foldColor = (f: Fold): string => (f.added ? FOLD_STROKE : EDGE_NEUTRAL)
 
-const foldState = (focus: RegionFocus, f: Fold): EdgeState =>
-  focus.fold === f.key ? 'selected' : focus.litLines ? 'dimmed' : 'idle'
+const toggleFold = (selected: boolean, f: Fold): void =>
+  set({ sel: selected ? null : { kind: 'link', from: f.from, to: f.to } })
 
-const toggleFold = (focus: RegionFocus, f: Fold): void =>
-  set({ sel: focus.fold === f.key ? null : { kind: 'link', from: f.from, to: f.to } })
-
-const FoldEdge: Component<{ mark: FoldMark; review: Review; focus: RegionFocus }> = (props) => {
+const FoldEdge: Component<{ mark: FoldMark; review: Review; state: EdgeState }> = (props) => {
   const f = props.mark.fold
-  const pathOf = (key: string) => [...props.review.nodes.values()].find((n) => n.group.key === key)?.group.path ?? key
+  const pathOf = (key: string) => props.review.folderOf.get(key)?.path ?? key
   return (
     <Edge
       d={props.mark.d}
-      kind={f.worst ? 'break' : 'neutral'}
-      severity={f.worst}
+      kind="neutral"
       dash={f.added ? undefined : REMOVED_DASH}
       color={foldColor(f)}
       width={foldWidth(f)}
       opacity={OPACITY.fold}
-      state={foldState(props.focus, f)}
+      state={props.state}
       testId="mr-fold"
       class="mr-fold"
       data={{ 'data-fold': f.key }}
-      pathData={{ 'data-edge': `fold:${f.key}`, 'data-tag': 'fold', 'data-rule': f.worst ?? undefined }}
-      onClick={() => toggleFold(props.focus, f)}
+      pathData={{ 'data-edge': `fold:${f.key}`, 'data-tag': 'fold' }}
+      onClick={() => toggleFold(props.state === 'selected', f)}
       title={`${pathOf(f.from)}\n→ ${pathOf(f.to)}\n${foldText(f)}`}
     />
   )
 }
 
-const FoldLabel: Component<{ mark: FoldMark; focus: RegionFocus }> = (props) => {
+const FoldLabel: Component<{ mark: FoldMark; state: EdgeState }> = (props) => {
   const f = props.mark.fold
   return (
     <text
       class="mr-fold-label"
       data-testid="mr-fold-label"
       data-fold={f.key}
-      data-ch={f.worst ? 'sev' : 'edge'}
       x={props.mark.mid.x}
       y={props.mark.mid.y + FOLD_BASELINE}
       fill={foldColor(f)}
       stroke={LABEL_HALO}
-      opacity={foldState(props.focus, f) === 'dimmed' ? LABEL_DIMMED : 1}
-      onClick={() => toggleFold(props.focus, f)}
+      opacity={props.state === 'dimmed' ? LABEL_DIMMED : 1}
+      onClick={() => toggleFold(props.state === 'selected', f)}
     >
       {foldText(f)}
     </text>
   )
 }
 
-const Group: Component<{ box: GroupBox; model: Model; review: Review }> = (props) => {
-  const b = props.box
-  const change = b.container === null ? undefined : props.review.stageOf.get(b.container)
-  const head = groupHead(props.model, props.review, b)
+const Lane: Component<{ lane: LaneBox; model: Model }> = (props) => {
+  const l = props.lane
   return (
     <g>
       <rect
-        x={b.x}
-        y={b.y}
-        width={b.w}
-        height={b.h}
-        rx="6"
-        fill={layerTint(props.model, b.layer, LAYER_TONE.tint)}
-        stroke={change ? STAGE_STROKE : layerTint(props.model, b.layer, LAYER_TONE.tintEdge)}
-        stroke-width={change ? 1.6 : 1}
-        stroke-dasharray={b.isPrivate ? '4 3' : undefined}
+        x={l.x}
+        y={l.y}
+        width={l.w}
+        height={l.h}
+        rx="8"
+        fill={layerTint(props.model, l.layer, LAYER_TONE.band)}
+        stroke={layerTint(props.model, l.layer, LAYER_TONE.tintEdge)}
       />
-      <text x={b.x + 9} y={b.y + 16} font-size="10" fill="oklch(80% 0.006 260)">
-        {trunc(b.name, head.nameChars)}
-      </text>
-      <Show when={head.inner}>
-        <text
-          x={head.innerRight}
-          y={b.y + 16}
-          font-size="9.5"
-          font-weight="600"
-          text-anchor="end"
-          fill="oklch(88% 0.008 260)"
-          data-testid="mr-group-inner"
-          data-group={b.key}
-        >
-          {head.inner}
-        </text>
-      </Show>
+      <rect x={l.x} y={l.y} width="4" height={l.h} rx="2" fill={layerTint(props.model, l.layer)} />
       <text
-        x={b.x + b.w - 9}
-        y={b.y + 16}
-        font-size="9.5"
-        text-anchor="end"
-        fill={change ? STAGE_STROKE : 'oklch(58% 0.012 260)'}
+        x={l.x + 12}
+        y={l.y + 8 + CHIP.h / 2 + 4}
+        font-size="11"
+        font-weight="600"
+        letter-spacing="1"
+        fill={layerTint(props.model, l.layer, LAYER_TONE.label)}
       >
-        {head.meta}
+        {l.name}
       </text>
     </g>
   )
 }
 
-const Node: Component<{ node: ReviewNode; layout: RegionLayout; model: Model; focus: RegionFocus }> = (props) => {
+const ChipMeta: Component<{ box: FolderBox; review: Review; y: number }> = (props) => {
+  const text = props.box.text
+  const f = props.box.folder
+  const isStage = f.container !== null && props.review.stageOf.has(f.container)
+  const parts = () => {
+    let x = props.box.x + props.box.w - CHIP.padX - metaWidth(text) + CHIP.metaGap
+    const out: { x: number; kind: 'counts' | 'breaks' | 'stage' | 'gone'; text: string }[] = []
+    const push = (kind: (typeof out)[number]['kind'], s: string, extra = 0) => {
+      if (!s) return
+      out.push({ x, kind, text: s })
+      x += extra + s.length * CHIP.metaChar + CHIP.metaGap
+    }
+    push('counts', text.counts)
+    push('breaks', text.breaks, CHIP.dot)
+    push('stage', isStage ? text.stage : '')
+    push('gone', text.gone)
+    return out
+  }
+  const fill = (kind: string) =>
+    kind === 'breaks' ? SEV_COLOR[f.worst ?? 'error'] : kind === 'stage' ? STAGE_STROKE : kind === 'gone' ? TEXT.quiet : TEXT.meta
+  return (
+    <For each={parts()}>
+      {(p) => (
+        <>
+          <Show when={p.kind === 'breaks'}>
+            <circle cx={p.x + 3.5} cy={props.y - 4} r="3.5" fill={fill(p.kind)} data-ch="sev" />
+          </Show>
+          <text
+            x={p.kind === 'breaks' ? p.x + CHIP.dot : p.x}
+            y={props.y}
+            font-size="11"
+            font-family="var(--mono)"
+            font-weight={p.kind === 'counts' || p.kind === 'breaks' ? '700' : '400'}
+            fill={fill(p.kind)}
+            data-testid={`mr-folder-${p.kind}`}
+            data-ch={p.kind === 'breaks' ? 'sev' : undefined}
+          >
+            {p.text}
+          </text>
+        </>
+      )}
+    </For>
+  )
+}
+
+const FolderChip: Component<{ box: FolderBox; model: Model; review: Review; isDimmed: boolean; onClick: () => void }> = (
+  props,
+) => {
+  const b = props.box
+  const f = b.folder
+  const isStage = f.container !== null && props.review.stageOf.has(f.container)
+  const hasChanges = f.added + f.removed > 0
+  return (
+    <g
+      class="mr-folder"
+      data-testid="mr-folder"
+      data-folder={f.key}
+      data-state={props.isDimmed ? 'dimmed' : undefined}
+      opacity={props.isDimmed ? NODE_DIMMED : undefined}
+      onClick={() => props.onClick()}
+    >
+      <rect
+        x={b.x}
+        y={b.y}
+        width={b.w}
+        height={b.h}
+        rx="5"
+        fill={layerTint(props.model, f.layer, LAYER_TONE.tint)}
+        stroke={isStage ? STAGE_STROKE : layerTint(props.model, f.layer, LAYER_TONE.tintEdgeStrong)}
+        stroke-width={isStage ? 1.8 : 1}
+        stroke-dasharray={f.isPrivate ? '4 3' : undefined}
+      />
+      <text x={b.x + CHIP.padX} y={b.y + CHIP.h / 2 + 4} font-size="12" fill={hasChanges ? TEXT.name : TEXT.quiet}>
+        {b.text.name}
+      </text>
+      <ChipMeta box={b} review={props.review} y={b.y + CHIP.h / 2 + 4} />
+      <title>{f.path}</title>
+    </g>
+  )
+}
+
+const OpenFolder: Component<{ box: FolderBox; model: Model; review: Review }> = (props) => {
+  const b = props.box
+  const f = b.folder
+  const isStage = f.container !== null && props.review.stageOf.has(f.container)
+  return (
+    <g data-testid="mr-open-folder" data-folder={f.key}>
+      <rect
+        x={b.x}
+        y={b.y}
+        width={b.w}
+        height={b.h}
+        rx="7"
+        fill={layerTint(props.model, f.layer, LAYER_TONE.tint)}
+        stroke={isStage ? STAGE_STROKE : layerTint(props.model, f.layer, LAYER_TONE.tintEdgeStrong)}
+        stroke-width={isStage ? 1.8 : 1.2}
+        stroke-dasharray={f.isPrivate ? '4 3' : undefined}
+      />
+      <text x={b.x + CHIP.padX} y={b.y + OPEN.head / 2 + 3} font-size="12.5" font-weight="600" fill={TEXT.name}>
+        {b.text.name}
+      </text>
+      <ChipMeta box={b} review={props.review} y={b.y + OPEN.head / 2 + 3} />
+      <title>{f.path}</title>
+    </g>
+  )
+}
+
+const Node: Component<{ node: ReviewNode; layout: FolderLayout; model: Model; focus: RegionFocus }> = (props) => {
   const n = props.node
   const r = props.layout.nodes.get(n.id)!
   const isShared = !n.isGhost && props.model.isSharedByChosenFeatures(n.id)
@@ -255,11 +358,11 @@ const Node: Component<{ node: ReviewNode; layout: RegionLayout; model: Model; fo
         stroke-width={isSelected() ? 2.4 : 1}
         stroke-dasharray={n.isGhost ? '3 3' : undefined}
       />
-      <text x="8" y="14.5" font-size="10" fill={n.isGhost ? 'oklch(68% 0.01 260)' : 'oklch(90% 0.005 260)'}>
+      <text x="8" y="15" font-size="11" fill={n.isGhost ? 'oklch(68% 0.01 260)' : 'oklch(90% 0.005 260)'}>
         {ellipsizePath(labelOf(props.model, n.id, n.path), LABEL_CHARS)}
       </text>
       <Show when={n.isImporter}>
-        <text x={r.w - 8} y="14.5" font-size="9" text-anchor="end" font-weight="700" fill="oklch(88% 0.01 260)">
+        <text x={r.w - 8} y="15" font-size="10" text-anchor="end" font-weight="700" fill="oklch(88% 0.01 260)">
           M
         </text>
       </Show>
@@ -294,12 +397,23 @@ const LegendLine: Component<{ color: string; dash?: string; glyph: string; isFol
   )
 }
 
-const Legend: Component = () => (
+const OverviewLegend: Component = () => (
   <div class="legend mr-legend">
     <div class="legend-row">
       <LegendLine color={ADDED_STROKE} glyph="+3 −1" isFold />
       {t('mr.legend.fold')}
     </div>
+    <div class="legend-row">
+      <span class="mr-lg-sev" data-ch="sev" />
+      {t('mr.legend.break')}
+    </div>
+    <div class="legend-row">{t('mr.legend.folder')}</div>
+    <div class="legend-row">{t('mr.legend.open')}</div>
+  </div>
+)
+
+const FolderLegend: Component = () => (
+  <div class="legend mr-legend">
     <div class="legend-row">
       <LegendLine color={ADDED_STROKE} glyph="+" />
       {t('mr.legend.added')}
@@ -312,92 +426,121 @@ const Legend: Component = () => (
       <span class="mr-lg-sev" data-ch="sev" />
       {t('mr.legend.sev')}
     </div>
-    <div class="legend-row">{t('mr.legend.inner')}</div>
     <div class="legend-row">{t('mr.legend.importer')}</div>
-    <div class="legend-row">{t('mr.legend.ghost')}</div>
     <div class="legend-row">{t('mr.legend.select')}</div>
   </div>
 )
 
-export const RegionScene: Component<{ model: Model; review: Review }> = (props) => {
-  const layout = createMemo(() => layoutRegion(props.model, props.review))
-  const focus = createMemo(() => focusOf(props.model, props.review, nav().sel))
-  const lines = createMemo(() => routeEdges(layout(), props.review, focus().lines))
-  const layerName = (layer: number | null) =>
-    layer === null ? t('mr.lane.baseOnly') : (props.model.layers.find((l) => l.id === layer)?.name ?? '')
+const Overview: Component<{ model: Model; review: Review; size: Size }> = (props) => {
+  const layout = createMemo(() => layoutOverview(props.model, props.review, props.size))
+  const fold = createMemo(() => {
+    const sel = nav().sel
+    return sel?.kind === 'link' ? props.review.folds.find((f) => f.from === sel.from && f.to === sel.to) ?? null : null
+  })
+  const foldState = (f: Fold): EdgeState => (fold() === null ? 'idle' : fold()!.key === f.key ? 'selected' : 'dimmed')
+  const isDimmed = (key: string) => fold() !== null && fold()!.from !== key && fold()!.to !== key
   return (
-    <Canvas bounds={layout().bounds} fitKey={layout()} legend={<Legend />}>
-      <For each={layout().lanes}>
-        {(l) => (
-          <g>
-            <rect
-              x={l.x}
-              y={l.y}
-              width={l.w}
-              height={l.h}
-              rx="10"
-              fill={layerTint(props.model, l.layer, LAYER_TONE.band)}
-              stroke={layerTint(props.model, l.layer, LAYER_TONE.tintEdge)}
-            />
-            <rect x={l.x} y={l.y} width="4" height={l.h} rx="2" fill={layerTint(props.model, l.layer)} />
-            <text
-              x={l.x + 16}
-              y={l.y + 17}
-              font-size="10.5"
-              font-weight="600"
-              letter-spacing="1"
-              fill={layerTint(props.model, l.layer, LAYER_TONE.label)}
-            >
-              {layerName(l.layer).toUpperCase()}
-            </text>
-          </g>
-        )}
-      </For>
-      <For each={layout().slices}>
-        {(s) => {
-          const c = props.model.containers.get(s.container)
-          const change = props.review.stageOf.get(s.container)
-          return (
-            <g>
-              <rect
-                x={s.x}
-                y={s.y}
-                width={s.w}
-                height={s.h}
-                rx="8"
-                fill="oklch(20% 0.012 260 / .6)"
-                stroke={change ? STAGE_STROKE : 'oklch(45% 0.012 260 / .7)'}
-                stroke-width={change ? 1.6 : 1}
-              />
-              <text x={s.x + 10} y={s.y + 15} font-size="10.5" font-weight="600" fill="oklch(88% 0.006 260)">
-                {c?.name ?? ''}
-              </text>
-              <text
-                x={s.x + s.w - 10}
-                y={s.y + 15}
-                font-size="9.5"
-                text-anchor="end"
-                fill={change ? STAGE_STROKE : 'oklch(58% 0.012 260)'}
-              >
-                {stageText(props.review, s.container, c?.stage)}
-              </text>
-            </g>
-          )
-        }}
-      </For>
-      <For each={layout().groups}>{(b) => <Group box={b} model={props.model} review={props.review} />}</For>
-      <For each={[...props.review.nodes.values()]}>
-        {(n) => <Node node={n} layout={layout()} model={props.model} focus={focus()} />}
-      </For>
+    <Canvas bounds={layout().bounds} fitKey={layout()} legend={<OverviewLegend />}>
+      <For each={layout().lanes}>{(l) => <Lane lane={l} model={props.model} />}</For>
       <g data-testid="mr-folds">
-        <For each={layout().folds}>{(mark) => <FoldEdge mark={mark} review={props.review} focus={focus()} />}</For>
+        <For each={layout().folds}>{(mark) => <FoldEdge mark={mark} review={props.review} state={foldState(mark.fold)} />}</For>
       </g>
       <g data-testid="mr-edges">
-        <For each={lines()}>{(mark) => <ChangeEdge mark={mark} review={props.review} focus={focus()} />}</For>
+        <For each={layout().breaks}>
+          {(mark) => <ChangeEdge mark={mark} review={props.review} state={fold() ? 'dimmed' : 'idle'} isRuled />}
+        </For>
       </g>
+      <For each={layout().boxes}>
+        {(b) => (
+          <FolderChip
+            box={b}
+            model={props.model}
+            review={props.review}
+            isDimmed={isDimmed(b.folder.key)}
+            onClick={() => set({ sel: { kind: 'box', key: b.folder.key } })}
+          />
+        )}
+      </For>
       <g data-testid="mr-fold-labels">
-        <For each={layout().folds}>{(mark) => <FoldLabel mark={mark} focus={focus()} />}</For>
+        <For each={layout().folds.filter((mark) => foldState(mark.fold) === 'selected')}>
+          {(mark) => <FoldLabel mark={mark} state="selected" />}
+        </For>
       </g>
     </Canvas>
+  )
+}
+
+const Crumbs: Component<{ path: string }> = (props) => (
+  <div class="mr-crumbs">
+    <button class="mr-btn" data-testid="mr-crumb-all" onClick={() => set({ sel: null })}>
+      ← {t('mr.crumb.all')}
+    </button>
+    <span class="mono mr-crumb-path">{props.path}</span>
+  </div>
+)
+
+const FolderScene: Component<{ model: Model; review: Review; folder: string; size: Size }> = (props) => {
+  const layout = createMemo(() => layoutFolder(props.model, props.review, props.folder, props.size))
+  const focus = createMemo(() => folderFocus(props.model, props.review, props.folder, nav().sel))
+  const lines = createMemo(() => routeFolderEdges(layout(), focus().lines))
+  const litFolders = createMemo(() => {
+    const nodes = focus().litNodes
+    return nodes ? new Set([...nodes].map((id) => props.review.nodes.get(id)?.group.key)) : null
+  })
+  return (
+    <Canvas
+      bounds={layout().bounds}
+      fitKey={layout()}
+      legend={<FolderLegend />}
+      overlay={<Crumbs path={layout().open.folder.path} />}
+    >
+      <For each={layout().lanes}>{(l) => <Lane lane={l} model={props.model} />}</For>
+      <OpenFolder box={layout().open} model={props.model} review={props.review} />
+      <For each={layout().boxes}>
+        {(b) => (
+          <FolderChip
+            box={b}
+            model={props.model}
+            review={props.review}
+            isDimmed={litFolders() !== null && !litFolders()!.has(b.folder.key)}
+            onClick={() => set({ sel: { kind: 'box', key: b.folder.key } })}
+          />
+        )}
+      </For>
+      <For each={layout().open.folder.members}>
+        {(id) => <Node node={props.review.nodes.get(id)!} layout={layout()} model={props.model} focus={focus()} />}
+      </For>
+      <g data-testid="mr-edges">
+        <For each={lines()}>
+          {(mark) => <ChangeEdge mark={mark} review={props.review} state={lineState(focus(), mark.edge.key)} />}
+        </For>
+      </g>
+    </Canvas>
+  )
+}
+
+const sizeOf = (el: HTMLElement): Size => {
+  const r = el.getBoundingClientRect()
+  return r.width && r.height
+    ? { w: Math.round(r.width / SIZE_STEP) * SIZE_STEP, h: Math.round(r.height / SIZE_STEP) * SIZE_STEP }
+    : DEFAULT_SIZE
+}
+
+export const RegionScene: Component<{ model: Model; review: Review }> = (props) => {
+  let wrap!: HTMLDivElement
+  const [size, setSize] = createSignal<Size>(DEFAULT_SIZE, { equals: (a, b) => a.w === b.w && a.h === b.h })
+  onMount(() => {
+    const ro = new ResizeObserver(() => setSize(sizeOf(wrap)))
+    ro.observe(wrap)
+    setSize(sizeOf(wrap))
+    onCleanup(() => ro.disconnect())
+  })
+  const open = createMemo(() => openFolderOf(props.review, nav().sel))
+  return (
+    <div class="mr-region" ref={wrap}>
+      <Show when={open()} keyed fallback={<Overview model={props.model} review={props.review} size={size()} />}>
+        {(key) => <FolderScene model={props.model} review={props.review} folder={key} size={size()} />}
+      </Show>
+    </div>
   )
 }

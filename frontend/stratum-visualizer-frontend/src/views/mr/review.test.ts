@@ -3,7 +3,7 @@ import { buildModel, ModuleScope } from '../../render/model'
 import { snapshotV3 } from '../../test/snapshot'
 import { EdgeKind, SnapshotContainer } from '../../types'
 import { DriftReport } from './drift'
-import { layoutRegion } from './layout'
+import { layoutFolder, layoutOverview } from './layout'
 import { linesOfModule, toReview } from './review'
 
 const container = (id: number, name: string, path: string, kind: SnapshotContainer['kind'], parent: number | null) => ({
@@ -64,7 +64,7 @@ describe('toReview', () => {
     const ghost = [...review.nodes.values()].find((n) => n.isGhost)
     expect(ghost).toMatchObject({ path: 'src/features/cart/old.ts', layer: 0, slice: 2 })
     expect(review.changes.find((e) => e.to === ghost?.id)?.tag).toBe('removed')
-    expect(layoutRegion(m, review).nodes.has(ghost!.id)).toBe(true)
+    expect(layoutFolder(m, review, ghost!.group.key).nodes.has(ghost!.id)).toBe(true)
   })
 
   it('draws the unchanged imports of a selected module as context and lists each importer once', () => {
@@ -91,14 +91,15 @@ describe('toReview', () => {
     expect([...review.nodes.values()].some((n) => n.isGhost)).toBe(false)
   })
 
-  it('folds the changes between two groups into one arrow and counts the changes inside a group, drawing only rule breaks module to module', () => {
+  it('folds the changes between two folders into one arrow apart from rule breaks, and counts each folder’s outgoing changes and breaks', () => {
     const plain = { ...drift.edges[0], from: 'src/features/cart/model.ts', breaks: [] }
     const m = model()
     const review = toReview(m, { ...drift, edges: [...drift.edges, plain] })
 
     expect(review.alwaysDrawn.map((e) => [e.from, e.to])).toEqual([[0, 2]])
-    expect(review.folds).toEqual([expect.objectContaining({ from: 'c2', to: 'c1', added: 2, removed: 0, worst: 'error' })])
-    expect(review.innerByGroup.get('c2')).toEqual({ added: 0, removed: 2 })
-    expect(layoutRegion(m, review).folds).toHaveLength(1)
+    expect(review.folds).toEqual([expect.objectContaining({ from: 'c2', to: 'c1', added: 1, removed: 0 })])
+    expect(review.folderOf.get('c2')).toMatchObject({ added: 2, removed: 2, breaks: 1, worst: 'error', ghosts: 1 })
+    const overview = layoutOverview(m, review)
+    expect([overview.folds.length, overview.breaks.length, overview.boxes.length]).toEqual([1, 1, 2])
   })
 })

@@ -65,3 +65,13 @@
 .mr-chg.sev-info { color: var(--info); border-color: oklch(70% 0.10 230 / .6); }
 .det-section > .mr-btn { margin: 6px 0 8px; }
 .mr-rules { font-size: 11px; color: var(--tx-3); word-break: break-all; }
+
+.mr-region { position: absolute; inset: 0; }
+.mr-stage .mr-folder { cursor: pointer; }
+.mr-rule-label {
+  font-family: var(--mono); font-size: 11px; font-weight: 700; text-anchor: middle;
+  stroke-width: 4; paint-order: stroke;
+}
+.mr-crumbs { position: absolute; top: 8px; left: 8px; display: flex; align-items: center; gap: 8px; pointer-events: none; }
+.mr-crumbs .mr-btn { pointer-events: auto; }
+.mr-crumb-path { font-size: 11px; color: var(--tx-2); }

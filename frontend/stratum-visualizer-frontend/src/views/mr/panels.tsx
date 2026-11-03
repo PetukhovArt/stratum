@@ -141,17 +141,44 @@ const SelectedFold: Component<{ model: Model; review: Review }> = (props) => {
     const sel = nav().sel
     return sel?.kind === 'link' ? props.review.folds.find((f) => f.from === sel.from && f.to === sel.to) : undefined
   })
-  const pathOf = (id: number) => props.review.nodes.get(id)?.group.path ?? ''
+  const pathOf = (key: string) => props.review.folderOf.get(key)?.path ?? ''
   return (
     <Show when={fold()}>
       {(f) => (
         <div class="det-section" data-testid="mr-selected">
           <h4>{t('mr.sel.fold', { added: f().added, removed: f().removed })}</h4>
           <div class="det-path mono">
-            <PathText path={pathOf(f().edges[0].from)} />
-            <br />→ <PathText path={pathOf(f().edges[0].to)} />
+            <PathText path={pathOf(f().from)} />
+            <br />→ <PathText path={pathOf(f().to)} />
           </div>
           <ImportRows model={props.model} review={props.review} edges={f().edges} />
+        </div>
+      )}
+    </Show>
+  )
+}
+
+const SelectedFolder: Component<{ model: Model; review: Review }> = (props) => {
+  const folder = createMemo(() => {
+    const sel = nav().sel
+    return sel?.kind === 'box' ? props.review.folderOf.get(sel.key) : undefined
+  })
+  const edges = createMemo(() => {
+    const f = folder()
+    if (!f) return []
+    const inside = (id: number) => props.review.nodes.get(id)?.group.key === f.key
+    const rank = (e: ReviewEdge) => (e.breaks.length ? 0 : 1)
+    return props.review.changes.filter((e) => inside(e.from) || inside(e.to)).sort((a, b) => rank(a) - rank(b))
+  })
+  return (
+    <Show when={folder()}>
+      {(f) => (
+        <div class="det-section" data-testid="mr-selected">
+          <h4>{t('mr.sel.folder', { n: edges().length })}</h4>
+          <div class="det-path mono">
+            <PathText path={f().path} />
+          </div>
+          <ImportRows model={props.model} review={props.review} edges={edges()} />
         </div>
       )}
     </Show>
@@ -171,6 +198,7 @@ export const MrDetails: Component<{ model: Model; review: Review; drift: DriftRe
         <SelectedEdge model={props.model} review={props.review} />
         <SelectedModule model={props.model} review={props.review} />
         <SelectedFold model={props.model} review={props.review} />
+        <SelectedFolder model={props.model} review={props.review} />
         <div class="det-stats det-stats-grid" data-testid="mr-stats">
           <div class="stat stat-err">
             <div class="stat-val" data-testid="mr-breaking" data-ch="sev">
