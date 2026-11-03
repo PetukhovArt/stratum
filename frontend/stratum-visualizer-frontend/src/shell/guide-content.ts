@@ -50,7 +50,7 @@ const en: GuideDoc = {
       { key: '2', name: 'Matrix', text: 'Layers (or units) against layers. A row imports a column. A cell above the diagonal imports against the order; red cells break a rule. Dashed squares are cycles.' },
       { key: '3', name: 'Merge request', text: 'Only with --base. Imports the branch added or removed, rules they break, stage changes. Comment card gives a picture for a review comment.' },
       { key: '5', name: 'Module set', text: 'A group of modules, usually a cycle. Shows the shortest loop and the imports whose removal frees the most modules.' },
-      { key: '6', name: 'Architecture', text: 'C4 levels: System, Containers, Components, Code. System shows the app and the external systems from the systems key of the config, with the calls between them. Containers draws the bundles of imports between units; click one to see its contract.' },
+      { key: '6', name: 'Architecture', text: 'C4 levels: System, Containers, Components, Code. System shows the app and the external systems from the systems key of the config, with the calls between them. Containers draws the blocks and the links of imports between them; click a link to see its contract.' },
       { key: '9', name: 'Bench', text: 'Measures the views against their targets: speed, number of marks, questions answered in three actions.' },
     ],
   },
@@ -62,7 +62,7 @@ const en: GuideDoc = {
         steps: [
           'Header → Features: pick the feature, for example editor.',
           'Matrix (2): see which layers it touches and how they import each other.',
-          'Architecture (6) → Containers: its units and the bundles between them. Double-click a unit to see its modules.',
+          'Architecture (6) → Containers: its blocks and the links between them. Double-click a block to open it.',
         ],
       },
       {
@@ -84,7 +84,7 @@ const en: GuideDoc = {
       {
         goal: 'Who uses the contract of a feature?',
         steps: [
-          'Architecture (6) → Containers: click the bundle between two units.',
+          'Architecture (6) → Containers: click the link between two blocks.',
           'The right panel lists the names that cross it and the modules that use them.',
           'Click a name: the Code panel opens at its declaration. Esc closes it.',
         ],
@@ -127,8 +127,8 @@ const en: GuideDoc = {
       ['h · t (Module focus)', 'one or two hops · hide or show the import rules strip'],
       ['drag the background', 'pan'],
       ['wheel', 'zoom'],
-      ['drag a unit or a layer block', 'move it; Reset layout puts it back'],
-      ['double-click a unit (Architecture → Containers)', 'open its components'],
+      ['double-click a block (Architecture → Containers)', 'open it'],
+      ['click a link or a hub chip (Architecture → Containers)', 'its contract'],
       ['double-click a module (Architecture → Components)', 'open its code'],
       ['× on the legend', 'fold the legend'],
     ],
@@ -158,7 +158,7 @@ const ru: GuideDoc = {
       { key: '2', name: 'Matrix', text: 'Слои (или юниты) против слоёв. Строка импортирует столбец. Клетка выше диагонали — импорт против порядка, красная — нарушение. Пунктирный квадрат — цикл.' },
       { key: '3', name: 'Merge request', text: 'Только с --base. Импорты, которые ветка добавила или убрала, их нарушения и смены стадий. Comment card даёт картинку для комментария в ревью.' },
       { key: '5', name: 'Module set', text: 'Группа модулей, обычно цикл. Видно самую короткую петлю и импорты, удаление которых освобождает больше всего модулей.' },
-      { key: '6', name: 'Architecture', text: 'Уровни C4: System, Containers, Components, Code. На System — приложение и внешние системы из ключа systems в конфиге, с вызовами между ними. На Containers — пучки импортов между юнитами; клик по пучку показывает его контракт.' },
+      { key: '6', name: 'Architecture', text: 'Уровни C4: System, Containers, Components, Code. На System — приложение и внешние системы из ключа systems в конфиге, с вызовами между ними. На Containers — блоки и связи импортов между ними; клик по связи показывает её контракт.' },
       { key: '9', name: 'Bench', text: 'Меряет виды по целям: скорость, число меток, ответ на вопрос за три действия.' },
     ],
   },
@@ -170,7 +170,7 @@ const ru: GuideDoc = {
         steps: [
           'В шапке Features: выберите фичу, например editor.',
           'Matrix (2): какие слои она задевает и как они импортируют друг друга.',
-          'Architecture (6) → Containers: её юниты и пучки между ними. Двойной клик по юниту покажет его модули.',
+          'Architecture (6) → Containers: её блоки и связи между ними. Двойной клик по блоку откроет его.',
         ],
       },
       {
@@ -192,7 +192,7 @@ const ru: GuideDoc = {
       {
         goal: 'Кто пользуется контрактом фичи?',
         steps: [
-          'Architecture (6) → Containers: клик по пучку между двумя юнитами.',
+          'Architecture (6) → Containers: клик по связи между двумя блоками.',
           'Справа — имена, которые через него идут, и модули, которые их берут.',
           'Клик по имени откроет панель Code на объявлении. Esc её закроет.',
         ],
@@ -235,8 +235,8 @@ const ru: GuideDoc = {
       ['h · t (Module focus)', 'один или два шага · скрыть или показать полосу правил импорта'],
       ['тянуть фон', 'сдвиг'],
       ['колесо', 'масштаб'],
-      ['тянуть юнит или блок слоя', 'переместить; Reset layout вернёт на место'],
-      ['двойной клик по юниту (Architecture → Containers)', 'открыть его компоненты'],
+      ['двойной клик по блоку (Architecture → Containers)', 'открыть его'],
+      ['клик по связи или плашке хаба (Architecture → Containers)', 'её контракт'],
       ['двойной клик по модулю (Architecture → Components)', 'открыть код'],
       ['× на легенде', 'свернуть легенду'],
     ],

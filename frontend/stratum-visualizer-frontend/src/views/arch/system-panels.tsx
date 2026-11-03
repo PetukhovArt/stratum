@@ -6,6 +6,7 @@ import { Model } from '../../render/model'
 import { nav, set } from '../../shell/nav'
 import { PathLabel } from '../../shell/path-text'
 import { contractCode, goToLevel } from './actions'
+import { Boxes } from './boxes'
 import { ARCH_CONTAINERS } from './path'
 import { ChannelInUse, SystemsInModel } from './systems'
 
@@ -78,7 +79,7 @@ const ContractList: Component<{ model: Model; contracts: readonly SystemContract
 
 const Unattributed: Component<{ n: number }> = (props) => (
   <Show when={props.n}>
-    <p class="map-note arch-unattributed" data-testid="arch-unattributed" title={t('arch.unattributedTitle')}>
+    <p class="arch-note arch-unattributed" data-testid="arch-unattributed" title={t('arch.unattributedTitle')}>
       {t('arch.unattributed', { n: props.n })}
     </p>
   </Show>
@@ -99,11 +100,11 @@ const ChannelCard: Component<{ model: Model; systems: SystemsInModel; channel: C
 )
 
 const ChannelRows: Component<{ systems: SystemsInModel }> = (props) => (
-  <div class="map-rows">
+  <div class="arch-rows">
     <For each={props.systems.channels}>
       {(c) => (
         <button
-          class="map-row"
+          class="arch-row"
           data-testid="arch-channel-row"
           data-from={props.systems.self.id}
           data-to={c.to.id}
@@ -128,22 +129,22 @@ const SystemCard: Component<{ model: Model; systems: SystemsInModel; system: Sys
         <h4>{props.system.name}</h4>
         <Switch>
           <Match when={isSelf()}>
-            <p class="map-note">{t('arch.system.self', { n: props.model.modules.size })}</p>
-            <div class="map-btn-row">
-              <button class="map-btn" data-testid="arch-enter-system" onClick={() => goToLevel(props.model, ARCH_CONTAINERS)}>
+            <p class="arch-note">{t('arch.system.self', { n: props.model.modules.size })}</p>
+            <div class="arch-btn-row">
+              <button class="arch-btn" data-testid="arch-enter-system" onClick={() => goToLevel(props.model, ARCH_CONTAINERS)}>
                 {t('arch.enterSystem')} <kbd>Enter</kbd>
               </button>
             </div>
           </Match>
           <Match when={props.system.unavailableReason}>
             {(reason) => (
-              <p class="map-note arch-muted" data-testid="arch-system-unavailable">
+              <p class="arch-note arch-muted" data-testid="arch-system-unavailable">
                 {t('arch.system.unavailableReason', { reason: reason() })}
               </p>
             )}
           </Match>
           <Match when={!isSelf()}>
-            <p class="map-note">{t('arch.system.contracts', { n: props.system.contractsTotal })}</p>
+            <p class="arch-note">{t('arch.system.contracts', { n: props.system.contractsTotal })}</p>
           </Match>
         </Switch>
       </div>
@@ -160,7 +161,7 @@ const SystemCard: Component<{ model: Model; systems: SystemsInModel; system: Sys
 
 const SystemsOverview: Component<{ systems: SystemsInModel }> = (props) => (
   <>
-    <p class="map-note">{t('arch.systems.hint')}</p>
+    <p class="arch-note">{t('arch.systems.hint')}</p>
     <div class="det-section">
       <h4>{t('arch.systems.channels')}</h4>
       <Show when={props.systems.channels.length} fallback={<div class="empty">{t('arch.systems.noChannels')}</div>}>
@@ -190,10 +191,14 @@ export const SystemDetails: Component<{ model: Model; systems: SystemsInModel }>
   )
 }
 
-export const PortDetails: Component<{ model: Model; systems: SystemsInModel }> = (props) => {
-  const link = () => {
+export const PortDetails: Component<{ model: Model; systems: SystemsInModel; boxes: Boxes }> = (props) => {
+  const flow = () => {
     const sel = nav().sel
-    return sel?.kind === 'port' ? props.systems.portLink(sel.container, sel.system) : null
+    if (sel?.kind !== 'port') return null
+    const links = props.systems.portLinks.filter(
+      (l) => l.system === sel.system && props.boxes.boxOfUnit.get(l.container) === sel.box,
+    )
+    return links.length ? { box: sel.box, system: sel.system, links } : null
   }
   const system = () => {
     const sel = nav().sel
@@ -201,16 +206,20 @@ export const PortDetails: Component<{ model: Model; systems: SystemsInModel }> =
   }
   return (
     <Switch>
-      <Match when={link()}>
-        {(l) => (
-          <div data-testid="arch-port-details" data-container={l().container} data-system={l().system}>
-            <div class="det-section">
-              <h4>
-                {props.model.unitLabel(l().container)} → {systemById(props.systems, l().system)?.name ?? l().system} ·{' '}
-                {t('arch.channel.contracts', { n: l().contracts.length })}
-              </h4>
-              <ContractList model={props.model} contracts={l().contracts} />
-            </div>
+      <Match when={flow()}>
+        {(f) => (
+          <div data-testid="arch-port-details" data-box={f().box} data-system={f().system}>
+            <For each={f().links}>
+              {(l) => (
+                <div class="det-section" data-testid="arch-port-unit" data-container={l.container}>
+                  <h4>
+                    {props.model.unitLabel(l.container)} → {systemById(props.systems, l.system)?.name ?? l.system} ·{' '}
+                    {t('arch.channel.contracts', { n: l.contracts.length })}
+                  </h4>
+                  <ContractList model={props.model} contracts={l.contracts} />
+                </div>
+              )}
+            </For>
           </div>
         )}
       </Match>
@@ -239,7 +248,7 @@ export const SystemOutline: Component<{ systems: SystemsInModel }> = (props) => 
         <For each={[props.systems.self, ...props.systems.others]}>
           {(s) => (
             <div
-              class={`map-ol-unit${selected() === s.id ? ' on' : ''}${s.unavailableReason ? ' arch-muted' : ''}`}
+              class={`arch-ol-unit${selected() === s.id ? ' on' : ''}${s.unavailableReason ? ' arch-muted' : ''}`}
               data-testid="arch-outline-system"
               data-id={s.id}
               title={s.unavailableReason ?? s.name}

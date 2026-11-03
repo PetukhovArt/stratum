@@ -1,23 +1,16 @@
-import { Component, createMemo, Match, onCleanup, onMount, Show, Switch } from 'solid-js'
+import { Component, createMemo, Match, onCleanup, onMount, Switch } from 'solid-js'
 import { Model } from '../../render/model'
-import { nav } from '../../shell/nav'
 import { isTypingTarget } from '../../shell/typing'
-import { GateBar } from '../map/gate-bar'
-import { LanesMarks, LanesScene } from '../map/lanes-scene'
-import '../map/map.css'
-import { mapDataOf } from '../map/units'
 import { ViewDef, ViewProps } from '../view-def'
-import { archPathOf, goDown, goToLevel, goUp } from './actions'
+import { archPathOf, goDown, goUp } from './actions'
 import './arch.css'
-import { containerBoxes, unitBoxes } from './boxes'
+import { boxesAt } from './boxes'
 import { BoxesScene } from './boxes-scene'
 import { ComponentsScene } from './components-scene'
 import { C4Caption, Crumbs } from './crumbs'
 import { ArchOutline, ArchDetails } from './panels'
-import { portsAside, SystemScene } from './system-scene'
+import { SystemScene } from './system-scene'
 import { systemsIn } from './systems'
-
-const MARKS: LanesMarks = { unit: 'arch-container', bundle: 'arch-bundle', dblClickHint: 'arch.container.hint' }
 
 const isControl = (target: EventTarget | null): boolean =>
   target instanceof Element && target.closest('button, a, select') !== null
@@ -31,46 +24,16 @@ const levelKey = (e: KeyboardEvent, m: Model): void => {
   }
 }
 
-const ContainersLevel: Component<{ model: Model }> = (props) => {
-  const aside = createMemo(() => {
-    const systems = systemsIn(props.model)
-    return systems ? portsAside(props.model, systems) : undefined
-  })
-  return (
-    <>
-      <LanesScene
-        model={props.model}
-        gate={nav().mapGate}
-        onUnitDblClick={(id) => goToLevel(props.model, { level: 'components', container: id })}
-        marks={MARKS}
-        aside={aside()}
-      />
-      <GateBar total={mapDataOf(props.model).links.length} />
-    </>
-  )
-}
-
 const GroupLevel: Component<{ model: Model; group: string; name: string }> = (props) => {
-  const data = createMemo(() => {
-    const box = containerBoxes(props.model)?.boxes.find((b) => b.key === props.group)
-    return box ? unitBoxes(props.model, box.units) : null
-  })
+  const data = createMemo(() => boxesAt(props.model, { level: 'group', group: props.group, name: props.name }))
   return (
-    <Show when={data()}>
-      {(d) => (
-        <BoxesScene model={props.model} data={d()} parent={{ key: props.group, name: props.name }} fitKey={`group:${props.group}`} />
-      )}
-    </Show>
+    <BoxesScene model={props.model} data={data()} parent={{ key: props.group, name: props.name }} fitKey={`group:${props.group}`} />
   )
 }
 
 const BoxesLevel: Component<{ model: Model }> = (props) => {
-  const data = createMemo(() => containerBoxes(props.model))
-  return (
-    <Show when={data()} fallback={<ContainersLevel model={props.model} />}>
-      {(d) => <BoxesScene model={props.model} data={d()} fitKey="arch-boxes" />}
-    </Show>
-  )
+  const data = createMemo(() => boxesAt(props.model, { level: 'containers' }))
+  return <BoxesScene model={props.model} data={data()} fitKey="arch-boxes" />
 }
 
 const Stage: Component<ViewProps> = (props) => {

@@ -659,3 +659,36 @@ const labelSpot = (pts: [number, number][], placed: Point[]): Point => {
   placed.push(spot)
   return spot
 }
+
+export interface Curve {
+  d: string
+  label: Point
+}
+
+const CURVE = { maxBend: 80, bendShare: 0.2, arrowClearance: 6 } as const
+
+const clip = (from: Point, toward: Point, half: { w: number; h: number }): Point => {
+  const dx = toward.x - from.x
+  const dy = toward.y - from.y
+  const t = Math.min(half.w / Math.abs(dx || Number.EPSILON), half.h / Math.abs(dy || Number.EPSILON), 1)
+  return { x: from.x + dx * t, y: from.y + dy * t }
+}
+
+const centreOf = (b: Rect): Point => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 })
+
+export const curveBetween = (a: Rect, b: Rect): Curve => {
+  const p = centreOf(a)
+  const q = centreOf(b)
+  const dx = q.x - p.x
+  const dy = q.y - p.y
+  const len = Math.hypot(dx, dy) || 1
+  const bend = Math.min(CURVE.maxBend, len * CURVE.bendShare)
+  const control = { x: (p.x + q.x) / 2 - (dy / len) * bend, y: (p.y + q.y) / 2 + (dx / len) * bend }
+  const start = clip(p, control, { w: a.w / 2, h: a.h / 2 })
+  const end = clip(q, control, { w: (b.w + CURVE.arrowClearance) / 2, h: (b.h + CURVE.arrowClearance) / 2 })
+  const r = (n: number) => Math.round(n * 10) / 10
+  return {
+    d: `M${r(start.x)},${r(start.y)} Q${r(control.x)},${r(control.y)} ${r(end.x)},${r(end.y)}`,
+    label: { x: (start.x + 2 * control.x + end.x) / 4, y: (start.y + 2 * control.y + end.y) / 4 },
+  }
+}

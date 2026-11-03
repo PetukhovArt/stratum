@@ -22,7 +22,7 @@ import {
   stageSvg,
 } from './probes'
 import { pickSubjects, Subject, Subjects } from './subjects'
-import { Asker, SkippedTask, TASK_BLOCKS } from './tasks'
+import { Asker, SkippedTask, Step, TASK_BLOCKS } from './tasks'
 import { drawnPairsOf, DrawnPairs, TerritoryAgreement, TerritoryTally } from './territory'
 
 export const TARGET = { renderMs: 100, marks: SCENE_MARK_BUDGET, panZoomMs: 16.7, actions: 3, card: { w: 800, h: 600 } } as const
@@ -240,12 +240,21 @@ const measureRun = (sc: Scenario, colours: ReadonlySet<string>, tally: Territory
   }
 }
 
+const take = (step: Step): void => {
+  if ('patch' in step) {
+    go(step.patch)
+    return
+  }
+  forceLayout()
+  document.querySelector(step.click)?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+}
+
 const runTasks = (m: Model, s: Subjects): TaskResult[] => {
   const ran = TASK_BLOCKS.flatMap((block) => block(m, s)).map((task): TaskResult => {
     if ('skip' in task) return { ...task, status: 'skipped' }
     go({ view: 'bench' })
     const t0 = performance.now()
-    for (const step of task.steps) go(step.patch)
+    for (const step of task.steps) take(step)
     forceLayout()
     const { steps, isAnswerShown, ...rest } = task
     return {

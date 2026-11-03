@@ -9,6 +9,7 @@
 - Added `stratum-lint c4`: a Mermaid C4 diagram of the system, container or component level, narrowed by `--feature`, laid out so arrows miss boxes and labels; GitLab and GitHub render it in a description
 - Added `stratum-lint export --out DIR`: the visualizer as a static site for GitLab or GitHub Pages, with source text only under `--with-source`
 - Added a guide to the visualizer (`?` or the header button): what each view answers, step-by-step use cases and the controls, in English and Russian; the side panels toggle from status bar buttons and the canvas legend folds, and both remember the choice
+- Changed Architecture → Containers to one scene with or without features: blocks in ranked rows, right-angle links with shared trunks and hub stubs, and a click on any link or stub opens its contract; blocks no longer drag (saved positions and Reset layout are gone) and the rule breaks / ≥ N imports / all edge filter gives way to "N weaker links hidden · click a block"
 - Removed the visualizer's Container map view (key `4`): Architecture → Containers shows the units, the bundles between them and each bundle's contract, and Matrix shows the imports and rule breaks between layers
 
 ## 0.5.0 (2026-10-28)

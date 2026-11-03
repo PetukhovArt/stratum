@@ -6,7 +6,6 @@ import { en as benchEn, ru as benchRu } from '../views/bench/messages'
 import { en as dsmEn, ru as dsmRu } from '../views/dsm/messages'
 import { en as viewsEn, ru as viewsRu } from '../views/messages'
 import { en as focusEn, ru as focusRu } from '../views/focus/messages'
-import { en as mapEn, ru as mapRu } from '../views/map/messages'
 import { en as mrEn, ru as mrRu } from '../views/mr/messages'
 import { en as setEn, ru as setRu } from '../views/set/messages'
 import type { MessagesOf } from './types'
@@ -17,7 +16,6 @@ export const en = {
   ...dsmEn,
   ...focusEn,
   ...mrEn,
-  ...mapEn,
   ...setEn,
   ...archEn,
   ...benchEn,
@@ -34,7 +32,6 @@ export const ru: Messages = {
   ...dsmRu,
   ...focusRu,
   ...mrRu,
-  ...mapRu,
   ...setRu,
   ...archRu,
   ...benchRu,

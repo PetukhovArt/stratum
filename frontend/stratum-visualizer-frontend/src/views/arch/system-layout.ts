@@ -1,14 +1,15 @@
 import { Actor, DeclaredLink, SystemInfo } from '../../lib/api'
 import { Bounds } from '../../render/viewport'
-import { BlocksLayout, curveBetween, Point, Rect, Size } from '../map/layout'
-import { channelWeight, ChannelInUse, PortLink, SystemsInModel } from './systems'
+import { curveBetween, Point, Rect } from '../../render/route'
+import { channelWeight, ChannelInUse, SystemsInModel } from './systems'
 
 const SYSTEM = { selfW: 240, selfH: 96, w: 220, h: 76 } as const
 const ACTOR = { w: 200, h: 66, gap: 28 } as const
 const ZONE = { pad: 22, head: 30, gap: 70, colGap: 90, rowGap: 60, extGap: 24 } as const
-const PORT = { w: 160, h: 46, gap: 18, margin: 24 } as const
 const MARGIN = 30
 const COLUMNS = 2
+
+type Size = Pick<Rect, 'w' | 'h'>
 
 export type ZoneKind = 'actors' | 'system' | 'external'
 
@@ -129,43 +130,4 @@ export const layoutSystems = (s: SystemsInModel): SystemLayout => {
     links,
     bounds: { x: left, y: topEdge, w: right - left, h: bottom - topEdge },
   }
-}
-
-export interface PortBox extends Rect {
-  system: SystemInfo
-}
-
-export interface PortArrow {
-  link: PortLink
-  d: string
-  label: Point
-}
-
-export interface PortsLayout {
-  ports: readonly PortBox[]
-  arrows: readonly PortArrow[]
-}
-
-export const portsSlot = (s: SystemsInModel): Size => ({
-  w: PORT.w + PORT.margin * 2,
-  h: stackHeight(s.others.length, PORT.h, PORT.gap) + PORT.margin * 2,
-})
-
-export const layoutPorts = (layout: BlocksLayout, slot: Rect, s: SystemsInModel): PortsLayout => {
-  const ports = s.others.map(
-    (system, i): PortBox => ({
-      system,
-      x: slot.x + PORT.margin,
-      y: slot.y + PORT.margin + i * (PORT.h + PORT.gap),
-      w: PORT.w,
-      h: PORT.h,
-    }),
-  )
-  const byId = new Map(ports.map((p) => [p.system.id, p]))
-  const arrows = s.portLinks.flatMap((link): PortArrow[] => {
-    const from = layout.boxes.get(link.container)
-    const to = byId.get(link.system)
-    return from && to ? [{ link, ...curveBetween(from, to) }] : []
-  })
-  return { ports, arrows }
 }

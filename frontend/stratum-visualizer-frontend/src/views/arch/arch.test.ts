@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { buildModel, Model } from '../../render/model'
 import { snapshotV3 } from '../../test/snapshot'
 import { EdgeKind, SnapshotContainer } from '../../types'
+import { layerRanks } from './boxes-layout'
 import { componentMarks, layoutComponents, segmentsOf } from './components'
 import { ArchPath, crumbsOf, deepestShownPrefix, downOf, parseArchPath, upOf } from './path'
 
@@ -102,7 +103,7 @@ describe('Components level', () => {
 describe('architecture path', () => {
   const code: ArchPath = { level: 'code', container: 11, module: 1 }
 
-  const self = { id: 'ui', name: 'Web UI', contractsTotal: 0, unavailableReason: null }
+  const self = { id: 'ui', name: 'Web UI', contractsTotal: 0, unavailableReason: null, isExternal: false, description: null }
 
   it('derives one breadcrumb per level, goes up one level at a time and down into the selection', () => {
     expect(crumbsOf(code, model, null).map((c) => [c.level, c.label])).toEqual([
@@ -153,5 +154,23 @@ describe('architecture path', () => {
       container: 11,
     })
     expect(deepestShownPrefix(code, model, self)).toBe(code)
+  })
+})
+
+describe('layerRanks', () => {
+  it('counts the longest depends_on chain below each layer and stops at a cycle', () => {
+    const layers = [
+      { id: 0, name: 'shared', depends_on: [] },
+      { id: 1, name: 'domain', depends_on: [0] },
+      { id: 2, name: 'features', depends_on: [1, 0] },
+      { id: 3, name: 'app', depends_on: [2, 1, 0] },
+      { id: 4, name: 'editor-core', depends_on: [0] },
+      { id: 5, name: 'editor-ui', depends_on: [4, 0] },
+      { id: 6, name: 'a', depends_on: [7] },
+      { id: 7, name: 'b', depends_on: [6, 3] },
+    ]
+    const ranks = layerRanks(layers)
+    expect([0, 1, 2, 3, 4, 5].map((id) => ranks.get(id))).toEqual([0, 1, 2, 3, 1, 2])
+    expect(ranks.get(7)).toBeGreaterThan(3)
   })
 })

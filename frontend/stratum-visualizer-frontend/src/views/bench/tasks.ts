@@ -1,6 +1,8 @@
 import { edgeKey, Model, sccs } from '../../render/model'
 import { NavPatch } from '../../shell/nav'
 import { CROSS_LAYER_RULE, SnapshotLayer } from '../../types'
+import { BoxLink, containerBoxes } from '../arch/boxes'
+import { isDrawnUnselected } from '../arch/boxes-layout'
 import { crossSliceBundles } from '../arch/bundles'
 import { ARCH_CONTAINERS } from '../arch/path'
 import { systemsIn } from '../arch/systems'
@@ -13,10 +15,7 @@ const BLOCK_STROKE = 2
 
 export type Asker = 'developer' | 'reviewer' | 'architect' | 'agent'
 
-export interface Step {
-  label: string
-  patch: NavPatch
-}
+export type Step = { label: string } & ({ patch: NavPatch } | { click: string })
 
 export interface TaskDef {
   order: number
@@ -285,8 +284,10 @@ const cycleCutTask = (m: Model): TaskDef => {
 
 const setTasks: TaskBlock = (m) => [cycleCutTask(m)]
 
+const attr = (value: string | number): string => `"${CSS.escape(String(value))}"`
+
 const crossSliceContractTask = (m: Model): TaskDef => {
-  const [bundle] = crossSliceBundles(m)
+  const bundles = crossSliceBundles(m)
   const base = {
     order: 9,
     id: 'cross-slice-contract',
@@ -295,6 +296,7 @@ const crossSliceContractTask = (m: Model): TaskDef => {
     view: 'arch',
   }
   const open: Step = { label: 'open Architecture at Containers', patch: { view: 'arch', arch: ARCH_CONTAINERS, sel: null } }
+  const [bundle] = bundles
   if (!bundle) {
     return {
       ...base,
@@ -305,18 +307,32 @@ const crossSliceContractTask = (m: Model): TaskDef => {
         document.querySelector('[data-testid="arch-bundle-row"]') === null,
     }
   }
-  const ends = `[data-from="${bundle.from}"][data-to="${bundle.to}"]`
-  const pair = `${m.unitLabel(bundle.from)} → ${m.unitLabel(bundle.to)}`
+  const data = containerBoxes(m)
+  const name = (key: string) => data.boxes.find((b) => b.key === key)?.name ?? key
+  const carries = (l: BoxLink) =>
+    bundles.some((b) => data.boxOfUnit.get(b.from) === l.from && data.boxOfUnit.get(b.to) === l.to)
+  const link = data.links.find((l) => isDrawnUnselected(data.links, l) && carries(l))
+  if (!link) {
+    const ends = `[data-from="${bundle.from}"][data-to="${bundle.to}"]`
+    const pair = `${m.unitLabel(bundle.from)} → ${m.unitLabel(bundle.to)}`
+    return {
+      ...base,
+      answer: `${pair} runs inside one block: its row in the details opens its Contract`,
+      steps: [open, { label: `click the row ${pair}`, click: `[data-testid="arch-bundle-row"]${ends}` }],
+      isAnswerShown: () =>
+        document.querySelector(`[data-testid="arch-bundle-details"]${ends} [data-testid="contract"]`) !== null,
+    }
+  }
+  const ends = `[data-from=${attr(link.from)}][data-to=${attr(link.to)}]`
+  const drawn = `[data-testid="arch-stage"] :is([data-testid="arch-box-link"], [data-testid="arch-box-stub"])${ends}`
+  const pair = `${name(link.from)} → ${name(link.to)}`
   return {
     ...base,
     answer: `${pair}: its Contract lists the names with their declarations; a name opens Code`,
-    steps: [
-      open,
-      { label: `click the bundle ${pair}`, patch: { sel: { kind: 'cell', level: 'unit', from: bundle.from, to: bundle.to } } },
-    ],
+    steps: [open, { label: `click the link ${pair}`, click: drawn }],
     isAnswerShown: () =>
-      document.querySelector(`[data-testid="arch-stage"] [data-testid="arch-bundle"]${ends}`) !== null &&
-      document.querySelector(`[data-testid="arch-bundle-details"]${ends} [data-testid="contract"]`) !== null,
+      document.querySelector(drawn) !== null &&
+      document.querySelector(`[data-testid="arch-link-details"]${ends} [data-testid="contract"]`) !== null,
   }
 }
 
@@ -355,22 +371,20 @@ const systemContractsTask = (m: Model): TaskDef | SkippedTask => {
   }
   const system = systems.others.find((s) => s.id === link.system)?.name ?? link.system
   const container = m.unitLabel(link.container)
-  const ends = `[data-container="${link.container}"][data-system="${link.system}"]`
-  const details = `[data-testid="arch-port-details"]${ends}`
+  const data = containerBoxes(m)
+  const box = data.boxOfUnit.get(link.container) ?? ''
+  const block = data.boxes.find((b) => b.key === box)?.name ?? box
+  const ends = `[data-box=${attr(box)}][data-system=${attr(link.system)}]`
+  const arrow = `[data-testid="arch-stage"] [data-testid="arch-port-link"]${ends}`
+  const details = `[data-testid="arch-port-details"]${ends} [data-testid="arch-port-unit"][data-container="${link.container}"]`
   const callers = link.contracts.flatMap((c) => c.callers.map((caller) => `${caller.module}:${caller.line}`))
   return {
     ...SYSTEM_CONTRACTS,
     question: `Which ${system} contracts does ${container} call, and from where?`,
     answer: `${link.contracts.map((c) => c.id).join(', ')}: each with its callers file:line`,
-    steps: [
-      open,
-      {
-        label: `click the arrow ${container} → ${system}`,
-        patch: { sel: { kind: 'port', container: link.container, system: link.system } },
-      },
-    ],
+    steps: [open, { label: `click the arrow ${block} → ${system}`, click: arrow }],
     isAnswerShown: () =>
-      document.querySelector(`[data-testid="arch-stage"] [data-testid="arch-port-link"]${ends}`) !== null &&
+      document.querySelector(arrow) !== null &&
       sameIds(
         `${details} [data-testid="arch-contract"]`,
         'data-id',

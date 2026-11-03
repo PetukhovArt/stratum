@@ -1,5 +1,6 @@
 import { alongRun, Point, Rect, roundedPath } from '../../render/route'
 import { Bounds } from '../../render/viewport'
+import { SnapshotLayer } from '../../types'
 import { Box, BoxLink, Boxes } from './boxes'
 
 export type Orient = 'rows' | 'columns'
@@ -161,6 +162,26 @@ const ranksOf = (boxes: readonly Box[], links: readonly BoxLink[]): Map<string, 
     return rank
   }
   for (const b of boxes) visit(b.key)
+  return ranks
+}
+
+export const layerRanks = (layers: readonly SnapshotLayer[]): ReadonlyMap<number, number> => {
+  const byId = new Map(layers.map((l) => [l.id, l]))
+  const ranks = new Map<number, number>()
+  const onPath = new Set<number>()
+  const visit = (id: number): number => {
+    const known = ranks.get(id)
+    if (known !== undefined) return known
+    onPath.add(id)
+    let rank = 0
+    for (const dep of byId.get(id)?.depends_on ?? []) {
+      if (byId.has(dep) && !onPath.has(dep)) rank = Math.max(rank, visit(dep) + 1)
+    }
+    onPath.delete(id)
+    ranks.set(id, rank)
+    return rank
+  }
+  for (const l of layers) visit(l.id)
   return ranks
 }
 
@@ -854,6 +875,9 @@ export const shownLinks = (
   const top = new Set(real.slice(0, TOP_LINKS).map((l) => l.key))
   return real.filter((l) => top.has(l.key) || l.breaks)
 }
+
+export const isDrawnUnselected = (links: readonly BoxLink[], link: BoxLink): boolean =>
+  link.breaks || links.indexOf(link) < TOP_LINKS
 
 /** The stubs that stay chips while `selected` is selected: all with nothing selected, else those not touching it. */
 export const shownStubs = (stubs: readonly PlacedStub[], selected: string | null): readonly PlacedStub[] =>

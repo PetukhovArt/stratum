@@ -1,16 +1,16 @@
 import { Component, createMemo, createSignal, For, Show } from 'solid-js'
-import { layerRanks } from '../map/layout'
 import { BudgetNote } from '../../canvas/budget-note'
 import { Canvas } from '../../canvas/canvas'
 import { t } from '../../i18n'
+import { Edge, EDGE_SELECTED, EdgeState } from '../../render/edge'
 import { trunc } from '../../render/labels'
-import { CANVAS_DEFS, EDGE_NEUTRAL, SEV_COLOR } from '../../render/encoding'
 import { Model } from '../../render/model'
 import { nav, set } from '../../shell/nav'
 import { openBox } from './actions'
-import { Box, Boxes } from './boxes'
+import { Box, BoxLink, Boxes } from './boxes'
 import {
   AreaFrame,
+  layerRanks,
   layoutBoxes,
   Orient,
   PlacedBox,
@@ -41,12 +41,11 @@ const STROKE: Readonly<Record<Box['kind'], string>> = {
 }
 const PORT_FILL = { internal: 'oklch(28% 0.02 260 / .9)', external: 'oklch(30% 0.03 310 / .9)' } as const
 const PORT_STROKE = { internal: 'oklch(62% 0.02 260)', external: 'oklch(66% 0.05 310)' } as const
-const SELECTED = 'oklch(96% 0.005 260)'
-const LABEL_FILL = 'oklch(92% 0.005 260)'
-const LABEL_HALO = 'oklch(16% 0.012 260)'
-const OPACITY = { link: 0.5, focused: 0.95, dimmed: 0.25 } as const
 const STUB_FILL = 'oklch(24% 0.012 260 / .9)'
 const STUB_CHAR_PX = 6.2
+const STUB_WIDTH = 1.2
+const FLOW_WIDTH = 1.3
+const FLOW_OPACITY = 0.25
 const AREA_STROKE = 'oklch(60% 0.02 260 / .35)'
 
 const ORIENT_KEY = 'stratum.arch.boxesOrient'
@@ -81,6 +80,38 @@ const selectedBox = (): string | null => {
   return sel?.kind === 'box' ? sel.key : null
 }
 
+const selectedLink = (): { from: string; to: string } | null => {
+  const sel = nav().sel
+  return sel?.kind === 'link' ? sel : null
+}
+
+const isSelectedLink = (l: BoxLink): boolean => {
+  const sel = selectedLink()
+  return sel !== null && sel.from === l.from && sel.to === l.to
+}
+
+const selectedPort = (): { box: string; system: string } | null => {
+  const sel = nav().sel
+  return sel?.kind === 'port' ? sel : null
+}
+
+const selectedSystem = (): string | null => {
+  const sel = nav().sel
+  return sel?.kind === 'system' ? sel.id : null
+}
+
+const selectLink = (l: BoxLink): void => set({ sel: { kind: 'link', from: l.from, to: l.to } })
+
+const linkTitle = (l: BoxLink, names: (key: string) => string, hint: string): string =>
+  [
+    `${names(l.from)} → ${names(l.to)}`,
+    t('arch.box.imports', { n: l.count }),
+    l.findings ? t('arch.box.findings', { n: l.findings }) : null,
+    hint,
+  ]
+    .filter(Boolean)
+    .join('\n')
+
 const BoxMark: Component<{ placed: PlacedBox; isDimmed: boolean; onOpen: () => void }> = (props) => {
   const p = props.placed
   const isSelected = () => selectedBox() === p.box.key
@@ -106,7 +137,7 @@ const BoxMark: Component<{ placed: PlacedBox; isDimmed: boolean; onOpen: () => v
         height={p.h}
         rx="9"
         fill={FILL[p.box.kind]}
-        stroke={isSelected() ? SELECTED : STROKE[p.box.kind]}
+        stroke={isSelected() ? EDGE_SELECTED : STROKE[p.box.kind]}
         stroke-width={isSelected() ? 2.2 : 1.2}
       />
       <text class="arch-box-name" x={PAD} y={24}>
@@ -126,57 +157,59 @@ const BoxMark: Component<{ placed: PlacedBox; isDimmed: boolean; onOpen: () => v
   )
 }
 
-const LinkMark: Component<{ placed: PlacedLink; names: (key: string) => string }> = (props) => {
+const LinkMark: Component<{ placed: PlacedLink; focus: string | null; names: (key: string) => string }> = (props) => {
   const l = props.placed.link
-  const focus = selectedBox
-  const isFocused = () => focus() === l.from || focus() === l.to
+  const state = (): EdgeState => {
+    if (isSelectedLink(l)) return 'selected'
+    return props.focus === l.from || props.focus === l.to ? 'focused' : 'idle'
+  }
   return (
-    <g class="arch-box-link" data-testid="arch-box-link" data-from={l.from} data-to={l.to} data-count={l.count}>
-      <path
-        d={props.placed.d}
-        stroke={l.breaks && l.worst ? SEV_COLOR[l.worst] : EDGE_NEUTRAL}
-        stroke-opacity={isFocused() ? OPACITY.focused : OPACITY.link}
-        stroke-width={1 + Math.min(3, Math.log2(l.count + 1) * 0.5)}
-        marker-end={CANVAS_DEFS.arrow}
-      />
-      <text class="arch-count" x={props.placed.label.x} y={props.placed.label.y} fill={LABEL_FILL} stroke={LABEL_HALO}>
-        {l.count}
-      </text>
-      <title>
-        {props.names(l.from)} → {props.names(l.to)}
-        {'\n'}
-        {t('arch.box.imports', { n: l.count })}
-        {l.findings ? `\n${t('arch.box.findings', { n: l.findings })}` : ''}
-      </title>
-    </g>
+    <Edge
+      d={props.placed.d}
+      kind={l.breaks && l.worst ? 'break' : 'neutral'}
+      severity={l.worst}
+      weight={l.count}
+      state={state()}
+      label={{ ...props.placed.label, text: l.count }}
+      testId="arch-box-link"
+      class="arch-box-link"
+      data={{ 'data-from': l.from, 'data-to': l.to, 'data-count': l.count }}
+      onClick={() => selectLink(l)}
+      title={linkTitle(l, props.names, t('arch.box.linkHint'))}
+    />
   )
 }
 
 const StubMark: Component<{ stub: PlacedStub; names: (key: string) => string }> = (props) => {
   const s = props.stub
   const text = `${s.hubName} ${s.link.count}`
+  const isSelected = () => isSelectedLink(s.link)
   return (
-    <g
+    <Edge
+      d={s.d}
+      width={STUB_WIDTH}
+      state={isSelected() ? 'selected' : 'idle'}
+      testId="arch-box-stub"
       class="arch-box-stub"
-      data-testid="arch-box-stub"
-      data-from={s.link.from}
-      data-to={s.link.to}
-      data-count={s.link.count}
-      onClick={() => set({ sel: { kind: 'box', key: s.link.from } })}
+      data={{ 'data-from': s.link.from, 'data-to': s.link.to, 'data-count': s.link.count }}
+      onClick={() => selectLink(s.link)}
+      title={linkTitle(s.link, props.names, t('arch.boxes.stubHint'))}
     >
-      <path d={s.d} fill="none" stroke={EDGE_NEUTRAL} stroke-opacity={OPACITY.link} stroke-width="1.2" marker-end={CANVAS_DEFS.arrow} />
-      <rect x={s.x} y={s.y} width={s.w} height={s.h} rx="4" fill={STUB_FILL} stroke={STROKE.layer} stroke-width="1" stroke-dasharray="3 2" />
+      <rect
+        x={s.x}
+        y={s.y}
+        width={s.w}
+        height={s.h}
+        rx="4"
+        fill={STUB_FILL}
+        stroke={isSelected() ? EDGE_SELECTED : STROKE.layer}
+        stroke-width={isSelected() ? 1.6 : 1}
+        stroke-dasharray="3 2"
+      />
       <text class="arch-stub-name" x={s.x + 6} y={s.y + s.h / 2 + 3.5}>
         {trunc(text, Math.floor((s.w - 10) / STUB_CHAR_PX))}
       </text>
-      <title>
-        {props.names(s.link.from)} → {s.hubName}
-        {'\n'}
-        {t('arch.box.imports', { n: s.link.count })}
-        {'\n'}
-        {t('arch.boxes.stubHint')}
-      </title>
-    </g>
+    </Edge>
   )
 }
 
@@ -192,38 +225,55 @@ const AreaMark: Component<{ area: AreaFrame }> = (props) => (
 const PortMark: Component<{ placed: PlacedPort }> = (props) => {
   const p = props.placed
   const tone = p.port.isExternal ? 'external' : 'internal'
+  const isSelected = () => selectedSystem() === p.port.id
   return (
-    <g class="arch-port" data-testid="arch-port" data-id={p.port.id} transform={`translate(${p.x},${p.y})`}>
-      <rect width={p.w} height={p.h} rx={p.h / 2} fill={PORT_FILL[tone]} stroke={PORT_STROKE[tone]} stroke-width="1.2" />
+    <g
+      class="arch-port"
+      data-testid="arch-port"
+      data-id={p.port.id}
+      transform={`translate(${p.x},${p.y})`}
+      onClick={() => set({ sel: { kind: 'system', id: p.port.id } })}
+    >
+      <rect
+        width={p.w}
+        height={p.h}
+        rx={p.h / 2}
+        fill={PORT_FILL[tone]}
+        stroke={isSelected() ? EDGE_SELECTED : PORT_STROKE[tone]}
+        stroke-width={isSelected() ? 2 : 1.2}
+      />
       <text class="arch-box-name" x={PAD + 6} y={20}>
         {trunc(p.port.name, Math.floor((p.w - PAD * 2) / NAME_CHAR_PX))}
       </text>
       <text class="arch-box-meta" x={PAD + 6} y={35}>
         {t(p.port.isExternal ? 'arch.system.external' : 'arch.port')}
       </text>
+      <title>{p.port.name}</title>
     </g>
   )
 }
 
-const FlowMark: Component<{ placed: PlacedFlow }> = (props) => {
-  const focus = selectedBox
-  const isFocused = () => focus() === props.placed.flow.box
+const FlowMark: Component<{ placed: PlacedFlow; focus: string | null; names: (key: string) => string }> = (props) => {
+  const f = props.placed.flow
+  const state = (): EdgeState => {
+    const sel = selectedPort()
+    if ((sel?.box === f.box && sel.system === f.port) || selectedSystem() === f.port) return 'selected'
+    return props.focus === f.box ? 'focused' : 'idle'
+  }
   return (
-    <g class="arch-port-link" data-testid="arch-port-link" data-box={props.placed.flow.box} data-system={props.placed.flow.port}>
-      <path
-        d={props.placed.d}
-        stroke={EDGE_NEUTRAL}
-        stroke-opacity={isFocused() ? OPACITY.focused : OPACITY.dimmed}
-        stroke-width="1.3"
-        stroke-dasharray="6 3"
-        marker-end={CANVAS_DEFS.arrow}
-      />
-      <Show when={isFocused()}>
-        <text class="arch-count" x={props.placed.label.x} y={props.placed.label.y} fill={LABEL_FILL} stroke={LABEL_HALO}>
-          {props.placed.flow.weight}
-        </text>
-      </Show>
-    </g>
+    <Edge
+      d={props.placed.d}
+      kind="flow"
+      width={FLOW_WIDTH}
+      opacity={FLOW_OPACITY}
+      state={state()}
+      label={state() === 'idle' ? null : { ...props.placed.label, text: f.weight }}
+      testId="arch-port-link"
+      class="arch-port-link"
+      data={{ 'data-box': f.box, 'data-system': f.port }}
+      onClick={() => set({ sel: { kind: 'port', box: f.box, system: f.port } })}
+      title={`${props.names(f.box)} → ${props.names(f.port)}\n${t('arch.port.flowHint')}`}
+    />
   )
 }
 
@@ -257,13 +307,31 @@ export const BoxesScene: Component<{ model: Model; data: Boxes; parent?: ArchGro
   const layout = createMemo(() =>
     layoutBoxes(props.data, layerRanks(props.model.layers), ports().ports, ports().flows, orient(), areaOf),
   )
-  const shown = createMemo(() => shownLinks(layout().links, selectedBox(), layout().stubbed))
-  const stubs = createMemo(() => shownStubs(layout().stubs, selectedBox()))
+  const context = createMemo<string | null>((prev) => {
+    const sel = nav().sel
+    if (sel?.kind === 'box') return sel.key
+    return sel?.kind === 'link' ? prev : null
+  }, null)
+  const focus = createMemo((): string | null => {
+    const box = selectedBox()
+    if (box !== null) return box
+    const link = selectedLink()
+    const last = context()
+    return link && last && (link.from === last || link.to === last) ? last : null
+  })
+  const stubs = createMemo(() => shownStubs(layout().stubs, focus()))
+  const shown = createMemo(() => {
+    const base = shownLinks(layout().links, focus(), layout().stubbed)
+    const picked = layout().links.find(isSelectedLink)
+    const isDrawn = (l: BoxLink) => base.includes(l) || stubs().some((s) => s.link === l)
+    return picked && !isDrawn(picked) ? [...base, picked] : base
+  })
   const routed = createMemo(() => routeLinks(layout(), shown()))
   const hidden = () => Math.max(0, layout().links.length - shown().length - stubs().length)
-  const names = (key: string) => props.data.boxes.find((b) => b.key === key)?.name ?? key
+  const names = (key: string) =>
+    props.data.boxes.find((b) => b.key === key)?.name ?? ports().ports.find((p) => p.id === key)?.name ?? key
   const isDimmed = (key: string): boolean => {
-    const sel = selectedBox()
+    const sel = focus()
     if (sel === null || sel === key) return false
     return !shown().some((l) => l.from === key || l.to === key)
   }
@@ -283,8 +351,8 @@ export const BoxesScene: Component<{ model: Model; data: Boxes; parent?: ArchGro
       <g class="arch-boxes" data-orient={orient()}>
         <For each={layout().areas}>{(a) => <AreaMark area={a} />}</For>
         <g fill="none">
-          <For each={routed().flows}>{(f) => <FlowMark placed={f} />}</For>
-          <For each={routed().links}>{(l) => <LinkMark placed={l} names={names} />}</For>
+          <For each={routed().flows}>{(f) => <FlowMark placed={f} focus={focus()} names={names} />}</For>
+          <For each={routed().links}>{(l) => <LinkMark placed={l} focus={focus()} names={names} />}</For>
         </g>
         <For each={stubs()}>{(s) => <StubMark stub={s} names={names} />}</For>
         <For each={layout().ports}>{(p) => <PortMark placed={p} />}</For>

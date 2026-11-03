@@ -3,7 +3,8 @@ import { BudgetNote } from '../../canvas/budget-note'
 import { Canvas } from '../../canvas/canvas'
 import { sharedAttr, sharedNote } from '../../features/shared-mark'
 import { t } from '../../i18n'
-import { CANVAS_DEFS, EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR, SHARED_COLOR } from '../../render/encoding'
+import { Edge, EDGE_SELECTED, EdgeState } from '../../render/edge'
+import { LAYER_TONE, SEV_COLOR, SHARED_COLOR } from '../../render/encoding'
 import { Model, Unit, worst } from '../../render/model'
 import { nav, set } from '../../shell/nav'
 import { layerTone } from '../focus/paint'
@@ -11,12 +12,11 @@ import { goToLevel } from './actions'
 import { ImportArrow, componentMarks, layoutComponents, ModuleNode, ROOT_SEGMENT, SegmentBox } from './components'
 
 const LABEL_BASELINE = 13.5
-const SELECTED_STROKE = 'oklch(94% 0.005 260)'
+const SELECTED_STROKE = EDGE_SELECTED
 const NODE_FILL = 'oklch(30% 0.02 260)'
-const LABEL_FILL = 'oklch(90% 0.005 260)'
-const LABEL_HALO = 'oklch(16% 0.012 260)'
-const ARROW_OPACITY = { focused: 0.9, base: 0.35, dimmed: 0.1 } as const
-const COUNT_DIMMED = 0.45
+const ARROW_OPACITY = 0.35
+const IMPORT_WIDTH = 1
+const segmentWidth = (count: number): number => 1 + Math.min(1.5, Math.log2(count + 1) * 0.5)
 const NEIGHBOUR = { imports: 'oklch(74% 0.13 235)', importedBy: 'oklch(80% 0.13 75)' } as const
 
 type Role = 'selected' | 'imports' | 'importedBy' | 'other' | 'idle'
@@ -108,62 +108,57 @@ const ModuleMark: Component<{ node: ModuleNode; model: Model; unit: Unit; hasLab
 const ImportMark: Component<{ arrow: ImportArrow; model: Model }> = (props) => {
   const a = props.arrow
   const sev = worst(props.model.findingsOnEdge(a.from, a.to))
-  const isPicked = () => {
+  const state = (): EdgeState => {
     const sel = selectedImport()
-    return sel !== null && sel.from === a.from && sel.to === a.to
-  }
-  const focus = selectedModule
-  const isFocused = () => focus() === a.from || focus() === a.to
-  const opacity = () => {
-    if (isPicked() || isFocused()) return ARROW_OPACITY.focused
-    return focus() === null ? ARROW_OPACITY.base : ARROW_OPACITY.dimmed
+    if (sel !== null && sel.from === a.from && sel.to === a.to) return 'selected'
+    const focus = selectedModule()
+    if (focus === a.from || focus === a.to) return 'focused'
+    return focus === null ? 'idle' : 'dimmed'
   }
   const colour = () => {
-    if (sev) return SEV_COLOR[sev]
-    if (focus() === a.from) return NEIGHBOUR.imports
-    if (focus() === a.to) return NEIGHBOUR.importedBy
-    return EDGE_NEUTRAL
+    const focus = selectedModule()
+    if (focus === a.from) return NEIGHBOUR.imports
+    return focus === a.to ? NEIGHBOUR.importedBy : undefined
   }
   return (
-    <path
-      class="arch-import"
-      data-testid="arch-import"
-      data-from={a.from}
-      data-to={a.to}
-      data-ch={sev ? 'sev' : 'edge'}
+    <Edge
       d={a.d}
-      stroke={colour()}
-      stroke-opacity={opacity()}
-      stroke-width={isPicked() ? 2.2 : isFocused() ? 1.5 : 1}
-      marker-end={CANVAS_DEFS.arrow}
+      kind={sev ? 'break' : 'neutral'}
+      severity={sev}
+      color={colour()}
+      width={IMPORT_WIDTH}
+      opacity={ARROW_OPACITY}
+      state={state()}
+      testId="arch-import"
+      class="arch-import"
+      data={{ 'data-from': a.from, 'data-to': a.to }}
       onClick={() => set({ sel: { kind: 'edge', from: a.from, to: a.to } })}
-    >
-      <title>{`${props.model.modules.get(a.from)?.path ?? ''}\n→ ${props.model.modules.get(a.to)?.path ?? ''}`}</title>
-    </path>
+      title={`${props.model.modules.get(a.from)?.path ?? ''}\n→ ${props.model.modules.get(a.to)?.path ?? ''}`}
+    />
   )
 }
 
 const ComponentsLegend: Component = () => (
-  <div class="legend map-legend">
+  <div class="legend">
     <div class="legend-row">
-      <span class="map-lg map-lg-box" />
+      <span class="arch-lg arch-lg-box" />
       {t('arch.legend.segment')}
     </div>
     <div class="legend-row">
-      <span class="map-lg map-lg-box arch-lg-module" />
+      <span class="arch-lg arch-lg-box arch-lg-module" />
       {t('arch.legend.module')}
     </div>
     <div class="legend-row">
-      <span class="map-lg map-lg-line" />
+      <span class="arch-lg arch-lg-line" />
       {t('arch.legend.import')}
     </div>
     <div class="legend-row">
-      <span class="map-lg map-lg-box" style={{ 'border-color': NEIGHBOUR.imports }} />
-      <span class="map-lg map-lg-box" style={{ 'border-color': NEIGHBOUR.importedBy }} />
+      <span class="arch-lg arch-lg-box" style={{ 'border-color': NEIGHBOUR.imports }} />
+      <span class="arch-lg arch-lg-box" style={{ 'border-color': NEIGHBOUR.importedBy }} />
       {t('arch.legend.neighbours')}
     </div>
     <div class="legend-row">
-      <span class="map-lg" />
+      <span class="arch-lg" />
       {t('arch.legend.hint')}
     </div>
   </div>
@@ -192,27 +187,15 @@ export const ComponentsScene: Component<{ model: Model; unit: Unit }> = (props) 
         <g class="arch-imports" fill="none">
           <For each={marks().segmentLinks}>
             {(link) => (
-              <>
-                <path
-                  class="arch-segment-link"
-                  data-ch="edge"
-                  d={link.d}
-                  stroke={EDGE_NEUTRAL}
-                  stroke-opacity={selectedModule() === null ? ARROW_OPACITY.base : ARROW_OPACITY.dimmed}
-                  stroke-width={1 + Math.min(1.5, Math.log2(link.count + 1) * 0.5)}
-                  marker-end={CANVAS_DEFS.arrow}
-                />
-                <text
-                  class="map-count"
-                  x={link.label.x}
-                  y={link.label.y}
-                  fill={LABEL_FILL}
-                  stroke={LABEL_HALO}
-                  opacity={selectedModule() === null ? 1 : COUNT_DIMMED}
-                >
-                  {link.count}
-                </text>
-              </>
+              <Edge
+                d={link.d}
+                width={segmentWidth(link.count)}
+                opacity={ARROW_OPACITY}
+                state={selectedModule() === null ? 'idle' : 'dimmed'}
+                class="arch-segment-link"
+                data={{ 'data-from': link.from, 'data-to': link.to }}
+                label={{ ...link.label, text: link.count }}
+              />
             )}
           </For>
         </g>

@@ -3,6 +3,7 @@ import { Feature, fetchFeatures } from '../../lib/api'
 import { SeverityLabel } from '../../render/encoding'
 import { Model } from '../../render/model'
 import { CROSS_LAYER_RULE, CYCLE_RULE, SIBLING_RULE } from '../../types'
+import type { ArchPath } from './path'
 
 export type BoxKind = 'feature' | 'layer' | 'unit'
 
@@ -143,7 +144,7 @@ export const unitBoxes = (m: Model, units: readonly number[]): Boxes =>
 const [features, setFeatures] = createSignal<readonly Feature[] | null>(null)
 let isRequested = false
 
-/** Requests `/api/features` on the first read; `[]` when it fails, so the boxes fall back to layers. */
+/** Requests `/api/features` on the first read; `[]` when it fails. Until it answers and without features, the boxes are the top-level layers. */
 export const archFeatures = (): readonly Feature[] | null => {
   if (!isRequested) {
     isRequested = true
@@ -155,7 +156,13 @@ export const archFeatures = (): readonly Feature[] | null => {
   return features()
 }
 
-export const containerBoxes = (m: Model): Boxes | null => {
-  const list = archFeatures()
-  return list ? featureBoxes(m, list) : null
+export const containerBoxes = (m: Model): Boxes => featureBoxes(m, archFeatures() ?? [])
+
+export const boxesAt = (m: Model, path: ArchPath): Boxes => {
+  const top = containerBoxes(m)
+  if (path.level !== 'group') return top
+  return unitBoxes(m, top.boxes.find((b) => b.key === path.group)?.units ?? [])
 }
+
+export const linkOf = (data: Boxes, from: string, to: string): BoxLink | null =>
+  data.links.find((l) => l.from === from && l.to === to) ?? null

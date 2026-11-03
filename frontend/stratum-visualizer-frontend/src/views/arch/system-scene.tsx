@@ -1,14 +1,13 @@
 import { Component, createMemo, For, Show } from 'solid-js'
 import { Canvas } from '../../canvas/canvas'
 import { t } from '../../i18n'
+import { Edge } from '../../render/edge'
 import { trunc } from '../../render/labels'
-import { CANVAS_DEFS, EDGE_NEUTRAL } from '../../render/encoding'
 import { Model } from '../../render/model'
 import { nav, set } from '../../shell/nav'
-import { LanesAside } from '../map/lanes-scene'
 import { goToLevel } from './actions'
 import { ARCH_CONTAINERS } from './path'
-import { ActorBox, layoutPorts, layoutSystems, LinkArrow, PortArrow, PortBox, portsSlot, SystemBox, Zone } from './system-layout'
+import { ActorBox, layoutSystems, LinkArrow, SystemBox, Zone } from './system-layout'
 import { channelWeight, SystemsInModel } from './systems'
 
 const NAME_CHAR_PX = 6.6
@@ -32,10 +31,8 @@ const LINK_CHARS = 30
 const DESC_CHARS = 34
 const MUTED_FILL = 'oklch(22% 0.008 260 / .6)'
 const MUTED_STROKE = 'oklch(45% 0.01 260)'
-const LABEL_FILL = 'oklch(90% 0.005 260)'
-const LABEL_HALO = 'oklch(16% 0.012 260)'
-const ARROW_WIDTH = { base: 1.6, selected: 2.8 } as const
-const ARROW_OPACITY = { base: 0.6, selected: 0.95 } as const
+const ARROW_WIDTH = 1.6
+const LINK_WIDTH = 1.2
 
 const selectedSystem = (): string | null => {
   const sel = nav().sel
@@ -45,11 +42,6 @@ const selectedSystem = (): string | null => {
 const selectedChannel = (): string | null => {
   const sel = nav().sel
   return sel?.kind === 'channel' ? sel.to : null
-}
-
-const selectedPort = (): { container: number; system: string } | null => {
-  const sel = nav().sel
-  return sel?.kind === 'port' ? sel : null
 }
 
 const boxFill = (b: SystemBox): { fill: string; stroke: string } => {
@@ -155,30 +147,17 @@ const ActorMark: Component<{ box: ActorBox }> = (props) => {
 const LinkMark: Component<{ arrow: LinkArrow; nameOf: (id: string) => string }> = (props) => {
   const a = props.arrow
   return (
-    <g class="arch-link" data-testid="arch-link" data-from={a.link.from} data-to={a.link.to}>
-      <path d={a.d} stroke={EDGE_NEUTRAL} stroke-opacity={ARROW_OPACITY.base} stroke-width={1.2} marker-end={CANVAS_DEFS.arrow} />
-      <Show when={a.link.label}>
-        {(label) => (
-          <text class="arch-link-label" x={a.label.x} y={a.label.y} fill={LABEL_FILL} stroke={LABEL_HALO}>
-            {trunc(label(), LINK_CHARS)}
-          </text>
-        )}
-      </Show>
-      <title>
-        {props.nameOf(a.link.from)} → {props.nameOf(a.link.to)}
-        {a.link.label ? `\n${a.link.label}` : ''}
-      </title>
-    </g>
+    <Edge
+      d={a.d}
+      width={LINK_WIDTH}
+      testId="arch-link"
+      class="arch-link"
+      data={{ 'data-from': a.link.from, 'data-to': a.link.to }}
+      label={a.link.label ? { ...a.label, text: trunc(a.link.label, LINK_CHARS), class: 'edge-label' } : null}
+      title={`${props.nameOf(a.link.from)} → ${props.nameOf(a.link.to)}${a.link.label ? `\n${a.link.label}` : ''}`}
+    />
   )
 }
-
-const ArrowLabel: Component<{ x: number; y: number; n: number }> = (props) => (
-  <text class="arch-count" x={props.x} y={props.y} fill={LABEL_FILL} stroke={LABEL_HALO}>
-    {props.n}
-  </text>
-)
-
-const HitPath: Component<{ d: string }> = (props) => <path class="arch-hit" d={props.d} stroke="transparent" stroke-width="14" />
 
 export const SystemScene: Component<{ model: Model; systems: SystemsInModel }> = (props) => {
   const layout = createMemo(() => layoutSystems(props.systems))
@@ -193,37 +172,28 @@ export const SystemScene: Component<{ model: Model; systems: SystemsInModel }> =
         <g fill="none">
           <For each={layout().links}>{(a) => <LinkMark arrow={a} nameOf={nameOf} />}</For>
           <For each={layout().arrows}>
-            {(a) => {
-              const isSelected = () => selectedChannel() === a.channel.to.id
-              return (
-                <g
-                  class="arch-channel"
-                  data-testid="arch-channel"
-                  data-from={props.systems.self.id}
-                  data-to={a.channel.to.id}
-                  data-contracts={a.channel.contracts.length}
-                  data-via={a.channel.via.length}
-                  onClick={() => set({ sel: { kind: 'channel', to: a.channel.to.id } })}
-                >
-                  <HitPath d={a.d} />
-                  <path
-                    d={a.d}
-                    stroke={isSelected() ? SELECTED_STROKE : EDGE_NEUTRAL}
-                    stroke-opacity={isSelected() ? ARROW_OPACITY.selected : ARROW_OPACITY.base}
-                    stroke-width={isSelected() ? ARROW_WIDTH.selected : ARROW_WIDTH.base}
-                    marker-end={CANVAS_DEFS.arrow}
-                  />
-                  <ArrowLabel x={a.label.x} y={a.label.y} n={channelWeight(a.channel)} />
-                  <title>
-                    {props.systems.self.name} → {a.channel.to.name}
-                    {'\n'}
-                    {a.channel.contracts.length
-                      ? t('arch.channel.contracts', { n: a.channel.contracts.length })
-                      : t('arch.channel.via', { n: a.channel.via.length })}
-                  </title>
-                </g>
-              )
-            }}
+            {(a) => (
+              <Edge
+                d={a.d}
+                width={ARROW_WIDTH}
+                state={selectedChannel() === a.channel.to.id ? 'selected' : 'idle'}
+                testId="arch-channel"
+                class="arch-channel"
+                data={{
+                  'data-from': props.systems.self.id,
+                  'data-to': a.channel.to.id,
+                  'data-contracts': a.channel.contracts.length,
+                  'data-via': a.channel.via.length,
+                }}
+                label={{ ...a.label, text: channelWeight(a.channel) }}
+                onClick={() => set({ sel: { kind: 'channel', to: a.channel.to.id } })}
+                title={`${props.systems.self.name} → ${a.channel.to.name}\n${
+                  a.channel.contracts.length
+                    ? t('arch.channel.contracts', { n: a.channel.contracts.length })
+                    : t('arch.channel.via', { n: a.channel.via.length })
+                }`}
+              />
+            )}
           </For>
         </g>
         <For each={layout().actors}>{(b) => <ActorMark box={b} />}</For>
@@ -231,92 +201,4 @@ export const SystemScene: Component<{ model: Model; systems: SystemsInModel }> =
       </g>
     </Canvas>
   )
-}
-
-const PortMark: Component<{ port: PortBox }> = (props) => {
-  const p = props.port
-  const isSelected = () => selectedSystem() === p.system.id
-  const tone = p.system.unavailableReason
-    ? { fill: MUTED_FILL, stroke: MUTED_STROKE }
-    : p.system.isExternal
-      ? { fill: EXTERNAL_FILL, stroke: EXTERNAL_STROKE }
-      : { fill: OTHER_FILL, stroke: OTHER_STROKE }
-  return (
-    <g
-      class={`arch-port${p.system.unavailableReason ? ' muted' : ''}`}
-      data-testid="arch-port"
-      data-id={p.system.id}
-      transform={`translate(${p.x},${p.y})`}
-      onClick={() => set({ sel: { kind: 'system', id: p.system.id } })}
-    >
-      <rect
-        width={p.w}
-        height={p.h}
-        rx={p.h / 2}
-        fill={tone.fill}
-        stroke={isSelected() ? SELECTED_STROKE : tone.stroke}
-        stroke-width={isSelected() ? 2 : 1.2}
-        stroke-dasharray={p.system.unavailableReason ? '5 3' : undefined}
-      />
-      <text class="arch-system-name" x={PAD + 4} y={20}>
-        {trunc(p.system.name, Math.floor((p.w - PAD * 2) / NAME_CHAR_PX))}
-      </text>
-      <text class="arch-system-meta" x={PAD + 4} y={34}>
-        {p.system.unavailableReason ? t('arch.system.unavailable') : t('arch.port')}
-      </text>
-      <title>{[p.system.name, p.system.unavailableReason].filter(Boolean).join('\n')}</title>
-    </g>
-  )
-}
-
-const PortArrowMark: Component<{ arrow: PortArrow; model: Model }> = (props) => {
-  const link = props.arrow.link
-  const isSelected = () => {
-    const p = selectedPort()
-    return (p?.container === link.container && p.system === link.system) || selectedSystem() === link.system
-  }
-  return (
-    <g
-      class="arch-port-link"
-      data-testid="arch-port-link"
-      data-container={link.container}
-      data-system={link.system}
-      onClick={() => set({ sel: { kind: 'port', container: link.container, system: link.system } })}
-    >
-      <HitPath d={props.arrow.d} />
-      <path
-        d={props.arrow.d}
-        stroke={isSelected() ? SELECTED_STROKE : EDGE_NEUTRAL}
-        stroke-opacity={isSelected() ? ARROW_OPACITY.selected : ARROW_OPACITY.base / 2}
-        stroke-width={isSelected() ? ARROW_WIDTH.selected : ARROW_WIDTH.base}
-        stroke-dasharray="6 3"
-        marker-end={CANVAS_DEFS.arrow}
-      />
-      <ArrowLabel x={props.arrow.label.x} y={props.arrow.label.y} n={channelWeight(link)} />
-      <title>
-        {props.model.unitLabel(link.container)} → {link.system}
-        {'\n'}
-        {link.contracts.length
-          ? t('arch.channel.contracts', { n: link.contracts.length })
-          : t('arch.channel.via', { n: link.via.length })}
-      </title>
-    </g>
-  )
-}
-
-export const portsAside = (m: Model, systems: SystemsInModel): LanesAside => {
-  return {
-    size: portsSlot(systems),
-    Marks: (props) => {
-      const ports = createMemo(() => layoutPorts(props.layout, props.slot, systems))
-      return (
-        <g class="arch-ports">
-          <g fill="none">
-            <For each={ports().arrows}>{(a) => <PortArrowMark arrow={a} model={m} />}</For>
-          </g>
-          <For each={ports().ports}>{(p) => <PortMark port={p} />}</For>
-        </g>
-      )
-    },
-  }
 }

@@ -13,11 +13,9 @@ export type Selection =
   | { kind: 'imports'; pairs: readonly (readonly [from: number, to: number])[] }
   | { kind: 'system'; id: string }
   | { kind: 'channel'; to: string }
-  | { kind: 'port'; container: number; system: string }
+  | { kind: 'port'; box: string; system: string }
   | { kind: 'box'; key: string }
-
-export const MAP_GATES = ['rules', 'top', 'all'] as const
-export type MapGate = (typeof MAP_GATES)[number]
+  | { kind: 'link'; from: string; to: string }
 
 export interface NavState {
   view: ViewId
@@ -27,7 +25,6 @@ export interface NavState {
   focusVariant: 'columns' | 'bands'
   dsmLevel: 'layer' | 'unit'
   mrVariant: 'region' | 'card'
-  mapGate: MapGate
   setVariant: 'ring' | 'arc' | 'matrix'
   set: readonly number[]
   arch: ArchPath
@@ -51,7 +48,6 @@ const DEFAULT_STATE: NavState = {
   focusVariant: 'columns',
   dsmLevel: 'layer',
   mrVariant: 'region',
-  mapGate: 'rules',
   setVariant: 'ring',
   set: [],
   arch: ARCH_TOP,
@@ -82,7 +78,6 @@ const restore = (): NavState => {
     focusVariant: oneOf(raw.focusVariant, ['columns', 'bands'] as const, d.focusVariant),
     dsmLevel: oneOf(raw.dsmLevel, ['layer', 'unit'] as const, d.dsmLevel),
     mrVariant: oneOf(raw.mrVariant, ['region', 'card'] as const, d.mrVariant),
-    mapGate: oneOf(raw.mapGate, MAP_GATES, d.mapGate),
     setVariant: oneOf(raw.setVariant, ['ring', 'arc', 'matrix'] as const, d.setVariant),
     set: Array.isArray(raw.set) ? raw.set.filter((id): id is number => typeof id === 'number') : d.set,
     arch: parseArchPath(raw.arch),

@@ -2,8 +2,7 @@ import { SCENE_MARK_BUDGET } from '../../render/budget'
 import { disambiguate } from '../../render/labels'
 import { edgeKey, Model, Unit } from '../../render/model'
 import { Bounds } from '../../render/viewport'
-import { curveBetween, Point, Rect } from '../map/layout'
-import { GridLine, routeAround, RouteLink } from '../../render/route'
+import { curveBetween, GridLine, Point, Rect, routeAround, RouteLink } from '../../render/route'
 
 export const ROOT_SEGMENT = ''
 
@@ -332,6 +331,7 @@ export interface ComponentsMarks {
 const BOX_MARKS = 2
 const NODE_MARKS = 2
 const SEGMENT_LINK_MARKS = 2
+const IMPORT_MARKS = 2
 
 const IMPORT_SIDES = ['left', 'right'] as const
 
@@ -383,7 +383,7 @@ export const componentMarks = (
   const base = layout.boxes.length * BOX_MARKS + layout.nodes.size * NODE_MARKS
   const shown = layout.imports.filter((a) => a.from === focus || a.to === focus || isFlagged(a))
   const routes = routeAround(routeRequests(layout, shown, focus), layout.routing)
-  const arrows = layout.segmentLinks.length * SEGMENT_LINK_MARKS + shown.length
+  const arrows = layout.segmentLinks.length * SEGMENT_LINK_MARKS + shown.length * IMPORT_MARKS
   return {
     imports: shown.map((a) => ({ ...a, d: routes.get(`${a.from}>${a.to}`)?.d ?? a.d })),
     segmentLinks: layout.segmentLinks,

@@ -32,7 +32,7 @@ const selectionAfter = (m: Model, from: ArchPath, to: ArchPath): Selection | nul
   if (to.level === 'components' && from.level === 'code') return { kind: 'module', id: from.module }
   if (to.level === 'containers' && from.level === 'group') return { kind: 'box', key: from.group }
   if (to.level === 'containers' && (from.level === 'components' || from.level === 'code')) {
-    const key = from.group?.key ?? containerBoxes(m)?.boxOfUnit.get(from.container)
+    const key = from.group?.key ?? containerBoxes(m).boxOfUnit.get(from.container)
     return key ? { kind: 'box', key } : null
   }
   if (to.level === 'group' && (from.level === 'components' || from.level === 'code')) {
@@ -72,7 +72,7 @@ const boxSelected = (m: Model, path: ArchPath): boolean => {
     goToLevel(m, { level: 'components', container: unit, group: { key: path.group, name: path.name } })
     return true
   }
-  const box = containerBoxes(m)?.boxes.find((b) => b.key === sel.key)
+  const box = containerBoxes(m).boxes.find((b) => b.key === sel.key)
   if (!box) return false
   openBox(m, box)
   return true

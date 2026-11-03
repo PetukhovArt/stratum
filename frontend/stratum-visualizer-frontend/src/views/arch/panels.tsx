@@ -4,15 +4,15 @@ import { t } from '../../i18n'
 import { Model, Unit } from '../../render/model'
 import { nav, set } from '../../shell/nav'
 import { PathText } from '../../shell/path-text'
-import { LinkDetails, MapOutline, Swatch } from '../map/panels'
-import { selectedUnit, selectedUnitPair } from '../map/selection'
-import { mapDataOf, UnitLink } from '../map/units'
 import { ViewProps } from '../view-def'
 import { archPathOf, goToLevel } from './actions'
+import { BoxLink, Boxes, boxesAt, linkOf } from './boxes'
 import { crossSliceBundles } from './bundles'
 import { ROOT_SEGMENT, segmentsOf } from './components'
 import { isPortSelection, PortDetails, SystemDetails, SystemOutline } from './system-panels'
 import { systemsIn, SystemsInModel } from './systems'
+import { LinkDetails, selectedUnit, selectedUnitPair, Swatch, UnitsOutline } from './unit-panels'
+import { unitDataOf, UnitLink } from './units'
 
 const BUNDLE_LIST = 12
 const NEIGHBOURS = 12
@@ -20,11 +20,11 @@ const NEIGHBOURS = 12
 const byCount = (a: UnitLink, b: UnitLink): number => b.count - a.count || a.key.localeCompare(b.key)
 
 const BundleRows: Component<{ model: Model; links: readonly UnitLink[]; testId?: string }> = (props) => (
-  <div class="map-rows">
+  <div class="arch-rows">
     <For each={props.links}>
       {(l) => (
         <button
-          class="map-row"
+          class="arch-row"
           data-testid={props.testId}
           data-from={l.from}
           data-to={l.to}
@@ -49,7 +49,7 @@ const ContainersOverview: Component<{ model: Model }> = (props) => {
   const bundles = createMemo(() => crossSliceBundles(props.model))
   return (
     <>
-      <p class="map-note">{t('arch.containers.hint')}</p>
+      <p class="arch-note">{t('arch.containers.hint')}</p>
       <div class="det-section">
         <h4>{t('arch.crossSlice')}</h4>
         <Show when={bundles().length} fallback={<div class="empty">{t('arch.noCrossSlice')}</div>}>
@@ -61,19 +61,19 @@ const ContainersOverview: Component<{ model: Model }> = (props) => {
 }
 
 const ContainerCard: Component<{ model: Model; unit: Unit }> = (props) => {
-  const info = () => mapDataOf(props.model).units.get(props.unit.id)
+  const info = () => unitDataOf(props.model).units.get(props.unit.id)
   return (
     <div data-testid="arch-container-details" data-id={props.unit.id}>
       <div class="det-path">
         <PathText path={props.unit.path} />
       </div>
-      <p class="map-note">
+      <p class="arch-note">
         {t('arch.modules', { n: props.unit.modules.length })} ·{' '}
         {t('arch.segments', { n: segmentsOf(props.model, props.unit).length })}
       </p>
-      <div class="map-btn-row">
+      <div class="arch-btn-row">
         <button
-          class="map-btn"
+          class="arch-btn"
           data-testid="arch-enter"
           onClick={() => goToLevel(props.model, { level: 'components', container: props.unit.id })}
         >
@@ -96,11 +96,56 @@ const ContainerCard: Component<{ model: Model; unit: Unit }> = (props) => {
   )
 }
 
+const BoxLinkCard: Component<{ model: Model; data: Boxes; link: BoxLink }> = (props) => {
+  const name = (key: string) => props.data.boxes.find((b) => b.key === key)?.name ?? key
+  const units = createMemo(() =>
+    unitDataOf(props.model)
+      .links.filter((l) => props.data.boxOfUnit.get(l.from) === props.link.from && props.data.boxOfUnit.get(l.to) === props.link.to)
+      .slice()
+      .sort(byCount),
+  )
+  return (
+    <div data-testid="arch-link-details" data-from={props.link.from} data-to={props.link.to}>
+      <div class="det-section">
+        <h4>
+          {name(props.link.from)} → {name(props.link.to)}
+        </h4>
+        <p class="arch-note">
+          {t('arch.imports', { n: props.link.count })}
+          <Show when={props.link.findings}>
+            {' · '}
+            <span class="c-err" data-ch="sev">
+              {t('arch.box.findings', { n: props.link.findings })}
+            </span>
+          </Show>
+        </p>
+      </div>
+      <ContractSection edges={units().map((l) => ({ level: 'container' as const, from: l.from, to: l.to }))} />
+      <Show
+        when={units().length === 1 && units()[0]}
+        fallback={
+          <div class="det-section">
+            <h4>{t('arch.link.bundles')}</h4>
+            <BundleRows model={props.model} links={units()} testId="arch-bundle-row" />
+          </div>
+        }
+      >
+        {(l) => <LinkDetails model={props.model} link={l()} />}
+      </Show>
+    </div>
+  )
+}
+
 const ContainersDetails: Component<{ model: Model }> = (props) => {
-  const data = createMemo(() => mapDataOf(props.model))
+  const data = createMemo(() => unitDataOf(props.model))
+  const boxes = createMemo(() => boxesAt(props.model, archPathOf(props.model)))
   const link = createMemo(() => {
     const p = selectedUnitPair()
     return p ? (data().linkOf(p.from, p.to) ?? null) : null
+  })
+  const boxLink = createMemo(() => {
+    const sel = nav().sel
+    return sel?.kind === 'link' ? linkOf(boxes(), sel.from, sel.to) : null
   })
   const unit = createMemo(() => {
     const id = selectedUnit()
@@ -109,7 +154,8 @@ const ContainersDetails: Component<{ model: Model }> = (props) => {
   const systems = createMemo(() => (isPortSelection() ? systemsIn(props.model) : null))
   return (
     <Switch fallback={<ContainersOverview model={props.model} />}>
-      <Match when={systems()}>{(s) => <PortDetails model={props.model} systems={s()} />}</Match>
+      <Match when={systems()}>{(s) => <PortDetails model={props.model} systems={s()} boxes={boxes()} />}</Match>
+      <Match when={boxLink()}>{(l) => <BoxLinkCard model={props.model} data={boxes()} link={l()} />}</Match>
       <Match when={link()}>
         {(l) => (
           <div data-testid="arch-bundle-details" data-from={l().from} data-to={l().to}>
@@ -124,11 +170,11 @@ const ContainersDetails: Component<{ model: Model }> = (props) => {
 }
 
 const ModuleRows: Component<{ model: Model; ids: readonly number[] }> = (props) => (
-  <div class="map-rows">
+  <div class="arch-rows">
     <For each={props.ids}>
       {(id) => (
         <button
-          class="map-row"
+          class="arch-row"
           title={props.model.modules.get(id)?.path}
           onClick={() => set({ sel: { kind: 'module', id } })}
         >
@@ -148,16 +194,16 @@ const ModuleCard: Component<{ model: Model; unit: Unit; id: number }> = (props) 
       <div class="det-path">
         <PathText path={props.model.modules.get(props.id)?.path ?? ''} />
       </div>
-      <div class="map-btn-row">
+      <div class="arch-btn-row">
         <button
-          class="map-btn"
+          class="arch-btn"
           data-testid="arch-open-code"
           onClick={() => goToLevel(props.model, { level: 'code', container: props.unit.id, module: props.id })}
         >
           {t('arch.openCode')} <kbd>Enter</kbd>
         </button>
       </div>
-      <p class="map-note">
+      <p class="arch-note">
         {t('arch.outside', { out: out().filter((x) => !isInside(x)).length, inn: inn().filter((x) => !isInside(x)).length })}
       </p>
       <Show when={out().some(isInside)}>
@@ -196,13 +242,13 @@ const ComponentsOverview: Component<{ model: Model; unit: Unit }> = (props) => (
     <div class="det-path">
       <PathText path={props.unit.path} />
     </div>
-    <p class="map-note">{t('arch.module.hint')}</p>
+    <p class="arch-note">{t('arch.module.hint')}</p>
     <div class="det-section">
       <h4>{t('arch.segments', { n: segmentsOf(props.model, props.unit).length })}</h4>
-      <div class="map-rows">
+      <div class="arch-rows">
         <For each={segmentsOf(props.model, props.unit)}>
           {(s) => (
-            <div class="map-row">
+            <div class="arch-row">
               <span class="nm mono">{s.name === ROOT_SEGMENT ? t('arch.root') : `${s.name}/`}</span>
               <span class="n">{s.modules.length}</span>
             </div>
@@ -235,7 +281,7 @@ const ComponentsDetails: Component<{ model: Model; unit: Unit }> = (props) => {
 
 const unitOfPath = (m: Model): Unit | null => {
   const path = archPathOf(m)
-  if (path.level === 'system' || path.level === 'containers') return null
+  if (path.level === 'system' || path.level === 'containers' || path.level === 'group') return null
   return m.units.find((u) => u.id === path.container) ?? null
 }
 
@@ -272,7 +318,7 @@ const ContainerPanel: Component<{ model: Model; unit: Unit | null }> = (props) =
         </Show>
       </span>
       <span class="panel-count">
-        <Show when={props.unit} fallback={t('map.units', { n: props.model.units.length })}>
+        <Show when={props.unit} fallback={t('arch.units', { n: props.model.units.length })}>
           {(u) => t('arch.modules', { n: u().modules.length })}
         </Show>
       </span>
@@ -300,14 +346,14 @@ const ComponentsOutline: Component<{ model: Model; unit: Unit }> = (props) => {
         <For each={segmentsOf(props.model, props.unit)}>
           {(s) => (
             <>
-              <div class="map-ol-layer">
+              <div class="arch-ol-layer">
                 <Swatch model={props.model} layer={props.unit.layer} />
                 {s.name === ROOT_SEGMENT ? t('arch.root') : `${s.name}/`}
               </div>
               <For each={s.modules}>
                 {(id) => (
                   <div
-                    class={`map-ol-unit${selected() === id ? ' on' : ''}`}
+                    class={`arch-ol-unit${selected() === id ? ' on' : ''}`}
                     data-testid="arch-outline-module"
                     data-id={id}
                     title={props.model.modules.get(id)?.path}
@@ -330,7 +376,7 @@ export const ArchOutline: Component<ViewProps> = (props) => {
   const unit = createMemo(() => unitOfPath(props.model))
   const systems = createMemo(() => systemsOfPath(props.model))
   return (
-    <Switch fallback={<MapOutline {...props} />}>
+    <Switch fallback={<UnitsOutline {...props} />}>
       <Match when={systems()}>{(s) => <SystemOutline systems={s()} />}</Match>
       <Match when={unit()}>{(u) => <ComponentsOutline model={props.model} unit={u()} />}</Match>
     </Switch>
