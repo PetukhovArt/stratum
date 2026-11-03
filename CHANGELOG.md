@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.6.0 (2026-11-03)
+
 - Added a Contract section to the visualizer: selecting an import edge or a bundle lists the names that cross it, each resolved through barrels to its declaration, and a name opens the Code panel on the import line and the declaration
 - Added `features` to the config and `stratum-lint features`: a feature is its entry modules plus everything they import statically; without the key, each folder or file directly in the first sliced layer is one; the visualizer filters every view to the chosen features, marks modules two of them share and can hide modules most features use (`visualize --feature ID` preselects)
 - Added the Architecture view (key `6`) to the visualizer: System, Containers, Components and Code levels with breadcrumbs, `Enter` to go down and `Backspace` to go up
@@ -10,6 +12,7 @@
 - Added `stratum-lint export --out DIR`: the visualizer as a static site for GitLab or GitHub Pages, with source text only under `--with-source`
 - Added a guide to the visualizer (`?` or the header button): what each view answers, step-by-step use cases and the controls, in English and Russian; the side panels toggle from status bar buttons and the canvas legend folds, and both remember the choice
 - Changed Architecture → Containers to one scene with or without features: blocks in ranked rows, right-angle links with shared trunks and hub stubs, and a click on any link or stub opens its contract; blocks no longer drag (saved positions and Reset layout are gone) and the rule breaks / ≥ N imports / all edge filter gives way to "N weaker links hidden · click a block"
+- Changed Merge request → Diff region to draw import links at right angles through the gaps between module cells, so no link crosses another module
 - Removed the visualizer's Container map view (key `4`): Architecture → Containers shows the units, the bundles between them and each bundle's contract, and Matrix shows the imports and rule breaks between layers
 
 ## 0.5.0 (2026-10-28)
