@@ -1,7 +1,7 @@
 import { Bounds } from '../../render/viewport'
 import { Model } from '../../render/model'
 import { curveBetween, GridLine, Point, Rect, routeAround, RouteLink } from '../../render/route'
-import { Review, ReviewEdge, ReviewNode, worstBreak } from './review'
+import { Fold, Review, ReviewEdge, ReviewNode, worstBreak } from './review'
 
 export const REGION = {
   nodeW: 184,
@@ -43,13 +43,25 @@ export interface EdgeMark {
   mid: Point
 }
 
+export interface FoldMark {
+  fold: Fold
+  d: string
+  mid: Point
+}
+
+interface Routing {
+  obstacles: Rect[]
+  lines: { xs: GridLine[]; ys: GridLine[] }
+}
+
 export interface RegionLayout {
   lanes: LaneBox[]
   slices: SliceBox[]
   groups: GroupBox[]
   nodes: Map<number, Rect>
-  edges: EdgeMark[]
+  folds: FoldMark[]
   bounds: Bounds
+  cellRouting: Routing
 }
 
 interface Block {
@@ -64,10 +76,17 @@ const CHAR_PX = 6
 const META_CHAR_PX = 5.6
 const ROUTE_BEND = 220
 const ROUTE_TRACK = 2.5
+const FOLD_TRACK = 6
 const ROUTE_SIDES = ['left', 'right'] as const
 const WEIGHT = { breaking: 3, changed: 2, same: 1 } as const
 
-const routingLines = (groups: readonly GroupBox[], slices: readonly SliceBox[], lanes: readonly LaneBox[], right: number) => {
+const routingLines = (
+  groups: readonly GroupBox[],
+  slices: readonly SliceBox[],
+  lanes: readonly LaneBox[],
+  right: number,
+  isInsideGroups: boolean,
+) => {
   const xs: GridLine[] = [
     { at: -REGION.lanePad / 2, cost: 1, room: REGION.lanePad / 2 - 2 },
     { at: right - MARGIN_X / 2, cost: 1, room: MARGIN_X / 2 - 2 },
@@ -78,11 +97,12 @@ const routingLines = (groups: readonly GroupBox[], slices: readonly SliceBox[], 
   const between = { cost: 1.2, room: REGION.nodeGap / 2 - 1.5 }
   for (const g of groups) {
     xs.push({ at: g.x - REGION.groupGap / 2, ...outer }, { at: g.x + g.w + REGION.groupGap / 2, ...outer })
+    ys.push({ at: g.y - SLICE_LANE, cost: 1.2, room: 1 }, { at: g.y + g.h + REGION.groupGap / 2, ...outer })
+    if (!isInsideGroups) continue
     xs.push({ at: g.x + REGION.groupPad / 2, ...inner }, { at: g.x + g.w - REGION.groupPad / 2, ...inner })
     for (let k = 1; k < g.cols; k++) {
       xs.push({ at: g.x + REGION.groupPad + k * (REGION.nodeW + REGION.nodeGap) - REGION.nodeGap / 2, ...between })
     }
-    ys.push({ at: g.y - SLICE_LANE, cost: 1.2, room: 1 }, { at: g.y + g.h + REGION.groupGap / 2, ...outer })
     ys.push({ at: g.y + REGION.groupHead - HEAD_LANE, cost: 1.3, room: 1.5 })
     for (let k = 1; k < g.rows; k++) {
       ys.push({ at: g.y + REGION.groupHead + k * (REGION.nodeH + REGION.nodeGap) - REGION.nodeGap / 2, cost: 3, room: 1 })
@@ -113,12 +133,40 @@ export const groupMeta = (m: Model, review: Review, g: GroupBox): string => {
   return stageText(review, g.container, g.container === null ? undefined : m.containers.get(g.container)?.stage)
 }
 
-const headRects = (g: GroupBox, meta: string): Rect[] => {
-  const name = Math.min(g.name.length, GROUP_CHARS)
-  const metaW = meta.length * META_CHAR_PX + 4
+export const groupInner = (review: Review, g: GroupBox): string => {
+  const tally = review.innerByGroup.get(g.key)
+  return tally ? `+${tally.added} −${tally.removed}` : ''
+}
+
+export interface GroupHead {
+  nameChars: number
+  meta: string
+  inner: string
+  innerRight: number
+}
+
+const HEAD_GAP = 8
+const HEAD_INSET = 9
+const MIN_NAME_CHARS = 4
+
+export const groupHead = (m: Model, review: Review, g: GroupBox): GroupHead => {
+  const meta = groupMeta(m, review, g)
+  const inner = groupInner(review, g)
+  const innerRight = g.x + g.w - HEAD_INSET - (meta ? meta.length * META_CHAR_PX + HEAD_GAP : 0)
+  const innerW = inner ? inner.length * META_CHAR_PX + HEAD_GAP : 0
+  const room = Math.floor((innerRight - innerW - g.x - HEAD_INSET) / CHAR_PX)
+  return { nameChars: Math.max(MIN_NAME_CHARS, Math.min(GROUP_CHARS, room)), meta, inner, innerRight }
+}
+
+const headRects = (g: GroupBox, head: GroupHead): Rect[] => {
+  const name = Math.min(g.name.length, head.nameChars)
+  const right = g.x + g.w - HEAD_INSET
+  const left = head.inner
+    ? head.innerRight - head.inner.length * META_CHAR_PX - 4
+    : right - head.meta.length * META_CHAR_PX - 4
   return [
     { x: g.x + 6, y: g.y + 5, w: name * CHAR_PX + 6, h: REGION.groupHead - HEAD_LANE - 7 },
-    { x: g.x + g.w - 9 - metaW, y: g.y + 5, w: metaW, h: REGION.groupHead - HEAD_LANE - 7 },
+    { x: left, y: g.y + 5, w: right - left, h: REGION.groupHead - HEAD_LANE - 7 },
   ]
 }
 
@@ -223,29 +271,28 @@ export const layoutRegion = (m: Model, review: Review): RegionLayout => {
   const width = maxW + REGION.lanePad * 2 + MARGIN_X
   for (const lane of lanes) lane.w = width
 
-  const groupOf = new Map<number, string>()
-  for (const n of review.nodes.values()) groupOf.set(n.id, n.group.key)
-  const drawn = review.edges.filter((e) => nodes.has(e.from) && nodes.has(e.to))
-  const links = drawn.map(
-    (e): RouteLink => ({
-      key: e.key,
-      from: nodes.get(e.from)!,
-      to: nodes.get(e.to)!,
-      weight: weightOf(e),
-      sides: ROUTE_SIDES,
-      bundle: `${groupOf.get(e.from)}>${groupOf.get(e.to)}:${e.tag}:${breakStyle(e)}:${e.kind}`,
-    }),
-  )
-  const obstacles = [...nodes.values(), ...groups.flatMap((g) => headRects(g, groupMeta(m, review, g)))]
-  const routes = routeAround(links, {
-    obstacles,
-    lines: routingLines(groups, slices, lanes, width - REGION.lanePad),
-    bend: ROUTE_BEND,
-    track: ROUTE_TRACK,
+  const right = width - REGION.lanePad
+  const boxOf = new Map(groups.map((g) => [g.key, g]))
+  const ends = (f: Fold): [GroupBox, GroupBox] | null => {
+    const from = boxOf.get(f.from)
+    const to = boxOf.get(f.to)
+    return from && to ? [from, to] : null
+  }
+  const foldLinks = review.folds.flatMap((f): RouteLink[] => {
+    const box = ends(f)
+    return box ? [{ key: f.key, from: box[0], to: box[1], weight: f.added + f.removed }] : []
   })
-  const edges = drawn.map((edge): EdgeMark => {
-    const route = routes.get(edge.key) ?? curveBetween(nodes.get(edge.from)!, nodes.get(edge.to)!)
-    return { edge, d: route.d, mid: route.label }
+  const foldRoutes = routeAround(foldLinks, {
+    obstacles: groups,
+    lines: routingLines(groups, slices, lanes, right, false),
+    bend: ROUTE_BEND,
+    track: FOLD_TRACK,
+  })
+  const folds = review.folds.flatMap((fold): FoldMark[] => {
+    const box = ends(fold)
+    if (!box) return []
+    const route = foldRoutes.get(fold.key) ?? curveBetween(box[0], box[1])
+    return [{ fold, d: route.d, mid: route.label }]
   })
 
   return {
@@ -253,7 +300,32 @@ export const layoutRegion = (m: Model, review: Review): RegionLayout => {
     slices,
     groups,
     nodes,
-    edges,
+    folds,
     bounds: { x: -REGION.lanePad, y: 0, w: width, h: Math.max(0, y - REGION.laneGap) },
+    cellRouting: {
+      obstacles: [...nodes.values(), ...groups.flatMap((g) => headRects(g, groupHead(m, review, g)))],
+      lines: routingLines(groups, slices, lanes, right, true),
+    },
   }
+}
+
+export const routeEdges = (layout: RegionLayout, review: Review, edges: readonly ReviewEdge[]): EdgeMark[] => {
+  const { nodes } = layout
+  const groupOf = (id: number) => review.nodes.get(id)?.group.key
+  const drawn = edges.filter((e) => nodes.has(e.from) && nodes.has(e.to))
+  const links = drawn.map(
+    (e): RouteLink => ({
+      key: e.key,
+      from: nodes.get(e.from)!,
+      to: nodes.get(e.to)!,
+      weight: weightOf(e),
+      sides: ROUTE_SIDES,
+      bundle: `${groupOf(e.from)}>${groupOf(e.to)}:${e.tag}:${breakStyle(e)}:${e.kind}`,
+    }),
+  )
+  const routes = routeAround(links, { ...layout.cellRouting, bend: ROUTE_BEND, track: ROUTE_TRACK })
+  return drawn.map((edge): EdgeMark => {
+    const route = routes.get(edge.key) ?? curveBetween(nodes.get(edge.from)!, nodes.get(edge.to)!)
+    return { edge, d: route.d, mid: route.label }
+  })
 }

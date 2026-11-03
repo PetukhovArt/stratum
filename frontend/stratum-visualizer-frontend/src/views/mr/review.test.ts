@@ -4,7 +4,7 @@ import { snapshotV3 } from '../../test/snapshot'
 import { EdgeKind, SnapshotContainer } from '../../types'
 import { DriftReport } from './drift'
 import { layoutRegion } from './layout'
-import { toReview } from './review'
+import { linesOfModule, toReview } from './review'
 
 const container = (id: number, name: string, path: string, kind: SnapshotContainer['kind'], parent: number | null) => ({
   id,
@@ -63,14 +63,15 @@ describe('toReview', () => {
 
     const ghost = [...review.nodes.values()].find((n) => n.isGhost)
     expect(ghost).toMatchObject({ path: 'src/features/cart/old.ts', layer: 0, slice: 2 })
-    expect(review.edges.find((e) => e.to === ghost?.id)?.tag).toBe('removed')
+    expect(review.changes.find((e) => e.to === ghost?.id)?.tag).toBe('removed')
     expect(layoutRegion(m, review).nodes.has(ghost!.id)).toBe(true)
   })
 
-  it('keeps unchanged imports between region modules as context and lists each importer once', () => {
-    const review = toReview(model(), drift)
+  it('draws the unchanged imports of a selected module as context and lists each importer once', () => {
+    const m = model()
+    const review = toReview(m, drift)
 
-    expect(review.edges.map((e) => [e.from, e.to, e.tag])).toContainEqual([0, 1, 'same'])
+    expect(linesOfModule(m, review, 0).map((e) => [e.from, e.to, e.tag])).toContainEqual([0, 1, 'same'])
     expect(review.files).toEqual([
       { id: 0, path: 'src/features/cart/index.ts', isGhost: false, added: 1, removed: 1, worst: 'error' },
       { id: 1, path: 'src/features/cart/model.ts', isGhost: false, added: 0, removed: 1, worst: null },
@@ -88,5 +89,16 @@ describe('toReview', () => {
       expect.objectContaining({ kind: 'import', from: 'src/features/cart/model.ts', to: 'src/features/cart/index.ts' }),
     ])
     expect([...review.nodes.values()].some((n) => n.isGhost)).toBe(false)
+  })
+
+  it('folds the changes between two groups into one arrow and counts the changes inside a group, drawing only rule breaks module to module', () => {
+    const plain = { ...drift.edges[0], from: 'src/features/cart/model.ts', breaks: [] }
+    const m = model()
+    const review = toReview(m, { ...drift, edges: [...drift.edges, plain] })
+
+    expect(review.alwaysDrawn.map((e) => [e.from, e.to])).toEqual([[0, 2]])
+    expect(review.folds).toEqual([expect.objectContaining({ from: 'c2', to: 'c1', added: 2, removed: 0, worst: 'error' })])
+    expect(review.innerByGroup.get('c2')).toEqual({ added: 0, removed: 2 })
+    expect(layoutRegion(m, review).folds).toHaveLength(1)
   })
 })
