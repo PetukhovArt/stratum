@@ -2,7 +2,7 @@ import { createSignal } from 'solid-js'
 import { DEFAULT_COMMON_LIMIT } from '../features/scope'
 import { ARCH_TOP, ArchPath, parseArchPath } from '../views/arch/path'
 
-export const VIEW_IDS = ['focus', 'dsm', 'mr', 'map', 'set', 'arch', 'bench'] as const
+export const VIEW_IDS = ['focus', 'dsm', 'mr', 'set', 'arch', 'bench'] as const
 export type ViewId = (typeof VIEW_IDS)[number]
 
 export type Selection =
@@ -14,9 +14,8 @@ export type Selection =
   | { kind: 'system'; id: string }
   | { kind: 'channel'; to: string }
   | { kind: 'port'; container: number; system: string }
+  | { kind: 'box'; key: string }
 
-export const MAP_VARIANTS = ['lanes', 'layers'] as const
-export type MapVariant = (typeof MAP_VARIANTS)[number]
 export const MAP_GATES = ['rules', 'top', 'all'] as const
 export type MapGate = (typeof MAP_GATES)[number]
 
@@ -28,9 +27,7 @@ export interface NavState {
   focusVariant: 'columns' | 'bands'
   dsmLevel: 'layer' | 'unit'
   mrVariant: 'region' | 'card'
-  mapVariant: MapVariant
   mapGate: MapGate
-  mapExpanded: readonly number[]
   setVariant: 'ring' | 'arc' | 'matrix'
   set: readonly number[]
   arch: ArchPath
@@ -54,9 +51,7 @@ const DEFAULT_STATE: NavState = {
   focusVariant: 'columns',
   dsmLevel: 'layer',
   mrVariant: 'region',
-  mapVariant: 'lanes',
   mapGate: 'rules',
-  mapExpanded: [],
   setVariant: 'ring',
   set: [],
   arch: ARCH_TOP,
@@ -87,11 +82,7 @@ const restore = (): NavState => {
     focusVariant: oneOf(raw.focusVariant, ['columns', 'bands'] as const, d.focusVariant),
     dsmLevel: oneOf(raw.dsmLevel, ['layer', 'unit'] as const, d.dsmLevel),
     mrVariant: oneOf(raw.mrVariant, ['region', 'card'] as const, d.mrVariant),
-    mapVariant: oneOf(raw.mapVariant, MAP_VARIANTS, d.mapVariant),
     mapGate: oneOf(raw.mapGate, MAP_GATES, d.mapGate),
-    mapExpanded: Array.isArray(raw.mapExpanded)
-      ? raw.mapExpanded.filter((x): x is number => typeof x === 'number')
-      : d.mapExpanded,
     setVariant: oneOf(raw.setVariant, ['ring', 'arc', 'matrix'] as const, d.setVariant),
     set: Array.isArray(raw.set) ? raw.set.filter((id): id is number => typeof id === 'number') : d.set,
     arch: parseArchPath(raw.arch),

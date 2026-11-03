@@ -3,7 +3,7 @@ import { Model, Unit } from '../../render/model'
 import { Bounds } from '../../render/viewport'
 import { MapGate } from '../../shell/nav'
 import { SnapshotLayer } from '../../types'
-import { isGated, LayerLink, MapData, UnitLink } from './units'
+import { isGated, MapData, UnitLink } from './units'
 
 export const BLOCK = {
   pad: 8,
@@ -17,9 +17,7 @@ export const BLOCK = {
 } as const
 export const UNIT_NAME = { charPx: 6.4, pad: 30 } as const
 const BOX = { minW: 80, maxW: 220, baseW: 60, perRootW: 6, minH: 34, maxH: 90, baseH: 30, perRootH: 3 } as const
-export const GRID = { cell: 13, size: 10, maxCols: 24, aspect: 2.2, top: 42, left: 10, minW: 170, headH: 46, foot: 8 } as const
 const CURVE = { maxBend: 80, bendShare: 0.2, arrowClearance: 6 } as const
-export const LAYER_NODE = { w: 300, h: 54, gap: 22, row: 17, maxRows: 40, side: 260, bulge: 30, perStep: 18 } as const
 
 export interface Point {
   x: number
@@ -31,13 +29,8 @@ export interface Rect extends Point {
   h: number
 }
 
-export interface Cell extends Point {
-  id: number
-}
-
 export interface UnitBox extends Rect {
   unit: Unit
-  cells: readonly Cell[] | null
 }
 
 /** A layer's frame: the bounding box of its units plus a header, never narrower than `minW` (its name). */
@@ -60,28 +53,11 @@ export interface Curve {
   label: Point
 }
 
-const gridOf = (modules: readonly number[]): { cols: number; w: number; h: number; cells: Cell[] } => {
-  const n = modules.length
-  const cols = Math.max(1, Math.min(GRID.maxCols, Math.ceil(Math.sqrt(n * GRID.aspect))))
-  const rows = Math.ceil(n / cols)
-  const cells = modules.map((id, i) => ({
-    id,
-    x: GRID.left + (i % cols) * GRID.cell,
-    y: GRID.top + Math.floor(i / cols) * GRID.cell,
-  }))
-  return { cols, w: Math.max(GRID.minW, cols * GRID.cell + GRID.left * 2), h: GRID.headH + rows * GRID.cell + GRID.foot, cells }
-}
-
-const boxSize = (unit: Unit, isExpanded: boolean): { w: number; h: number; cells: Cell[] | null } => {
-  if (isExpanded) {
-    const grid = gridOf(unit.modules)
-    return { w: grid.w, h: grid.h, cells: grid.cells }
-  }
+const boxSize = (unit: Unit): Size => {
   const root = Math.sqrt(unit.modules.length)
   return {
     w: Math.max(BOX.minW, Math.min(BOX.maxW, Math.max(BOX.baseW + root * BOX.perRootW, nameWidth(unit.name)))),
     h: Math.max(BOX.minH, Math.min(BOX.maxH, BOX.baseH + root * BOX.perRootH)),
-    cells: null,
   }
 }
 
@@ -216,7 +192,7 @@ const boundsOf = (rects: readonly Rect[]): Bounds => {
  * packed to fill a `BLOCK.aspect` rectangle at the largest scale; units are packed inside their block by size.
  * `reserve` is packed last as an empty slot for other marks and comes back as `reserved`.
  */
-export const layoutBlocks = (m: Model, expanded: ReadonlySet<number>, reserve: Size | null = null): BlocksLayout => {
+export const layoutBlocks = (m: Model, reserve: Size | null = null): BlocksLayout => {
   const ranks = layerRanks(m.layers)
   const layers = m.layers
     .map((layer) => ({ layer, units: m.units.filter((u) => u.layer === layer.id).sort(bySize) }))
@@ -228,7 +204,7 @@ export const layoutBlocks = (m: Model, expanded: ReadonlySet<number>, reserve: S
         a.layer.id - b.layer.id,
     )
   const inner = layers.map(({ layer, units }) => {
-    const sizes = units.map((u) => boxSize(u, expanded.has(u.id)))
+    const sizes = units.map(boxSize)
     const packed = packLargestInAspect(sizes, BLOCK.innerAspect, BLOCK.gap)
     const modules = units.reduce((n, u) => n + u.modules.length, 0)
     const minW = layer.name.length * BLOCK.nameCharPx + BLOCK.pad * 2
@@ -279,79 +255,24 @@ export interface DefaultLinks {
 }
 
 /**
- * The links drawn while no unit is hovered or selected. Past `SCENE_MARK_BUDGET` the gate narrows to rule breaks
- * plus the expanded units' links, then to rule breaks alone; the expanded cells themselves always stay.
+ * The links drawn while no unit is hovered or selected. Past `SCENE_MARK_BUDGET` the gate narrows to rule breaks.
  */
 export const defaultLinks = (
   layout: BlocksLayout,
   data: MapData,
   gate: MapGate,
-  expanded: ReadonlySet<number>,
   pairKey: string | null,
 ): DefaultLinks => {
   let base = layout.blocks.length * BLOCK_MARKS
   for (const b of layout.boxes.values()) {
-    base += UNIT_MARKS + Number((data.units.get(b.unit.id)?.errors ?? 0) > 0) + (b.cells?.length ?? 0)
+    base += UNIT_MARKS + Number((data.units.get(b.unit.id)?.errors ?? 0) > 0)
   }
   const isPair = (l: UnitLink) => l.key === pairKey
   const isBreak = (l: UnitLink) => l.breaks > 0 || isPair(l)
   const drawn = data.links.filter((l) => layout.boxes.has(l.from) && layout.boxes.has(l.to))
   const gated = drawn.filter((l) => isGated(l, gate) || isPair(l))
-  const tiers = [
-    gated,
-    gated.filter((l) => isBreak(l) || expanded.has(l.from) || expanded.has(l.to)),
-    gated.filter(isBreak),
-  ]
+  const tiers = [gated, gated.filter(isBreak)]
   const marks = (links: readonly UnitLink[]) => base + links.length + Number(links.some(isPair))
   const links = tiers.find((t) => marks(t) <= SCENE_MARK_BUDGET) ?? tiers[tiers.length - 1]
   return { links, hidden: gated.length - links.length }
-}
-
-export interface LayerNode {
-  layer: number
-  y: number
-  h: number
-  units: readonly Unit[]
-  modules: number
-}
-
-export interface LayerCurve extends Curve {
-  link: LayerLink
-}
-
-export interface LayerGraphLayout {
-  nodes: readonly LayerNode[]
-  curves: readonly LayerCurve[]
-  bounds: Bounds
-}
-
-export const layoutLayers = (m: Model, data: MapData, open: number | null): LayerGraphLayout => {
-  const L = LAYER_NODE
-  const nodes: LayerNode[] = []
-  let y = 0
-  for (const layer of m.layers) {
-    const units = m.units.filter((u) => u.layer === layer.id).sort(bySize)
-    const h = open === layer.id ? L.h + Math.min(units.length, L.maxRows) * L.row + GRID.foot : L.h
-    nodes.push({ layer: layer.id, y, h, units, modules: units.reduce((n, u) => n + u.modules.length, 0) })
-    y += h + L.gap
-  }
-  const byLayer = new Map(nodes.map((n, i) => [n.layer, { node: n, index: i }]))
-  const curves = data.layerLinks.flatMap((link): LayerCurve[] => {
-    const a = byLayer.get(link.from)
-    const b = byLayer.get(link.to)
-    if (!a || !b) return []
-    const side = link.isDeclared ? -1 : 1
-    const x0 = link.isDeclared ? 0 : L.w
-    const y1 = a.node.y + L.h / 2
-    const y2 = b.node.y + L.h / 2
-    const bulge = side * (L.bulge + Math.abs(b.index - a.index) * L.perStep)
-    return [
-      {
-        link,
-        d: `M${x0},${y1} C${x0 + bulge},${y1} ${x0 + bulge},${y2} ${x0 + side * 2},${y2}`,
-        label: { x: x0 + bulge * 0.75, y: (y1 + y2) / 2 },
-      },
-    ]
-  })
-  return { nodes, curves, bounds: { x: -L.side, y: -L.gap, w: L.w + L.side * 2, h: y + L.gap } }
 }

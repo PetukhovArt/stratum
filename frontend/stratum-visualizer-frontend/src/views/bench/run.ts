@@ -31,7 +31,7 @@ const STAGE_REGION = '.stage-region'
 const PANELS = '.panel-slot'
 
 export interface RenderRun {
-  view: 'focus' | 'dsm' | 'mr' | 'set' | 'map' | 'arch'
+  view: 'focus' | 'dsm' | 'mr' | 'set' | 'arch'
   variant: string
   scenario: string
   renderMs: number
@@ -178,28 +178,6 @@ const MR_SCENARIOS: readonly Scenario[] = [
   { view: 'mr', variant: 'card', scenario: 'drift vs base', patch: { view: 'mr', mrVariant: 'card' } },
 ]
 
-const mapScenarios = (m: Model): Scenario[] => {
-  const lanes = { view: 'map' as const, variant: 'lanes' }
-  const whole = { view: 'map', mapVariant: 'lanes', mapExpanded: [], sel: null } as const
-  const [largest] = [...m.units].sort((a, b) => b.modules.length - a.modules.length || a.id - b.id)
-  const expanded: Scenario[] = largest
-    ? [
-        {
-          ...lanes,
-          scenario: `expanded: ${largest.path} (${largest.modules.length} modules)`,
-          patch: { ...whole, mapGate: 'rules', mapExpanded: [largest.id] },
-        },
-      ]
-    : []
-  return [
-    { ...lanes, scenario: 'gate: rule breaks', patch: { ...whole, mapGate: 'rules' } },
-    { ...lanes, scenario: 'gate: ≥ 12 imports', patch: { ...whole, mapGate: 'top' } },
-    { ...lanes, scenario: `gate: all ${m.unitEdges.length}`, patch: { ...whole, mapGate: 'all' } },
-    ...expanded,
-    { view: 'map', variant: 'layers', scenario: 'layer graph', patch: { view: 'map', mapVariant: 'layers', sel: null } },
-  ]
-}
-
 const archScenarios = (m: Model): Scenario[] => {
   const [largest] = [...m.units].sort((a, b) => b.modules.length - a.modules.length || a.id - b.id)
   const components: Scenario[] = largest
@@ -343,7 +321,6 @@ export const runBench = (): BenchResult => {
     ...DSM_SCENARIOS,
     ...mrScenarios,
     ...setScenarios(m, subjects),
-    ...mapScenarios(m),
     ...archScenarios(m),
   ].map((sc) => measureRun(sc, colours, tally))
   const territory = tally.result()

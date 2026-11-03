@@ -60,24 +60,22 @@ describe('layerRanks', () => {
 
 describe('layoutBlocks', () => {
   it('packs every unit into its layer block with no two boxes or blocks overlapping', () => {
-    const m = modelOf()
-    expectReadable(layoutBlocks(m, new Set()))
-    expectReadable(layoutBlocks(m, new Set([m.units.find((u) => u.modules.length > 20)!.id])))
+    expectReadable(layoutBlocks(modelOf()))
   })
 
   it('reads from the layers that depend on the most down to those that depend on nothing', () => {
-    const order = layoutBlocks(modelOf(), new Set()).blocks.map((b) => LAYERS[b.layer].name)
+    const order = layoutBlocks(modelOf()).blocks.map((b) => LAYERS[b.layer].name)
     expect(order[0]).toBe('app')
     expect(order[order.length - 1]).toBe('shared')
     expect(order.indexOf('features')).toBeLessThan(order.indexOf('domain'))
   })
 
   it('gives the same layout for the same model', () => {
-    expect(layoutBlocks(modelOf(), new Set())).toEqual(layoutBlocks(modelOf(), new Set()))
+    expect(layoutBlocks(modelOf())).toEqual(layoutBlocks(modelOf()))
   })
 
   it('keeps a reserved slot clear of every block', () => {
-    const layout = layoutBlocks(modelOf(), new Set(), { w: 200, h: 140 })
+    const layout = layoutBlocks(modelOf(), { w: 200, h: 140 })
     const slot = layout.reserved!
     expect(slot).toMatchObject({ w: 200, h: 140 })
     expect(layout.blocks.filter((b) => overlaps(b, slot))).toEqual([])
@@ -87,7 +85,7 @@ describe('layoutBlocks', () => {
 
 describe('moveUnits', () => {
   it('moves a unit and stretches only its own block frame and the bounds to follow it', () => {
-    const base = layoutBlocks(modelOf(), new Set())
+    const base = layoutBlocks(modelOf())
     const block = base.blocks.find((b) => b.units.length > 1)!
     const id = block.units[0]
     const far = { x: base.bounds.x + base.bounds.w + 500, y: base.bounds.y + base.bounds.h + 300 }

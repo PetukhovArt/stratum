@@ -13,17 +13,10 @@ export interface UnitLink extends AggregateEdge {
   breakWorst: SeverityLabel | null
 }
 
-export interface LayerLink extends AggregateEdge {
-  key: string
-  isDeclared: boolean
-  unitPairs: number
-}
-
 export interface UnitInfo {
   unit: Unit
   fanIn: number
   fanOut: number
-  findings: readonly Violation[]
   errors: number
   inn: readonly UnitLink[]
   out: readonly UnitLink[]
@@ -33,19 +26,13 @@ export interface MapData {
   units: ReadonlyMap<number, UnitInfo>
   links: readonly UnitLink[]
   linkOf: (from: number, to: number) => UnitLink | undefined
-  layerLinks: readonly LayerLink[]
-  layerLinkOf: (from: number, to: number) => LayerLink | undefined
-  breakLinks: number
 }
-
 
 export const isGated = (link: UnitLink, gate: MapGate): boolean => {
   if (gate === 'rules') return link.breaks > 0
   if (gate === 'top') return link.count >= TOP_IMPORTS
   return true
 }
-
-export const byFanIn = (a: UnitInfo, b: UnitInfo): number => b.fanIn - a.fanIn || a.unit.id - b.unit.id
 
 const push = <K, V>(map: Map<K, V[]>, key: K, ...values: V[]): void => {
   const list = map.get(key)
@@ -91,7 +78,6 @@ const buildMapData = (m: Model): MapData => {
   }
   const units = new Map(
     m.units.map((unit): [number, UnitInfo] => {
-      const findings = unitFindings(m, unit)
       const unitIn = inn.get(unit.id) ?? []
       const unitOut = out.get(unit.id) ?? []
       return [
@@ -100,8 +86,7 @@ const buildMapData = (m: Model): MapData => {
           unit,
           fanIn: unitIn.length,
           fanOut: unitOut.length,
-          findings,
-          errors: findings.filter((v) => v.severity === 'error').length,
+          errors: unitFindings(m, unit).filter((v) => v.severity === 'error').length,
           inn: unitIn,
           out: unitOut,
         },
@@ -109,31 +94,10 @@ const buildMapData = (m: Model): MapData => {
     }),
   )
 
-  const layerOfUnit = new Map(m.units.map((u) => [u.id, u.layer]))
-  const pairsByLayer = new Map<string, number>()
-  for (const l of links) {
-    const key = edgeKey(layerOfUnit.get(l.from)!, layerOfUnit.get(l.to)!)
-    pairsByLayer.set(key, (pairsByLayer.get(key) ?? 0) + 1)
-  }
-  const dependsOn = new Map(m.layers.map((l) => [l.id, new Set(l.depends_on)]))
-  const layerLinks: LayerLink[] = m.layerEdges.map((e) => {
-    const key = edgeKey(e.from, e.to)
-    return {
-      ...e,
-      key,
-      isDeclared: dependsOn.get(e.from)?.has(e.to) ?? false,
-      unitPairs: pairsByLayer.get(key) ?? 0,
-    }
-  })
-  const layerByKey = new Map(layerLinks.map((l) => [l.key, l]))
-
   return {
     units,
     links,
     linkOf: (from, to) => byKey.get(edgeKey(from, to)),
-    layerLinks,
-    layerLinkOf: (from, to) => layerByKey.get(edgeKey(from, to)),
-    breakLinks: links.filter((l) => l.breaks > 0).length,
   }
 }
 

@@ -2,19 +2,17 @@ import { Accessor, batch, Component, createMemo, createSignal, For, Index, onCle
 import { Dynamic } from 'solid-js/web'
 import { BudgetNote } from '../../canvas/budget-note'
 import { Canvas, useCanvas } from '../../canvas/canvas'
-import { sharedAttr, sharedNote } from '../../features/shared-mark'
 import { MessageKey, t } from '../../i18n'
-import { CANVAS_DEFS, EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR, SHARED_COLOR } from '../../render/encoding'
-import { edgeKey, Model, worst } from '../../render/model'
-import { go, MapGate, set } from '../../shell/nav'
+import { CANVAS_DEFS, EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR } from '../../render/encoding'
+import { edgeKey, Model } from '../../render/model'
+import { MapGate, set } from '../../shell/nav'
 import { trunc } from '../../render/labels'
-import { entryOf, layerName, layerTone } from '../focus/paint'
+import { layerName, layerTone } from '../focus/paint'
 import {
   BLOCK,
   BlocksLayout,
   curveBetween,
   defaultLinks,
-  GRID,
   LayerBlock,
   layoutBlocks,
   moveUnits,
@@ -38,8 +36,6 @@ const DRAG_THRESHOLD_PX = 3
 const SELECTED_STROKE = 'oklch(94% 0.005 260)'
 const LABEL_FILL = 'oklch(90% 0.005 260)'
 const LABEL_HALO = 'oklch(16% 0.012 260)'
-const ENTRY_FILL = 'oklch(85% 0.01 260)'
-const MODULE_FILL = 'oklch(42% 0.02 260)'
 const DASHED_KINDS: ReadonlySet<string> = new Set(['sub_unit', 'nested'])
 
 const unitPath = (m: Model, id: number): string => m.containers.get(id)?.path ?? ''
@@ -52,7 +48,7 @@ export interface LanesAside {
 export interface LanesMarks {
   unit: string
   bundle?: string
-  dblClickHint?: MessageKey
+  dblClickHint: MessageKey
 }
 
 interface Drag {
@@ -191,22 +187,16 @@ const UnitMark: Component<{
   const info = props.data.units.get(u.id)!
   const isSelected = () => selectedUnit() === u.id
   const isRinged = () => isSelected() || props.isPaired()
-  const isExpanded = () => props.box().cells !== null
   const stage = props.model.containers.get(u.id)?.stage ?? 0
   const meta = () => {
     const short = `${u.modules.length} · s${stage}`
     const full = `${short} · ${t('map.unit.fan', { in: info.fanIn, out: info.fanOut })}`
     const fits = full.length * META_CHAR_PX + UNIT_NAME.pad / 2 <= props.box().w
-    return fits && (props.box().h > FAN_MIN_HEIGHT || isExpanded()) ? full : short
+    return fits && props.box().h > FAN_MIN_HEIGHT ? full : short
   }
   const title = () => {
-    const open = props.marks.dblClickHint
-      ? t(props.marks.dblClickHint)
-      : isExpanded()
-        ? t('map.unit.collapse')
-        : t('map.unit.expand')
     const kind = t('map.unit.title', { kind: u.kind, stage, modules: t('map.modules', { n: u.modules.length }) })
-    return `${u.path}\n${kind}\n${open} · ${t('map.unit.dragHint')}`
+    return `${u.path}\n${kind}\n${t(props.marks.dblClickHint)} · ${t('map.unit.dragHint')}`
   }
   return (
     <g
@@ -245,38 +235,6 @@ const UnitMark: Component<{
         <circle data-ch="sev" cx={props.box().w - 10} cy="12" r={ERROR_DOT_R} fill={SEV_COLOR.error}>
           <title>{t('map.errors', { n: info.errors })}</title>
         </circle>
-      </Show>
-      <Show when={props.box().cells}>
-        {(cells) => (
-          <For each={cells()}>
-            {(cell) => {
-              const sev = worst(props.model.findingsOf(cell.id))
-              return (
-                <rect
-                  class="map-cell"
-                  data-testid="map-cell"
-                  data-id={cell.id}
-                  data-ch={sev ? 'sev' : 'mod'}
-                  data-shared={sharedAttr(props.model, cell.id)}
-                  x={cell.x}
-                  y={cell.y}
-                  width={GRID.size}
-                  height={GRID.size}
-                  rx="2"
-                  fill={entryOf(props.model, cell.id).length ? ENTRY_FILL : MODULE_FILL}
-                  stroke={sev ? SEV_COLOR[sev] : props.model.isSharedByChosenFeatures(cell.id) ? SHARED_COLOR : 'none'}
-                  stroke-width="1.4"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (!props.wasDragged()) go({ view: 'focus', focus: cell.id })
-                  }}
-                >
-                  <title>{(props.model.modules.get(cell.id)?.path ?? '') + sharedNote(props.model, cell.id)}</title>
-                </rect>
-              )
-            }}
-          </For>
-        )}
       </Show>
       <title>{title()}</title>
     </g>
@@ -437,18 +395,14 @@ const BlocksMarks: Component<{
 
 export const LanesScene: Component<{
   model: Model
-  view: 'map' | 'arch'
   gate: MapGate
-  expanded: readonly number[]
   onUnitDblClick: (id: number) => void
   marks: LanesMarks
   aside?: LanesAside
 }> = (props) => {
   const data = createMemo(() => mapDataOf(props.model))
-  const expandedIds = createMemo(() => props.expanded)
-  const expanded = createMemo(() => new Set(expandedIds()))
-  const base = createMemo(() => layoutBlocks(props.model, expanded(), props.aside?.size ?? null))
-  const saved = savedPositions(() => props.model.project, props.view)
+  const base = createMemo(() => layoutBlocks(props.model, props.aside?.size ?? null))
+  const saved = savedPositions(() => props.model.project, 'arch')
   const [drag, setDrag] = createSignal<Drag | null>(null)
   const layout = createMemo(() => moveUnits(base(), movedAt(base(), saved.at(), drag())))
   const [hover, setHover] = createSignal<number | null>(null)
@@ -457,20 +411,19 @@ export const LanesScene: Component<{
     const p = selectedUnitPair()
     return p ? edgeKey(p.from, p.to) : null
   }
-  const byDefault = createMemo(() => defaultLinks(base(), data(), props.gate, expanded(), pairKey()))
+  const byDefault = createMemo(() => defaultLinks(base(), data(), props.gate, pairKey()))
   const visible = createMemo(() => {
     const f = focusUnit()
     if (f === null) return byDefault().links
     const boxes = base().boxes
     return data().links.filter((l) => (l.from === f || l.to === f) && boxes.has(l.from) && boxes.has(l.to))
   })
-  const fitKey = () => `blocks:${expandedIds().join(',')}`
 
   return (
     <Canvas
       bounds={layout().bounds}
-      fitKey={fitKey()}
-      legend={<MapLegend variant="lanes" />}
+      fitKey="blocks"
+      legend={<MapLegend />}
       overlay={
         <>
           <ResetLayout saved={saved} />

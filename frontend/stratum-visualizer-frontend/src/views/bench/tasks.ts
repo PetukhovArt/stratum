@@ -285,29 +285,6 @@ const cycleCutTask = (m: Model): TaskDef => {
 
 const setTasks: TaskBlock = (m) => [cycleCutTask(m)]
 
-const fanInHotspotTask = (m: Model): TaskDef => {
-  const importers = new Map<number, number>()
-  for (const e of m.unitEdges) importers.set(e.to, (importers.get(e.to) ?? 0) + 1)
-  const [hot] = m.units
-    .map((u) => ({ unit: u, fanIn: importers.get(u.id) ?? 0 }))
-    .sort((a, b) => b.fanIn - a.fanIn || a.unit.id - b.unit.id)
-  return {
-    order: 6,
-    id: 'fan-in-hotspot',
-    question: 'Which unit is the biggest fan-in hotspot?',
-    who: 'architect',
-    view: 'map',
-    answer: hot ? `${hot.unit.path} (${hot.fanIn} importing units)` : 'no units',
-    steps: [{ label: 'open Container map', patch: { view: 'map', mapVariant: 'lanes', sel: null } }],
-    isAnswerShown: () => {
-      const top = document.querySelector('[data-testid="map-hotspots"] [data-id]')
-      return hot ? top?.getAttribute('data-id') === String(hot.unit.id) : top === null
-    },
-  }
-}
-
-const mapTasks: TaskBlock = (m) => [fanInHotspotTask(m)]
-
 const crossSliceContractTask = (m: Model): TaskDef => {
   const [bundle] = crossSliceBundles(m)
   const base = {
@@ -410,4 +387,4 @@ const systemContractsTask = (m: Model): TaskDef | SkippedTask => {
 
 const archTasks: TaskBlock = (m) => [crossSliceContractTask(m), systemContractsTask(m)]
 
-export const TASK_BLOCKS: readonly TaskBlock[] = [focusTasks, mrTasks, dsmTasks, setTasks, mapTasks, archTasks]
+export const TASK_BLOCKS: readonly TaskBlock[] = [focusTasks, mrTasks, dsmTasks, setTasks, archTasks]
