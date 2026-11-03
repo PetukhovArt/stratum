@@ -12,10 +12,10 @@ export interface Size {
 
 export const DEFAULT_SIZE: Size = { w: 1100, h: 650 }
 
-export const CHIP = { h: 26, padX: 9, gap: 10, rowGap: 12, nameChar: 6.9, metaChar: 6.7, metaGap: 10, dot: 10, nameChars: 34 } as const
-export const LANE = { pad: 8, gapX: 16, gapY: 34, labelChar: 7.6, labelPad: 14 } as const
-export const CELL = { w: 184, h: 22, gap: 12 } as const
-export const OPEN = { head: 30, pad: 8 } as const
+export const CHIP = { h: 26, padX: 9, gap: 26, rowGap: 30, nameChar: 6.9, metaChar: 6.7, metaGap: 10, dot: 10, nameChars: 34 } as const
+export const LANE = { pad: 14, gapX: 28, gapY: 44, labelChar: 7.6, labelPad: 14 } as const
+export const CELL = { w: 184, h: 22, gap: 30 } as const
+export const OPEN = { head: 34, pad: 32 } as const
 
 const FIT_PAD = 80
 const LEGEND = { w: 330, h: 96 } as const
@@ -23,7 +23,7 @@ const WRAP_TRIES = 28
 const MAX_COLS = 8
 const ROUTE_BEND = 70
 const FOLD_TRACK = 5
-const EDGE_TRACK = 3
+const EDGE_TRACK = 7
 const BREAK_WEIGHT = 1000
 const WEIGHT = { breaking: 3, changed: 2, same: 1 } as const
 
@@ -54,8 +54,13 @@ export interface EdgeMark {
 export interface FoldMark {
   fold: Fold
   d: string
-  mid: Point
+  mid: Point | null
 }
+
+const FOLD_LABEL = { char: 6.6, h: 14 } as const
+
+const overlaps = (a: Rect, b: Rect): boolean =>
+  a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
 
 export interface OverviewLayout {
   lanes: LaneBox[]
@@ -255,8 +260,13 @@ export const routeFolds = (layout: OverviewLayout, folds: readonly Fold[]): Fold
     }),
   )
   const routes = routeAround(links, { obstacles: layout.obstacles, bend: ROUTE_BEND, track: FOLD_TRACK })
+  const taken: Rect[] = [...layout.obstacles]
   return folds.map((fold): FoldMark => {
     const r = routes.get(fold.key) ?? curveBetween(layout.boxOf.get(fold.from)!, layout.boxOf.get(fold.to)!)
+    const w = `+${fold.added} −${fold.removed}`.length * FOLD_LABEL.char
+    const rect = { x: r.label.x - w / 2, y: r.label.y - FOLD_LABEL.h / 2, w, h: FOLD_LABEL.h }
+    if (taken.some((t) => overlaps(t, rect))) return { fold, d: r.d, mid: null }
+    taken.push(rect)
     return { fold, d: r.d, mid: r.label }
   })
 }

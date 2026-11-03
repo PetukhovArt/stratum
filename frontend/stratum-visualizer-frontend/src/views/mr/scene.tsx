@@ -5,6 +5,7 @@ import { sharedNote } from '../../features/shared-mark'
 import { Edge, EdgeState } from '../../render/edge'
 import { EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR, SHARED_COLOR } from '../../render/encoding'
 import { Model } from '../../render/model'
+import { Point } from '../../render/route'
 import { ellipsizePath } from '../../render/labels'
 import { go, nav, Selection, set } from '../../shell/nav'
 import {
@@ -114,7 +115,7 @@ const ChangeEdge: Component<{ mark: EdgeMark; review: Review; state: EdgeState; 
       const rule = ruleName(e.breaks[0][0])
       return { text: sev ? rule : `${t('mr.item.fixed')} ${rule}`, class: 'mr-rule-label' }
     }
-    return isChanged ? { text: e.tag === 'added' ? '+' : '−', class: 'mr-badge' } : null
+    return null
   }
   return (
     <Edge
@@ -170,7 +171,7 @@ const FoldEdge: Component<{ mark: FoldMark; review: Review; state: EdgeState }> 
   )
 }
 
-const FoldLabel: Component<{ mark: FoldMark; state: EdgeState }> = (props) => {
+const FoldLabel: Component<{ mark: FoldMark & { mid: Point }; state: EdgeState }> = (props) => {
   const f = props.mark.fold
   return (
     <text
@@ -423,11 +424,11 @@ const OverviewLegend: Component = () => (
 const FolderLegend: Component = () => (
   <div class="legend mr-legend">
     <div class="legend-row">
-      <LegendLine color={ADDED_STROKE} glyph="+" />
+      <LegendLine color={ADDED_STROKE} glyph="" />
       {t('mr.legend.added')}
     </div>
     <div class="legend-row">
-      <LegendLine color={EDGE_NEUTRAL} dash={REMOVED_DASH} glyph="−" />
+      <LegendLine color={EDGE_NEUTRAL} dash={REMOVED_DASH} glyph="" />
       {t('mr.legend.removed')}
     </div>
     <div class="legend-row">
@@ -480,7 +481,9 @@ const Overview: Component<{ model: Model; review: Review; size: Size }> = (props
         )}
       </For>
       <g data-testid="mr-fold-labels">
-        <For each={folds()}>{(mark) => <FoldLabel mark={mark} state="selected" />}</For>
+        <For each={folds().filter((m): m is FoldMark & { mid: Point } => m.mid !== null)}>
+          {(mark) => <FoldLabel mark={mark} state="selected" />}
+        </For>
       </g>
     </Canvas>
   )
