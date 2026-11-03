@@ -2,41 +2,34 @@ import { Component, createMemo, For, Show } from 'solid-js'
 import { Canvas } from '../../canvas/canvas'
 import { t } from '../../i18n'
 import { sharedNote } from '../../features/shared-mark'
-import { CANVAS_DEFS, EDGE_DASH, LAYER_TONE, SHARED_COLOR } from '../../render/encoding'
+import { Edge, EdgeState } from '../../render/edge'
+import { EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR, SHARED_COLOR } from '../../render/encoding'
 import { edgeKey, Model } from '../../render/model'
 import { go, nav, set } from '../../shell/nav'
-import { EdgeMark, GroupBox, layoutRegion, RegionLayout } from './layout'
+import { EdgeMark, GROUP_CHARS, GroupBox, groupMeta, layoutRegion, RegionLayout, stageText } from './layout'
 import { ellipsizePath, trunc } from '../../render/labels'
-import { ADDED_STROKE, breakColor, labelOf, layerTint, NEUTRAL_STROKE, REMOVED_DASH, rulesOf } from './paint'
-import { Review, ReviewNode } from './review'
+import { ADDED_STROKE, labelOf, layerTint, REMOVED_DASH, rulesOf } from './paint'
+import { Review, ReviewNode, worstBreak } from './review'
 
-const DIM_OPACITY = 0.15
-const HIT_WIDTH = 9
-const BADGE_R = 8
 const LABEL_CHARS = 24
-const GROUP_CHARS = 26
 const STAGE_STROKE = 'oklch(92% 0.01 260)'
+const BADGE_BASELINE = 4.5
+const LEGEND_HALO = 'oklch(18% 0.012 260)'
+const OPACITY = { removed: 0.6, changed: 0.95, same: 0.3 } as const
+const WIDTH = { changed: 2, same: 1.1 } as const
 
 const selectedKey = (): string | null => {
   const sel = nav().sel
   return sel?.kind === 'edge' ? edgeKey(sel.from, sel.to) : null
 }
 
-const stageText = (review: Review, container: number | null, fallback: number | undefined): string => {
-  const change = container === null ? undefined : review.stageOf.get(container)
-  if (change) return change.base === null ? `→ s${change.head}` : `s${change.base} → s${change.head}`
-  return fallback ? `s${fallback}` : ''
-}
-
-const Edge: Component<{ mark: EdgeMark; review: Review }> = (props) => {
+const ChangeEdge: Component<{ mark: EdgeMark; review: Review }> = (props) => {
   const e = props.mark.edge
-  const sev = breakColor(e.breaks)
+  const sev = worstBreak(e.breaks)
   const isChanged = e.tag !== 'same'
-  const color = sev ?? (e.tag === 'added' ? ADDED_STROKE : NEUTRAL_STROKE)
-  const opacity = e.tag === 'removed' ? 0.6 : isChanged || sev ? 0.95 : 0.3
+  const color = sev ? SEV_COLOR[sev] : e.tag === 'added' ? ADDED_STROKE : EDGE_NEUTRAL
   const isSelected = () => selectedKey() === e.key
-  const isDim = () => selectedKey() !== null && !isSelected()
-  const width = () => (isChanged ? 2 : 1.1) + (isSelected() ? 1.5 : 0)
+  const state = (): EdgeState => (isSelected() ? 'selected' : selectedKey() === null ? 'idle' : 'dimmed')
   const title = () => {
     const from = props.review.nodes.get(e.from)?.path ?? ''
     const to = props.review.nodes.get(e.to)?.path ?? ''
@@ -44,42 +37,40 @@ const Edge: Component<{ mark: EdgeMark; review: Review }> = (props) => {
     return `${from}\n→ ${to}\n${t(`mr.tag.${e.tag}`)}${rules}`
   }
   return (
-    <g
+    <Edge
+      d={props.mark.d}
+      kind={sev ? 'break' : 'neutral'}
+      severity={sev}
+      imports={e.kind}
+      dash={e.tag === 'removed' ? REMOVED_DASH : undefined}
+      color={color}
+      width={isChanged ? WIDTH.changed : WIDTH.same}
+      opacity={e.tag === 'removed' ? OPACITY.removed : isChanged || sev ? OPACITY.changed : OPACITY.same}
+      state={state()}
+      testId="mr-edge"
       class="mr-edge"
-      opacity={isDim() ? DIM_OPACITY : 1}
+      pathData={{ 'data-edge': e.key, 'data-tag': e.tag, 'data-rule': sev ? rulesOf(e.breaks) : undefined }}
+      label={
+        isChanged
+          ? {
+              x: props.mark.mid.x,
+              y: props.mark.mid.y + BADGE_BASELINE,
+              text: e.tag === 'added' ? '+' : '−',
+              class: 'mr-badge',
+              color,
+            }
+          : null
+      }
+      hit={false}
       onClick={() => set({ sel: isSelected() ? null : { kind: 'edge', from: e.from, to: e.to } })}
-    >
-      <path d={props.mark.d} stroke="transparent" stroke-width={HIT_WIDTH} fill="none" />
-      <path
-        d={props.mark.d}
-        fill="none"
-        data-edge={e.key}
-        data-tag={e.tag}
-        data-ch={sev ? 'sev' : 'edge'}
-        data-rule={sev ? rulesOf(e.breaks) : undefined}
-        stroke={color}
-        stroke-opacity={opacity}
-        stroke-width={width()}
-        stroke-dasharray={e.tag === 'removed' ? REMOVED_DASH : EDGE_DASH[e.kind]}
-        marker-end={CANVAS_DEFS.arrow}
-      />
-      <Show when={isChanged}>
-        <g data-ch={sev ? 'sev' : 'diff'} transform={`translate(${props.mark.mid.x},${props.mark.mid.y})`}>
-          <circle r={BADGE_R} fill="oklch(18% 0.012 260)" stroke={color} />
-          <text y="3.5" font-size="11" font-weight="700" text-anchor="middle" fill={color}>
-            {e.tag === 'added' ? '+' : '−'}
-          </text>
-        </g>
-      </Show>
-      <title>{title()}</title>
-    </g>
+      title={title()}
+    />
   )
 }
 
 const Group: Component<{ box: GroupBox; model: Model; review: Review }> = (props) => {
   const b = props.box
   const change = b.container === null ? undefined : props.review.stageOf.get(b.container)
-  const stage = b.container === null ? undefined : props.model.containers.get(b.container)?.stage
   return (
     <g>
       <rect
@@ -103,7 +94,7 @@ const Group: Component<{ box: GroupBox; model: Model; review: Review }> = (props
         text-anchor="end"
         fill={change ? STAGE_STROKE : 'oklch(58% 0.012 260)'}
       >
-        {b.isPrivate ? 'private' : stageText(props.review, b.container, stage)}
+        {groupMeta(props.model, props.review, b)}
       </text>
     </g>
   )
@@ -145,26 +136,23 @@ const Node: Component<{ node: ReviewNode; layout: RegionLayout; model: Model }> 
   )
 }
 
+const LegendLine: Component<{ color: string; dash?: string; glyph: string }> = (props) => (
+  <svg width="26" height="16">
+    <line x1="0" y1="8" x2="26" y2="8" stroke={props.color} stroke-width={WIDTH.changed} stroke-dasharray={props.dash} />
+    <text class="mr-badge" x="13" y={8 + BADGE_BASELINE} fill={props.color} stroke={LEGEND_HALO}>
+      {props.glyph}
+    </text>
+  </svg>
+)
+
 const Legend: Component = () => (
   <div class="legend mr-legend">
     <div class="legend-row">
-      <svg width="26" height="16">
-        <line x1="0" y1="8" x2="26" y2="8" stroke={ADDED_STROKE} stroke-width="2" />
-        <circle cx="13" cy="8" r="6" fill="oklch(18% 0.012 260)" stroke={ADDED_STROKE} />
-        <text x="13" y="11" font-size="9" text-anchor="middle" fill={ADDED_STROKE}>
-          +
-        </text>
-      </svg>
+      <LegendLine color={ADDED_STROKE} glyph="+" />
       {t('mr.legend.added')}
     </div>
     <div class="legend-row">
-      <svg width="26" height="16">
-        <line x1="0" y1="8" x2="26" y2="8" stroke={NEUTRAL_STROKE} stroke-width="2" stroke-dasharray={REMOVED_DASH} />
-        <circle cx="13" cy="8" r="6" fill="oklch(18% 0.012 260)" stroke={NEUTRAL_STROKE} />
-        <text x="13" y="11" font-size="9" text-anchor="middle" fill={NEUTRAL_STROKE}>
-          −
-        </text>
-      </svg>
+      <LegendLine color={EDGE_NEUTRAL} dash={REMOVED_DASH} glyph="−" />
       {t('mr.legend.removed')}
     </div>
     <div class="legend-row">
@@ -242,7 +230,7 @@ export const RegionScene: Component<{ model: Model; review: Review }> = (props) 
       </For>
       <For each={layout().groups}>{(b) => <Group box={b} model={props.model} review={props.review} />}</For>
       <g data-testid="mr-edges">
-        <For each={layout().edges}>{(mark) => <Edge mark={mark} review={props.review} />}</For>
+        <For each={layout().edges}>{(mark) => <ChangeEdge mark={mark} review={props.review} />}</For>
       </g>
       <For each={[...props.review.nodes.values()]}>
         {(n) => <Node node={n} layout={layout()} model={props.model} />}

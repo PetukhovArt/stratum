@@ -51,9 +51,10 @@ export interface Review {
   omitted: number
 }
 
-/** Counted in module boxes + edges + change badges. */
+/** Counted in module boxes and their names + edges + change badges. */
 export const MARK_BUDGET = 1300
 const BADGE_MARKS = 1
+const NODE_MARKS = 2
 
 const isWorse = (a: SeverityLabel, b: SeverityLabel | null): boolean => !b || SEVERITY_RANK[a] > SEVERITY_RANK[b]
 
@@ -182,7 +183,7 @@ export const toReview = (m: Model, whole: DriftReport): Review => {
     if (nodes.has(id)) return
     const ghostPath = ghostPaths.get(id)
     nodes.set(id, ghostPath === undefined ? headNode(m, id) : ghostNode(m, id, ghostPath, byDepth))
-    marks++
+    marks += NODE_MARKS
   }
 
   const stageOf = new Map<number, StageChange>()
@@ -199,12 +200,12 @@ export const toReview = (m: Model, whole: DriftReport): Review => {
   for (const edge of priority) {
     if (drawn.has(edge.key)) continue
     const fresh = Number(!nodes.has(edge.from)) + Number(!nodes.has(edge.to) && edge.from !== edge.to)
-    const cost = fresh + 1 + (edge.tag === 'same' ? 0 : BADGE_MARKS)
+    const cost = fresh * NODE_MARKS + 1 + (edge.tag === 'same' ? 0 : BADGE_MARKS)
     if (marks + cost > MARK_BUDGET) continue
     addNode(edge.from)
     addNode(edge.to)
     drawn.set(edge.key, edge)
-    marks += cost - fresh
+    marks += cost - fresh * NODE_MARKS
   }
   const omitted = all.filter((e) => !drawn.has(e.key)).length
 

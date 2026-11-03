@@ -158,6 +158,9 @@ const DIRS = [
 class Heap {
   private keys: number[] = []
   private vals: number[] = []
+  get top() {
+    return this.keys[0]
+  }
   get size() {
     return this.keys.length
   }
@@ -259,46 +262,81 @@ const gatesOf = (g: RouteGrid, r: Rect, sides: readonly RectSide[]): Gate[] => {
 
 const segKey = (node: number, axis: number) => node * 2 + axis
 
+interface Scratch {
+  dist: Float64Array
+  queued: Float64Array
+  prev: Int32Array
+  seen: Uint32Array
+  gen: number
+}
+
+interface Usage {
+  bundlesOn: (number[] | undefined)[]
+  routed: Set<number>
+}
+
 const search = (
   g: RouteGrid,
   starts: Gate[],
   goals: Gate[],
-  usage: Map<number, Map<string, number>>,
-  bundle: string,
+  usage: Usage,
+  bundle: number,
   bend: number,
+  pull: number,
+  scratch: Scratch,
 ): { nodes: number[]; start: Gate; goal: Gate } | null => {
   const nx = g.xs.length
   const ny = g.ys.length
-  const n = nx * ny * 4
-  const dist = new Float64Array(n).fill(Infinity)
-  const prev = new Int32Array(n).fill(-1)
-  const goalAt = new Map<number, Gate[]>()
-  for (const gate of goals) goalAt.set(gate.node, [...(goalAt.get(gate.node) ?? []), gate])
-  const goalPts = goals.map((gt) => [g.xs[gt.node % nx].at, g.ys[Math.floor(gt.node / nx)].at])
-  const h = (node: number) => {
-    const x = g.xs[node % nx].at
-    const y = g.ys[Math.floor(node / nx)].at
+  const { dist, queued, prev, seen } = scratch
+  const gen = ++scratch.gen
+  const distOf = (st: number) => (seen[st] === gen ? dist[st] : Infinity)
+  const reach = (st: number, d: number, from: number) => {
+    seen[st] = gen
+    dist[st] = d
+    prev[st] = from
+  }
+  const xAt = Float64Array.from(g.xs, (l) => l.at)
+  const yAt = Float64Array.from(g.ys, (l) => l.at)
+  const goalI = Int32Array.from(goals, (gt) => gt.node % nx)
+  const goalJ = Int32Array.from(goals, (gt) => Math.floor(gt.node / nx))
+  const h = (node: number, dir: number) => {
+    const i = node % nx
+    const j = (node - i) / nx
+    const x = xAt[i]
+    const y = yAt[j]
+    const isHorizontal = dir < 2
+    const sign = dir % 2 === 0 ? 1 : -1
     let best = Infinity
-    for (const [gx, gy] of goalPts) best = Math.min(best, Math.abs(gx - x) + Math.abs(gy - y))
-    return best * SHARED
-  }
-  const othersOn = (lo: number, axis: number): Set<string> => {
-    const users = usage.get(segKey(lo, axis))
-    return new Set(users ? [...users.keys()].filter((b) => b !== bundle) : [])
-  }
-  const crossingAt = (i: number, j: number, horizontal: boolean): number => {
-    if (horizontal ? j <= 0 || j >= ny - 1 : i <= 0 || i >= nx - 1) return 0
-    const [before, after] = horizontal
-      ? [othersOn((j - 1) * nx + i, 1), othersOn(j * nx + i, 1)]
-      : [othersOn(j * nx + i - 1, 0), othersOn(j * nx + i, 0)]
-    return [...before].some((b) => after.has(b)) ? CROSS : 0
+    for (let k = 0; k < goalI.length; k++) {
+      const gi = goalI[k]
+      const gj = goalJ[k]
+      const ahead = isHorizontal ? (gi - i) * sign : (gj - j) * sign
+      const isInLine = isHorizontal ? gj === j : gi === i
+      const turns = isInLine ? (ahead < 0 ? 2 : 0) : ahead < 0 ? 2 : 1
+      const est = (Math.abs(xAt[gi] - x) + Math.abs(yAt[gj] - y)) * pull + turns * bend
+      if (est < best) best = est
+    }
+    return best
   }
   const heap = new Heap()
+  const push = (key: number, st: number) => {
+    queued[st] = key
+    heap.push(key, st)
+  }
+  const { bundlesOn } = usage
+  const crossingAt = (i: number, j: number, horizontal: boolean): number => {
+    if (horizontal ? j <= 0 || j >= ny - 1 : i <= 0 || i >= nx - 1) return 0
+    const before = bundlesOn[horizontal ? segKey((j - 1) * nx + i, 1) : segKey(j * nx + i - 1, 0)]
+    const after = before && bundlesOn[horizontal ? segKey(j * nx + i, 1) : segKey(j * nx + i, 0)]
+    if (!before || !after) return 0
+    for (const b of before) if (b !== bundle && after.includes(b)) return CROSS
+    return 0
+  }
   for (const s of starts) {
     const st = s.node * 4 + s.dir
-    if (s.cost < dist[st]) {
-      dist[st] = s.cost
-      heap.push(s.cost + h(s.node), st)
+    if (s.cost < distOf(st)) {
+      reach(st, s.cost, -1)
+      push(s.cost + h(s.node, s.dir), st)
     }
   }
   const origin = new Map(starts.map((s) => [s.node * 4 + s.dir, s]))
@@ -307,13 +345,15 @@ const search = (
   let bestGoal: Gate | null = null
   let expanded = 0
   while (heap.size && expanded++ < MAX_EXPANDED) {
+    const key = heap.top
+    if (key >= best) break
     const st = heap.pop()
+    if (key !== queued[st]) continue
     const d = dist[st]
-    if (d >= best) break
     const node = st >> 2
     const dir = st & 3
-    for (const goal of goalAt.get(node) ?? []) {
-      if (dir === goal.dir) continue
+    for (const goal of goals) {
+      if (goal.node !== node || dir === goal.dir) continue
       const total = d + goal.cost + (dir === (goal.dir ^ 1) ? 0 : bend)
       if (total < best) {
         best = total
@@ -322,29 +362,28 @@ const search = (
       }
     }
     const i = node % nx
-    const j = Math.floor(node / nx)
+    const j = (node - i) / nx
     for (let nd = 0; nd < 4; nd++) {
       if (nd === (dir ^ 1)) continue
-      const [dx, dy] = DIRS[nd]
+      const dx = DIRS[nd][0]
+      const dy = DIRS[nd][1]
       const ni = i + dx
       const nj = j + dy
       if (ni < 0 || nj < 0 || ni >= nx || nj >= ny) continue
       const horizontal = dy === 0
       const lo = horizontal ? j * nx + Math.min(i, ni) : Math.min(j, nj) * nx + i
       if (!(horizontal ? g.freeH[lo] : g.freeV[lo])) continue
-      const line = horizontal ? g.ys[j] : g.xs[i]
-      const len = horizontal ? Math.abs(g.xs[ni].at - g.xs[i].at) : Math.abs(g.ys[nj].at - g.ys[j].at)
-      const users = usage.get(segKey(lo, horizontal ? 0 : 1))
-      const mine = users?.get(bundle) ?? 0
-      const others = (users?.size ?? 0) - (mine ? 1 : 0)
-      const factor = mine ? SHARED : 1 + others * CROWDED
+      const cost = horizontal ? g.ys[j].cost : g.xs[i].cost
+      const len = horizontal ? Math.abs(xAt[ni] - xAt[i]) : Math.abs(yAt[nj] - yAt[j])
+      const seg = segKey(lo, horizontal ? 0 : 1)
+      const users = bundlesOn[seg]
+      const factor = !users ? 1 : users.includes(bundle) ? SHARED : 1 + users.length * CROWDED
       const next = nj * nx + ni
       const ns = next * 4 + nd
-      const nd2 = d + len * line.cost * factor + (nd === dir ? 0 : bend) + crossingAt(ni, nj, horizontal)
-      if (nd2 < dist[ns]) {
-        dist[ns] = nd2
-        prev[ns] = st
-        heap.push(nd2 + h(next), ns)
+      const nd2 = d + len * cost * factor + (nd === dir ? 0 : bend) + crossingAt(ni, nj, horizontal)
+      if (nd2 < distOf(ns)) {
+        reach(ns, nd2, st)
+        push(nd2 + h(next, nd), ns)
       }
     }
   }
@@ -396,16 +435,16 @@ const runsOf = (g: RouteGrid, nodes: number[]): Run[] => {
   return runs
 }
 
-const markUsage = (usage: Map<number, Map<string, number>>, g: RouteGrid, nodes: number[], bundle: string) => {
+const markUsage = (usage: Usage, g: RouteGrid, nodes: number[], bundle: number) => {
   const nx = g.xs.length
+  usage.routed.add(bundle)
   for (let k = 0; k + 1 < nodes.length; k++) {
     const [p, q] = [nodes[k], nodes[k + 1]]
     const horizontal = Math.floor(p / nx) === Math.floor(q / nx)
-    const lo = Math.min(p, q)
-    const key = segKey(lo, horizontal ? 0 : 1)
-    const users = usage.get(key) ?? new Map<string, number>()
-    users.set(bundle, (users.get(bundle) ?? 0) + 1)
-    usage.set(key, users)
+    const key = segKey(Math.min(p, q), horizontal ? 0 : 1)
+    const users = usage.bundlesOn[key]
+    if (!users) usage.bundlesOn[key] = [bundle]
+    else if (!users.includes(bundle)) users.push(bundle)
   }
 }
 
@@ -477,14 +516,31 @@ export const routeAround = (links: readonly RouteLink[], options: RouteOptions):
   const lines = options.lines ?? gutterLines(options.obstacles)
   const g = routeGrid(lines.xs, lines.ys, options.obstacles)
   const track = options.track ?? TRACK_PX
-  const usage = new Map<number, Map<string, number>>()
+  const usage: Usage = { bundlesOn: [], routed: new Set() }
+  const bundleIds = new Map<string, number>()
+  const bundleId = (bundle: string): number => {
+    const known = bundleIds.get(bundle)
+    if (known !== undefined) return known
+    bundleIds.set(bundle, bundleIds.size)
+    return bundleIds.size - 1
+  }
+  const states = g.xs.length * g.ys.length * 4
+  const scratch: Scratch = {
+    dist: new Float64Array(states),
+    queued: new Float64Array(states),
+    prev: new Int32Array(states),
+    seen: new Uint32Array(states),
+    gen: 0,
+  }
   const routed: Routed[] = []
   for (const req of reqs) {
     const a = cells.get(req.from)!
     const b = cells.get(req.to)!
-    const found = search(g, gatesOf(g, a, req.sides), gatesOf(g, b, req.sides), usage, req.bundle, options.bend ?? BEND)
+    const id = bundleId(req.bundle)
+    const pull = req.hub !== null && usage.routed.has(id) ? SHARED : 1
+    const found = search(g, gatesOf(g, a, req.sides), gatesOf(g, b, req.sides), usage, id, options.bend ?? BEND, pull, scratch)
     if (!found) continue
-    markUsage(usage, g, found.nodes, req.bundle)
+    markUsage(usage, g, found.nodes, id)
     routed.push({
       req,
       runs: runsOf(g, found.nodes),

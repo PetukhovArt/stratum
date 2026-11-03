@@ -2,7 +2,8 @@ import { Component, createMemo, For, Show } from 'solid-js'
 import { Canvas } from '../../canvas/canvas'
 import { sharedNote } from '../../features/shared-mark'
 import { t } from '../../i18n'
-import { CANVAS_DEFS, EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR, SHARED_COLOR } from '../../render/encoding'
+import { Edge } from '../../render/edge'
+import { CANVAS_DEFS, LAYER_TONE, SEV_COLOR, SHARED_COLOR } from '../../render/encoding'
 import { Model, worst } from '../../render/model'
 import { go, set } from '../../shell/nav'
 import { Band, BAND, BAND_CARD_SCALE, BandLink, BandsLayout, layoutBands, Pill } from './bands'
@@ -73,16 +74,12 @@ const Link: Component<{ link: BandLink }> = (props) => {
   const l = props.link
   const sev = worst(l.pill.findings)
   return (
-    <path
-      data-edge={l.key}
-      data-ch={sev ? 'sev' : 'edge'}
-      data-rule={sev ? rulesOf(l.pill.findings) : undefined}
+    <Edge
       d={curve(l.x1, l.y1, l.x2, l.y2)}
-      fill="none"
-      stroke={sev ? SEV_COLOR[sev] : EDGE_NEUTRAL}
-      stroke-opacity={sev ? 0.9 : 0.4}
-      stroke-width={1 + Math.min(3, Math.log2(l.pill.ids.length + 1))}
-      marker-end={CANVAS_DEFS.arrow}
+      kind={sev ? 'break' : 'neutral'}
+      severity={sev}
+      weight={l.pill.ids.length}
+      pathData={{ 'data-edge': l.key, 'data-rule': sev ? rulesOf(l.pill.findings) : undefined }}
     />
   )
 }

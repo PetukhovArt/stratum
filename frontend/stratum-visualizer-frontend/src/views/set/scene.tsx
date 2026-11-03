@@ -2,7 +2,8 @@ import { Accessor, Component, createMemo, createSignal, For, Show } from 'solid-
 import { Canvas } from '../../canvas/canvas'
 import { sharedAttr, sharedNote } from '../../features/shared-mark'
 import { t } from '../../i18n'
-import { CANVAS_DEFS, EDGE_DASH, EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR } from '../../render/encoding'
+import { Edge, EdgeState } from '../../render/edge'
+import { LAYER_TONE, SEV_COLOR } from '../../render/encoding'
 import { edgeKey, Model, worst } from '../../render/model'
 import { go, nav, NavState, set } from '../../shell/nav'
 import { ellipsizePath, monoWidth } from '../../render/labels'
@@ -27,8 +28,7 @@ import {
   unionBounds,
 } from './layout'
 
-const DIM_OPACITY = 0.1
-const HIT_WIDTH = 10
+const CHAIN_OPACITY = 0.95
 const PATH_DASH = '4 3'
 const CUT_DASH = '5 3'
 const CHAIN_STROKE = 'oklch(90% 0.01 260)'
@@ -48,11 +48,6 @@ const selectedKey = (): string | null => {
 }
 
 const pickEdge = (l: SetLink) => set({ sel: { kind: 'edge', from: l.from, to: l.to } })
-
-const edgeColor = (l: SetLink): string => {
-  if (l.worst) return SEV_COLOR[l.worst]
-  return l.isChain ? CHAIN_STROKE : EDGE_NEUTRAL
-}
 
 const edgeTitle = (m: Model, l: SetLink): string =>
   `${m.modules.get(l.from)?.path}\n→ ${m.modules.get(l.to)?.path}${l.isPath ? `\n${t('set.edge.path')}` : ''}${
@@ -94,26 +89,24 @@ const CurveLink: Component<{ model: Model; link: CurvedLink; hover: Accessor<num
     const h = props.hover()
     return h === null || h === l.from || h === l.to
   }
-  const dash = () => {
-    if (l.isCut && props.isArc) return CUT_DASH
-    return l.isPath ? PATH_DASH : EDGE_DASH[l.kind]
-  }
+  const dash = l.isCut && props.isArc ? CUT_DASH : l.isPath ? PATH_DASH : undefined
+  const state = (): EdgeState => (selectedKey() === l.key ? 'selected' : isLit() ? 'idle' : 'dimmed')
   return (
-    <g class="set-link" opacity={isLit() ? 1 : DIM_OPACITY} onClick={() => pickEdge(l)}>
-      <path d={l.d} stroke="transparent" stroke-width={HIT_WIDTH} />
-      <path
-        d={l.d}
-        data-edge={l.key}
-        data-ch={l.worst ? 'sev' : 'edge'}
-        data-rule={l.rules || undefined}
-        stroke={edgeColor(l)}
-        stroke-opacity={l.isChain || l.worst ? 0.95 : 0.4}
-        stroke-width={selectedKey() === l.key ? width + 2 : width}
-        stroke-dasharray={dash()}
-        marker-end={CANVAS_DEFS.arrow}
-      />
-      <title>{edgeTitle(props.model, l)}</title>
-    </g>
+    <Edge
+      d={l.d}
+      kind={l.worst ? 'break' : 'neutral'}
+      severity={l.worst}
+      imports={l.kind}
+      dash={dash}
+      color={l.isChain ? CHAIN_STROKE : undefined}
+      width={width}
+      opacity={l.isChain ? CHAIN_OPACITY : undefined}
+      state={state()}
+      class="set-link"
+      pathData={{ 'data-edge': l.key, 'data-rule': l.rules || undefined }}
+      onClick={() => pickEdge(l)}
+      title={edgeTitle(props.model, l)}
+    />
   )
 }
 

@@ -1,6 +1,7 @@
 import { Bounds } from '../../render/viewport'
 import { Model } from '../../render/model'
-import { Review, ReviewEdge, ReviewNode } from './review'
+import { curveBetween, GridLine, Point, Rect, routeAround, RouteLink } from '../../render/route'
+import { Review, ReviewEdge, ReviewNode, worstBreak } from './review'
 
 export const REGION = {
   nodeW: 184,
@@ -18,13 +19,6 @@ export const REGION = {
   maxRows: 14,
 } as const
 
-export interface Rect {
-  x: number
-  y: number
-  w: number
-  h: number
-}
-
 export interface LaneBox extends Rect {
   layer: number | null
 }
@@ -39,12 +33,14 @@ export interface GroupBox extends Rect {
   container: number | null
   isPrivate: boolean
   layer: number | null
+  cols: number
+  rows: number
 }
 
 export interface EdgeMark {
   edge: ReviewEdge
   d: string
-  mid: { x: number; y: number }
+  mid: Point
 }
 
 export interface RegionLayout {
@@ -61,47 +57,75 @@ interface Block {
   groups: { node: ReviewNode; ids: ReviewNode[] }[]
 }
 
-const PARALLEL_SPREAD = 5
-const PARALLEL_STEP = 6
-const LOOP_DX = 36
-const MID_WEIGHT = 0.375
-const END_WEIGHT = 0.125
-const ACROSS_ROWS = REGION.nodeH * 3
+const MARGIN_X = 36
+const HEAD_LANE = 4
+const SLICE_LANE = 3
+const CHAR_PX = 6
+const META_CHAR_PX = 5.6
+const ROUTE_BEND = 220
+const ROUTE_TRACK = 2.5
+const ROUTE_SIDES = ['left', 'right'] as const
+const WEIGHT = { breaking: 3, changed: 2, same: 1 } as const
 
-type Geometry = EdgeMark['mid'] & { d: string }
-
-const cubic = (p: readonly number[]): Geometry => {
-  const [x0, y0, x1, y1, x2, y2, x3, y3] = p
-  return {
-    d: `M${x0},${y0} C${x1},${y1} ${x2},${y2} ${x3},${y3}`,
-    x: END_WEIGHT * (x0 + x3) + MID_WEIGHT * (x1 + x2),
-    y: END_WEIGHT * (y0 + y3) + MID_WEIGHT * (y1 + y2),
+const routingLines = (groups: readonly GroupBox[], slices: readonly SliceBox[], lanes: readonly LaneBox[], right: number) => {
+  const xs: GridLine[] = [
+    { at: -REGION.lanePad / 2, cost: 1, room: REGION.lanePad / 2 - 2 },
+    { at: right - MARGIN_X / 2, cost: 1, room: MARGIN_X / 2 - 2 },
+  ]
+  const ys: GridLine[] = []
+  const outer = { cost: 1, room: REGION.groupGap / 2 - 2 }
+  const inner = { cost: 1.2, room: REGION.groupPad / 2 - 2 }
+  const between = { cost: 1.2, room: REGION.nodeGap / 2 - 1.5 }
+  for (const g of groups) {
+    xs.push({ at: g.x - REGION.groupGap / 2, ...outer }, { at: g.x + g.w + REGION.groupGap / 2, ...outer })
+    xs.push({ at: g.x + REGION.groupPad / 2, ...inner }, { at: g.x + g.w - REGION.groupPad / 2, ...inner })
+    for (let k = 1; k < g.cols; k++) {
+      xs.push({ at: g.x + REGION.groupPad + k * (REGION.nodeW + REGION.nodeGap) - REGION.nodeGap / 2, ...between })
+    }
+    ys.push({ at: g.y - SLICE_LANE, cost: 1.2, room: 1 }, { at: g.y + g.h + REGION.groupGap / 2, ...outer })
+    ys.push({ at: g.y + REGION.groupHead - HEAD_LANE, cost: 1.3, room: 1.5 })
+    for (let k = 1; k < g.rows; k++) {
+      ys.push({ at: g.y + REGION.groupHead + k * (REGION.nodeH + REGION.nodeGap) - REGION.nodeGap / 2, cost: 3, room: 1 })
+    }
   }
+  const slicing = { cost: 1, room: REGION.sliceGap / 2 - 2 }
+  for (const s of slices) {
+    xs.push({ at: s.x - REGION.sliceGap / 2, ...slicing }, { at: s.x + s.w + REGION.sliceGap / 2, ...slicing })
+    ys.push({ at: s.y + s.h + REGION.sliceGap / 2, ...slicing })
+  }
+  const laning = { cost: 1, room: REGION.laneGap / 2 - 4 }
+  for (const l of lanes) {
+    ys.push({ at: l.y - REGION.laneGap / 2, ...laning }, { at: l.y + l.h + REGION.laneGap / 2, ...laning })
+  }
+  return { xs, ys }
 }
 
-const edgeGeometry = (a: Rect, b: Rect, salt: number): Geometry => {
-  const off = ((salt % PARALLEL_SPREAD) - Math.floor(PARALLEL_SPREAD / 2)) * PARALLEL_STEP
-  const ax = a.x + a.w / 2 + off
-  const ay = a.y + a.h / 2
-  const bx = b.x + b.w / 2 + off
-  const by = b.y + b.h / 2
-  if (Math.abs(ay - by) > ACROSS_ROWS) {
-    const isDown = by > ay
-    const y1 = isDown ? a.y + a.h : a.y
-    const y2 = isDown ? b.y - 2 : b.y + b.h + 2
-    const d = (y2 - y1) / 2
-    return cubic([ax, y1, ax, y1 + d, bx, y2 - d, bx, y2])
-  }
-  if (a.x === b.x) {
-    const x = a.x + a.w
-    return cubic([x, ay, x + LOOP_DX, ay, x + LOOP_DX, by, x + 2, by])
-  }
-  const isRight = b.x > a.x
-  const x1 = isRight ? a.x + a.w : a.x
-  const x2 = isRight ? b.x - 2 : b.x + b.w + 2
-  const d = (x2 - x1) / 2
-  return cubic([x1, ay, x1 + d, ay, x2 - d, by, x2, by])
+export const GROUP_CHARS = 26
+
+export const stageText = (review: Review, container: number | null, fallback: number | undefined): string => {
+  const change = container === null ? undefined : review.stageOf.get(container)
+  if (change) return change.base === null ? `→ s${change.head}` : `s${change.base} → s${change.head}`
+  return fallback ? `s${fallback}` : ''
 }
+
+export const groupMeta = (m: Model, review: Review, g: GroupBox): string => {
+  if (g.isPrivate) return 'private'
+  return stageText(review, g.container, g.container === null ? undefined : m.containers.get(g.container)?.stage)
+}
+
+const headRects = (g: GroupBox, meta: string): Rect[] => {
+  const name = Math.min(g.name.length, GROUP_CHARS)
+  const metaW = meta.length * META_CHAR_PX + 4
+  return [
+    { x: g.x + 6, y: g.y + 5, w: name * CHAR_PX + 6, h: REGION.groupHead - HEAD_LANE - 7 },
+    { x: g.x + g.w - 9 - metaW, y: g.y + 5, w: metaW, h: REGION.groupHead - HEAD_LANE - 7 },
+  ]
+}
+
+const breakStyle = (e: ReviewEdge): string => worstBreak(e.breaks) ?? ''
+
+const weightOf = (e: ReviewEdge): number =>
+  e.breaks.length ? WEIGHT.breaking : e.tag === 'same' ? WEIGHT.same : WEIGHT.changed
 
 const byPath = (a: string, b: string): number => a.length - b.length || a.localeCompare(b)
 
@@ -126,10 +150,12 @@ const blocksOf = (nodes: readonly ReviewNode[]): Block[] => {
   return list.sort((x, y) => x.groups[0].node.group.path.localeCompare(y.groups[0].node.group.path))
 }
 
-const groupSize = (count: number): { w: number; h: number } => {
+const groupSize = (count: number): { w: number; h: number; cols: number; rows: number } => {
   const cols = Math.ceil(count / REGION.maxRows)
   const rows = Math.min(count, REGION.maxRows)
   return {
+    cols,
+    rows,
     w: cols * (REGION.nodeW + REGION.nodeGap) - REGION.nodeGap + REGION.groupPad * 2,
     h: REGION.groupHead + rows * (REGION.nodeH + REGION.nodeGap) + REGION.groupPad / 2,
   }
@@ -194,17 +220,33 @@ export const layoutRegion = (m: Model, review: Review): RegionLayout => {
     maxW = Math.max(maxW, laneW)
     y = top + laneH + REGION.laneGap
   }
-  const width = maxW + REGION.lanePad * 2 + LOOP_DX
+  const width = maxW + REGION.lanePad * 2 + MARGIN_X
   for (const lane of lanes) lane.w = width
 
-  const edges: EdgeMark[] = []
-  for (const edge of review.edges) {
-    const a = nodes.get(edge.from)
-    const b = nodes.get(edge.to)
-    if (!a || !b) continue
-    const g = edgeGeometry(a, b, Math.abs(edge.from * 7 + edge.to * 13))
-    edges.push({ edge, d: g.d, mid: { x: g.x, y: g.y } })
-  }
+  const groupOf = new Map<number, string>()
+  for (const n of review.nodes.values()) groupOf.set(n.id, n.group.key)
+  const drawn = review.edges.filter((e) => nodes.has(e.from) && nodes.has(e.to))
+  const links = drawn.map(
+    (e): RouteLink => ({
+      key: e.key,
+      from: nodes.get(e.from)!,
+      to: nodes.get(e.to)!,
+      weight: weightOf(e),
+      sides: ROUTE_SIDES,
+      bundle: `${groupOf.get(e.from)}>${groupOf.get(e.to)}:${e.tag}:${breakStyle(e)}:${e.kind}`,
+    }),
+  )
+  const obstacles = [...nodes.values(), ...groups.flatMap((g) => headRects(g, groupMeta(m, review, g)))]
+  const routes = routeAround(links, {
+    obstacles,
+    lines: routingLines(groups, slices, lanes, width - REGION.lanePad),
+    bend: ROUTE_BEND,
+    track: ROUTE_TRACK,
+  })
+  const edges = drawn.map((edge): EdgeMark => {
+    const route = routes.get(edge.key) ?? curveBetween(nodes.get(edge.from)!, nodes.get(edge.to)!)
+    return { edge, d: route.d, mid: route.label }
+  })
 
   return {
     lanes,

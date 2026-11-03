@@ -3,7 +3,8 @@ import { BudgetNote } from '../../canvas/budget-note'
 import { Canvas } from '../../canvas/canvas'
 import { t } from '../../i18n'
 import { sharedAttr, sharedNote } from '../../features/shared-mark'
-import { CANVAS_DEFS, EDGE_DASH, EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR, SHARED_COLOR } from '../../render/encoding'
+import { Edge, EdgeState } from '../../render/edge'
+import { CANVAS_DEFS, EDGE_NEUTRAL, LAYER_TONE, SEV_COLOR, SHARED_COLOR } from '../../render/encoding'
 import { edgeKey, Model, worst } from '../../render/model'
 import { go, nav, set } from '../../shell/nav'
 import { Territory } from '../../types'
@@ -22,13 +23,10 @@ import { FocusCard } from './focus-card'
 import { ellipsizePath, monoChars, monoWidth } from '../../render/labels'
 import { entryOf, layerName, layerTone, rulesOf, shortRule, curve } from './paint'
 
-const DIM_OPACITY = 0.12
-const HIT_WIDTH = 9
-const MAX_EXTRA_WIDTH = 3
 const DOTTED = '1.5 2.5'
 const DASHED = '4 3'
 const ROW_TEXT = { nameX: 20, endPad: 20, gap: 8, name: 10, rule: 9 } as const
-const COUNT_LABEL = { size: 9, inset: 10, above: 4, below: 11 } as const
+const COUNT_LABEL = { inset: 10, above: 4, below: 11 } as const
 
 interface SceneCtx {
   model: Model
@@ -61,44 +59,31 @@ const BundlePath: Component<{ bundle: Bundle; hover: Accessor<number | null>; se
 ) => {
   const b = props.bundle
   const sev = worst(b.findings)
-  const color = sev ? SEV_COLOR[sev] : EDGE_NEUTRAL
-  const width = (sev ? 1.6 : 1.1) + Math.min(MAX_EXTRA_WIDTH, Math.log2(b.pairs.length))
-  const d = curve(b.x1, b.y1, b.x2, b.y2)
   const isLit = () => {
     const h = props.hover()
     return h === null || b.touches.has(h)
   }
   const isSelected = () => b.pairs.some(([from, to]) => props.selected().has(edgeKey(from, to)))
-  const channel = sev ? 'sev' : 'edge'
+  const state = (): EdgeState => (isSelected() ? 'selected' : isLit() ? 'idle' : 'dimmed')
   const count = countLabelAwayFromFocus(b)
   return (
-    <g class="fo-bundle" opacity={isLit() ? 1 : DIM_OPACITY} onClick={() => set({ sel: { kind: 'imports', pairs: b.pairs } })}>
-      <path d={d} stroke="transparent" stroke-width={HIT_WIDTH} />
-      <path
-        d={d}
-        data-edge={b.key}
-        data-ch={channel}
-        data-rule={sev ? rulesOf(b.findings) : undefined}
-        stroke={color}
-        stroke-opacity={sev || isSelected() ? 0.9 : 0.4}
-        stroke-width={isSelected() ? width + 1.5 : width}
-        stroke-dasharray={EDGE_DASH[b.kind]}
-        marker-end={CANVAS_DEFS.arrow}
-      />
-      <Show when={b.pairs.length > 1}>
-        <text
-          data-ch={channel}
-          x={count.x}
-          y={count.y}
-          font-size={String(COUNT_LABEL.size)}
-          text-anchor={count.anchor}
-          fill={color}
-        >
-          {b.pairs.length}
-        </text>
-      </Show>
-      <title>{t('focus.edge.imports', { n: b.pairs.length }) + (sev ? ` · ${rulesOf(b.findings)}` : '')}</title>
-    </g>
+    <Edge
+      d={curve(b.x1, b.y1, b.x2, b.y2)}
+      kind={sev ? 'break' : 'neutral'}
+      severity={sev}
+      imports={b.kind}
+      weight={b.pairs.length}
+      state={state()}
+      class="fo-bundle"
+      pathData={{ 'data-edge': b.key, 'data-rule': sev ? rulesOf(b.findings) : undefined }}
+      label={
+        b.pairs.length > 1
+          ? { x: count.x, y: count.y, text: b.pairs.length, class: `fo-count ${count.anchor}`, color: sev ? SEV_COLOR[sev] : EDGE_NEUTRAL }
+          : null
+      }
+      onClick={() => set({ sel: { kind: 'imports', pairs: b.pairs } })}
+      title={t('focus.edge.imports', { n: b.pairs.length }) + (sev ? ` · ${rulesOf(b.findings)}` : '')}
+    />
   )
 }
 

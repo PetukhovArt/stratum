@@ -6,7 +6,7 @@
   background: oklch(20% 0.012 260 / .9); border: 1px solid var(--bd-1); border-radius: 8px; backdrop-filter: blur(10px);
 }
 
-.set-scene .set-link, .set-scene .set-node, .set-mx-cell, .set-mx-label { cursor: pointer; }
+.set-scene .set-node, .set-mx-cell, .set-mx-label { cursor: pointer; }
 .set-node.via rect:first-child { fill: oklch(18% 0.012 260); stroke: oklch(50% 0.012 260); stroke-dasharray: 3 3; }
 .set-node.member rect:first-child { fill: oklch(23% 0.016 260); }
 .set-node.loop rect:first-child { stroke-width: 1.5; }

@@ -1,5 +1,6 @@
 .mr-stage { position: absolute; inset: 0; }
-.mr-stage .mr-edge, .mr-stage .mr-node, .mr-stage .mr-card-row { cursor: pointer; }
+.mr-stage .mr-node, .mr-stage .mr-card-row { cursor: pointer; }
+.mr-badge { font-size: 13px; font-weight: 700; text-anchor: middle; stroke-width: 4; paint-order: stroke; }
 .mr-stage .mr-node.ghost { cursor: default; }
 
 .mr-lg-sev { display: inline-block; width: 26px; height: 2px; background: var(--err); }

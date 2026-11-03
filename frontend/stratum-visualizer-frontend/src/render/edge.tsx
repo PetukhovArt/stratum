@@ -10,6 +10,7 @@ export type DataAttrs = Readonly<Record<`data-${string}`, string | number | unde
 export interface EdgeLabel extends Point {
   text: string | number
   class?: string
+  color?: string
 }
 
 export interface EdgeProps {
@@ -33,6 +34,7 @@ export interface EdgeProps {
   children?: JSX.Element
   onClick?: (e: MouseEvent) => void
   onHover?: (isOver: boolean) => void
+  hit?: boolean
 }
 
 export const EDGE_SELECTED = 'oklch(94% 0.005 260)'
@@ -74,7 +76,7 @@ export const Edge: Component<EdgeProps> = (props) => {
       onMouseEnter={() => props.onHover?.(true)}
       onMouseLeave={() => props.onHover?.(false)}
     >
-      <Show when={isInteractive()}>
+      <Show when={isInteractive() && props.hit !== false}>
         <path class="edge-hit" d={props.d} fill="none" stroke="transparent" stroke-width={HIT_WIDTH} />
       </Show>
       <path
@@ -96,7 +98,7 @@ export const Edge: Component<EdgeProps> = (props) => {
             data-ch={channel()}
             x={label().x}
             y={label().y}
-            fill={LABEL_FILL}
+            fill={label().color ?? LABEL_FILL}
             stroke={LABEL_HALO}
             opacity={state() === 'dimmed' ? LABEL_DIMMED : 1}
           >
