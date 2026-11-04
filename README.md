@@ -12,7 +12,7 @@ Fast enough to run on every edit, written for AI coding agents and CI.
 [![License: MIT](https://img.shields.io/badge/license-MIT-66c29a)](LICENSE)
 [![Part of jig](https://img.shields.io/badge/part%20of-jig-e0a85c)](https://github.com/PetukhovArt/jig)
 
-<a href="docs/assets/visualizer-focus.webp"><img src="docs/assets/visualizer-focus.webp" alt="Stratum visualizer: a module, everything that imports it and everything it imports, with its layer rules" width="100%" /></a>
+<a href="docs/assets/visualizer-merge-request.webp"><img src="docs/assets/visualizer-merge-request.webp" alt="Stratum visualizer, Merge request: every changed folder in its layer with its added and removed imports, and each import that breaks a rule drawn as a red arrow named by the rule" width="100%" /></a>
 
 </div>
 
@@ -45,11 +45,19 @@ warning stratum/no-cross-layer-import (1) - stratum-lint explain stratum/no-cros
 
 <table>
 <tr>
-<td width="50%"><a href="docs/assets/visualizer-violation.webp"><img src="docs/assets/visualizer-violation.webp" alt="A module with two violations and their rules" /></a></td>
-<td width="50%"><a href="docs/assets/visualizer-matrix.webp"><img src="docs/assets/visualizer-matrix.webp" alt="Layer dependency matrix with a rule break above the diagonal" /></a></td>
+<td width="50%"><a href="docs/assets/visualizer-comment-card.webp"><img src="docs/assets/visualizer-comment-card.webp" alt="Merge request comment card: imports that break rules, stage changes and fixed violations" /></a></td>
+<td width="50%"><a href="docs/assets/visualizer-contract.webp"><img src="docs/assets/visualizer-contract.webp" alt="Architecture System level: a TypeScript invoke call beside the Rust command it reaches" /></a></td>
 </tr>
 <tr>
-<td align="center"><sub>Every violation, with the rule and the layers the module may import</sub></td>
+<td align="center"><sub>The merge request as a comment: rule breaks, stage changes, fixes</sub></td>
+<td align="center"><sub>Contracts across systems: the TypeScript call beside its Rust command</sub></td>
+</tr>
+<tr>
+<td width="50%"><a href="docs/assets/visualizer-focus.webp"><img src="docs/assets/visualizer-focus.webp" alt="Module focus: a module, every module that imports it, grouped by layer and slice, and its layer rules" /></a></td>
+<td width="50%"><a href="docs/assets/visualizer-matrix.webp"><img src="docs/assets/visualizer-matrix.webp" alt="Layer dependency matrix with rule breaks above the diagonal" /></a></td>
+</tr>
+<tr>
+<td align="center"><sub>A module, everyone who imports it and the layers it may import</sub></td>
 <td align="center"><sub>Layer matrix: imports against the order sit above the diagonal</sub></td>
 </tr>
 </table>
