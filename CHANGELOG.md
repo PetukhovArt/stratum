@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## 0.6.0 (2026-11-03)
+## 0.6.0 (2026-11-04)
 
 - Added a Contract section to the visualizer: selecting an import edge or a bundle lists the names that cross it, each resolved through barrels to its declaration, and a name opens the Code panel on the import line and the declaration
 - Added `features` to the config and `stratum-lint features`: a feature is its entry modules plus everything they import statically; without the key, each folder or file directly in the first sliced layer is one; the visualizer filters every view to the chosen features, marks modules two of them share and can hide modules most features use (`visualize --feature ID` preselects)
@@ -12,7 +12,7 @@
 - Added `stratum-lint export --out DIR`: the visualizer as a static site for GitLab or GitHub Pages, with source text only under `--with-source`
 - Added a guide to the visualizer (`?` or the header button): what each view answers, step-by-step use cases and the controls, in English and Russian; the side panels toggle from status bar buttons and the canvas legend folds, and both remember the choice
 - Changed Architecture → Containers to one scene with or without features: blocks in ranked rows, right-angle links with shared trunks and hub stubs, and a click on any link or stub opens its contract; blocks no longer drag (saved positions and Reset layout are gone) and the rule breaks / ≥ N imports / all edge filter gives way to "N weaker links hidden · click a block"
-- Changed Merge request → Diff region to fit the canvas at a readable zoom: it shows one box per changed folder in its layer lane (path, `+added −removed`, rule-break count, stage change, deleted files), lanes wrap to the canvas shape, changes between two folders fold into one right-angle arrow labelled `+a −r`, and each rule break is its own folder-to-folder arrow labelled with the rule; a click on a folder, a changed file or a change opens that folder's modules with their imports and the folders they touch, and Esc returns to all folders
+- Changed Merge request → Diff region to fit the canvas at a readable zoom: it shows one box per changed folder in its layer lane (path, `+added −removed`, rule-break count, stage change, deleted files), lanes wrap to the canvas shape, and each rule break is a folder-to-folder arrow labelled with the rule; hovering a folder draws its changes with other folders, one right-angle arrow per folder pair labelled `+a −r`; a click on a folder, a changed file or a change opens that folder's modules, each with its `+a −r`, and the folders they touch, a folder with many changes draws only its rule breaks until a module is hovered or clicked, and Esc returns to all folders
 - Removed the visualizer's Container map view (key `4`): Architecture → Containers shows the units, the bundles between them and each bundle's contract, and Matrix shows the imports and rule breaks between layers
 
 ## 0.5.0 (2026-10-28)
