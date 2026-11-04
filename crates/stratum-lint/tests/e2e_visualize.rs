@@ -21,7 +21,7 @@ const FIXTURE: &str = "../../tests/fixtures/tiny-ts-violations";
 
 fn router_at(root: &Utf8Path, base: Option<&str>) -> Router {
     let input = lint::build(root, &lint::load_config(root, None).unwrap()).unwrap();
-    build_router(Arc::new(Api::new(input, base).unwrap()))
+    build_router(Arc::new(Api::new(input, base, &[]).unwrap()))
 }
 
 async fn get(uri: &str) -> (StatusCode, String) {
@@ -119,4 +119,345 @@ async fn drift_route_returns_the_drift_vs_base_with_its_markdown() {
 async fn drift_route_is_404_without_base() {
     let (status, _) = get("/api/drift").await;
     assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+const TINY: &str = "../../tests/fixtures/tiny-ts";
+
+async fn tiny(uri: &str) -> (StatusCode, String) {
+    get_from(router_at(Utf8Path::new(TINY), None), uri).await
+}
+
+async fn tiny_snapshot() -> serde_json::Value {
+    serde_json::from_str(&tiny("/api/snapshot").await.1).unwrap()
+}
+
+fn id_at(snapshot: &serde_json::Value, list: &str, path: &str) -> u64 {
+    snapshot[list]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["path"] == path)
+        .unwrap()["id"]
+        .as_u64()
+        .unwrap()
+}
+
+async fn tiny_json(uri: &str) -> serde_json::Value {
+    let (status, body) = tiny(uri).await;
+    assert_eq!(status, StatusCode::OK, "{uri}: {body}");
+    serde_json::from_str(&body).unwrap()
+}
+
+#[tokio::test]
+async fn edge_route_resolves_each_imported_name_through_the_barrel_to_its_declaration() {
+    let s = tiny_snapshot().await;
+    let module = |path| id_at(&s, "modules", path);
+    let container = |path| id_at(&s, "containers", path);
+    let cart_to_user = serde_json::json!({ "imports": [{
+        "file": "src/features/cart/cart.tsx", "line": 1, "type_only": false, "kind": "static",
+        "names": [{ "name": "User", "type_only": false,
+                    "decl": { "path": "src/entities/user/User.ts", "line": 3 } }],
+    }]});
+
+    let modules = format!(
+        "/api/edge?from={}&to={}",
+        module("src/features/cart/cart.tsx"),
+        module("src/entities/user/index.ts")
+    );
+    assert_eq!(tiny_json(&modules).await, cart_to_user);
+    let layers = format!(
+        "/api/edge?from_container={}&to_container={}",
+        container("src/features"),
+        container("src/entities")
+    );
+    assert_eq!(tiny_json(&layers).await, cart_to_user);
+
+    let renamed = format!(
+        "/api/edge?from={}&to={}",
+        module("src/app/main.ts"),
+        module("src/features/cart/index.ts")
+    );
+    assert_eq!(
+        tiny_json(&renamed).await["imports"][0]["names"],
+        serde_json::json!([{ "name": "mountCart", "type_only": false,
+                             "decl": { "path": "src/features/cart/cart.tsx", "line": 4 } }])
+    );
+}
+
+#[tokio::test]
+async fn a_container_edge_leaves_out_the_imports_of_a_sub_unit_inside_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = Utf8Path::from_path(dir.path()).unwrap();
+    for (path, text) in [
+        ("package.json", r#"{ "name": "units" }"#),
+        (
+            "stratum.config.jsonc",
+            r#"{ "version": 1, "layers": [
+                { "id": "features", "path": "src/features", "depends_on": ["services"], "slices": true },
+                { "id": "services", "path": "src/services", "slices": true } ] }"#,
+        ),
+        (
+            "src/features/editor/index.ts",
+            r#"import { t } from "../../services/i18n"; export const editor = t;"#,
+        ),
+        (
+            "src/features/editor/panel/index.ts",
+            r#"import { Bundle } from "../../../services/i18n"; export const panel: Bundle = {};"#,
+        ),
+        (
+            "src/services/i18n/index.ts",
+            "export const t = 1; export type Bundle = {};",
+        ),
+    ] {
+        std::fs::create_dir_all(root.join(path).parent().unwrap()).unwrap();
+        std::fs::write(root.join(path), text).unwrap();
+    }
+    let router = router_at(root, None);
+    let (_, snapshot) = get_from(router.clone(), "/api/snapshot").await;
+    let s: serde_json::Value = serde_json::from_str(&snapshot).unwrap();
+    let panel = s["containers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["path"] == "src/features/editor/panel")
+        .unwrap();
+    assert_eq!(panel["kind"], "sub_unit");
+    let uri = format!(
+        "/api/edge?from_container={}&to_container={}",
+        id_at(&s, "containers", "src/features/editor"),
+        id_at(&s, "containers", "src/services/i18n")
+    );
+    let (status, body) = get_from(router, &uri).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let edge: serde_json::Value = serde_json::from_str(&body).unwrap();
+    let files: Vec<&str> = edge["imports"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["file"].as_str().unwrap())
+        .collect();
+    assert_eq!(files, ["src/features/editor/index.ts"]);
+}
+
+#[tokio::test]
+async fn edge_route_answers_no_imports_without_an_edge_and_400_without_both_ends() {
+    let s = tiny_snapshot().await;
+    let reverse = format!(
+        "/api/edge?from={}&to={}",
+        id_at(&s, "modules", "src/entities/user/index.ts"),
+        id_at(&s, "modules", "src/features/cart/cart.tsx")
+    );
+    assert_eq!(
+        tiny_json(&reverse).await,
+        serde_json::json!({ "imports": [] })
+    );
+    for uri in [
+        "/api/edge",
+        "/api/edge?from=1",
+        "/api/edge?from=a&to=1",
+        "/api/edge?from=1&to_container=2",
+        "/api/edge?from=1&to=2&from_container=1&to_container=2",
+    ] {
+        assert_eq!(tiny(uri).await.0, StatusCode::BAD_REQUEST, "{uri}");
+    }
+}
+
+#[tokio::test]
+async fn source_route_returns_the_lines_around_a_line_inside_the_root() {
+    assert_eq!(
+        tiny_json("/api/source?path=src/entities/user/User.ts&line=4&context=1").await,
+        serde_json::json!({
+            "path": "src/entities/user/User.ts", "start": 3, "total": 8,
+            "lines": ["export interface User {", "  id: string;", "  name: string;"],
+        })
+    );
+    let whole = tiny_json("/api/source?path=src/entities/user/index.ts").await;
+    assert_eq!(whole["start"], 1);
+    assert_eq!(
+        whole["lines"],
+        serde_json::json!([r#"export type { User } from "./User";"#])
+    );
+}
+
+#[tokio::test]
+async fn source_route_rejects_paths_outside_the_root_and_404s_a_missing_file() {
+    let absolute = std::fs::canonicalize(format!("{TINY}/src/app/main.ts")).unwrap();
+    for path in [
+        "../tiny-ts-violations/src/app/main.ts".to_owned(),
+        "src/../../tiny-ts/src/app/main.ts".to_owned(),
+        absolute
+            .to_string_lossy()
+            .trim_start_matches(r"\\?\")
+            .replace('\\', "/"),
+        "/src/app/main.ts".to_owned(),
+    ] {
+        let (status, _) = tiny(&format!("/api/source?path={path}")).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{path}");
+    }
+    let (status, _) = tiny("/api/source?path=src/app/missing.ts").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+const TINY_FEATURES: &str = "../../tests/fixtures/tiny-ts/features.config.jsonc";
+
+fn tiny_features_api(selected: &[&str]) -> miette::Result<Api> {
+    let root = Utf8Path::new(TINY);
+    let config = lint::load_config(root, Some(Utf8Path::new(TINY_FEATURES))).unwrap();
+    let selected: Vec<String> = selected.iter().map(|&s| s.to_owned()).collect();
+    Api::new(lint::build(root, &config).unwrap(), None, &selected)
+}
+
+#[tokio::test]
+async fn features_route_lists_each_feature_by_module_id_with_the_shared_ones_and_the_selection() {
+    let router = build_router(Arc::new(tiny_features_api(&["cart", "legacy"]).unwrap()));
+    let (status, body) = get_from(router.clone(), "/api/features").await;
+    assert_eq!(status, StatusCode::OK);
+    let s: serde_json::Value =
+        serde_json::from_str(&get_from(router, "/api/snapshot").await.1).unwrap();
+    let ids = |paths: &[&str]| {
+        let mut ids: Vec<u64> = paths.iter().map(|p| id_at(&s, "modules", p)).collect();
+        ids.sort_unstable();
+        ids
+    };
+    let cart = [
+        "src/entities/user/User.ts",
+        "src/entities/user/index.ts",
+        "src/features/cart/cart.tsx",
+        "src/features/cart/index.ts",
+        "src/shared/ui/Button.tsx",
+        "src/shared/utils/format.ts",
+    ];
+    let boot = [&cart[..], &["src/app/main.ts", "src/shared/api/http.ts"]].concat();
+    let shared = [&cart[..], &["src/shared/api/http.ts"]].concat();
+    let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(
+        parsed,
+        serde_json::json!({
+            "features": [
+                { "id": "boot", "name": "boot",
+                  "entry": ids(&["src/app/main.ts"]), "modules": ids(&boot) },
+                { "id": "cart", "name": "Cart",
+                  "entry": ids(&["src/features/cart/cart.tsx", "src/features/cart/index.ts"]),
+                  "modules": ids(&cart) },
+                { "id": "legacy", "name": "Legacy helper",
+                  "entry": ids(&["src/legacy/old-helper.js"]),
+                  "modules": ids(&["src/legacy/old-helper.js", "src/shared/api/http.ts"]) },
+            ],
+            "shared": ids(&shared),
+            "selected": ["cart", "legacy"],
+        })
+    );
+}
+
+#[test]
+fn an_unknown_selected_feature_is_an_error_naming_the_known_ones() {
+    let err = tiny_features_api(&["cart", "chekout"]).unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        r#"unknown feature "chekout"; known: boot, cart, legacy"#
+    );
+}
+
+const SYSTEMS: &str = "../../tests/fixtures/tiny-systems/web";
+
+async fn systems(uri: &str) -> (StatusCode, String) {
+    get_from(router_at(Utf8Path::new(SYSTEMS), None), uri).await
+}
+
+#[tokio::test]
+async fn systems_route_lists_the_called_contracts_per_channel_with_their_callers() {
+    let snapshot: serde_json::Value =
+        serde_json::from_str(&systems("/api/snapshot").await.1).unwrap();
+    let module = |path| id_at(&snapshot, "modules", path);
+    let files = module("src/features/files/index.ts");
+    let users = module("src/shared/api/users.ts");
+    let session = module("src/shared/api/session.ts");
+    let orders = module("src/shared/api/orders.ts");
+    let (status, body) = systems("/api/systems").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(
+        parsed,
+        serde_json::json!({
+            "systems": [
+                { "id": "ui", "name": "Web UI", "self": true, "contracts_total": 0 },
+                { "id": "host", "name": "Desktop host", "self": false, "contracts_total": 2 },
+                { "id": "api", "name": "Backend", "self": false, "contracts_total": 4 },
+                { "id": "billing", "name": "billing", "self": false, "contracts_total": 0,
+                  "unavailable": "root ../billing/proto is not a directory" },
+            ],
+            "channels": [
+                { "from": "ui", "to": "host", "unattributed": 1, "contracts": [
+                    { "id": "greet", "signature": "pub fn greet(name: &str) -> String",
+                      "decl": { "path": "host:commands.rs", "line": 4 },
+                      "callers": [
+                          { "module": files, "line": 7, "owner": "greet", "features": ["files"] },
+                          { "module": session, "line": 3, "owner": null,
+                            "features": ["checkout", "profile"] },
+                      ] },
+                    { "id": "save_file",
+                      "signature": "pub async fn save_file(path: String, data: Vec<u8>) -> Result<(), String>",
+                      "decl": { "path": "host:commands.rs", "line": 9 },
+                      "callers": [
+                          { "module": files, "line": 4, "owner": "saveFile", "features": ["files"] },
+                          { "module": session, "line": 6, "owner": "restore",
+                            "features": ["checkout"] },
+                      ] },
+                ] },
+                { "from": "ui", "to": "api", "unattributed": 1, "contracts": [
+                    { "id": "OrderService.PlaceOrder",
+                      "signature": "rpc PlaceOrder(PlaceOrderRequest) returns (Order)",
+                      "decl": { "path": "api:order.proto", "line": 6 },
+                      "callers": [{ "module": orders, "line": 7, "owner": "createOrdersApi",
+                                    "features": ["checkout"] }] },
+                    { "id": "UserService.GetUser",
+                      "signature": "rpc GetUser(GetUserRequest) returns (User)",
+                      "decl": { "path": "api:user.proto", "line": 7 },
+                      "callers": [{ "module": users, "line": 7, "owner": "getUser",
+                                    "features": ["checkout", "profile"] }] },
+                    { "id": "UserService.WatchUsers",
+                      "signature": "rpc WatchUsers(WatchUsersRequest) returns (stream User)",
+                      "decl": { "path": "api:user.proto", "line": 9 },
+                      "callers": [{ "module": users, "line": 10, "owner": "watchUsers",
+                                    "features": ["profile"] }] },
+                    { "id": "UserService.forgetUser", "signature": null, "decl": null,
+                      "callers": [{ "module": users, "line": 12, "owner": "forget",
+                                    "features": ["profile"] }] },
+                ] },
+            ],
+        })
+    );
+}
+
+#[tokio::test]
+async fn systems_route_is_404_without_systems() {
+    assert_eq!(tiny("/api/systems").await.0, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn source_route_serves_a_system_path_from_under_its_root_only() {
+    let (status, body) = systems("/api/source?path=api:user.proto&line=7&context=1").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(
+        parsed,
+        serde_json::json!({
+            "path": "api:user.proto", "start": 6, "total": 20,
+            "lines": [
+                "service UserService {",
+                "  rpc GetUser(GetUserRequest) returns (User);",
+                "  /* Streams every change. */",
+            ],
+        })
+    );
+    for path in ["api:../../host/src/commands.rs", "api:/user.proto"] {
+        let (status, _) = systems(&format!("/api/source?path={path}")).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{path}");
+    }
+    let (status, _) = systems("/api/source?path=api:missing.proto").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, body) = systems("/api/source?path=src/features/files/index.ts&line=1").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(parsed["path"], "src/features/files/index.ts");
 }

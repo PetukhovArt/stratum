@@ -1,6 +1,11 @@
 import { edgeKey, Model, sccs } from '../../render/model'
 import { NavPatch } from '../../shell/nav'
 import { CROSS_LAYER_RULE, SnapshotLayer } from '../../types'
+import { BoxLink, containerBoxes } from '../arch/boxes'
+import { isDrawnUnselected } from '../arch/boxes-layout'
+import { crossSliceBundles } from '../arch/bundles'
+import { ARCH_CONTAINERS } from '../arch/path'
+import { systemsIn } from '../arch/systems'
 import { DriftReport, driftReport } from '../mr/drift'
 import { analyzeSet, bestCut, moduleCycles, SET_LIMIT } from '../set/analysis'
 import { Subjects } from './subjects'
@@ -10,10 +15,7 @@ const BLOCK_STROKE = 2
 
 export type Asker = 'developer' | 'reviewer' | 'architect' | 'agent'
 
-export interface Step {
-  label: string
-  patch: NavPatch
-}
+export type Step = { label: string } & ({ patch: NavPatch } | { click: string })
 
 export interface TaskDef {
   order: number
@@ -32,7 +34,7 @@ export interface SkippedTask {
   question: string
   who: Asker
   view: string
-  skip: 'no /api/drift: run visualize --base REF'
+  skip: 'no /api/drift: run visualize --base REF' | 'no /api/systems: declare systems in the config'
 }
 
 type TaskBlock = (m: Model, s: Subjects) => (TaskDef | SkippedTask)[]
@@ -282,27 +284,121 @@ const cycleCutTask = (m: Model): TaskDef => {
 
 const setTasks: TaskBlock = (m) => [cycleCutTask(m)]
 
-const fanInHotspotTask = (m: Model): TaskDef => {
-  const importers = new Map<number, number>()
-  for (const e of m.unitEdges) importers.set(e.to, (importers.get(e.to) ?? 0) + 1)
-  const [hot] = m.units
-    .map((u) => ({ unit: u, fanIn: importers.get(u.id) ?? 0 }))
-    .sort((a, b) => b.fanIn - a.fanIn || a.unit.id - b.unit.id)
+const attr = (value: string | number): string => `"${CSS.escape(String(value))}"`
+
+const crossSliceContractTask = (m: Model): TaskDef => {
+  const bundles = crossSliceBundles(m)
+  const base = {
+    order: 9,
+    id: 'cross-slice-contract',
+    question: 'Where is a name that one slice imports from another declared?',
+    who: 'developer' as const,
+    view: 'arch',
+  }
+  const open: Step = { label: 'open Architecture at Containers', patch: { view: 'arch', arch: ARCH_CONTAINERS, sel: null } }
+  const [bundle] = bundles
+  if (!bundle) {
+    return {
+      ...base,
+      answer: 'no bundles between slices',
+      steps: [open],
+      isAnswerShown: () =>
+        document.querySelector('[data-testid="arch-stage"][data-level="containers"]') !== null &&
+        document.querySelector('[data-testid="arch-bundle-row"]') === null,
+    }
+  }
+  const data = containerBoxes(m)
+  const name = (key: string) => data.boxes.find((b) => b.key === key)?.name ?? key
+  const carries = (l: BoxLink) =>
+    bundles.some((b) => data.boxOfUnit.get(b.from) === l.from && data.boxOfUnit.get(b.to) === l.to)
+  const link = data.links.find((l) => isDrawnUnselected(data.links, l) && carries(l))
+  if (!link) {
+    const ends = `[data-from="${bundle.from}"][data-to="${bundle.to}"]`
+    const pair = `${m.unitLabel(bundle.from)} → ${m.unitLabel(bundle.to)}`
+    return {
+      ...base,
+      answer: `${pair} runs inside one block: its row in the details opens its Contract`,
+      steps: [open, { label: `click the row ${pair}`, click: `[data-testid="arch-bundle-row"]${ends}` }],
+      isAnswerShown: () =>
+        document.querySelector(`[data-testid="arch-bundle-details"]${ends} [data-testid="contract"]`) !== null,
+    }
+  }
+  const ends = `[data-from=${attr(link.from)}][data-to=${attr(link.to)}]`
+  const drawn = `[data-testid="arch-stage"] :is([data-testid="arch-box-link"], [data-testid="arch-box-stub"])${ends}`
+  const pair = `${name(link.from)} → ${name(link.to)}`
   return {
-    order: 6,
-    id: 'fan-in-hotspot',
-    question: 'Which unit is the biggest fan-in hotspot?',
-    who: 'architect',
-    view: 'map',
-    answer: hot ? `${hot.unit.path} (${hot.fanIn} importing units)` : 'no units',
-    steps: [{ label: 'open Container map', patch: { view: 'map', mapVariant: 'lanes', sel: null } }],
-    isAnswerShown: () => {
-      const top = document.querySelector('[data-testid="map-hotspots"] [data-id]')
-      return hot ? top?.getAttribute('data-id') === String(hot.unit.id) : top === null
-    },
+    ...base,
+    answer: `${pair}: its Contract lists the names with their declarations; a name opens Code`,
+    steps: [open, { label: `click the link ${pair}`, click: drawn }],
+    isAnswerShown: () =>
+      document.querySelector(drawn) !== null &&
+      document.querySelector(`[data-testid="arch-link-details"]${ends} [data-testid="contract"]`) !== null,
   }
 }
 
-const mapTasks: TaskBlock = (m) => [fanInHotspotTask(m)]
+const SYSTEM_CONTRACTS = {
+  order: 10,
+  id: 'system-contracts',
+  who: 'architect',
+  view: 'arch',
+} as const
 
-export const TASK_BLOCKS: readonly TaskBlock[] = [focusTasks, mrTasks, dsmTasks, setTasks, mapTasks]
+const NO_SYSTEMS = 'no /api/systems: declare systems in the config'
+
+const sameIds = (selector: string, attr: string, expected: readonly string[]): boolean =>
+  sameList(
+    [...document.querySelectorAll(selector)].map((el) => el.getAttribute(attr) ?? ''),
+    expected,
+  )
+
+const systemContractsTask = (m: Model): TaskDef | SkippedTask => {
+  const systems = systemsIn(m)
+  if (!systems) {
+    return { ...SYSTEM_CONTRACTS, question: 'Which contracts of another system does the busiest container call?', skip: NO_SYSTEMS }
+  }
+  const open: Step = { label: 'open Architecture at Containers', patch: { view: 'arch', arch: ARCH_CONTAINERS, sel: null } }
+  const [link] = systems.portLinks
+  if (!link) {
+    return {
+      ...SYSTEM_CONTRACTS,
+      question: 'Which contracts of another system does the busiest container call?',
+      answer: 'no container calls another system',
+      steps: [open],
+      isAnswerShown: () =>
+        document.querySelector('[data-testid="arch-stage"][data-level="containers"]') !== null &&
+        document.querySelector('[data-testid="arch-port-link"]') === null,
+    }
+  }
+  const system = systems.others.find((s) => s.id === link.system)?.name ?? link.system
+  const container = m.unitLabel(link.container)
+  const data = containerBoxes(m)
+  const box = data.boxOfUnit.get(link.container) ?? ''
+  const block = data.boxes.find((b) => b.key === box)?.name ?? box
+  const ends = `[data-box=${attr(box)}][data-system=${attr(link.system)}]`
+  const arrow = `[data-testid="arch-stage"] [data-testid="arch-port-link"]${ends}`
+  const details = `[data-testid="arch-port-details"]${ends} [data-testid="arch-port-unit"][data-container="${link.container}"]`
+  const callers = link.contracts.flatMap((c) => c.callers.map((caller) => `${caller.module}:${caller.line}`))
+  return {
+    ...SYSTEM_CONTRACTS,
+    question: `Which ${system} contracts does ${container} call, and from where?`,
+    answer: `${link.contracts.map((c) => c.id).join(', ')}: each with its callers file:line`,
+    steps: [open, { label: `click the arrow ${block} → ${system}`, click: arrow }],
+    isAnswerShown: () =>
+      document.querySelector(arrow) !== null &&
+      sameIds(
+        `${details} [data-testid="arch-contract"]`,
+        'data-id',
+        link.contracts.map((c) => c.id),
+      ) &&
+      sameList(
+        [...document.querySelectorAll(`${details} [data-testid="arch-caller"]`)].map(
+          (el) => `${el.getAttribute('data-module')}:${el.getAttribute('data-line')}`,
+        ),
+        callers,
+      ),
+  }
+}
+
+const archTasks: TaskBlock = (m) => [crossSliceContractTask(m), systemContractsTask(m)]
+
+export const TASK_BLOCKS: readonly TaskBlock[] = [focusTasks, mrTasks, dsmTasks, setTasks, archTasks]

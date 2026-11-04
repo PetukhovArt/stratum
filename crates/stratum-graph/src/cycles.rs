@@ -379,6 +379,7 @@ mod tests {
                     calls: vec![],
                     imports: vec![],
                     suppressions: vec![],
+                    local_refs: vec![],
                 },
             );
             let node = g.deps.add_node(id);

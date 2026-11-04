@@ -30,21 +30,6 @@ const More: Component<{ total: number }> = (props) => (
   </Show>
 )
 
-const ShowInMap: Component<{ level: 'layer' | 'unit'; from: number; to: number }> = (props) => (
-  <button
-    class="dsm-btn"
-    data-testid="dsm-show-in-map"
-    onClick={() =>
-      go({
-        view: 'map',
-        mapVariant: props.level === 'unit' ? 'lanes' : 'layers',
-        sel: { kind: 'cell', level: props.level, from: props.from, to: props.to },
-      })
-    }
-  >
-    {t('map.showInMap')}
-  </button>
-)
 
 const UnitCell: Component<{ model: Model; cell: MatrixCell }> = (props) => {
   const pairs = createMemo(() =>
@@ -68,7 +53,6 @@ const UnitCell: Component<{ model: Model; cell: MatrixCell }> = (props) => {
       <Show when={props.cell.rules.length}>
         <div class="dsm-rules mono">{props.cell.rules.join(', ')}</div>
       </Show>
-      <ShowInMap level="unit" from={props.cell.from} to={props.cell.to} />
       <h4>{t('dsm.pairs')}</h4>
       <div class="dsm-rows">
         <For each={pairs().slice(0, LIST_LIMIT)}>
@@ -112,7 +96,6 @@ const LayerCell: Component<{ model: Model; matrix: Matrix; from: number; to: num
           </p>
         )}
       </Show>
-      <ShowInMap level="layer" from={props.from} to={props.to} />
       <Show
         when={props.matrix.level === 'unit'}
         fallback={

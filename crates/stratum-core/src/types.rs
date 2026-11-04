@@ -29,13 +29,39 @@ pub struct Module {
     pub imports: Vec<Import>,
     #[serde(default)]
     pub suppressions: Vec<Suppression>,
+    #[serde(default)]
+    pub local_refs: Vec<(String, Vec<String>)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Call {
-    /// The tracked-call entry it matched: `inject`, `obj.get` or `*.get`.
     pub name: String,
     pub location: SourceLocation,
+    #[serde(default)]
+    pub args: Vec<CallArg>,
+    #[serde(default)]
+    pub owner: Option<String>,
+    #[serde(default)]
+    pub form: CallForm,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CallArg {
+    Str(String),
+    Ident(String),
+    Other,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CallForm {
+    #[default]
+    Direct,
+    Client {
+        method: String,
+    },
+    Unfollowed,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -106,6 +132,9 @@ pub struct ExportDecl {
 #[serde(rename_all = "snake_case")]
 pub enum ExportOrigin {
     Local,
+    Alias {
+        binding: String,
+    },
     /// `import` indexes [`Module::imports`]; `imported` is `*` for `export * as name from`.
     Reexport {
         import: usize,

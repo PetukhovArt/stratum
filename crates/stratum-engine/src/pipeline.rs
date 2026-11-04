@@ -17,9 +17,11 @@ use stratum_rules::{DynRule, RuleRegistry};
 use crate::baseline::BaselineError;
 use crate::config::{ConfigSource, LoadedConfig};
 use crate::docs;
+use crate::features::{self, Features};
 use crate::finding::{EdgeRef, Finding};
 use crate::paths::{canonicalize, relative, relative_in_text};
 use crate::suppression::{self, Analysis, Reported, Suppressed};
+use crate::systems::{self, SystemMap};
 use crate::{manifest, side};
 
 #[derive(Debug, thiserror::Error)]
@@ -36,6 +38,8 @@ pub enum EngineError {
         "`project.entry_points` glob {0:?} matches no file: an entry point is a source file, inside a layer or outside, that `project.ignore` does not ignore"
     )]
     EntryPointUnmatched(String),
+    #[error("`features.{feature}.entry` glob {glob:?} matches no module")]
+    FeatureEntryUnmatched { feature: String, glob: String },
 }
 
 #[derive(Debug)]
@@ -87,6 +91,25 @@ impl EngineInput {
             .map(|v| T::of(self, v))
             .collect();
         suppression::apply(self, reported)
+    }
+
+    pub fn features(&self) -> Result<Features, ConfigError> {
+        Features::of(&self.graph, &self.config, &self.project_root)
+    }
+
+    pub fn systems(&self) -> Result<Option<SystemMap>, ConfigError> {
+        let features = self.features()?;
+        Ok(SystemMap::of(
+            &self.graph,
+            &self.config,
+            &self.project_root,
+            &features,
+        ))
+    }
+
+    #[must_use]
+    pub fn system_root(&self, id: &str) -> Option<Utf8PathBuf> {
+        systems::system_root(&self.config, &self.project_root, id)
     }
 
     pub fn violations(&self) -> Result<Vec<Finding>, ConfigError> {
@@ -221,6 +244,9 @@ pub(crate) fn graph(
     if let Some(i) = hit.iter().position(|h| !h) {
         return Err(EngineError::EntryPointUnmatched(entry.glob(i).to_owned()));
     }
+    if let Some((feature, glob)) = features::unmatched_entry(&graph, config, &root_abs)? {
+        return Err(EngineError::FeatureEntryUnmatched { feature, glob });
+    }
     if side::wants_ignored(config) {
         let ignored = walk.ignored_in_layers().into_iter();
         side_files.extend(ignored.map(|rel| (rel, SideRole::Ignored)));
@@ -260,11 +286,13 @@ pub(crate) fn graph_without_entry_points(
             slices: l.slices,
         })
         .collect();
+    let mut tracked_calls = stratum_rules::tracked_calls(config);
+    systems::track_calls(config, &mut tracked_calls);
     let build_cfg = BuildConfig {
         project_root: root_abs.clone(),
         layers,
         structure: config.structure.clone(),
-        tracked_calls: stratum_rules::tracked_calls(config),
+        tracked_calls,
         default_purity: Purity::DEFAULT,
     };
     let ignore = IgnoreSet::new(config)?;

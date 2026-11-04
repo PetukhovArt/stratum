@@ -1,6 +1,9 @@
 import { activeCanvas } from '../canvas/active'
+import { closeCode } from '../contract/code'
 import { availableViews, viewById } from '../views'
+import { closeGuide, isGuideOpen, openGuide } from './guide'
 import { back, go, nav, set } from './nav'
+import { isTypingTarget } from './typing'
 import { variantIndex, variantPatch } from './variants'
 
 export interface KeymapActions {
@@ -8,11 +11,6 @@ export interface KeymapActions {
   setPaletteOpen: (isOpen: boolean) => void
   toggleLeftPanel: () => void
   toggleRightPanel: () => void
-}
-
-const isTypingTarget = (target: EventTarget | null): boolean => {
-  if (!(target instanceof HTMLElement)) return false
-  return target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
 }
 
 const cycleVariant = (): void => {
@@ -41,14 +39,21 @@ const onKeyDown = (e: KeyboardEvent, actions: KeymapActions): void => {
     return
   }
   if (e.key === 'Escape') {
+    if (closeGuide()) return
     if (actions.isPaletteOpen()) {
       actions.setPaletteOpen(false)
-    } else {
+    } else if (!closeCode()) {
       back()
     }
     return
   }
   if (isTyping || hasCommandModifier || e.altKey) return
+  if (e.key === '?') {
+    e.preventDefault()
+    openGuide()
+    return
+  }
+  if (isGuideOpen()) return
   if (e.key === '/') {
     e.preventDefault()
     actions.setPaletteOpen(true)

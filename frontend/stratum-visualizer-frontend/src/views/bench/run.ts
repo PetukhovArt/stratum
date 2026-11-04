@@ -2,6 +2,8 @@ import { createSignal } from 'solid-js'
 import { SCENE_MARK_BUDGET } from '../../render/budget'
 import { edgeKey, Model } from '../../render/model'
 import { go, nav, NavPatch } from '../../shell/nav'
+import { ARCH_CONTAINERS, ARCH_TOP } from '../arch/path'
+import { systemIndex } from '../arch/systems'
 import { layoutBands } from '../focus/bands'
 import { layoutColumns } from '../focus/columns'
 import { driftReport } from '../mr/drift'
@@ -20,7 +22,7 @@ import {
   stageSvg,
 } from './probes'
 import { pickSubjects, Subject, Subjects } from './subjects'
-import { Asker, SkippedTask, TASK_BLOCKS } from './tasks'
+import { Asker, SkippedTask, Step, TASK_BLOCKS } from './tasks'
 import { drawnPairsOf, DrawnPairs, TerritoryAgreement, TerritoryTally } from './territory'
 
 export const TARGET = { renderMs: 100, marks: SCENE_MARK_BUDGET, panZoomMs: 16.7, actions: 3, card: { w: 800, h: 600 } } as const
@@ -29,7 +31,7 @@ const STAGE_REGION = '.stage-region'
 const PANELS = '.panel-slot'
 
 export interface RenderRun {
-  view: 'focus' | 'dsm' | 'mr' | 'set' | 'map'
+  view: 'focus' | 'dsm' | 'mr' | 'set' | 'arch'
   variant: string
   scenario: string
   renderMs: number
@@ -176,29 +178,34 @@ const MR_SCENARIOS: readonly Scenario[] = [
   { view: 'mr', variant: 'card', scenario: 'drift vs base', patch: { view: 'mr', mrVariant: 'card' } },
 ]
 
-const mapScenarios = (m: Model): Scenario[] => {
-  const lanes = { view: 'map' as const, variant: 'lanes' }
-  const whole = { view: 'map', mapVariant: 'lanes', mapExpanded: [], sel: null } as const
+const archScenarios = (m: Model): Scenario[] => {
   const [largest] = [...m.units].sort((a, b) => b.modules.length - a.modules.length || a.id - b.id)
-  const expanded: Scenario[] = largest
+  const components: Scenario[] = largest
     ? [
         {
-          ...lanes,
-          scenario: `expanded: ${largest.path} (${largest.modules.length} modules)`,
-          patch: { ...whole, mapGate: 'rules', mapExpanded: [largest.id] },
+          view: 'arch',
+          variant: 'components',
+          scenario: `${largest.path} (${largest.modules.length} modules)`,
+          patch: { view: 'arch', arch: { level: 'components', container: largest.id }, sel: null },
         },
       ]
     : []
+  const system: Scenario[] = systemIndex()
+    ? [{ view: 'arch', variant: 'system', scenario: 'systems', patch: { view: 'arch', arch: ARCH_TOP, sel: null } }]
+    : []
   return [
-    { ...lanes, scenario: 'gate: rule breaks', patch: { ...whole, mapGate: 'rules' } },
-    { ...lanes, scenario: 'gate: ≥ 12 imports', patch: { ...whole, mapGate: 'top' } },
-    { ...lanes, scenario: `gate: all ${m.unitEdges.length}`, patch: { ...whole, mapGate: 'all' } },
-    ...expanded,
-    { view: 'map', variant: 'layers', scenario: 'layer graph', patch: { view: 'map', mapVariant: 'layers', sel: null } },
+    ...system,
+    {
+      view: 'arch',
+      variant: 'containers',
+      scenario: 'whole project',
+      patch: { view: 'arch', arch: ARCH_CONTAINERS, sel: null },
+    },
+    ...components,
   ]
 }
 
-const auditPanels = (colours: ReadonlySet<string>): ChannelAudit => {
+const auditPanels =(colours: ReadonlySet<string>): ChannelAudit => {
   const audits = [...document.querySelectorAll(PANELS)].map((panel) => auditChannel(panel, colours))
   return {
     checked: audits.reduce((n, a) => n + a.checked, 0),
@@ -233,12 +240,21 @@ const measureRun = (sc: Scenario, colours: ReadonlySet<string>, tally: Territory
   }
 }
 
+const take = (step: Step): void => {
+  if ('patch' in step) {
+    go(step.patch)
+    return
+  }
+  forceLayout()
+  document.querySelector(step.click)?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+}
+
 const runTasks = (m: Model, s: Subjects): TaskResult[] => {
   const ran = TASK_BLOCKS.flatMap((block) => block(m, s)).map((task): TaskResult => {
     if ('skip' in task) return { ...task, status: 'skipped' }
     go({ view: 'bench' })
     const t0 = performance.now()
-    for (const step of task.steps) go(step.patch)
+    for (const step of task.steps) take(step)
     forceLayout()
     const { steps, isAnswerShown, ...rest } = task
     return {
@@ -314,7 +330,7 @@ export const runBench = (): BenchResult => {
     ...DSM_SCENARIOS,
     ...mrScenarios,
     ...setScenarios(m, subjects),
-    ...mapScenarios(m),
+    ...archScenarios(m),
   ].map((sc) => measureRun(sc, colours, tally))
   const territory = tally.result()
   const targets = judge(runs, tasks, territory)

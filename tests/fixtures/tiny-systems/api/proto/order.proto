@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package acme.order;
+
+service OrderService {
+  rpc PlaceOrder(PlaceOrderRequest) returns (Order);
+}
+
+message PlaceOrderRequest { string user = 1; }
+message Order { string id = 1; }

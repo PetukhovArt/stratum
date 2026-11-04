@@ -1,0 +1,61 @@
+---
+source: crates/stratum-lint/tests/e2e_features.rs
+expression: "features(\"json\")"
+---
+{
+  "features": [
+    {
+      "id": "boot",
+      "name": "boot",
+      "entry": [
+        "src/app/main.ts"
+      ],
+      "modules": [
+        "src/app/main.ts",
+        "src/entities/user/User.ts",
+        "src/entities/user/index.ts",
+        "src/features/cart/cart.tsx",
+        "src/features/cart/index.ts",
+        "src/shared/api/http.ts",
+        "src/shared/ui/Button.tsx",
+        "src/shared/utils/format.ts"
+      ]
+    },
+    {
+      "id": "cart",
+      "name": "Cart",
+      "entry": [
+        "src/features/cart/cart.tsx",
+        "src/features/cart/index.ts"
+      ],
+      "modules": [
+        "src/entities/user/User.ts",
+        "src/entities/user/index.ts",
+        "src/features/cart/cart.tsx",
+        "src/features/cart/index.ts",
+        "src/shared/ui/Button.tsx",
+        "src/shared/utils/format.ts"
+      ]
+    },
+    {
+      "id": "legacy",
+      "name": "Legacy helper",
+      "entry": [
+        "src/legacy/old-helper.js"
+      ],
+      "modules": [
+        "src/legacy/old-helper.js",
+        "src/shared/api/http.ts"
+      ]
+    }
+  ],
+  "shared": [
+    "src/entities/user/User.ts",
+    "src/entities/user/index.ts",
+    "src/features/cart/cart.tsx",
+    "src/features/cart/index.ts",
+    "src/shared/api/http.ts",
+    "src/shared/ui/Button.tsx",
+    "src/shared/utils/format.ts"
+  ]
+}

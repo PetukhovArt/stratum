@@ -81,11 +81,12 @@ fn side_entries(graph: &CompoundGraph) -> impl Iterator<Item = &SideFile> {
         .filter(|side| side.role == SideRole::EntryPoint)
 }
 
-fn forwarding_imports(m: &Module) -> FxHashSet<usize> {
+#[must_use]
+pub fn forwarding_imports(m: &Module) -> FxHashSet<usize> {
     let mut indices: FxHashSet<usize> = m.exports.stars.iter().copied().collect();
     indices.extend(m.exports.decls.iter().filter_map(|d| match d.origin {
         ExportOrigin::Reexport { import, .. } => Some(import),
-        ExportOrigin::Local => None,
+        ExportOrigin::Local | ExportOrigin::Alias { .. } => None,
     }));
     indices
 }
@@ -242,6 +243,7 @@ mod tests {
             calls: vec![],
             imports,
             suppressions: vec![],
+            local_refs: vec![],
         }
     }
 

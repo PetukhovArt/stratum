@@ -1,12 +1,10 @@
-import { layerColor, LAYER_TONE, SEV_COLOR, Tone } from '../../render/encoding'
+import { layerColor, LAYER_TONE, Tone } from '../../render/encoding'
 import { Model } from '../../render/model'
 import { EdgeChange } from './drift'
-import { worstBreak } from './review'
 
 const GHOST_SEGMENTS = 2
 
 export const ADDED_STROKE = 'oklch(95% 0.005 260)'
-export const NEUTRAL_STROKE = 'oklch(72% 0.02 260)'
 export const REMOVED_DASH = '3 4'
 
 export const shortPath = (path: string): string => path.split('/').slice(-GHOST_SEGMENTS).join('/')
@@ -23,7 +21,3 @@ export const layerTint = (m: Model, layer: number | null, tone: Tone = LAYER_TON
 
 export const rulesOf = (breaks: EdgeChange['breaks']): string => breaks.map(([slug]) => slug).join(' ')
 
-export const breakColor = (breaks: EdgeChange['breaks']): string | null => {
-  const sev = worstBreak(breaks)
-  return sev ? SEV_COLOR[sev] : null
-}

@@ -1,6 +1,8 @@
 import { Component, createResource, For, Show } from 'solid-js'
 import { exportSvg } from '../../canvas/canvas'
+import { ContractSection } from '../../contract/contract-section'
 import { t } from '../../i18n'
+import { fetchBrief } from '../../lib/api'
 import { SEV_COLOR } from '../../render/encoding'
 import { Model, worst } from '../../render/model'
 import { go, nav } from '../../shell/nav'
@@ -15,13 +17,8 @@ const MAX_VIOLATIONS = 40
 const MAX_PAIRS = 30
 const SVG_NAME_UNSAFE = /\W+/g
 
-const fetchBrief = async (path: string): Promise<string | null> => {
-  const resp = await fetch(`/api/context?path=${encodeURIComponent(path)}`)
-  return resp.ok ? resp.text() : null
-}
-
-const Brief: Component<{ path: string }> = (props) => {
-  const [brief] = createResource(() => props.path, fetchBrief)
+const Brief: Component<{ id: number; path: string }> = (props) => {
+  const [brief] = createResource(() => ({ id: props.id, path: props.path }), fetchBrief)
   const text = () => (brief.state === 'ready' ? brief() : null)
   return (
     <Show when={text()}>
@@ -158,7 +155,12 @@ export const FocusDetails: Component<ViewProps> = (props) => {
       <Show when={focus() !== null}>
         <div class="panel-body">
           <Show when={importsSelection()}>
-            {(s) => <ImportsDetail model={props.model} focus={focus()!} pairs={s().pairs} />}
+            {(s) => (
+              <>
+                <ImportsDetail model={props.model} focus={focus()!} pairs={s().pairs} />
+                <ContractSection edges={s().pairs.map(([from, to]) => ({ level: 'module', from, to }))} />
+              </>
+            )}
           </Show>
           <div class="fo-det-title">{props.model.label(focus()!)}</div>
           <div class="det-path">
@@ -175,7 +177,7 @@ export const FocusDetails: Component<ViewProps> = (props) => {
               {t('set.addToSet')}
             </button>
           </div>
-          <Brief path={module().path} />
+          <Brief id={module().id} path={module().path} />
           <div class="det-section">
             <h4>{t('focus.details.violations')}</h4>
             <ViolationList findings={props.model.findingsOf(focus()!)} />

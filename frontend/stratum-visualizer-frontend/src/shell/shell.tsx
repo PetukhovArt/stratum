@@ -3,75 +3,98 @@ import { Dynamic } from 'solid-js/web'
 import './fonts.css'
 import './shell.css'
 import '../styles.css'
+import { CodePanel } from '../contract/code-panel'
+import { scopeOf } from '../features/scope'
 import { t } from '../i18n'
-import { loadSnapshot, SnapshotVersionMismatchError } from '../lib/snapshot'
-import { loadViolations } from '../lib/violations'
+import { Feature, fetchFeatures, fetchSnapshot, fetchViolations } from '../lib/api'
+import { SnapshotVersionMismatchError } from '../lib/snapshot'
 import { buildModel, Model } from '../render/model'
 import { viewById, ViewDef } from '../views'
+import { requestSystems } from '../views/arch/systems'
+import { Guide, isGuideOpen } from './guide'
 import { Header } from './header'
 import { bindKeymap } from './keymap'
 import { nav, set } from './nav'
 import { Palette } from './palette'
+import { isPanelCollapsed, PanelSide, panelWidth, setPanelWidth, togglePanel } from './panels'
 import { StatusBar } from './status-bar'
 import { variantIndex, variantPatch } from './variants'
 
-const PANEL = {
-  leftWidth: 264,
-  rightWidth: 340,
-  minWidth: 200,
-  maxWidth: 560,
-  handleWidth: '5px',
-} as const
+const HANDLE_WIDTH = '5px'
 
 export const Shell: Component = () => {
-  const [snapshot] = createResource(() => loadSnapshot('/api/snapshot'))
-  const [violations] = createResource(() => loadViolations('/api/violations'))
+  const [snapshot] = createResource(() => fetchSnapshot())
+  const [violations] = createResource(() => fetchViolations())
+  const [features] = createResource(() => fetchFeatures())
   const isViolationsUnavailable = () => violations.state === 'errored'
+  const featureIndex = () => (features.state === 'ready' ? features() : null)
+  const isFeaturesSettled = () => features.state === 'ready' || features.state === 'errored'
+
+  const navFeatures = createMemo(() => nav().features)
+  const isHidingCommon = createMemo(() => nav().isHidingCommon)
+  const commonLimit = createMemo(() => nav().commonLimit)
+  const chosen = createMemo(() => navFeatures() ?? featureIndex()?.selected ?? [])
+  const scope = createMemo(() => {
+    const index = featureIndex()
+    if (!index) return null
+    return scopeOf(index.features, { chosen: chosen(), isHidingCommon: isHidingCommon(), commonLimit: commonLimit() })
+  })
 
   const model = createMemo<Model | null>(() => {
     const s = snapshot.state === 'ready' ? snapshot() : undefined
     const v = isViolationsUnavailable() ? [] : violations.state === 'ready' ? violations() : undefined
-    if (!s || !v) return null
-    return buildModel(s, v)
+    if (!s || !v || !isFeaturesSettled()) return null
+    return buildModel(s, v, scope())
   })
 
   return (
     <Show when={!snapshot.error} fallback={<ErrorView err={snapshot.error as Error} />}>
       <Show when={model()} fallback={<div class="loading">{t('shell.loading')}</div>}>
-        {(m) => <Layout model={m()} isViolationsUnavailable={isViolationsUnavailable()} />}
+        {(m) => (
+          <Layout
+            model={m()}
+            isViolationsUnavailable={isViolationsUnavailable()}
+            features={featureIndex()?.features ?? []}
+            chosenFeatures={chosen()}
+          />
+        )}
       </Show>
     </Show>
   )
 }
 
-const Layout: Component<{ model: Model; isViolationsUnavailable: boolean }> = (props) => {
+const Layout: Component<{
+  model: Model
+  isViolationsUnavailable: boolean
+  features: readonly Feature[]
+  chosenFeatures: readonly string[]
+}> = (props) => {
   const [isPaletteOpen, setPaletteOpen] = createSignal(false)
-  const [isLeftCollapsed, setLeftCollapsed] = createSignal(false)
-  const [isRightCollapsed, setRightCollapsed] = createSignal(false)
-  const [leftWidth, setLeftWidth] = createSignal<number>(PANEL.leftWidth)
-  const [rightWidth, setRightWidth] = createSignal<number>(PANEL.rightWidth)
+  const isLeftCollapsed = () => isPanelCollapsed('left')
+  const isRightCollapsed = () => isPanelCollapsed('right')
   const view = createMemo(() => viewById(nav().view))
 
   onMount(() => {
+    requestSystems()
     const unbind = bindKeymap({
       isPaletteOpen,
       setPaletteOpen,
-      toggleLeftPanel: () => setLeftCollapsed(!isLeftCollapsed()),
-      toggleRightPanel: () => setRightCollapsed(!isRightCollapsed()),
+      toggleLeftPanel: () => togglePanel('left'),
+      toggleRightPanel: () => togglePanel('right'),
     })
     onCleanup(unbind)
   })
 
   const bodyStyle = () => {
     const column = (isCollapsed: boolean, width: number) => (isCollapsed ? '0' : `${width}px`)
-    const handle = (isCollapsed: boolean) => (isCollapsed ? '0' : PANEL.handleWidth)
+    const handle = (isCollapsed: boolean) => (isCollapsed ? '0' : HANDLE_WIDTH)
     return {
       'grid-template-columns': [
-        column(isLeftCollapsed(), leftWidth()),
+        column(isLeftCollapsed(), panelWidth('left')),
         handle(isLeftCollapsed()),
         'minmax(0, 1fr)',
         handle(isRightCollapsed()),
-        column(isRightCollapsed(), rightWidth()),
+        column(isRightCollapsed(), panelWidth('right')),
       ].join(' '),
     }
   }
@@ -80,7 +103,12 @@ const Layout: Component<{ model: Model; isViolationsUnavailable: boolean }> = (p
 
   return (
     <div class="app">
-      <Header model={props.model} onOpenPalette={() => setPaletteOpen(true)} />
+      <Header
+        model={props.model}
+        features={props.features}
+        chosenFeatures={props.chosenFeatures}
+        onOpenPalette={() => setPaletteOpen(true)}
+      />
       <div class="body" style={bodyStyle()}>
         <div class="panel-slot">
           <Show when={!isLeftCollapsed()}>
@@ -88,16 +116,17 @@ const Layout: Component<{ model: Model; isViolationsUnavailable: boolean }> = (p
           </Show>
         </div>
         <Show when={!isLeftCollapsed()} fallback={<div />}>
-          <ResizeHandle side="left" width={leftWidth} setWidth={setLeftWidth} />
+          <ResizeHandle side="left" />
         </Show>
         <div class="stage-wrap">
           <VariantBar view={view()} />
           <div class="stage-region">
             <Dynamic component={view().Stage} {...viewProps()} />
           </div>
+          <CodePanel />
         </div>
         <Show when={!isRightCollapsed()} fallback={<div />}>
-          <ResizeHandle side="right" width={rightWidth} setWidth={setRightWidth} />
+          <ResizeHandle side="right" />
         </Show>
         <div class="panel-slot">
           <Show when={!isRightCollapsed()}>
@@ -108,6 +137,9 @@ const Layout: Component<{ model: Model; isViolationsUnavailable: boolean }> = (p
       <StatusBar model={props.model} />
       <Show when={isPaletteOpen()}>
         <Palette model={props.model} onClose={() => setPaletteOpen(false)} />
+      </Show>
+      <Show when={isGuideOpen()}>
+        <Guide />
       </Show>
     </div>
   )
@@ -134,24 +166,20 @@ const VariantBar: Component<{ view: ViewDef }> = (props) => (
   </Show>
 )
 
-const ResizeHandle: Component<{
-  side: 'left' | 'right'
-  width: () => number
-  setWidth: (n: number) => void
-}> = (props) => {
+const ResizeHandle: Component<{ side: PanelSide }> = (props) => {
   let stopDrag: (() => void) | null = null
   onCleanup(() => stopDrag?.())
 
   const onMouseDown = (e: MouseEvent) => {
     e.preventDefault()
     const startX = e.clientX
-    const startW = props.width()
+    const startW = panelWidth(props.side)
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
     const onMove = (ev: MouseEvent) => {
       const dx = ev.clientX - startX
       const next = props.side === 'left' ? startW + dx : startW - dx
-      props.setWidth(Math.max(PANEL.minWidth, Math.min(PANEL.maxWidth, next)))
+      setPanelWidth(props.side, next)
     }
     const onUp = () => {
       document.body.style.cursor = ''

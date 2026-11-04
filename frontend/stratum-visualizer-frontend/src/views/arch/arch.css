@@ -1,0 +1,133 @@
+.arch-stage { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.arch-canvas { position: relative; flex: 1; min-height: 0; }
+.arch-module { cursor: pointer; }
+
+.arch-crumbs {
+  flex: none; display: flex; align-items: center; gap: 4px; padding: 5px 10px;
+  border-bottom: 1px solid var(--bd-1); background: var(--bg-1); min-width: 0;
+}
+.arch-crumb {
+  appearance: none; border: 1px solid transparent; background: transparent; color: var(--tx-3); cursor: pointer;
+  display: flex; align-items: baseline; gap: 6px; padding: 3px 8px; border-radius: 5px; min-width: 0;
+}
+.arch-crumb:hover { color: var(--tx-1); background: var(--bg-2); }
+.arch-crumb.on { color: var(--tx-1); background: var(--bg-3); border-color: var(--bd-2); cursor: default; }
+.arch-crumb-level { font-size: 9.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--tx-4); }
+.arch-crumb-name {
+  font-family: var(--mono); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.arch-crumb-sep { color: var(--tx-4); font-size: 12px; }
+.arch-crumbs .sp { flex: 1; }
+.arch-c4 {
+  flex: none; display: flex; align-items: center; gap: 6px; padding-right: 10px; margin-right: 4px;
+  border-right: 1px solid var(--bd-1);
+}
+.arch-c4-tag { font-size: 10.5px; font-weight: 700; color: var(--accent); letter-spacing: .02em; }
+.arch-c4 ol { display: flex; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.arch-c4-step {
+  display: flex; align-items: center; gap: 5px; padding: 2px 8px 2px 3px; border-radius: 10px;
+  font-size: 11px; color: var(--tx-3); white-space: nowrap; cursor: help;
+}
+.arch-c4-step.deeper { color: var(--tx-4); }
+.arch-c4-n {
+  display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%;
+  font-size: 10px; font-variant-numeric: tabular-nums; border: 1px solid var(--bd-2);
+}
+.arch-c4-step.on { background: color-mix(in oklch, var(--accent) 18%, transparent); color: var(--tx-1); font-weight: 600; }
+.arch-c4-step.on .arch-c4-n { background: var(--accent); border-color: var(--accent); color: var(--bg-1); }
+.arch-c4-caption {
+  position: absolute; top: 10px; left: 12px; z-index: 1; max-width: min(60ch, 70%); margin: 0;
+  font-size: 12px; line-height: 1.4; color: var(--tx-3); pointer-events: none;
+}
+.arch-c4-caption strong { color: var(--tx-1); font-weight: 600; margin-right: 4px; }
+.arch-keys { font-size: 10.5px; color: var(--tx-4); white-space: nowrap; }
+
+.arch-components text { font-family: var(--mono); }
+.arch-segment-name { font-size: 11px; font-weight: 600; fill: oklch(86% 0.01 260); }
+.arch-segment-meta { font-size: 9.5px; font-weight: 400; fill: oklch(74% 0.01 260); }
+.arch-module-name { font-size: 10px; fill: oklch(88% 0.005 260); pointer-events: none; }
+.arch-lg-module { background: oklch(30% 0.02 260); }
+
+.arch-system { cursor: pointer; }
+.arch-systems text { font-family: var(--mono); pointer-events: none; }
+.arch-system-name { font-size: 12px; font-weight: 600; fill: oklch(92% 0.005 260); }
+.arch-system-meta { font-size: 10px; fill: oklch(76% 0.012 260); }
+.arch-system-reason { font-size: 9.5px; fill: oklch(70% 0.01 260); }
+.arch-box, .arch-boxes .arch-port { cursor: pointer; }
+.arch-boxes text { font-family: var(--mono); pointer-events: none; }
+.arch-box-name { font-size: 12.5px; font-weight: 600; fill: oklch(95% 0.005 260); }
+.arch-box-meta { font-size: 10.5px; fill: oklch(80% 0.012 260); }
+.arch-zone-name { font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.arch-actor { cursor: default; }
+.arch-system.muted .arch-system-name { fill: oklch(64% 0.01 260); }
+
+.arch-cts { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
+.arch-ct { padding: 4px 0; border-top: 1px solid var(--bd-1); }
+.arch-sig { font-size: 10.5px; color: var(--tx-3); padding: 0 6px 2px; overflow-wrap: anywhere; }
+.arch-callers { display: flex; flex-direction: column; padding-left: 10px; }
+.arch-caller {
+  appearance: none; border: 0; background: transparent; text-align: left; cursor: pointer; min-width: 0;
+  font-family: var(--mono); font-size: 10.5px; color: var(--tx-3); padding: 1px 6px; border-radius: 4px; overflow: hidden;
+}
+.arch-caller:hover, .arch-caller.on { background: var(--bg-2); color: var(--tx-1); }
+.arch-caller.on { box-shadow: inset 2px 0 0 var(--accent); }
+.arch-unattributed { color: var(--warn); }
+.arch-muted { color: var(--tx-4); }
+.arch-components .edge-count { font-size: 12px; font-weight: 600; dominant-baseline: central; }
+.arch-boxes-orient {
+  position: absolute; top: 8px; right: 10px; z-index: 2; display: flex; padding: 2px; gap: 2px;
+  background: oklch(20% 0.012 260 / .85); border: 1px solid var(--bd-1); border-radius: 8px; backdrop-filter: blur(10px);
+}
+.arch-boxes-orient button {
+  appearance: none; border: 0; background: transparent; color: var(--tx-3); cursor: pointer;
+  font-size: 11px; padding: 3px 10px; border-radius: 6px;
+}
+.arch-boxes-orient button:hover { color: var(--tx-1); background: var(--bg-3); }
+.arch-boxes .arch-stub-name { font-size: 10px; fill: oklch(84% 0.01 260); }
+.arch-boxes .arch-area-name { font-size: 10px; fill: oklch(66% 0.015 260); }
+.arch-boxes-orient button.on { color: var(--tx-1); background: color-mix(in oklch, var(--accent) 22%, transparent); }
+.arch-lg { display: inline-block; width: 26px; flex: none; }
+.arch-lg-box { height: 10px; border: 1px solid oklch(70% 0.06 260); border-radius: 2px; background: oklch(26% 0.03 260); }
+.arch-lg-line { height: 2px; background: oklch(74% 0.02 260 / .6); }
+
+.arch-note { font-size: 11.5px; color: var(--tx-3); line-height: 1.45; margin: 0 0 12px; }
+.arch-rules { font-size: 11px; color: var(--tx-4); margin-bottom: 10px; word-break: break-all; }
+.arch-btn-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.arch-btn {
+  appearance: none; border: 1px solid var(--bd-2); background: var(--bg-2); color: var(--tx-1); border-radius: 5px;
+  padding: 4px 10px; font-size: 11.5px; cursor: pointer; white-space: nowrap;
+}
+.arch-btn:hover { background: var(--bg-3); }
+.arch-rows { display: flex; flex-direction: column; gap: 1px; margin-bottom: 8px; }
+.arch-row {
+  appearance: none; border: 0; background: transparent; text-align: left; display: flex; align-items: center; gap: 8px;
+  padding: 4px 6px; border-radius: 4px; font-size: 11.5px; color: var(--tx-2); cursor: pointer;
+}
+div.arch-row { cursor: default; }
+.arch-row:hover { background: var(--bg-2); color: var(--tx-1); }
+.arch-row .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.arch-row .n { font-size: 10.5px; color: var(--tx-4); font-variant-numeric: tabular-nums; }
+.arch-row .n.c-err { color: var(--err); }
+.arch-sw { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+.arch-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.arch-dot.sev-error { background: var(--err); }
+.arch-dot.sev-warning { background: var(--warn); }
+.arch-dot.sev-info { background: var(--info); }
+
+.arch-filter {
+  margin: 8px 10px 4px; width: calc(100% - 20px); appearance: none; outline: none;
+  border: 1px solid var(--bd-1); background: var(--bg-2); padding: 5px 8px; border-radius: 6px;
+  font-family: var(--mono); font-size: 11px; color: var(--tx-1);
+}
+.arch-filter:focus { border-color: var(--bd-2); background: var(--bg-3); }
+.arch-ol-layer {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px 3px; font-size: 11.5px; font-weight: 600; color: var(--tx-1);
+}
+.arch-ol-unit {
+  display: flex; align-items: center; gap: 6px; padding: 2px 12px 2px 28px; font-family: var(--mono); font-size: 11px;
+  color: var(--tx-3); cursor: pointer; white-space: nowrap;
+}
+.arch-ol-unit:hover { background: var(--bg-2); color: var(--tx-1); }
+.arch-ol-unit.on { background: oklch(40% 0.03 260 / .45); color: var(--tx-1); box-shadow: inset 2px 0 0 var(--accent); }
+.arch-ol-unit .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.arch-ol-unit .n { font-size: 10px; color: var(--tx-4); font-variant-numeric: tabular-nums; }

@@ -130,11 +130,3 @@ export const parseSnapshot = (raw: unknown): GraphSnapshot => {
   assertIndices(snapshot)
   return snapshot
 }
-
-export const loadSnapshot = async (url: string): Promise<GraphSnapshot> => {
-  const resp = await fetch(url)
-  if (!resp.ok) {
-    throw new Error(`Snapshot fetch failed: ${resp.status}`)
-  }
-  return parseSnapshot(await resp.json())
-}

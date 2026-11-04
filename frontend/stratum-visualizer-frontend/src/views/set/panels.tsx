@@ -1,5 +1,6 @@
 import { Component, createMemo, createSignal, For, Show } from 'solid-js'
 import { exportSvg } from '../../canvas/canvas'
+import { ContractSection } from '../../contract/contract-section'
 import { t } from '../../i18n'
 import { SEV_COLOR } from '../../render/encoding'
 import { edgeKey, Model, worst } from '../../render/model'
@@ -105,7 +106,14 @@ export const SetDetails: Component<{ model: Model; analysis: SetAnalysis }> = (p
         <span class="panel-count">{a().members.length}</span>
       </header>
       <div class="panel-body">
-        <Show when={edgeSel()}>{(s) => <SelectedImport model={m} from={s().from} to={s().to} />}</Show>
+        <Show when={edgeSel()}>
+          {(s) => (
+            <>
+              <SelectedImport model={m} from={s().from} to={s().to} />
+              <ContractSection edges={[{ level: 'module', from: s().from, to: s().to }]} />
+            </>
+          )}
+        </Show>
         <div class="det-stats det-stats-grid" data-testid="set-stats">
           <div class="stat">
             <div class="stat-val">{a().members.length}</div>

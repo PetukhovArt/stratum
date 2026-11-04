@@ -50,6 +50,7 @@ fn build(n: u32, edges: &[(u32, u32)]) -> CompoundGraph {
             calls: vec![],
             imports: vec![],
             suppressions: vec![],
+            local_refs: vec![],
         };
         let node = g.deps.add_node(m.id);
         g.node_index.insert(m.id, node);

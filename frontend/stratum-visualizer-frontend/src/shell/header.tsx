@@ -1,11 +1,19 @@
-import { Component, createMemo, For } from 'solid-js'
+import { Component, createMemo, For, Show } from 'solid-js'
+import { FeatureFilter } from '../features/feature-filter'
 import { lang, LANGS, setLang, t } from '../i18n'
+import type { Feature } from '../lib/api'
 import { Model } from '../render/model'
 import { Severity } from '../types'
 import { availableViews } from '../views'
+import { openGuide } from './guide'
 import { go, nav } from './nav'
 
-export const Header: Component<{ model: Model; onOpenPalette: () => void }> = (props) => {
+export const Header: Component<{
+  model: Model
+  features: readonly Feature[]
+  chosenFeatures: readonly string[]
+  onOpenPalette: () => void
+}> = (props) => {
   const counts = createMemo(() => {
     let err = 0
     let warn = 0
@@ -49,6 +57,9 @@ export const Header: Component<{ model: Model; onOpenPalette: () => void }> = (p
         </For>
       </nav>
       <div class="hd-r">
+        <Show when={props.features.length}>
+          <FeatureFilter features={props.features} chosen={props.chosenFeatures} />
+        </Show>
         <div class="seg lang">
           <For each={LANGS}>
             {(l) => (
@@ -61,6 +72,9 @@ export const Header: Component<{ model: Model; onOpenPalette: () => void }> = (p
         <button class="pal-btn" onClick={() => props.onOpenPalette()}>
           <span>{t('shell.jump')}</span>
           <kbd>Ctrl K</kbd>
+        </button>
+        <button class="help-btn" data-testid="guide-open" title={t('shell.guide')} aria-label={t('shell.guide')} onClick={openGuide}>
+          ?
         </button>
       </div>
     </header>

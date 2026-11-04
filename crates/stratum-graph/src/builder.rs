@@ -219,6 +219,7 @@ impl GraphBuilder {
                 calls: facts.calls,
                 imports: facts.imports,
                 suppressions: facts.suppressions,
+                local_refs: facts.local_refs,
             };
             let node = graph.deps.add_node(id);
             graph.node_index.insert(id, node);
@@ -664,6 +665,9 @@ fn located(lines: &LineIndex<'_>, data: ExtractedData) -> Parsed {
         .map(|call| Call {
             name: call.name,
             location: at(call.span.start),
+            args: call.args,
+            owner: call.owner,
+            form: call.form,
         })
         .collect();
     let suppressions = data
@@ -682,6 +686,7 @@ fn located(lines: &LineIndex<'_>, data: ExtractedData) -> Parsed {
         exports,
         calls,
         suppressions,
+        local_refs: data.local_refs,
     }
 }
 
@@ -722,6 +727,7 @@ fn assemble(parsed: Parsed, targets_per_import: Vec<Vec<ModuleId>>) -> FileFacts
         imports,
         calls: parsed.calls,
         suppressions: parsed.suppressions,
+        local_refs: parsed.local_refs,
     }
 }
 
@@ -829,6 +835,7 @@ struct FileFacts {
     imports: Vec<Import>,
     calls: Vec<Call>,
     suppressions: Vec<Suppression>,
+    local_refs: Vec<(String, Vec<String>)>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -838,6 +845,7 @@ struct Parsed {
     exports: Exports,
     calls: Vec<Call>,
     suppressions: Vec<Suppression>,
+    local_refs: Vec<(String, Vec<String>)>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

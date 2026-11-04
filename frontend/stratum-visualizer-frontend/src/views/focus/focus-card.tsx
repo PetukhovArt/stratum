@@ -1,4 +1,5 @@
 import { Component, For, Show } from 'solid-js'
+import { sharedAttr, sharedNote } from '../../features/shared-mark'
 import { t } from '../../i18n'
 import { LAYER_TONE, SEV_COLOR } from '../../render/encoding'
 import { Model } from '../../render/model'
@@ -22,13 +23,14 @@ export const FocusCard: Component<{ model: Model; id: number }> = (props) => {
     const entries = entryOf(m(), props.id)
     if (entries.length) parts.push(t('focus.card.entry', { names: entries.join(', ') }))
     if (typeof module().zone === 'number') parts.push(t('focus.card.private'))
+    if (m().isSharedByChosenFeatures(props.id)) parts.push(t('features.shared'))
     return parts.join(' · ')
   }
   const counts = () => severityCounts(m().findingsOf(props.id))
   const x = -CARD.w / 2
   const y = -CARD.h / 2
   return (
-    <g class="fo-card" data-testid="focus-card">
+    <g class="fo-card" data-testid="focus-card" data-id={props.id} data-shared={sharedAttr(m(), props.id)}>
       <rect
         x={x - HALO}
         y={y - HALO}
@@ -78,7 +80,7 @@ export const FocusCard: Component<{ model: Model; id: number }> = (props) => {
           </text>
         </Show>
       </g>
-      <title>{module().path}</title>
+      <title>{module().path + sharedNote(m(), props.id)}</title>
     </g>
   )
 }

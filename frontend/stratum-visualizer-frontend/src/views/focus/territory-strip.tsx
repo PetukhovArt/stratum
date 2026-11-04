@@ -18,13 +18,13 @@ const forbiddenTitle = (m: Model, f: Forbidden): string => {
   return [f.rule, ...paths].join('\n')
 }
 
-export const TerritoryStrip: Component<{ model: Model; id: number }> = (props) => {
+export const TerritoryStrip: Component<{ model: Model; id: number; isOpen: boolean; onToggle: () => void }> = (props) => {
   const m = () => props.model
   const module = () => m().modules.get(props.id)!
   const territory = () => m().territoryOf(props.id)
   const excluded = () => m().layers.filter((l) => !territory().may_import_layers.includes(l.id))
-  return (
-    <div class="fo-terr" data-testid="territory-strip">
+  const mayImport = () => (
+    <>
       <span class="fo-terr-k">{t('focus.terr.mayImport')}</span>
       <span class="fo-terr-v">
         <For each={territory().may_import_layers}>
@@ -39,7 +39,44 @@ export const TerritoryStrip: Component<{ model: Model; id: number }> = (props) =
           )}
         </For>
         <span class="fo-n">{t('focus.terr.purity', { n: territory().max_import_purity })}</span>
+        <Show when={!props.isOpen}>
+          <span class="fo-n">
+            · {t('focus.terr.importedBy')} {territory().imported_by_layers.length}
+          </span>
+        </Show>
       </span>
+    </>
+  )
+  return (
+    <div class="fo-terr" classList={{ closed: !props.isOpen }} data-testid="territory-strip">
+      <button
+        class="fo-terr-fold"
+        data-testid="focus-territory-toggle"
+        aria-expanded={props.isOpen}
+        aria-label={t(props.isOpen ? 'focus.territoryHide' : 'focus.territoryShow')}
+        title={t(props.isOpen ? 'focus.territoryHide' : 'focus.territoryShow')}
+        onClick={() => props.onToggle()}
+      >
+        <svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true">
+          <path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.5" />
+        </svg>
+      </button>
+      {mayImport()}
+      <Show when={props.isOpen}>
+        <StripRest model={m()} excluded={excluded()} territory={territory()} />
+      </Show>
+    </div>
+  )
+}
+
+const StripRest: Component<{ model: Model; excluded: readonly { name: string }[]; territory: ReturnType<Model['territoryOf']> }> = (
+  props,
+) => {
+  const m = () => props.model
+  const territory = () => props.territory
+  const excluded = () => props.excluded
+  return (
+    <>
       <span class="fo-terr-k">{t('focus.terr.mayNot')}</span>
       <span class="fo-terr-v">
         <Show when={excluded().length > 0}>
@@ -73,6 +110,6 @@ export const TerritoryStrip: Component<{ model: Model; id: number }> = (props) =
       </Show>
       <span class="fo-terr-k">{t('focus.terr.importedBy')}</span>
       <span class="fo-terr-v fo-mono">{territory().imported_by_layers.map((l) => layerName(m(), l)).join(' · ')}</span>
-    </div>
+    </>
   )
 }

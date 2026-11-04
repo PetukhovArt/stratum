@@ -5,6 +5,7 @@ use stratum_core::text::{Arg, Key, Text};
 use stratum_core::{
     ids::{ModuleId, RuleId},
     severity::Severity,
+    types::CallForm,
     violation::Violation,
 };
 use stratum_graph::{CompoundGraph, TrackedCalls};
@@ -93,6 +94,7 @@ impl Rule for RestrictedCalls {
         module
             .calls
             .iter()
+            .filter(|call| call.form == CallForm::Direct)
             .filter_map(|call| {
                 let policy = options
                     .0
@@ -191,9 +193,13 @@ mod tests {
                     calls: vec![Call {
                         name: "inject".into(),
                         location: SourceLocation { line: 7, column: 3 },
+                        args: vec![],
+                        owner: None,
+                        form: CallForm::Direct,
                     }],
                     imports: vec![],
                     suppressions: vec![],
+                    local_refs: vec![],
                 },
             );
         }

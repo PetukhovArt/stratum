@@ -1,0 +1,15 @@
+---
+source: crates/stratum-lint/tests/e2e_c4.rs
+expression: output
+---
+C4Component
+title Components of shared
+System_Boundary(sys_ui, "Web UI") {
+  Container_Boundary(ctr_src_shared, "shared") {
+    Component(cmp_src_shared_api, "api", "folder", "4 modules")
+    Component(cmp_src_shared_config, "config", "folder", "1 module")
+  }
+}
+Rel(cmp_src_shared_api, cmp_src_shared_config, "1 import")
+UpdateRelStyle(cmp_src_shared_api, cmp_src_shared_config, $offsetX="-24", $offsetY="-11")
+UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")

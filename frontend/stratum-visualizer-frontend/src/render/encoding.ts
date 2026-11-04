@@ -13,6 +13,8 @@ export const SEV_COLOR: Record<SeverityLabel, string> = {
   info: 'oklch(70% 0.10 230)',
 }
 
+export const SHARED_COLOR = 'oklch(78% 0.12 175)'
+
 export const EDGE_DASH: Record<EdgeKindLabel, string | undefined> = {
   static: undefined,
   runtime: '1.5 3',

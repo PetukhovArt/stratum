@@ -361,7 +361,7 @@ const marksOf = (m: Model, focus: number, columns: readonly Column[], bundles: r
       if (!g.isOpen) marks += Number(hasSeverity(g.ids.flatMap((id) => m.findingsOf(id))))
       for (const r of g.rows) {
         marks += ROW_MARKS + Number(entryOf(m, r.id).length > 0) + Number(hasSeverity(r.edgeFindings))
-        marks += Number(hasSeverity(m.findingsOf(r.id)))
+        marks += Number(hasSeverity(m.findingsOf(r.id))) + Number(m.isSharedByChosenFeatures(r.id))
       }
     }
   }

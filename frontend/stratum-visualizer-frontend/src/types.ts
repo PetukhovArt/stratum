@@ -14,6 +14,8 @@ export const enum Severity {
 export const SUPPORTED_SNAPSHOT_VERSION = 3
 
 export const CROSS_LAYER_RULE = 'stratum/no-cross-layer-import'
+export const SIBLING_RULE = 'stratum/sibling-isolation'
+export const CYCLE_RULE = 'stratum/no-circular-deps'
 
 export const CONTAINER_KINDS = ['layer', 'slice', 'sub_unit', 'nested'] as const
 export type ContainerKind = (typeof CONTAINER_KINDS)[number]

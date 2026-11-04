@@ -1,0 +1,111 @@
+import { Component, createMemo, createResource, For, Match, Show, Switch } from 'solid-js'
+import { t } from '../i18n'
+import { ApiStatusError, fetchSource, Loc, SourceNotExportedError } from '../lib/api'
+import { PathLabel } from '../shell/path-text'
+import { closeCode, CodeSite, codeTarget, CodeTarget } from './code'
+import { rowsOf } from './source'
+import './contract.css'
+
+const CONTEXT = { decl: 12, import: 4, call: 4 } as const
+
+const loadHighlighter = () => import('./highlight')
+
+const reasonOf = (err: unknown): string => {
+  if (err instanceof ApiStatusError) return String(err.status)
+  return err instanceof Error ? err.message : String(err)
+}
+
+const centerInBox = (row: HTMLElement): void => {
+  queueMicrotask(() => {
+    const box = row.parentElement
+    if (box) box.scrollTop = row.offsetTop - box.clientHeight / 2
+  })
+}
+
+type SnippetRole = 'decl' | CodeSite['kind']
+
+const ROLE_TITLE = { decl: 'code.decl', import: 'code.import', call: 'code.call' } as const satisfies Record<SnippetRole, string>
+
+const Snippet: Component<{ role: SnippetRole; at: Loc }> = (props) => {
+  const [source] = createResource(() => ({ ...props.at, context: CONTEXT[props.role] }), fetchSource)
+  const [highlighter] = createResource(loadHighlighter)
+  const rows = createMemo(() => {
+    if (source.state !== 'ready') return []
+    const s = source()
+    const html = highlighter.state === 'ready' ? highlighter().highlightedLinesOf(s.path, s.lines) : null
+    return rowsOf(s, props.at.line, html)
+  })
+  return (
+    <div class="code-snippet" data-testid="code-snippet" data-role={props.role} data-at={`${props.at.path}:${props.at.line}`}>
+      <div class="code-snippet-hd" title={`${props.at.path}:${props.at.line}`}>
+        <span class="code-role">{t(ROLE_TITLE[props.role])}</span>
+        <PathLabel path={`${props.at.path}:${props.at.line}`} />
+      </div>
+      <Switch>
+        <Match when={source.state === 'errored' && source.error instanceof SourceNotExportedError}>
+          <div class="empty code-msg" data-testid="code-not-exported">
+            {t('code.notExported')}
+          </div>
+        </Match>
+        <Match when={source.state === 'errored'}>
+          <div class="empty code-msg">{t('code.missing', { reason: reasonOf(source.error) })}</div>
+        </Match>
+        <Match when={source.state === 'ready'}>
+          <div class="code-lines">
+            <For each={rows()}>
+              {(row) => (
+                <div
+                  class={`code-line${row.isMarked ? ' on' : ''}`}
+                  data-testid="code-line"
+                  data-line={row.line}
+                  data-marked={row.isMarked ? 'true' : undefined}
+                  ref={(el) => row.isMarked && centerInBox(el)}
+                >
+                  <span class="code-n">{row.line}</span>
+                  <Show when={row.html} fallback={<span class="code-t">{row.text}</span>}>
+                    {(html) => <span class="code-t" innerHTML={html()} />}
+                  </Show>
+                </div>
+              )}
+            </For>
+          </div>
+        </Match>
+        <Match when={source.loading}>
+          <div class="empty code-msg">{t('code.loading')}</div>
+        </Match>
+      </Switch>
+    </div>
+  )
+}
+
+const CodeDock: Component<{ target: CodeTarget }> = (props) => (
+  <section class="code-dock" data-testid="code-panel" aria-label={t('code.title')}>
+    <header class="code-hd">
+      <span class="code-title">{t('code.title')}</span>
+      <span class="code-name mono" data-testid="code-name">
+        {props.target.name}
+      </span>
+      <Show when={props.target.signature}>
+        {(signature) => (
+          <span class="code-sig mono" data-testid="code-signature" title={signature()}>
+            {signature()}
+          </span>
+        )}
+      </Show>
+      <Show when={!props.target.decl}>
+        <span class="code-note">{t(props.target.site?.kind === 'call' ? 'code.unresolvedCall' : 'code.unresolved')}</span>
+      </Show>
+      <span class="sp" />
+      <kbd>Esc</kbd>
+      <button class="code-x" data-testid="code-close" aria-label={t('code.close')} title={t('code.close')} onClick={closeCode}>
+        ×
+      </button>
+    </header>
+    <div class="code-body">
+      <Show when={props.target.site}>{(site) => <Snippet role={site().kind} at={site()} />}</Show>
+      <Show when={props.target.decl}>{(decl) => <Snippet role="decl" at={decl()} />}</Show>
+    </div>
+  </section>
+)
+
+export const CodePanel: Component = () => <Show when={codeTarget()}>{(target) => <CodeDock target={target()} />}</Show>

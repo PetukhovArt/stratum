@@ -40,9 +40,38 @@ export interface FileRow {
   worst: SeverityLabel | null
 }
 
+export interface Tally {
+  added: number
+  removed: number
+}
+
+export interface Fold extends Tally {
+  key: string
+  from: string
+  to: string
+  edges: readonly ReviewEdge[]
+}
+
+export interface Folder extends Tally {
+  key: string
+  name: string
+  path: string
+  container: number | null
+  isPrivate: boolean
+  layer: number | null
+  members: readonly number[]
+  ghosts: number
+  breaks: number
+  worst: SeverityLabel | null
+}
+
 export interface Review {
   nodes: ReadonlyMap<number, ReviewNode>
-  edges: readonly ReviewEdge[]
+  changes: readonly ReviewEdge[]
+  alwaysDrawn: readonly ReviewEdge[]
+  folds: readonly Fold[]
+  folders: readonly Folder[]
+  folderOf: ReadonlyMap<string, Folder>
   files: readonly FileRow[]
   items: readonly ChangeItem[]
   stageOf: ReadonlyMap<number, StageChange>
@@ -51,9 +80,8 @@ export interface Review {
   omitted: number
 }
 
-/** Counted in module boxes + edges + change badges. */
 export const MARK_BUDGET = 1300
-const BADGE_MARKS = 1
+const MARKS = { node: 2, moduleEdge: 2, fold: 3 } as const
 
 const isWorse = (a: SeverityLabel, b: SeverityLabel | null): boolean => !b || SEVERITY_RANK[a] > SEVERITY_RANK[b]
 
@@ -117,7 +145,115 @@ const representative = (m: Model, container: SnapshotContainer): number | null =
   return nested
 }
 
-export const toReview = (m: Model, drift: DriftReport): Review => {
+const inScope = (m: Model, drift: DriftReport): DriftReport => {
+  const newIndex = new Map<number, number>()
+  const edges = drift.edges.filter((e, i) => {
+    if (m.hides(e.from) || m.hides(e.to)) return false
+    newIndex.set(i, newIndex.size)
+    return true
+  })
+  return {
+    ...drift,
+    edges,
+    breaking: drift.breaking.flatMap((i) => newIndex.get(i) ?? []),
+    cycles: drift.cycles.filter((c) => !c.members.some(m.hides) && !c.path.some(m.hides)),
+    stages: drift.stages.filter((s) => !m.hides(s.container)),
+  }
+}
+
+const tallyOf = (edges: readonly ReviewEdge[]): Tally => ({
+  added: edges.filter((e) => e.tag === 'added').length,
+  removed: edges.filter((e) => e.tag === 'removed').length,
+})
+
+const foldOf = (
+  nodes: ReadonlyMap<number, ReviewNode>,
+  changes: readonly ReviewEdge[],
+  marked: ReadonlyMap<string, ReviewEdge>,
+): Fold[] => {
+  const between = new Map<string, ReviewEdge[]>()
+  for (const e of changes) {
+    const from = nodes.get(e.from)!.group.key
+    const to = nodes.get(e.to)!.group.key
+    if (from === to || marked.has(e.key)) continue
+    const key = `${from}>${to}`
+    between.set(key, [...(between.get(key) ?? []), e])
+  }
+  return [...between].map(([key, edges]): Fold => {
+    const [from, to] = key.split('>')
+    return { key, from, to, ...tallyOf(edges), edges }
+  })
+}
+
+const folderName = (m: Model, group: ReviewNode['group']): string => {
+  const root = group.container === null ? undefined : containerChain(m, group.container)[0]
+  if (!root || group.path === root.path || !isUnder(group.path, root.path)) return group.name
+  return group.path.slice(root.path.length + 1)
+}
+
+const foldersOf = (
+  m: Model,
+  nodes: ReadonlyMap<number, ReviewNode>,
+  changes: readonly ReviewEdge[],
+  breaking: ReadonlySet<string>,
+): Folder[] => {
+  const byKey = new Map<string, Folder & { members: number[] }>()
+  const sorted = [...nodes.values()].sort((a, b) => a.path.localeCompare(b.path))
+  for (const n of sorted) {
+    const g = n.group
+    const folder = byKey.get(g.key) ?? {
+      key: g.key,
+      name: folderName(m, g),
+      path: g.path,
+      container: g.container,
+      isPrivate: g.isPrivate,
+      layer: n.layer,
+      members: [],
+      ghosts: 0,
+      breaks: 0,
+      worst: null,
+      added: 0,
+      removed: 0,
+    }
+    folder.members.push(n.id)
+    if (n.isGhost) folder.ghosts++
+    byKey.set(g.key, folder)
+  }
+  for (const e of changes) {
+    const folder = byKey.get(nodes.get(e.from)!.group.key)!
+    if (e.tag === 'added') folder.added++
+    else folder.removed++
+    const sev = breaking.has(e.key) ? worstBreak(e.breaks) : null
+    if (!sev) continue
+    folder.breaks++
+    if (isWorse(sev, folder.worst)) folder.worst = sev
+  }
+  return [...byKey.values()].sort((a, b) => a.path.localeCompare(b.path))
+}
+
+const unchanged = (m: Model, review: Review, from: number, to: number): ReviewEdge | null => {
+  const head = review.nodes.has(from) && review.nodes.has(to) ? m.edge(from, to) : undefined
+  return head ? { key: edgeKey(from, to), from, to, kind: head.kind, tag: 'same', breaks: [] } : null
+}
+
+export const linesOfModule = (m: Model, review: Review, id: number): ReviewEdge[] => {
+  const changed = review.changes.filter((e) => e.from === id || e.to === id)
+  if (id < 0) return changed
+  const keys = new Set(changed.map((e) => e.key))
+  const pairs: [number, number][] = [...m.out(id).map((to): [number, number] => [id, to]), ...m.inn(id).map((from): [number, number] => [from, id])]
+  const context = pairs
+    .filter(([from, to]) => !keys.has(edgeKey(from, to)))
+    .flatMap(([from, to]) => unchanged(m, review, from, to) ?? [])
+  return [...changed, ...context]
+}
+
+export const edgeOf = (m: Model, review: Review, from: number, to: number): ReviewEdge | null => {
+  const key = edgeKey(from, to)
+  return review.changes.find((e) => e.key === key) ?? review.alwaysDrawn.find((e) => e.key === key) ?? unchanged(m, review, from, to)
+}
+
+export const toReview = (m: Model, whole: DriftReport): Review => {
+  const drift = inScope(m, whole)
   const byDepth = [...m.containers.values()].sort((a, b) => b.path.length - a.path.length)
   const containerByPath = new Map([...m.containers.values()].map((c) => [c.path, c]))
   const ghostIds = new Map<string, number>()
@@ -156,16 +292,22 @@ export const toReview = (m: Model, drift: DriftReport): Review => {
   }
   const all = [...changed.values()]
   const fixed = all.filter((e) => e.tag === 'removed' && e.breaks.length > 0)
-  const clean = (tag: EdgeTag) => all.filter((e) => e.tag === tag && e.breaks.length === 0)
-  const priority = [...breaking, ...cycleEdges, ...fixed, ...clean('added'), ...clean('removed')]
+  const marked = new Map([...breaking, ...cycleEdges, ...fixed].map((e) => [e.key, e]))
+  const rest = (tag: EdgeTag) => all.filter((e) => e.tag === tag && !marked.has(e.key))
+  const priority = [...marked.values(), ...rest('added'), ...rest('removed')]
 
+  const known = new Map<number, ReviewNode>()
+  const nodeOf = (id: number): ReviewNode => {
+    const made = known.get(id) ?? (ghostPaths.has(id) ? ghostNode(m, id, ghostPaths.get(id)!, byDepth) : headNode(m, id))
+    known.set(id, made)
+    return made
+  }
   const nodes = new Map<number, ReviewNode>()
   let marks = 0
   const addNode = (id: number): void => {
     if (nodes.has(id)) return
-    const ghostPath = ghostPaths.get(id)
-    nodes.set(id, ghostPath === undefined ? headNode(m, id) : ghostNode(m, id, ghostPath, byDepth))
-    marks++
+    nodes.set(id, nodeOf(id))
+    marks += MARKS.node
   }
 
   const stageOf = new Map<number, StageChange>()
@@ -178,30 +320,28 @@ export const toReview = (m: Model, drift: DriftReport): Review => {
   }
   for (const cycle of drift.cycles) cycle.path.forEach((path) => addNode(idOf(path)))
 
-  const drawn = new Map<string, ReviewEdge>()
+  const placed = new Map<string, ReviewEdge>()
+  const pairs = new Set<string>()
   for (const edge of priority) {
-    if (drawn.has(edge.key)) continue
+    if (placed.has(edge.key)) continue
     const fresh = Number(!nodes.has(edge.from)) + Number(!nodes.has(edge.to) && edge.from !== edge.to)
-    const cost = fresh + 1 + (edge.tag === 'same' ? 0 : BADGE_MARKS)
+    const from = nodeOf(edge.from).group.key
+    const to = nodeOf(edge.to).group.key
+    const pair = `${from}>${to}`
+    const isFolded = !marked.has(edge.key) && from !== to
+    const line = marked.has(edge.key) ? MARKS.moduleEdge : isFolded && !pairs.has(pair) ? MARKS.fold : 0
+    const cost = fresh * MARKS.node + line
     if (marks + cost > MARK_BUDGET) continue
     addNode(edge.from)
     addNode(edge.to)
-    drawn.set(edge.key, edge)
-    marks += cost - fresh
+    placed.set(edge.key, edge)
+    if (isFolded) pairs.add(pair)
+    marks += line
   }
-  const omitted = all.filter((e) => !drawn.has(e.key)).length
-
-  for (const id of nodes.keys()) {
-    if (id < 0) continue
-    for (const to of m.out(id)) {
-      if (marks >= MARK_BUDGET) break
-      const key = edgeKey(id, to)
-      const head = m.edge(id, to)
-      if (!head || !nodes.has(to) || drawn.has(key) || changed.has(key)) continue
-      drawn.set(key, { key, from: id, to, kind: head.kind, tag: 'same', breaks: [] })
-      marks++
-    }
-  }
+  const omitted = all.filter((e) => !placed.has(e.key)).length
+  const changes = all.filter((e) => placed.has(e.key))
+  const folds = foldOf(nodes, changes, marked)
+  const folders = foldersOf(m, nodes, changes, new Set(breaking.map((e) => e.key)))
 
   const files = new Map<number, FileRow>()
   for (const edge of all) {
@@ -243,7 +383,11 @@ export const toReview = (m: Model, drift: DriftReport): Review => {
   const rank = (r: FileRow): number => (r.worst ? SEVERITY_RANK[r.worst] : 0)
   return {
     nodes,
-    edges: [...drawn.values()],
+    changes,
+    alwaysDrawn: [...marked.values()].filter((e) => placed.has(e.key)),
+    folds,
+    folders,
+    folderOf: new Map(folders.map((f) => [f.key, f])),
     files: [...files.values()].sort((a, b) => rank(b) - rank(a) || a.path.localeCompare(b.path)),
     items,
     stageOf,

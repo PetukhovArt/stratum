@@ -1,0 +1,10 @@
+.edge-on { cursor: pointer; }
+.edge-hit { pointer-events: stroke; }
+.edge-path { stroke-linejoin: round; stroke-linecap: round; }
+.edge-count {
+  font-family: var(--mono); font-size: 11px; font-weight: 600; text-anchor: middle;
+  stroke-width: 3; paint-order: stroke; pointer-events: none;
+}
+.edge-label {
+  font-family: var(--mono); font-size: 10px; text-anchor: middle; stroke-width: 3; paint-order: stroke; pointer-events: none;
+}

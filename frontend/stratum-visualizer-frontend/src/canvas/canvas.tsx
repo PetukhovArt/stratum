@@ -15,6 +15,7 @@ import { CANVAS_DEFS, HATCH_STROKE } from '../render/encoding'
 import { Bounds, DEFAULT_VIEWPORT, fitViewport, NO_BOX, zoomAround } from '../render/viewport'
 import { CanvasSize, Viewport } from '../state'
 import { activeCanvas, registerCanvas } from './active'
+import { legendOpen, toggleLegend } from './legend-toggle'
 
 const WHEEL_ZOOM_FACTOR = 1.12
 const BUTTON_ZOOM_FACTOR = 1.25
@@ -145,8 +146,17 @@ export const Canvas: Component<{
           </g>
         </svg>
         <Show when={props.legend}>
-          <div class="cv-legend" ref={legendBox}>
-            {props.legend}
+          <div class="cv-legend" classList={{ closed: !legendOpen() }} ref={legendBox}>
+            <button
+              class="cv-legend-toggle"
+              data-testid="legend-toggle"
+              aria-expanded={legendOpen()}
+              title={t(legendOpen() ? 'shell.canvas.legendHide' : 'shell.canvas.legendShow')}
+              onClick={toggleLegend}
+            >
+              {legendOpen() ? '×' : t('shell.canvas.legend')}
+            </button>
+            <Show when={legendOpen()}>{props.legend}</Show>
           </div>
         </Show>
         {props.overlay}
