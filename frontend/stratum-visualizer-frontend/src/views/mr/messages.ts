@@ -40,7 +40,7 @@ export const en = {
   'mr.crumb.all': 'All folders',
   'mr.sel.folder': { one: 'Folder · {n} changed import', other: 'Folder · {n} changed imports' },
   'mr.legend.sev': 'breaks a rule (severity colour)',
-  'mr.legend.importer': 'M: file with a changed import · bright box: stage changed',
+  'mr.legend.importer': '+a −r: imports the file added and removed · hover a file: its imports · bright box: stage changed',
   'mr.legend.ghost': 'dashed box: module only at the base',
   'mr.sel.module': { one: 'Module · {n} changed import', other: 'Module · {n} changed imports' },
   'mr.sel.open': 'Open in Module focus',
@@ -121,7 +121,7 @@ export const ru: MessagesOf<typeof en> = {
     other: 'Папка · {n} изменённого импорта',
   },
   'mr.legend.sev': 'нарушает правило (цвет серьёзности)',
-  'mr.legend.importer': 'M: файл с изменённым импортом · яркая рамка: стадия изменилась',
+  'mr.legend.importer': '+a −r: импорты, добавленные и удалённые файлом · наведи на файл: его импорты · яркая рамка: стадия изменилась',
   'mr.legend.ghost': 'пунктирная рамка: модуль есть только в базе',
   'mr.sel.module': {
     one: 'Модуль · {n} изменённый импорт',

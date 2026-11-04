@@ -27,7 +27,7 @@ import {
 import { ADDED_STROKE, labelOf, layerTint, REMOVED_DASH, rulesOf } from './paint'
 import { edgeOf, Fold, linesOfModule, Review, ReviewEdge, ReviewNode, worstBreak } from './review'
 
-const LABEL_CHARS = 24
+const LABEL_CHARS = 26
 const STAGE_STROKE = 'oklch(92% 0.01 260)'
 const BADGE_BASELINE = 4.5
 const FOLD_BASELINE = 4
@@ -75,14 +75,27 @@ const merged = (...lists: readonly (readonly ReviewEdge[])[]): ReviewEdge[] => {
   return [...byKey.values()]
 }
 
-const folderFocus = (m: Model, review: Review, key: string, sel: Selection | null): RegionFocus => {
+const FOLDER_ALL_LINES = 16
+
+const folderFocus = (
+  m: Model,
+  review: Review,
+  key: string,
+  sel: Selection | null,
+  hover: number | null,
+): RegionFocus => {
   const inside = (id: number) => review.nodes.get(id)?.group.key === key
   const touches = (e: ReviewEdge) => inside(e.from) || inside(e.to)
-  const base = merged(review.changes.filter(touches), review.alwaysDrawn.filter(touches))
+  const all = merged(review.changes.filter(touches), review.alwaysDrawn.filter(touches))
+  const base = all.length > FOLDER_ALL_LINES ? all.filter((e) => e.breaks.length > 0) : all
   const idle: RegionFocus = { lines: base, litLines: null, litNodes: null, edge: null, module: null }
   if (sel?.kind === 'module' && review.nodes.has(sel.id)) {
     const own = linesOfModule(m, review, sel.id)
     return { ...idle, ...lit(own, [sel.id]), lines: merged(base, own), module: sel.id }
+  }
+  if (sel?.kind !== 'edge' && hover !== null && review.nodes.has(hover)) {
+    const own = linesOfModule(m, review, hover)
+    return { ...idle, ...lit(own, [hover]), lines: merged(base, own) }
   }
   if (sel?.kind === 'edge') {
     const edge = edgeOf(m, review, sel.from, sel.to)
@@ -332,12 +345,21 @@ const OpenFolder: Component<{ box: FolderBox; model: Model; review: Review }> = 
   )
 }
 
-const Node: Component<{ node: ReviewNode; layout: FolderLayout; model: Model; focus: RegionFocus }> = (props) => {
+const Node: Component<{
+  node: ReviewNode
+  layout: FolderLayout
+  model: Model
+  focus: RegionFocus
+  counts?: { added: number; removed: number }
+  onHover?: (over: boolean) => void
+}> = (props) => {
   const n = props.node
   const r = props.layout.nodes.get(n.id)!
   const isShared = !n.isGhost && props.model.isSharedByChosenFeatures(n.id)
   const isSelected = () => props.focus.module === n.id
   const isDimmed = () => props.focus.litNodes !== null && !props.focus.litNodes.has(n.id)
+  const badge = () => (props.counts ? `+${props.counts.added} −${props.counts.removed}` : 'M')
+  const badgeChars = () => (n.isImporter ? badge().length + 2 : 0)
   const stroke = () => {
     if (isSelected()) return SELECTED_STROKE
     if (isShared) return SHARED_COLOR
@@ -357,6 +379,8 @@ const Node: Component<{ node: ReviewNode; layout: FolderLayout; model: Model; fo
       onDblClick={() => {
         if (!n.isGhost) go({ view: 'focus', focus: n.id })
       }}
+      onMouseEnter={() => props.onHover?.(true)}
+      onMouseLeave={() => props.onHover?.(false)}
     >
       <rect
         width={r.w}
@@ -368,11 +392,11 @@ const Node: Component<{ node: ReviewNode; layout: FolderLayout; model: Model; fo
         stroke-dasharray={n.isGhost ? '3 3' : undefined}
       />
       <text x="8" y="15" font-size="11" fill={n.isGhost ? 'oklch(68% 0.01 260)' : 'oklch(90% 0.005 260)'}>
-        {ellipsizePath(labelOf(props.model, n.id, n.path), LABEL_CHARS)}
+        {ellipsizePath(labelOf(props.model, n.id, n.path), LABEL_CHARS - badgeChars())}
       </text>
       <Show when={n.isImporter}>
         <text x={r.w - 8} y="15" font-size="10" text-anchor="end" font-weight="700" fill="oklch(88% 0.01 260)">
-          M
+          {badge()}
         </text>
       </Show>
       <title>{n.path + (isShared ? sharedNote(props.model, n.id) : '')}</title>
@@ -500,7 +524,18 @@ const Crumbs: Component<{ path: string }> = (props) => (
 
 const FolderScene: Component<{ model: Model; review: Review; folder: string; size: Size }> = (props) => {
   const layout = createMemo(() => layoutFolder(props.model, props.review, props.folder, props.size))
-  const focus = createMemo(() => folderFocus(props.model, props.review, props.folder, nav().sel))
+  const [hovered, setHovered] = createSignal<number | null>(null)
+  const focus = createMemo(() => folderFocus(props.model, props.review, props.folder, nav().sel, hovered()))
+  const counts = createMemo(() => {
+    const out = new Map<number, { added: number; removed: number }>()
+    for (const e of props.review.changes) {
+      const c = out.get(e.from) ?? { added: 0, removed: 0 }
+      if (e.tag === 'added') c.added++
+      if (e.tag === 'removed') c.removed++
+      out.set(e.from, c)
+    }
+    return out
+  })
   const lines = createMemo(() => routeFolderEdges(layout(), focus().lines))
   const litFolders = createMemo(() => {
     const nodes = focus().litNodes
@@ -514,7 +549,9 @@ const FolderScene: Component<{ model: Model; review: Review; folder: string; siz
       overlay={<Crumbs path={layout().open.folder.path} />}
     >
       <For each={layout().lanes}>{(l) => <Lane lane={l} model={props.model} />}</For>
-      <OpenFolder box={layout().open} model={props.model} review={props.review} />
+      <Show when={layout()} keyed>
+        {(l) => <OpenFolder box={l.open} model={props.model} review={props.review} />}
+      </Show>
       <For each={layout().boxes}>
         {(b) => (
           <FolderChip
@@ -526,9 +563,22 @@ const FolderScene: Component<{ model: Model; review: Review; folder: string; siz
           />
         )}
       </For>
-      <For each={layout().open.folder.members}>
-        {(id) => <Node node={props.review.nodes.get(id)!} layout={layout()} model={props.model} focus={focus()} />}
-      </For>
+      <Show when={layout()} keyed>
+        {(l) => (
+          <For each={l.open.folder.members}>
+            {(id) => (
+              <Node
+                node={props.review.nodes.get(id)!}
+                layout={l}
+                model={props.model}
+                focus={focus()}
+                counts={counts().get(id)}
+                onHover={(over) => setHovered(over ? id : null)}
+              />
+            )}
+          </For>
+        )}
+      </Show>
       <g data-testid="mr-edges">
         <For each={lines()}>
           {(mark) => <ChangeEdge mark={mark} review={props.review} state={lineState(focus(), mark.edge.key)} />}
