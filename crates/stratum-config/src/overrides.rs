@@ -127,6 +127,7 @@ mod tests {
             overrides: vec![],
             features: std::collections::BTreeMap::new(),
             systems: vec![],
+            messages: stratum_core::text::Messages::default(),
         }
     }
 

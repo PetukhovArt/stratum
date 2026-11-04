@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 use std::path::PathBuf;
+use stratum_core::text::{Arg, Key, Text};
 
 use globset::GlobSet;
 use rustc_hash::FxHashMap;
@@ -216,23 +217,30 @@ impl ReachabilityPolicy {
         let shown: Vec<&str> = std::iter::once(start.relative.as_str())
             .chain(chain.iter().map(|id| paths[id].as_str()))
             .collect();
-        let tail = if more == 0 {
-            String::new()
+        let tail: Arg = if more == 0 {
+            "".into()
         } else {
-            format!(" (and {more} more denied modules)")
+            Text::new(Key::ReachabilityPolicyMore)
+                .arg("more", more)
+                .into()
         };
+        let message: Arg = if policy.message == DEFAULT_MESSAGE {
+            Key::ReachabilityPolicyDefault.into()
+        } else {
+            (&policy.message).into()
+        };
+        let message = Text::new(Key::ReachabilityPolicy)
+            .arg("message", message)
+            .arg("from", &start.relative)
+            .arg("to", &paths[&nearest])
+            .arg("path", shown.join(" -> "))
+            .arg("tail", tail);
         let mut modules: Vec<ModuleId> = start.module.into_iter().collect();
         modules.extend(&chain);
         Some(Violation {
             rule: self.id(),
             severity,
-            message: format!(
-                "{}: `{}` reaches `{}` through {}{tail}",
-                policy.message,
-                start.relative,
-                paths[&nearest],
-                shown.join(" -> ")
-            ),
+            message: message.en(),
             file: PathBuf::from(start.path),
             location: SourceLocation {
                 line: first_import.location.line,
@@ -245,6 +253,8 @@ impl ReachabilityPolicy {
                 kind: first_import.kind,
             }),
             fix: policy.fix.clone(),
+            message_text: Some(message),
+            fix_text: None,
         })
     }
 }

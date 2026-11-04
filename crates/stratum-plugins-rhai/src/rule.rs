@@ -124,6 +124,8 @@ impl Rule for RhaiRule {
                 modules: vec![scope],
                 edge: None,
                 fix,
+                message_text: None,
+                fix_text: None,
             });
         }
         out

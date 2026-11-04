@@ -29,22 +29,16 @@ pub struct Module {
     pub imports: Vec<Import>,
     #[serde(default)]
     pub suppressions: Vec<Suppression>,
-    /// Per top-level declaration, ascending by name: the other top-level declarations of this
-    /// module its code references, ascending. Recorded only when calls are tracked.
     #[serde(default)]
     pub local_refs: Vec<(String, Vec<String>)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Call {
-    /// The tracked-call entry it matched: `inject`, `obj.get`, `*.get`, or a factory name.
     pub name: String,
     pub location: SourceLocation,
-    /// In call order; for [`CallForm::Client`] the arguments of the factory call.
     #[serde(default)]
     pub args: Vec<CallArg>,
-    /// The name of the top-level declaration holding the call: `default` for an anonymous
-    /// `export default`, `None` for a top-level statement that declares nothing.
     #[serde(default)]
     pub owner: Option<String>,
     #[serde(default)]
@@ -54,22 +48,19 @@ pub struct Call {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CallArg {
-    /// A string literal, or a template literal without substitutions.
     Str(String),
     Ident(String),
     Other,
 }
 
-/// How a call reached its tracked entry.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CallForm {
-    /// The entry itself was called.
     #[default]
     Direct,
-    /// `c.method()` where `c` is a variable of the same module set to a factory call.
-    Client { method: String },
-    /// A factory call whose result no member call of the same module uses through a variable.
+    Client {
+        method: String,
+    },
     Unfollowed,
 }
 
@@ -110,6 +101,8 @@ pub struct Exports {
     pub stars: Vec<usize>,
     /// Names counted toward the surface that no import can take (Vue `defineProps` members).
     pub unimportable: u32,
+    #[serde(default)]
+    pub reexports_only: bool,
 }
 
 impl Exports {
@@ -138,13 +131,15 @@ pub struct ExportDecl {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ExportOrigin {
-    /// A top-level binding exported under its own name.
     Local,
-    /// A top-level binding exported under another name: `foo` of `export default function foo`,
-    /// `export default foo` or `export { foo as bar }`.
-    Alias { binding: String },
+    Alias {
+        binding: String,
+    },
     /// `import` indexes [`Module::imports`]; `imported` is `*` for `export * as name from`.
-    Reexport { import: usize, imported: String },
+    Reexport {
+        import: usize,
+        imported: String,
+    },
 }
 
 /// A `stratum-ignore <slug>[, <slug>] -- <reason>` comment as written, not validated.

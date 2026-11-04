@@ -11,7 +11,6 @@ use stratum_graph::{CompoundGraph, crossing_names, forwarding_imports};
 
 use crate::paths::relative;
 
-/// Every feature of a project and the modules two or more of them hold.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Features {
     features: Vec<Feature>,
@@ -22,19 +21,11 @@ pub struct Features {
 pub struct Feature {
     pub id: String,
     pub name: String,
-    /// Ascending.
     pub entry: Vec<ModuleId>,
-    /// The entry modules and every module they reach by static imports; ascending.
     pub modules: Vec<ModuleId>,
 }
 
 impl Features {
-    /// The `features` of `config`, in id order, else one feature per folder or file directly in
-    /// the first sliced layer, by name. An entry glob is matched against module paths relative
-    /// to `root`.
-    ///
-    /// # Errors
-    /// [`ConfigError::BadGlob`] for an entry glob that is not valid.
     pub fn of(
         graph: &CompoundGraph,
         config: &Config,
@@ -76,7 +67,6 @@ impl Features {
         self.features.iter().find(|f| f.id == id)
     }
 
-    /// Ascending.
     #[must_use]
     pub fn shared(&self) -> &[ModuleId] {
         &self.shared
@@ -87,7 +77,6 @@ impl Features {
         self.shared.binary_search(&module).is_ok()
     }
 
-    /// The ids of the features holding `module`, in feature order.
     pub fn holders(&self, module: ModuleId) -> impl Iterator<Item = &str> {
         self.features
             .iter()
@@ -95,7 +84,6 @@ impl Features {
             .map(|f| f.id.as_str())
     }
 
-    /// How many modules of `feature` no other feature holds.
     #[must_use]
     pub fn exclusive_count(&self, feature: &Feature) -> usize {
         feature
@@ -106,13 +94,10 @@ impl Features {
     }
 }
 
-/// The code of a project each feature can run, per top-level declaration.
 pub(crate) struct Reach<'f> {
     features: Vec<(&'f Feature, Runs)>,
 }
 
-/// What one feature runs: every declaration of `whole`, the `named` declarations, and the
-/// top-level statements of its modules.
 #[derive(Default)]
 struct Runs {
     whole: BTreeSet<ModuleId>,
@@ -120,13 +105,6 @@ struct Runs {
 }
 
 impl<'f> Reach<'f> {
-    /// A feature runs its entry modules whole, and each declaration of another module that one
-    /// of its modules imports by a name resolving to it; a namespace import or a `require` of a
-    /// module runs it whole. Type-only names and `import()` run nothing. A re-export runs what
-    /// it forwards only when its module runs whole, so a name imported through a barrel runs only
-    /// its own declaration. A run declaration also runs every declaration of its module it
-    /// reaches through [`Module::local_refs`], transitively; what it calls in another module is
-    /// run through the imports of its module, which every feature holding the module takes.
     pub(crate) fn of(features: &'f Features, graph: &CompoundGraph) -> Self {
         let features = features
             .features
@@ -136,8 +114,6 @@ impl<'f> Reach<'f> {
         Self { features }
     }
 
-    /// The ids, ascending, of the features that run the code of `module` inside the top-level
-    /// declaration `owner`, or outside every declaration for `None`.
     pub(crate) fn features_running(&self, module: ModuleId, owner: Option<&str>) -> Vec<String> {
         let mut ids: Vec<String> = self
             .features
@@ -192,8 +168,6 @@ impl Runs {
         runs
     }
 
-    /// Takes the names the static `imports` of module `from` resolve to in other modules,
-    /// queueing each module that newly runs whole on `whole`.
     fn take<'g>(
         &mut self,
         graph: &CompoundGraph,
@@ -222,8 +196,6 @@ impl Runs {
     }
 }
 
-/// Adds to `names` every top-level declaration of `module` that one of them reaches through
-/// [`Module::local_refs`], transitively.
 fn follow_local_refs(module: &Module, names: &mut BTreeSet<String>) {
     let mut queue: Vec<String> = names.iter().cloned().collect();
     while let Some(name) = queue.pop() {
@@ -269,7 +241,6 @@ fn configured_seeds(
         .collect()
 }
 
-/// One seed per entry of the first sliced layer's folder, a folder another layer claims included.
 fn slice_seeds(graph: &CompoundGraph, root: &Utf8Path) -> Vec<Seed> {
     let Some(layer) = graph
         .layers

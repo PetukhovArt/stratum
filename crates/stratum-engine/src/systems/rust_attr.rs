@@ -1,8 +1,6 @@
 use super::Declared;
 use super::scan::{Scan, Token};
 
-/// Each `fn` whose attributes include `#[attr]` or `#[attr(…)]`, `attr` written in full or as
-/// its last path segment, is a contract named after the function.
 pub(super) fn contracts(text: &str, attr: &str) -> Vec<Declared> {
     let short = attr.rsplit("::").next().unwrap_or(attr);
     let scan = Scan::new(text);
@@ -59,7 +57,6 @@ fn closing_bracket(tokens: &[Token<'_>], open: usize) -> usize {
     tokens.len()
 }
 
-/// `tokens` start at `fn`; the signature runs from `start` to the body's `{` or a `;`.
 fn function(scan: &Scan, tokens: &[Token<'_>], start: usize) -> Option<Declared> {
     let name = tokens.get(1)?;
     let end = tokens.iter().find(|t| t.is("{") || t.is(";"))?;

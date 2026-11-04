@@ -19,7 +19,6 @@ export type ArchLevel = ArchPath['level']
 export const ARCH_TOP: ArchPath = { level: 'system' }
 export const ARCH_CONTAINERS: ArchPath = { level: 'containers' }
 
-/** The self system when the server declares systems; `null` leaves Architecture without the System level. */
 export type SelfSystem = SystemInfo | null
 
 const isId = (value: unknown): value is number => Number.isInteger(value) && (value as number) >= 0

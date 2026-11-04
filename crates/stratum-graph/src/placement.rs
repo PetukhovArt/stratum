@@ -188,7 +188,8 @@ impl Walk<'_> {
                 loose = true;
                 continue;
             }
-            if self.structure.is_segment(name) {
+            let slice = depth == 0 && sliced;
+            if !slice && self.structure.is_segment(name) {
                 self.roles.entry(dir.clone()).or_insert(RoleDraft::Segment);
                 if !loose {
                     self.mark(&home, |d| {
@@ -199,7 +200,7 @@ impl Walk<'_> {
                 continue;
             }
             let entry = self.entry_in(&dir, layer);
-            let kind = if depth == 0 && sliced {
+            let kind = if slice {
                 ContainerKind::Slice
             } else if entry.is_none() {
                 self.roles
@@ -422,6 +423,8 @@ mod tests {
                 "src/entities/cart/parts/a.ts",
                 "src/entities/cart/helpers/x/index.ts",
                 "src/entities/_shared/k.ts",
+                "src/entities/ui/index.ts",
+                "src/entities/ui/model/m.ts",
                 "src/shared/kit/index.ts",
                 "src/shared/kit/inner/index.ts",
                 "src/shared/util.ts",
@@ -513,6 +516,18 @@ mod tests {
                 .containers
                 .values()
                 .all(|c| c.path.as_path() != abs("src/entities/index.ts").as_std_path())
+        );
+    }
+
+    #[test]
+    fn a_slice_named_like_a_segment_stays_a_slice() {
+        let f = Fixture::new();
+        let role = |rel: &str| f.placement.dir_roles[&PathBuf::from(abs(rel).into_string())];
+        assert_eq!(f.at("src/entities/ui").kind, ContainerKind::Slice);
+        assert_eq!(f.home("src/entities/ui/model/m.ts").name, "ui");
+        assert_eq!(
+            role("src/entities/ui/model"),
+            DirRole::Segment { entry: None }
         );
     }
 

@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 use std::path::Path;
+use stratum_core::text::{Key, Text};
 
 use stratum_core::{ids::RuleId, severity::Severity, violation::Violation};
 use stratum_graph::{CompoundGraph, DirRole};
@@ -25,7 +26,7 @@ impl Rule for ModuleDocs {
         "stratum/module-docs"
     }
     fn default_severity(&self) -> Severity {
-        Severity::Warning
+        Severity::Off
     }
 
     fn check(
@@ -38,7 +39,7 @@ impl Rule for ModuleDocs {
         let Some(nav) = options.nav_file.as_deref() else {
             return vec![];
         };
-        let report = |dir: &Path, message: String, fix: String| {
+        let report = |dir: &Path, message: Text, fix: Text| {
             at_folder(graph, MODULE_DOCS, severity, dir, None, message, fix)
         };
         let mut found = Vec::new();
@@ -48,21 +49,21 @@ impl Rule for ModuleDocs {
             let violation = if role.expects_nav_doc() && !has_doc {
                 report(
                     dir,
-                    format!("Folder '{name}' has no navigation doc '{nav}'"),
-                    format!(
-                        "Add '{nav}' to '{name}': what it holds, its public surface and links to its parts."
-                    ),
+                    Text::new(Key::NoNavDoc).arg("name", &name).arg("nav", nav),
+                    Text::new(Key::NoNavDocFix)
+                        .arg("nav", nav)
+                        .arg("name", &name),
                 )
             } else if !role.expects_nav_doc() && has_doc {
                 report(
                     dir,
-                    format!(
-                        "Navigation doc '{nav}' sits in '{name}', a {}, which is no unit",
-                        kind_of(*role)
-                    ),
-                    format!(
-                        "Move its content into the navigation doc of the folder that owns '{name}' and delete '{nav}' here."
-                    ),
+                    Text::new(Key::StrayNavDoc)
+                        .arg("nav", nav)
+                        .arg("name", &name)
+                        .arg("kind", kind_of(*role)),
+                    Text::new(Key::StrayNavDocFix)
+                        .arg("name", &name)
+                        .arg("nav", nav),
                 )
             } else {
                 None
@@ -74,13 +75,13 @@ impl Rule for ModuleDocs {
     }
 }
 
-fn kind_of(role: DirRole) -> &'static str {
+const fn kind_of(role: DirRole) -> Key {
     match role {
-        DirRole::LayerRoot => "layer root",
-        DirRole::Container(_) => "container",
-        DirRole::Segment { .. } => "segment folder",
-        DirRole::PrivateZone => "private zone",
-        DirRole::Collection => "collection folder",
+        DirRole::LayerRoot => Key::DirLayerRoot,
+        DirRole::Container(_) => Key::DirContainer,
+        DirRole::Segment { .. } => Key::DirSegment,
+        DirRole::PrivateZone => Key::DirPrivateZone,
+        DirRole::Collection => Key::DirCollection,
     }
 }
 
@@ -97,7 +98,7 @@ fn label(graph: &CompoundGraph, dir: &Path) -> String {
 fn requires_violations(
     graph: &CompoundGraph,
     nav: &str,
-    report: &impl Fn(&Path, String, String) -> Option<Violation>,
+    report: &impl Fn(&Path, Text, Text) -> Option<Violation>,
 ) -> Vec<Violation> {
     if graph.nav_docs.values().all(|doc| doc.requires.is_empty()) {
         return Vec::new();
@@ -113,17 +114,21 @@ fn requires_violations(
             let reason = if required.starts_with(dir) || dir.starts_with(required) {
                 continue;
             } else if imports.contains(&(required.as_path(), dir.as_path())) {
-                "imports it"
+                Key::NavRequiresImports
             } else if are_siblings(graph, dir, required) {
-                "is its sibling"
+                Key::NavRequiresSibling
             } else {
                 continue;
             };
             let (a, b) = (label(graph, dir), label(graph, required));
             found.extend(report(
                 dir,
-                format!("Navigation doc '{nav}' of '{a}' requires '{b}', which {reason}"),
-                format!("Drop '{b}' from the requires of '{a}', or move what '{a}' needs from '{b}' into a folder both may depend on: documents follow imports."),
+                Text::new(Key::NavRequires)
+                    .arg("nav", nav)
+                    .arg("a", &a)
+                    .arg("b", &b)
+                    .arg("reason", reason),
+                Text::new(Key::NavRequiresFix).arg("a", a).arg("b", b),
             ));
         }
     }

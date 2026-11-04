@@ -370,11 +370,6 @@ const routeRequests = (layout: ComponentsLayout, shown: readonly ImportArrow[], 
     }))
 }
 
-/**
- * One arrow per import turns a segment of a few dozen modules into a hairball, so segments join by one counted
- * arrow each, and only the imports of `focus` and the imports `isFlagged` marks (findings) are drawn one by one,
- * routed along the gutters between the cells. Past `SCENE_MARK_BUDGET` the module labels go too.
- */
 export const componentMarks = (
   layout: ComponentsLayout,
   focus: number | null,

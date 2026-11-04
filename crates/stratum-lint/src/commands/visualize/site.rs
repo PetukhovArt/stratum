@@ -8,7 +8,6 @@ use stratum_core::ids::ModuleId;
 use super::{Api, ApiEdge, EdgeEnd, VisualizerAssets, edge_imports, source_lines};
 use crate::brief;
 
-/// `window.__STRATUM_STATIC__` in the exported `index.html`: which optional files `data/` holds.
 #[derive(Debug, Serialize)]
 struct StaticFlags {
     source: bool,
@@ -16,7 +15,6 @@ struct StaticFlags {
     drift: bool,
 }
 
-/// What [`Api::write_site`] wrote, for the command's summary line.
 #[derive(Debug, Default)]
 pub struct SiteSummary {
     pub modules: usize,
@@ -25,12 +23,6 @@ pub struct SiteSummary {
 }
 
 impl Api {
-    /// Writes the visualizer and every answer of its API as files under `out`, so a plain file
-    /// server serves the same views. `out/data/` is replaced. Source text is written only with
-    /// `with_source`; otherwise the output holds paths, names and signatures and no file contents.
-    ///
-    /// # Errors
-    /// When `out` holds files but no `.stratum-export` of an earlier export, before writing.
     pub fn write_site(&self, out: &Utf8Path, with_source: bool) -> miette::Result<SiteSummary> {
         claim(out)?;
         let data = out.join("data");
@@ -92,7 +84,6 @@ impl Api {
         Ok(summary)
     }
 
-    /// `/api/edge?from=&to=` of every module pair that an import joins, by `from` then `to`.
     fn module_edges(&self) -> BTreeMap<u32, BTreeMap<u32, ApiEdge>> {
         let pairs: BTreeSet<(ModuleId, ModuleId)> = self
             .input
@@ -113,8 +104,6 @@ impl Api {
         edges
     }
 
-    /// The modules of each container as a unit, as `/api/edge?from_container=` counts them: the
-    /// frontend joins the module edges between two of these sets into that answer.
     fn container_members(&self) -> BTreeMap<u32, Vec<u32>> {
         let graph = &self.input.graph;
         graph
@@ -132,8 +121,6 @@ impl Api {
             .collect()
     }
 
-    /// Every path the Code panel can open: each module, and each declaration of a cross-system
-    /// contract (`system-id:rel/path`).
     fn source_paths(&self) -> miette::Result<BTreeSet<String>> {
         let mut paths: BTreeSet<String> = self
             .input
@@ -153,7 +140,6 @@ impl Api {
     }
 }
 
-/// The file an export leaves in its folder, so a later export may replace that folder's contents.
 const EXPORT_MARKER: &str = ".stratum-export";
 
 fn claim(out: &Utf8Path) -> miette::Result<()> {
@@ -182,7 +168,6 @@ fn to_json(value: &impl Serialize) -> miette::Result<String> {
     serde_json::to_string(value).into_diagnostic()
 }
 
-/// The embedded frontend without its source maps; `index.html` gets `window.__STRATUM_STATIC__`.
 fn write_assets(out: &Utf8Path, flags: &StaticFlags) -> miette::Result<()> {
     for name in VisualizerAssets::iter() {
         if name.ends_with(".map") {

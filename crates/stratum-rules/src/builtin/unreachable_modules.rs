@@ -1,3 +1,4 @@
+use stratum_core::text::{Key, Text};
 use stratum_core::{
     ids::RuleId,
     severity::Severity,
@@ -39,12 +40,14 @@ impl Rule for UnreachableModules {
             .map(|m| Violation {
                 rule: self.id(),
                 severity,
-                message: "No entry point reaches this module through any import".into(),
+                message: Text::new(Key::UnreachableModule).en(),
                 file: m.path.clone(),
                 location: SourceLocation { line: 1, column: 1 },
                 modules: vec![m.id],
                 edge: None,
                 fix: None,
+                message_text: Some(Text::new(Key::UnreachableModule)),
+                fix_text: None,
             })
             .collect()
     }

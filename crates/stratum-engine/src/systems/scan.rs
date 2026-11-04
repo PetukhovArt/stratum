@@ -1,8 +1,6 @@
 use std::iter::Peekable;
 use std::str::Chars;
 
-/// A source text with comments and string contents blanked out, keeping every byte offset and
-/// line, cut into identifier tokens and single punctuation characters.
 pub(super) struct Scan {
     clean: String,
     line_starts: Vec<usize>,
@@ -35,8 +33,6 @@ impl Scan {
         }
     }
 
-    /// `path` are the characters besides `[A-Za-z0-9_]` that an identifier token may hold, such
-    /// as `.` for `pkg.Type` or `:` for `a::b`.
     pub(super) fn tokens(&self, path: &[char]) -> Vec<Token<'_>> {
         let is_word = |c: char| c.is_alphanumeric() || c == '_' || path.contains(&c);
         let mut tokens = Vec::new();
@@ -63,13 +59,11 @@ impl Scan {
         tokens
     }
 
-    /// 1-based.
     pub(super) fn line(&self, at: usize) -> u32 {
         let line = self.line_starts.partition_point(|&start| start <= at);
         u32::try_from(line).unwrap_or(u32::MAX)
     }
 
-    /// The text between two offsets with each run of whitespace made one space.
     pub(super) fn squeezed(&self, from: usize, to: usize) -> String {
         self.clean
             .get(from..to)
@@ -80,8 +74,6 @@ impl Scan {
     }
 }
 
-/// `//` and `/* */` comments become spaces and the inside of `"…"` strings becomes spaces;
-/// newlines stay, so offsets and lines match the original text.
 fn blank_comments_and_strings(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut chars = text.chars().peekable();
@@ -171,7 +163,6 @@ fn blank_comments_and_strings(text: &str) -> String {
     out
 }
 
-/// After the `r` of a raw string: the number of `#` before its opening `"`.
 fn raw_string_hashes(chars: &Peekable<Chars<'_>>) -> Option<usize> {
     let mut hashes = 0;
     for c in chars.clone() {

@@ -30,7 +30,7 @@ impl Reporter for GithubReporter {
                     f.location.line,
                     f.location.column,
                     escape_property(&f.rule),
-                    escape_data(&f.message),
+                    escape_data(&f.message_in(&report.messages)),
                 )?;
             }
         }
@@ -98,6 +98,8 @@ mod tests {
             edge: None,
             fix: "fix".into(),
             members: Vec::new(),
+            message_text: None,
+            fix_text: None,
         }
     }
 

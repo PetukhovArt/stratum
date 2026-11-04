@@ -1,6 +1,7 @@
 use std::ffi::OsStr;
 use std::path::Path;
 use std::sync::OnceLock;
+use stratum_core::text::{Arg, Key, Text};
 
 use globset::{Candidate, GlobBuilder, GlobSet, GlobSetBuilder};
 use serde::Deserialize;
@@ -391,9 +392,17 @@ fn index_of(graph: &CompoundGraph, id: ModuleId) -> Option<usize> {
 }
 
 fn denied(options: &ImportPolicyOptions, policy: usize, to: &str) -> Finding {
+    let message = &options.messages[policy];
+    let message: Arg = if message == DEFAULT_MESSAGE {
+        Key::ImportPolicyDefault.into()
+    } else {
+        message.into()
+    };
     Finding {
-        message: format!("{} ({to})", options.messages[policy]),
-        fix: options.fixes[policy].clone(),
+        message: Text::new(Key::ImportPolicy)
+            .arg("message", message)
+            .arg("to", to),
+        fix: options.fixes[policy].clone().map(Text::verbatim),
     }
 }
 

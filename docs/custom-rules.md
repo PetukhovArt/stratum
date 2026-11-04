@@ -1,6 +1,6 @@
 # Configuration and custom rules
 
-`stratum.config.jsonc` at the project root (ROOT) configures everything; `--config PATH` points the CLI elsewhere, while `stratum-lsp` always reads `ROOT/stratum.config.jsonc`. Without a config (zero-config), every folder under `src/` becomes a layer, with no `depends_on` and no slices, and the `stratum:recommended` severities apply, except that `stratum/public-api`, `stratum/sibling-isolation` and `stratum/container-breadth` are off: without declared layers and structure they flood the first run. `stratum/visibility-scope` stays on, since private zones are found by folder name. `stratum-lint init` writes the inferred config.
+`stratum.config.jsonc` at the project root (ROOT) configures everything; `--config PATH` points the CLI elsewhere, while `stratum-lsp` always reads `ROOT/stratum.config.jsonc`. Without a config (zero-config), every folder under `src/` becomes a layer, with no `depends_on`, slices and segments are inferred from the folders (see [configuration.md](configuration.md)), and the `stratum:recommended` severities apply, except that `stratum/zone-breadth` and `stratum/missing-entry` are off, and so are `stratum/public-api` and `stratum/sibling-isolation` unless some layer is inferred sliced: without declared layers and structure they flood the first run. `stratum/visibility-scope` stays on, since private zones are found by folder name. `stratum-lint init` writes the inferred config.
 Editors and agents validate the file against [`stratum.schema.json`](../stratum.schema.json): add `"$schema": "<path or URL>/stratum.schema.json"`.
 
 Customization goes from cheapest to most flexible: a preset via `extends`, `layers` and `structure`, rule `severity` / `options` and `overrides`, the declarative `stratum/import-policy` and `stratum/restricted-calls` rules, and Rhai scripts.
@@ -93,19 +93,19 @@ A parent may extend further; a cycle is an error. Merge, child over parent:
 | `stratum/co-change` | error | | | list of policies, below |
 | `stratum/restricted-calls` | off | off | off | list of policies, below |
 | `stratum/stage-mixing` | off | off | error | none |
-| `stratum/container-breadth` | info | info | warning | `max_kinds` (6), `max_items` (20), `max_root_files` (4) |
+| `stratum/container-breadth` | off | off | off | `max_kinds` (6), `max_items` (20), `max_root_files` (4) |
 | `stratum/zone-breadth` | warning | warning | error | `max_kinds` (6) |
 | `stratum/missing-entry` | warning | warning | error | none |
 | `stratum/no-barrel` | warning | warning | error | `layers` ([]) |
 | `stratum/composer-scope` | warning | warning | warning | `scope_file` (unset) |
 | `stratum/naming` | warning | off | warning | `folder_case` (unset), `reserved` ([]), `duplicate_slices` (false) |
-| `stratum/module-docs` | warning | warning | warning | `nav_file` (unset), `requires_key` ("requires") |
+| `stratum/module-docs` | off | off | off | `nav_file` (unset), `requires_key` ("requires") |
 | `stratum/unused-exports` | off | off | off | `count_ignored_importers` (false), `ignore_type_exports` (false) |
 | `stratum/unreachable-modules` | off | off | off | none |
 | `stratum/unused-dependencies` | off | | | `check` (unused, unlisted), `fields` (dependencies, devDependencies), `ignore` ([]), `entries` (*.config.{js,cjs,mjs,ts,cts,mts}), `scripts` (true) |
 | `stratum/suppression` | error | error | error | `forbid` ([]) |
 | `stratum/slice-fan-in` | off | off | warning | `max_fan_in` (5) |
-| `stratum/miller-limit` | info | info | info | `max_children` (20) |
+| `stratum/miller-limit` | off | off | off | `max_children` (20) |
 | `stratum/promotion-pressure` | info | | | `threshold` (5) |
 | `stratum/deep-module` | info | | | `max_exports` (20) |
 | `stratum/depth-ratio` | info | info | info | `min_ratio` (1.0) |
@@ -339,7 +339,7 @@ A plain identifier callee matches, and so does a local alias of an imported list
 "stratum/module-docs": { "severity": "warning", "options": { "nav_file": "_index.md" } }
 ```
 
-Inert until `nav_file` names the navigation doc each unit holds (`requires_key` is the frontmatter key, default `requires`). The engine reads the file from every folder inside a layer, so docs outside the layers (a root architecture doc) are never required to exist.
+Off by default and in both presets: code is now read mostly by agents, and navigation docs no longer pay for their upkeep. Once turned on, it is inert until `nav_file` names the navigation doc each unit holds (`requires_key` is the frontmatter key, default `requires`). The engine reads the file from every folder inside a layer, so docs outside the layers (a root architecture doc) are never required to exist.
 
 - A layer root, a container (slice, sub-unit, nested container) and a private zone must hold the `nav_file`. A segment or collection folder must not: it is a bucket, not a unit, and its content belongs to the doc of the folder that owns it.
 - `requires` lists what the doc presupposes, as paths relative to ROOT of folders or of their docs, in any of the YAML forms `requires: a`, `requires: [a, b]` or a `- a` block list. A path outside the layers is fine, and so is a folder inside the requiring one (or the reverse). Reported: a required folder whose code imports the requiring folder, and a required sibling container. Documents follow imports.

@@ -29,7 +29,7 @@ Distributions behind them: miller fan-in p95 5, p99 27, max 467; module exports 
 
 ## Severities
 
-`miller-limit`, `promotion-pressure`, `deep-module` and `depth-ratio` report at `info` in the presets. `container-breadth` is `info` in `stratum:recommended` and `warning` in `stratum:fsd`; `slice-fan-in` is `off` in `stratum:recommended` and `warning` in `stratum:fsd`.
+`promotion-pressure`, `deep-module` and `depth-ratio` report at `info` in the presets. `miller-limit` and `container-breadth` are `off` by default and in both presets: code is now read mostly by agents, and a fan-in-per-file or folder-breadth limit no longer pays for its noise; a config that turns one on gets the limit calibrated above. `slice-fan-in` is `off` in `stratum:recommended` and `warning` in `stratum:fsd`.
 
 ## Budget project
 

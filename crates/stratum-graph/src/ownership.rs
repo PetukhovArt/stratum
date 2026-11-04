@@ -81,7 +81,6 @@ fn side_entries(graph: &CompoundGraph) -> impl Iterator<Item = &SideFile> {
         .filter(|side| side.role == SideRole::EntryPoint)
 }
 
-/// The indices into `m.imports` of its `export ... from` statements.
 #[must_use]
 pub fn forwarding_imports(m: &Module) -> FxHashSet<usize> {
     let mut indices: FxHashSet<usize> = m.exports.stars.iter().copied().collect();
@@ -239,6 +238,7 @@ mod tests {
                     .collect(),
                 stars,
                 unimportable: 0,
+                reexports_only: false,
             },
             calls: vec![],
             imports,

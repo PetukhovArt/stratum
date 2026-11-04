@@ -53,7 +53,6 @@ export const goToLevel = (m: Model, to: ArchPath): void => {
   }
 }
 
-/** A box of one unit opens that unit's components; a box of several opens a level of its units. */
 export const openBox = (m: Model, box: Box, parent?: ArchGroup): void => {
   const group = { key: box.key, name: box.name }
   if (box.units.length === 1) {

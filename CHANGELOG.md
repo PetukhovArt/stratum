@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## 0.6.0 (2026-11-04)
+## 0.7.0 (2026-11-04)
 
 - Added a Contract section to the visualizer: selecting an import edge or a bundle lists the names that cross it, each resolved through barrels to its declaration, and a name opens the Code panel on the import line and the declaration
 - Added `features` to the config and `stratum-lint features`: a feature is its entry modules plus everything they import statically; without the key, each folder or file directly in the first sliced layer is one; the visualizer filters every view to the chosen features, marks modules two of them share and can hide modules most features use (`visualize --feature ID` preselects)
@@ -14,6 +14,20 @@
 - Changed Architecture → Containers to one scene with or without features: blocks in ranked rows, right-angle links with shared trunks and hub stubs, and a click on any link or stub opens its contract; blocks no longer drag (saved positions and Reset layout are gone) and the rule breaks / ≥ N imports / all edge filter gives way to "N weaker links hidden · click a block"
 - Changed Merge request → Diff region to fit the canvas at a readable zoom: it shows one box per changed folder in its layer lane (path, `+added −removed`, rule-break count, stage change, deleted files), lanes wrap to the canvas shape, and each rule break is a folder-to-folder arrow labelled with the rule; hovering a folder draws its changes with other folders, one right-angle arrow per folder pair labelled `+a −r`; a click on a folder, a changed file or a change opens that folder's modules, each with its `+a −r`, and the folders they touch, a folder with many changes draws only its rule breaks until a module is hovered or clicked, and Esc returns to all folders
 - Removed the visualizer's Container map view (key `4`): Architecture → Containers shows the units, the bundles between them and each bundle's contract, and Matrix shows the imports and rule breaks between layers
+
+## 0.6.0 (2026-11-03)
+
+- Added config block `messages`, a project's own wording for messages and rule titles: `texts` overrides the built-in template of a message or fix by its catalog key and `titles` prints `<title>. ` before every message of a rule, in every reporter; the baseline and GitLab Code Quality fingerprints stay keyed on the built-in text, so adding or changing `messages` keeps every baseline entry and fingerprint. An unknown key or rule slug, or a text with other placeholders than its template, fails the run with exit 2
+- Added `stratum-lint messages`: every message key with its built-in template and placeholders, and every built-in rule slug, as text or `--format json`, the starting point for a project's own wording
+- Added prebuilt binaries for macOS x64, Linux arm64 and Windows arm64, on npm, Homebrew and Scoop
+- Changed the visualizer to open in the browser's language when one of its languages matches and none was chosen before
+- Changed the fix of `stratum/no-cross-layer-import` to warn against moving business logic into shared to get around the rule and to suggest an interface in the lower layer with the implementation in the upper one; the message, the baseline and fingerprints are unchanged
+- Changed `stratum/container-breadth`, `stratum/miller-limit` and `stratum/module-docs` to `off` by default and in both presets: code is now read mostly by agents, and folder-breadth limits, fan-in-per-file limits and navigation docs no longer pay for their noise; a config that sets a severity still turns them on
+- Changed `stratum-lint init` to write the full `structure` (entries, segments, private zones) and each rule's `options`, so the written config is usable as is
+- Changed zero-config and `init` to infer `slices: true` for a layer where at least half of the folders, and at least 2, hold an entry file, and `structure.segments` from folder names under at least 3 units and 30% of the units of one layer; with a sliced layer, `public-api` and `sibling-isolation` stay at their `stratum:recommended` severity
+- Changed `stratum/no-barrel` to report only an entry file that re-exports and does nothing else: every statement an `export … from`, an `export * from` or an import whose bindings it re-exports; an index with its own functions, constants or dynamic `import()` is no longer a barrel
+- Fixed a slice whose name is listed in `structure.segments`, such as `src/services/config`, being read as a segment: a direct folder of a `slices: true` layer is always a slice
+- macOS: Fixed `stratum-lsp` treating a file as two documents when the editor and the disk spell its path in different case
 
 ## 0.5.0 (2026-10-28)
 

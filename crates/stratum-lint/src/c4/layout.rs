@@ -1,17 +1,3 @@
-//! Where Mermaid C4 puts each shape and label, so the cell of each shape, the shapes in a row
-//! and the offset of each label can keep arrows out of boxes and labels apart.
-//!
-//! Mermaid places shapes on a grid in declaration order, shapes outside every boundary first;
-//! an empty cell is an invisible shape. It draws the first relationship straight and the
-//! others as quadratic curves, each label starting at the middle of its two end points. The
-//! numbers below are measured on mermaid 12 renders:
-//! <https://github.com/mermaid-js/mermaid/blob/develop/packages/mermaid/src/diagrams/c4/c4Renderer.js>
-//!
-//! Mermaid also starts a new row at a shape whose right side passes `screen.availWidth`, the
-//! reader's screen, divided by the boundaries side by side, so the rows here stay under
-//! [`SCREEN`] and a second boundary goes below the first. The shape count of a row runs on
-//! from one boundary into the next, so the first one ends on a full row.
-
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::{Diagram, Element};
@@ -21,68 +7,48 @@ const GAP: f64 = 100.0;
 const EMPTY_HEIGHT: f64 = 52.0;
 const BOUNDARY_INSET_X: f64 = 50.0;
 const BOUNDARY_INSET_Y: f64 = 207.0;
-/// From a boundary's dashed top to its first row.
-const FRAME_TOP: f64 = 100.0;
-/// From a boundary's dashed bottom to the untitled one below it.
-const OTHERS_BELOW: f64 = 68.0;
-/// The left side of a shape outside every boundary.
-const FIRST_SHAPE_X: f64 = 150.0;
+const BOUNDARY_TOP_TO_FIRST_ROW: f64 = 100.0;
+const BOUNDARY_BOTTOM_TO_OTHERS: f64 = 68.0;
+const OUTER_SHAPE_LEFT: f64 = 150.0;
 const LABEL_HEIGHT: f64 = 14.0;
 const CHAR_WIDTH: f64 = 6.0;
 const DESCRIPTION_CHARS_PER_LINE: usize = 34;
 const NAME_CHARS_PER_LINE: usize = 22;
 
-/// The narrowest screen, in CSS pixels, on which every row stays as planned.
-const SCREEN: f64 = 1280.0;
-/// The untitled boundary around the other systems: Mermaid centers a title over its top,
-/// where the arrows into them meet.
+const NARROWEST_SCREEN_PX: f64 = 1280.0;
 pub const OTHERS_ID: &str = "others";
 
-/// Shapes in a row tried, the first winning ties; wider rows shrink the text on a page.
-const ROW_WIDTHS: [usize; 3] = [3, 2, 4];
-/// Placements tried one by one at most; past it, a local search from the packed placement.
-const EXHAUSTIVE: usize = 5000;
+const SHAPES_PER_ROW_TRIED: [usize; 3] = [3, 2, 4];
+const MAX_EXHAUSTIVE_PLACEMENTS: usize = 5000;
 const SEARCH_ROUNDS: usize = 30;
-/// Placements of the other systems a local search starts from at most; past it, one.
-const OTHERS_STARTS: usize = 64;
-/// Past this many shapes inside the boundaries, the shapes stay packed in the model's order.
-const MAX_SEARCHED: usize = 24;
-/// Placements with the best arrows whose labels are then placed: placing labels takes time
-/// in the square of the relationships, so fewer of them for more relationships.
+const MAX_OTHERS_SEARCH_STARTS: usize = 64;
+const MAX_SEARCHED_SHAPES: usize = 24;
 const LABEL_WORK: usize = 20_000;
 const SHORTLIST: (usize, usize) = (16, 256);
-/// What an empty cell costs: the diagram grows, so only for clearer arrows or labels.
-const EMPTY_CELL: f64 = 10.0;
-/// What a label costs over a box, a label, a boundary's title or each of its sides, crossed by
-/// an arrow, and per step away from the middle of its arrow.
-const LABEL_BLOCKED: f64 = 100.0;
-const LABEL_CROSSED: f64 = 60.0;
-const LABEL_STEP: f64 = 0.5;
+const EMPTY_CELL_COST: f64 = 10.0;
+const LABEL_OVER_SHAPE_COST: f64 = 100.0;
+const LABEL_CROSSED_COST: f64 = 60.0;
+const LABEL_STEP_COST: f64 = 0.5;
 const LABEL_FAR: f64 = 8.0;
-/// A label over or under both ends of its arrow, when no spot beside the arrow is free.
 const LABEL_AWAY: f64 = 80.0;
 
 pub struct Layout<'d> {
-    /// The cells outside every boundary in declaration order, `None` for an empty one.
     pub top: Vec<Option<&'d Element>>,
-    /// The cells inside the innermost boundary in declaration order, `None` for an empty one.
     pub nested: Vec<Option<&'d Element>>,
-    /// The cells of the other systems' boundary, declared after the innermost one; empty when
-    /// the other systems are in `top`.
     pub others: Vec<Option<&'d Element>>,
     pub shapes_in_row: usize,
-    /// Per relationship of the diagram, how far to move its label from where Mermaid puts it.
     pub offsets: Vec<(f64, f64)>,
 }
 
-/// The shapes in a row tried, those whose full row fits [`SCREEN`] inside `depth`
-/// boundaries; one when none fits.
 fn row_widths(depth: usize) -> Vec<usize> {
     let fits = |cols: usize| {
-        FIRST_SHAPE_X + real(depth) * BOUNDARY_INSET_X + real(cols - 1) * (WIDTH + GAP) + WIDTH
-            < SCREEN
+        OUTER_SHAPE_LEFT + real(depth) * BOUNDARY_INSET_X + real(cols - 1) * (WIDTH + GAP) + WIDTH
+            < NARROWEST_SCREEN_PX
     };
-    let fitting: Vec<usize> = ROW_WIDTHS.into_iter().filter(|&cols| fits(cols)).collect();
+    let fitting: Vec<usize> = SHAPES_PER_ROW_TRIED
+        .into_iter()
+        .filter(|&cols| fits(cols))
+        .collect();
     if fitting.is_empty() { vec![1] } else { fitting }
 }
 
@@ -90,8 +56,6 @@ const TOP: usize = 0;
 const NESTED: usize = 1;
 const OTHERS: usize = 2;
 
-/// The layout with the fewest arrows through boxes or titles, the lightest of them first,
-/// then the fewest labels over a box, a label or a boundary, among the layouts tried.
 pub fn arrange(diagram: &Diagram) -> Layout<'_> {
     let groups: [Vec<&Element>; 3] = if diagram.boundaries.is_empty() {
         [
@@ -128,7 +92,8 @@ pub fn arrange(diagram: &Diagram) -> Layout<'_> {
         ];
         let cost = |p: &Placement| {
             let filled = Cells::fill(&groups, p, cols);
-            Scene::new(diagram, &filled, depth, cols).route_cost() + EMPTY_CELL * real(filled.empty)
+            Scene::new(diagram, &filled, depth, cols).route_cost()
+                + EMPTY_CELL_COST * real(filled.empty)
         };
         shortlist.extend(
             search(groups.each_ref().map(Vec::len), cells, cost)
@@ -169,20 +134,14 @@ pub fn arrange(diagram: &Diagram) -> Layout<'_> {
     }
 }
 
-/// The cell of each shape, for the shapes outside the boundaries, inside them, and in the
-/// other systems' boundary.
 type Placement = [Vec<usize>; 3];
 
-/// Each group's cells up to its last shape, each holding its shape or `None`.
 struct Cells<'d> {
     groups: [Vec<Option<&'d Element>>; 3],
-    /// The empty cells that hold a place, not the ones that only end a row.
     empty: usize,
 }
 
 impl<'d> Cells<'d> {
-    /// The nested cells end on a full row before the other systems' boundary: Mermaid counts
-    /// the shapes of a row on into it.
     fn fill(shapes: &[Vec<&'d Element>; 3], placement: &Placement, cols: usize) -> Self {
         let mut groups: [Vec<Option<&'d Element>>; 3] = [0, 1, 2].map(|g| {
             let mut filled = vec![None; placement[g].iter().map(|&c| c + 1).max().unwrap_or(0)];
@@ -200,22 +159,19 @@ impl<'d> Cells<'d> {
     }
 }
 
-/// Every placement of `shapes[g]` shapes in `cells[g]` cells with its cost when there are
-/// few, the packed one first; else the placements local searches visit, each from one
-/// placement of the other systems with the rest packed.
 fn search(
     shapes: [usize; 3],
     cells: [usize; 3],
     cost: impl Fn(&Placement) -> f64,
 ) -> Vec<(f64, Placement)> {
     let packed: Placement = shapes.map(|n| (0..n).collect());
-    if shapes[NESTED] > MAX_SEARCHED {
+    if shapes[NESTED] > MAX_SEARCHED_SHAPES {
         return vec![(cost(&packed), packed)];
     }
     let count = (0..3).fold(1usize, |n, g| {
         n.saturating_mul(arrangements(cells[g], shapes[g]))
     });
-    if count <= EXHAUSTIVE {
+    if count <= MAX_EXHAUSTIVE_PLACEMENTS {
         let mut all = vec![Placement::default()];
         for g in 0..3 {
             let choices = injections(shapes[g], cells[g]);
@@ -232,7 +188,7 @@ fn search(
         }
         return all.into_iter().map(|p| (cost(&p), p)).collect();
     }
-    let starts = if arrangements(cells[OTHERS], shapes[OTHERS]) <= OTHERS_STARTS {
+    let starts = if arrangements(cells[OTHERS], shapes[OTHERS]) <= MAX_OTHERS_SEARCH_STARTS {
         injections(shapes[OTHERS], cells[OTHERS])
     } else {
         vec![packed[OTHERS].clone()]
@@ -246,8 +202,6 @@ fn search(
     seen
 }
 
-/// The placements a local search visits from `start`, moving one shape to another cell, or
-/// swapping two, while that lowers the cost.
 fn descend(
     start: Placement,
     shapes: [usize; 3],
@@ -286,7 +240,6 @@ fn descend(
     seen
 }
 
-/// Ordered choices of `k` out of `n`.
 fn arrangements(n: usize, k: usize) -> usize {
     if k > n {
         return 0;
@@ -294,7 +247,6 @@ fn arrangements(n: usize, k: usize) -> usize {
     (n - k + 1..=n).fold(1usize, usize::saturating_mul)
 }
 
-/// Every way to give `k` items distinct cells out of `n`, in lexicographic order.
 fn injections(k: usize, n: usize) -> Vec<Vec<usize>> {
     fn extend(k: usize, n: usize, prefix: &mut Vec<usize>, out: &mut Vec<Vec<usize>>) {
         if prefix.len() == k {
@@ -350,7 +302,6 @@ impl Rect {
         x > self.x0 + inset && x < self.x1 - inset && y > self.y0 + inset && y < self.y1 - inset
     }
 
-    /// Where the ray from the center towards `(x, y)` leaves the rectangle.
     fn exit_towards(&self, (x, y): (f64, f64)) -> (f64, f64) {
         let (cx, cy) = self.center();
         let (dx, dy) = (x - cx, y - cy);
@@ -386,8 +337,6 @@ fn height(element: &Element) -> f64 {
     70.0 + 17.0 * real(name) + 12.0 * real(description - 1)
 }
 
-/// `cols` cells to a row from `(x, y)`, each row's tops aligned; returns the rectangle of
-/// each cell, an empty one as Mermaid draws it, and the bottom of the last row.
 fn grid(cells: &[Option<&Element>], cols: usize, x: f64, y: f64) -> (Vec<Rect>, f64) {
     let mut rects = Vec::with_capacity(cells.len());
     let mut top = y;
@@ -472,13 +421,10 @@ fn segments_cross(a: (f64, f64), b: (f64, f64), c: (f64, f64), d: (f64, f64)) ->
 const SAMPLES: u32 = 24;
 const ARROWS_CROSSING: f64 = 30.0;
 const ARROW_BLOCKED: f64 = 1000.0;
-/// The samples of an arrow a label may sit by, the middle first, up to the arrow's last
-/// eighth at either end.
 const ALONG: [usize; 19] = [
     12, 11, 13, 10, 14, 9, 15, 8, 16, 7, 17, 6, 18, 5, 19, 4, 20, 3, 21,
 ];
 
-/// A boundary's dashed frame, and its title when it has one: the name over the kind.
 struct Frame {
     outline: Rect,
     title: Option<Rect>,
@@ -489,7 +435,7 @@ impl Frame {
     fn around(held: Rect) -> Self {
         let outline = Rect {
             x0: held.x0 - BOUNDARY_INSET_X,
-            y0: held.y0 - FRAME_TOP,
+            y0: held.y0 - BOUNDARY_TOP_TO_FIRST_ROW,
             x1: held.x1 + BOUNDARY_INSET_X,
             y1: held.y1 + BOUNDARY_INSET_X,
         };
@@ -519,7 +465,6 @@ impl Frame {
 
 struct Scene {
     rects: Vec<Rect>,
-    /// The innermost boundary and the other systems' one.
     frames: Vec<Frame>,
     arrows: Vec<Arrow>,
     rels: usize,
@@ -540,7 +485,7 @@ impl Scene {
         let mut below = Vec::new();
         if let Some(boundary) = diagram.boundaries.last().filter(|_| !inside.is_empty()) {
             let frame = Frame::around(bounding(&inside)).titled(&boundary.name);
-            let others_y = frame.outline.y1 + OTHERS_BELOW + FRAME_TOP;
+            let others_y = frame.outline.y1 + BOUNDARY_BOTTOM_TO_OTHERS + BOUNDARY_TOP_TO_FIRST_ROW;
             below = grid(others, cols, nested_x, others_y).0;
             if !below.is_empty() {
                 frames.push(Frame::around(bounding(&below)));
@@ -615,9 +560,6 @@ impl Scene {
         }
     }
 
-    /// Each arrow through a box or a boundary's title weighs the most, more through a box the
-    /// more it carries; then each two arrows crossing, then each arrow pointing up and its
-    /// length, both more for an arrow that carries more.
     fn route_cost(&self) -> f64 {
         let mut cost = 0.0;
         for arrow in &self.arrows {
@@ -655,10 +597,6 @@ impl Scene {
         cost
     }
 
-    /// Places each label, in relationship order, beside, over or under a point of its arrow,
-    /// the middle first: never over a box, a boundary's title or side or a label placed before
-    /// it when another spot is free, and crossed by as few arrows as can be.
-    /// Returns the cost of what could not be placed cleanly and every label's offset.
     fn labels(&self) -> (f64, Vec<(f64, f64)>) {
         let mut placed: Vec<Rect> = Vec::new();
         let mut offsets = vec![(0.0, 0.0); self.rels];
@@ -683,7 +621,7 @@ impl Scene {
             ];
             let beside = ALONG.into_iter().enumerate().flat_map(|(rank, sample)| {
                 let (x, y) = arrow.at(sample);
-                let step = real(rank) * LABEL_STEP;
+                let step = real(rank) * LABEL_STEP_COST;
                 let far = step + LABEL_FAR;
                 [
                     (step, Rect::around(x + 6.0 + w / 2.0, y, w, LABEL_HEIGHT)),
@@ -711,8 +649,8 @@ impl Scene {
                     })
                     .sum();
                 let crossed = self.arrows.iter().filter(|a| a.crosses(&spot)).count();
-                let spot_cost = LABEL_BLOCKED * real(usize::from(blocked) + on_frames)
-                    + LABEL_CROSSED * real(crossed)
+                let spot_cost = LABEL_OVER_SHAPE_COST * real(usize::from(blocked) + on_frames)
+                    + LABEL_CROSSED_COST * real(crossed)
                     + penalty;
                 if best.is_none_or(|(b, _)| spot_cost < b) {
                     best = Some((spot_cost, spot));
@@ -737,10 +675,6 @@ impl Scene {
 mod tests {
     use super::*;
 
-    /// Mermaid 12 `Bounds.insert`: a boundary, the implicit outermost one included, starts
-    /// 50 px right of its parent's start, a shape 50 px right of its boundary's start, the
-    /// next one 100 px after the last; a shape whose right side reaches the screen width
-    /// starts a new row.
     fn mermaid_keeps_row(cols: usize, depth: usize, screen: usize) -> bool {
         let first = 50 + 50 * (depth + 1) + 50;
         first + (cols - 1) * (216 + 100) + 216 < screen

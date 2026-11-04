@@ -54,7 +54,6 @@ pub struct Api {
     snapshot: String,
     violations: String,
     features: String,
-    /// `None` without `systems` in the config: `/api/systems` answers 404.
     systems: Option<String>,
     /// `None` without `--base`: `/api/drift` answers 404.
     drift: Option<String>,
@@ -79,8 +78,6 @@ struct ApiBase<'a> {
 
 impl Api {
     /// `base` is a git ref: the drift of the working tree vs it is computed once, here.
-    /// `selected` are the feature ids the filter opens with; an unknown one is an error that
-    /// names the known ids.
     pub fn new(
         input: EngineInput,
         base: Option<&str>,
@@ -269,8 +266,6 @@ struct ApiDecl {
 #[derive(Debug, Clone, Copy)]
 enum EdgeEnd {
     Module(ModuleId),
-    /// The modules of the visualizer's unit: its own and those of `nested` containers under it,
-    /// not those of a slice or sub-unit under it, which are units of their own.
     Container(ContainerId),
 }
 
@@ -438,12 +433,10 @@ fn read_source(
 
 #[derive(Debug, Serialize)]
 struct SourceFile {
-    /// Canonical and relative: `rel/path` under ROOT, `system-id:rel/path` under a system root.
     path: String,
     lines: Vec<String>,
 }
 
-/// The lines of `rel`, a path under ROOT or `system-id:rel/path` under that system's root.
 fn source_lines(input: &EngineInput, rel: &str) -> Result<SourceFile, (StatusCode, String)> {
     let (system, root, inner) = match rel.split_once(':') {
         Some((id, inner)) if let Some(root) = input.system_root(id) => (Some(id), root, inner),
@@ -466,7 +459,6 @@ fn source_lines(input: &EngineInput, rel: &str) -> Result<SourceFile, (StatusCod
     })
 }
 
-/// The file at `rel` under `root`, and `root`, both canonical; `whose` names the root in errors.
 fn source_file(
     root: &Utf8Path,
     rel: &str,

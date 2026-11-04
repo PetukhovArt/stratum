@@ -6,6 +6,7 @@ use crate::{
     edge::Edge,
     ids::{ModuleId, RuleId},
     severity::Severity,
+    text::Text,
 };
 
 /// A pointer into a source file: 1-based line and column.
@@ -27,4 +28,8 @@ pub struct Violation {
     pub edge: Option<Edge>,
     /// Human-readable advice — never an auto-applied fix.
     pub fix: Option<String>,
+    #[serde(skip)]
+    pub message_text: Option<Text>,
+    #[serde(skip)]
+    pub fix_text: Option<Text>,
 }

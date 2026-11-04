@@ -16,11 +16,9 @@ use stratum_graph::{CompoundGraph, TrackedCalls};
 use crate::features::{Features, Reach};
 use crate::paths::canonicalize;
 
-/// The systems of `config.systems`, and per system the contracts the `self` modules call.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SystemMap {
     pub systems: Vec<System>,
-    /// One per system the project calls, in `systems` order.
     pub channels: Vec<Channel>,
 }
 
@@ -30,9 +28,7 @@ pub struct System {
     pub name: String,
     #[serde(rename = "self")]
     pub is_self: bool,
-    /// Declared contracts, called or not.
     pub contracts_total: usize,
-    /// Why no contract could be read: the `root` is missing.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unavailable: Option<String>,
 }
@@ -41,26 +37,20 @@ pub struct System {
 pub struct Channel {
     pub from: String,
     pub to: String,
-    /// The called contracts, by id.
     pub contracts: Vec<CalledContract>,
-    /// Calls matched by a `calls` entry that name no contract: a non-literal name, or a client
-    /// that leaves its module.
     pub unattributed: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CalledContract {
     pub id: String,
-    /// `None` when no declared contract has this id.
     pub signature: Option<String>,
     pub decl: Option<Decl>,
-    /// By module, then line.
     pub callers: Vec<Caller>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Decl {
-    /// `system-id:path/relative/to/root`.
     pub path: String,
     pub line: u32,
 }
@@ -70,7 +60,6 @@ pub struct Caller {
     pub module: ModuleId,
     pub line: u32,
     pub owner: Option<String>,
-    /// The ids of the features that run the call, ascending.
     pub features: Vec<String>,
 }
 
@@ -82,7 +71,6 @@ struct Declared {
 }
 
 impl SystemMap {
-    /// `None` without `systems`. A system's `root` is relative to `project_root`.
     #[must_use]
     pub fn of(
         graph: &CompoundGraph,
@@ -119,14 +107,12 @@ impl SystemMap {
     }
 }
 
-/// The directory of system `id`'s `root`, if it declares one.
 #[must_use]
 pub fn system_root(config: &Config, project_root: &Utf8Path, id: &str) -> Option<Utf8PathBuf> {
     let system = config.systems.iter().find(|s| s.id == id)?;
     Some(project_root.join(system.root.as_ref()?))
 }
 
-/// Adds the `calls` entries of every system to `tracked`.
 pub fn track_calls(config: &Config, tracked: &mut TrackedCalls) {
     for matcher in config.systems.iter().flat_map(|s| &s.calls) {
         let _validated_at_load = match matcher {
@@ -138,7 +124,6 @@ pub fn track_calls(config: &Config, tracked: &mut TrackedCalls) {
 
 type Contracts = BTreeMap<String, (Declared, String)>;
 
-/// The declared contracts by id, each with its file as `system-id:rel`.
 fn declared(system: &SystemConfig, project_root: &Utf8Path) -> Result<Contracts, String> {
     let (Some(root), Some(source)) = (&system.root, &system.contracts) else {
         return Ok(BTreeMap::new());
@@ -167,8 +152,6 @@ fn declared(system: &SystemConfig, project_root: &Utf8Path) -> Result<Contracts,
     Ok(contracts)
 }
 
-/// Every readable `*.extension` file under `dir`, by path relative to it with `/`, in path
-/// order; hidden directories, `node_modules` and `target` are skipped.
 fn files(dir: &Utf8Path, extension: &str) -> Vec<(String, String)> {
     let mut found: Vec<(String, String)> = walkdir::WalkDir::new(dir)
         .into_iter()
@@ -226,8 +209,6 @@ fn named(matcher: &CallMatcher, call: &Call) -> Option<Named> {
     Some(named.map_or(Named::Unattributed, Named::Contract))
 }
 
-/// The declared id `name` stands for: itself, or for `Service.method` the declared
-/// `Service.Method` whose method differs only in the case of its first letter.
 fn resolve<'c>(contracts: &'c Contracts, name: &str) -> Option<&'c (Declared, String)> {
     if let Some(found) = contracts.get(name) {
         return Some(found);
@@ -444,7 +425,6 @@ mod tests {
         assert_eq!(channel.contracts[0].callers[0].owner.as_deref(), Some("f4"));
     }
 
-    /// Per feature, the contracts it runs a call of.
     fn contracts_per_feature(fixture: &str) -> BTreeMap<String, Vec<String>> {
         let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(fixture);
         let config = crate::config::load(&root, None).unwrap().config;

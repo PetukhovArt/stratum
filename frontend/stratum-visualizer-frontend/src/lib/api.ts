@@ -2,17 +2,13 @@ import { Violation } from '../types'
 import { parseSnapshot } from './snapshot'
 
 export interface Loc {
-  /** Root-relative, `/`-separated. */
   path: string
-  /** 1-based. */
   line: number
 }
 
 export interface ContractName {
-  /** `*` for a namespace import or a re-export of the whole module; its `decl` is the module's line 1. */
   name: string
   isTypeOnly: boolean
-  /** `null` when the name did not resolve to a declaration. */
   decl: Loc | null
 }
 
@@ -28,7 +24,6 @@ export type EdgeEnds = { level: 'module' | 'container'; from: number; to: number
 
 export interface SourceText {
   path: string
-  /** 1-based line number of `lines[0]`. */
   start: number
   lines: string[]
   total: number
@@ -109,7 +104,6 @@ const parseSource = (raw: unknown, url: string): SourceText => {
   return { path: raw.path, start: raw.start, lines: raw.lines, total: raw.total }
 }
 
-/** Set from `window.__STRATUM_STATIC__`, which `stratum-lint export` writes into its `index.html`; `null` under `visualize`. */
 export interface StaticSite {
   hasSource: boolean
   hasSystems: boolean
@@ -220,7 +214,6 @@ const edgeUrl = (ends: EdgeEnds): string =>
     ? `/api/edge?from=${ends.from}&to=${ends.to}`
     : `/api/edge?from_container=${ends.from}&to_container=${ends.to}`
 
-/** Cached per edge; a rejected request is dropped from the cache so the next call retries. */
 export const fetchEdge = cached(edgeUrl, async (ends: EdgeEnds, url) =>
   staticSite() ? staticEdge(ends) : parseEdge(await getJson(url), url),
 )
@@ -254,11 +247,6 @@ const staticSource = async (at: SourceWindow, site: StaticSite): Promise<SourceT
   return { path: file.path, start, lines: file.lines.slice(start - 1, at.line + at.context), total: file.lines.length }
 }
 
-/**
- * `context` lines on each side of `line`, cached like `fetchEdge`.
- * Rejects with `ApiStatusError` 404 for a missing file and 400 for a path outside ROOT,
- * and with `SourceNotExportedError` on a static site exported without `--with-source`.
- */
 export const fetchSource = cached(
   (at: SourceWindow) => `/api/source?path=${encodeURIComponent(at.path)}&line=${at.line}&context=${at.context}`,
   async (at: SourceWindow, url) => {
@@ -267,7 +255,6 @@ export const fetchSource = cached(
   },
 )
 
-/** `null` when neither the server nor the static site has a brief for the module. */
 export const fetchBrief = async (module: { id: number; path: string }): Promise<string | null> => {
   const url = staticSite()
     ? `${DATA}/context/${module.id}.txt`
@@ -283,21 +270,17 @@ export const fetchViolations = wholeJson('violations', (raw, url): Violation[] =
   return raw
 })
 
-/** Rejects with `ApiStatusError` 404 without `--base`; the answer is unparsed. */
 export const fetchDrift = wholeJson('drift', (raw): unknown => raw)
 
 export interface Feature {
   id: string
   name: string
-  /** Snapshot module ids. */
   entry: number[]
-  /** Snapshot module ids: the entries and everything they reach by static imports. */
   modules: number[]
 }
 
 export interface FeatureIndex {
   features: Feature[]
-  /** Feature ids chosen on the command line (`visualize --feature ID`). */
   selected: string[]
 }
 
@@ -326,7 +309,6 @@ const parseFeatures = (raw: unknown, url: string): FeatureIndex => {
   return { features, selected: raw.selected }
 }
 
-/** Cached like `fetchEdge`. */
 export const fetchFeatures = wholeJson('features', parseFeatures)
 
 export interface SystemInfo {
@@ -356,18 +338,15 @@ export interface DeclaredLink {
 }
 
 export interface ContractCaller {
-  /** Snapshot module id. */
   module: number
   line: number
   owner: string | null
-  /** Ids of the features that reach this call by name; `null` from a server that does not send them. */
   features: readonly string[] | null
 }
 
 export interface SystemContract {
   id: string
   signature: string | null
-  /** At a `system-id:rel/path` that `fetchSource` serves as is; `null` when no declaration matched the call. */
   decl: Loc | null
   callers: ContractCaller[]
 }
@@ -515,5 +494,4 @@ const parseSystems = (raw: unknown, url: string): SystemIndex => {
   }
 }
 
-/** Cached like `fetchEdge`; rejects with `ApiStatusError` 404 when the config declares no `systems`. */
 export const fetchSystems = wholeJson('systems', parseSystems)

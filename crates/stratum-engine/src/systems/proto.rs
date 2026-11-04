@@ -1,7 +1,6 @@
 use super::Declared;
 use super::scan::{Scan, Token};
 
-/// Each `rpc M(…) returns (…)` directly inside a `service S { … }` is `S.M`.
 pub(super) fn contracts(text: &str) -> Vec<Declared> {
     let scan = Scan::new(text);
     let tokens = scan.tokens(&['.']);
@@ -43,7 +42,6 @@ pub(super) fn contracts(text: &str) -> Vec<Declared> {
     found
 }
 
-/// The method name of `rpc M ( … ) returns ( … )` and its last `)`.
 fn rpc<'s>(tokens: &[Token<'s>]) -> Option<(&'s str, Token<'s>)> {
     let name = tokens.get(1)?;
     let returns = tokens.iter().take(32).position(|t| t.is("returns"))?;

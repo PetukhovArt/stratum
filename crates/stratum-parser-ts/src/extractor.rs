@@ -31,7 +31,6 @@ pub struct RawImport {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RawCall {
-    /// The entry as written: `inject`, `obj.get`, `*.get`, or the factory name.
     pub name: String,
     pub span: SourceSpan,
     pub args: Vec<CallArg>,
@@ -54,6 +53,8 @@ pub struct RawExports {
     /// Indices into [`ExtractedData::imports`] of every `export * from`.
     pub stars: Vec<usize>,
     pub unimportable: u32,
+    #[serde(default)]
+    pub reexports_only: bool,
 }
 
 /// A `stratum-ignore` comment; `span` covers the comment with its delimiters.
@@ -75,8 +76,6 @@ pub struct ExtractedData {
     pub exports: RawExports,
     #[serde(default)]
     pub calls: Vec<RawCall>,
-    /// Per top-level declaration, ascending by name: the other top-level declarations of the
-    /// module its code references. Recorded only when calls are tracked.
     #[serde(default)]
     pub local_refs: Vec<(String, Vec<String>)>,
     #[serde(default)]
@@ -85,9 +84,6 @@ pub struct ExtractedData {
 
 /// The calls the parser records. Entry syntax: `name` is a plain call of `name`, of a local
 /// alias of the named import `name`, or `ns.name()` on a namespace import `ns`; `obj.name` is a
-/// member call on the identifier `obj`; `*.name` is a member call on anything. A factory
-/// `name` records `c.method()` on each `const c = name(…)` of a module as [`CallForm::Client`],
-/// and a `name(…)` call that no such member call uses as [`CallForm::Unfollowed`].
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TrackedCalls {
     entries: Vec<TrackedCall>,
@@ -125,8 +121,6 @@ impl TrackedCalls {
         Ok(())
     }
 
-    /// # Errors
-    /// [`InvalidCallEntry`] if `name` is not an identifier.
     pub fn insert_factory(&mut self, name: &str) -> Result<(), InvalidCallEntry> {
         if !is_identifier(name) {
             return Err(InvalidCallEntry(name.into()));

@@ -7,12 +7,9 @@ use stratum_core::{
 
 use crate::CompoundGraph;
 
-/// A name that crosses an import edge.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CrossingName {
-    /// The name the target exports, `default` for a default import, `*` for the whole module.
     pub name: String,
-    /// Set by `import type` or by an inline `type` modifier.
     pub type_only: bool,
     pub decl: Option<Declaration>,
 }
@@ -20,17 +17,12 @@ pub struct CrossingName {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Declaration {
     pub module: ModuleId,
-    /// The top-level binding of `module` the name stands for; `None` for the whole module.
     pub binding: Option<String>,
     pub location: SourceLocation,
 }
 
 const MODULE_START: SourceLocation = SourceLocation { line: 1, column: 1 };
 
-/// The names `import` takes from its target, each followed through re-exports and
-/// `export *` to the module that declares it. `decl` is `None` for a package target, a name
-/// no module declares, and a re-export cycle. A namespace or forwarding import takes `*`,
-/// declared by the target at its first line; a side-effect import takes nothing.
 #[must_use]
 pub fn crossing_names(graph: &CompoundGraph, import: &Import) -> Vec<CrossingName> {
     let crossing = |name: &str, type_only: bool, decl: Option<Declaration>| CrossingName {
@@ -188,6 +180,7 @@ mod tests {
                     decls,
                     stars,
                     unimportable: 0,
+                    reexports_only: false,
                 },
                 calls: vec![],
                 imports,

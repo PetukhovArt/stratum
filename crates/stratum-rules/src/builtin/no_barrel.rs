@@ -1,3 +1,4 @@
+use stratum_core::text::{Key, Text};
 use stratum_core::{
     ids::{ModuleId, RuleId},
     severity::Severity,
@@ -44,10 +45,12 @@ impl Rule for NoBarrel {
             let file = file_name(graph, *entry)?;
             Some((
                 *entry,
-                format!("Entry file '{file}' sits directly in segment folder '{segment}'"),
-                format!(
-                    "Delete '{file}' and import the files of '{segment}' directly; the unit that owns the segment exposes its public surface through its own entry file."
-                ),
+                Text::new(Key::BarrelInSegment)
+                    .arg("file", &file)
+                    .arg("segment", &*segment),
+                Text::new(Key::BarrelInSegmentFix)
+                    .arg("file", file)
+                    .arg("segment", &*segment),
             ))
         });
         let at_layer_roots = graph
@@ -65,14 +68,20 @@ impl Rule for NoBarrel {
                 let file = file_name(graph, entry)?;
                 Some((
                     entry,
-                    format!("Entry file '{file}' sits at the root of layer '{}'", c.name),
-                    format!(
-                        "Delete '{file}' and import from the files, or from a sub-unit's entry file, directly."
-                    ),
+                    Text::new(Key::BarrelAtLayerRoot)
+                        .arg("file", &file)
+                        .arg("layer", &c.name),
+                    Text::new(Key::BarrelAtLayerRootFix).arg("file", file),
                 ))
             });
         in_segments
             .chain(at_layer_roots)
+            .filter(|(entry, _, _)| {
+                graph
+                    .modules
+                    .get(entry)
+                    .is_some_and(|m| m.exports.reexports_only)
+            })
             .filter_map(|(entry, message, fix)| {
                 at_module(graph, NO_BARREL, severity, entry, message, fix)
             })

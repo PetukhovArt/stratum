@@ -1,3 +1,4 @@
+use stratum_core::text::{Arg, Key, Text};
 use stratum_core::{
     ids::{ModuleId, RuleId},
     severity::Severity,
@@ -44,22 +45,28 @@ impl Rule for DepthRatio {
         }
         let outer = graph.outer_container(scope);
         let size = graph.subtree_module_count(outer.map_or(m.container, |c| c.id));
+        let container: Arg = outer.map_or_else(
+            || Key::DepthRatioItsContainer.into(),
+            |c| format!("'{}'", c.name).into(),
+        );
+        let message = Text::new(Key::DepthRatio)
+            .arg("ratio", format!("{ratio:.2}"))
+            .arg("size", size)
+            .arg("container", container)
+            .arg("exports", m.exports.count())
+            .arg("min", format!("{:.2}", options.min_ratio));
+        let fix = Text::new(Key::DepthRatioFix);
         vec![Violation {
             rule: self.id(),
             severity,
-            message: format!(
-                "Depth ratio {ratio:.2} ({size} modules in {container} / its {exports} exports) is below the configured minimum {min:.2}; module exposes too much relative to its container size",
-                container = outer.map_or_else(|| "its container".into(), |c| format!("'{}'", c.name)),
-                exports = m.exports.count(),
-                min = options.min_ratio
-            ),
+            message: message.en(),
             file: m.path.clone(),
             location: SourceLocation { line: 1, column: 1 },
             modules: vec![scope],
             edge: None,
-            fix: Some(
-                "Consolidate functionality so each public symbol stands for more internal work, or split the container.".into(),
-            ),
+            fix: Some(fix.en()),
+            message_text: Some(message),
+            fix_text: Some(fix),
         }]
     }
 }

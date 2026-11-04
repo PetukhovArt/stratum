@@ -7,10 +7,6 @@ use super::{
 };
 use crate::cli::C4Level;
 
-/// Mermaid C4 (<https://mermaid.js.org/syntax/c4.html>), which GitLab and GitHub render inline,
-/// with the shapes placed and the labels moved by [`layout::arrange`]; an empty cell of the
-/// grid is a shape drawn transparent. Inside a boundary, the other systems go into an
-/// untitled one below it.
 pub fn mermaid(diagram: &Diagram) -> String {
     let header = match diagram.level {
         C4Level::System => "C4Context",
@@ -54,16 +50,12 @@ pub fn mermaid(diagram: &Diagram) -> String {
 
 const EMPTY: &str = "empty";
 
-/// The elements in declaration order, a `None` for an empty shape.
 struct Cells<'c, 'd> {
     top: &'c [Option<&'d Element>],
     nested: &'c [Option<&'d Element>],
-    /// In a boundary of their own after the nested ones.
     others: &'c [Option<&'d Element>],
 }
 
-/// `title`, the `top` elements, nested boundaries around the `nested` ones, the boundary of the
-/// `others`, then `Rel`. A `None` is an empty shape, `empty_1`, `empty_2`… in order.
 fn body(diagram: &Diagram, cells: &Cells) -> String {
     let mut out = format!("title {}\n", bare(&diagram.title));
     let mut empty = 0;

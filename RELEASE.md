@@ -30,10 +30,9 @@ A target added to the `build` matrix also needs its npm `os`/`cpu` in `NPM_PLATF
 
 After the GitHub Release exists:
 
-No release job updates the tap or the bucket: both are bumped by hand with the scripts below. Releases build three targets (Linux x64, Windows x64, macOS arm64), so Homebrew serves macOS arm64 and Linux x64 and Scoop serves Windows x64.
+No release job updates the tap or the bucket: both are bumped by hand. Releases build six targets (Linux, macOS and Windows, each x64 and arm64): Homebrew serves macOS and Linux, Scoop serves Windows.
 
-1. **Homebrew tap** — `scripts/bump_homebrew.sh vX.Y.Z /path/to/homebrew-stratum-tap` recomputes the `sha256` per artefact and commits to the tap. Then `cd /path/to/homebrew-stratum-tap && git push`.
-2. **Scoop bucket** — `scripts/bump_scoop.sh vX.Y.Z /path/to/scoop-stratum-bucket`, then push.
+`node scripts/bump-packages.mjs vX.Y.Z --tap /path/to/homebrew-stratum-tap --bucket /path/to/scoop-stratum-bucket` recomputes the `sha256` per artefact and commits to each repo; either flag alone bumps one. Then `git push` in each.
 
 ## Smoke test
 

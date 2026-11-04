@@ -13,7 +13,10 @@ mod severity;
 pub use severity::{EffectiveSeverities, FileSeverities};
 pub mod territory;
 
-pub use builtin::co_change::{CO_CHANGE_SLUG, CoChange, CoChangeMiss, CoChangeOptions};
+pub use builtin::co_change::{
+    CO_CHANGE_SLUG, CoChange, CoChangeMiss, CoChangeOptions,
+    DEFAULT_MESSAGE as CO_CHANGE_DEFAULT_MESSAGE,
+};
 pub use builtin::composer_scope::ComposerScope;
 pub use builtin::container_breadth::ContainerBreadth;
 pub use builtin::deep_module::DeepModule;

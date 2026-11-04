@@ -28,7 +28,6 @@ export interface NavState {
   setVariant: 'ring' | 'arc' | 'matrix'
   set: readonly number[]
   arch: ArchPath
-  /** Feature ids of the filter; `null` until the user picks, then the server's `selected` applies. */
   features: readonly string[] | null
   isHidingCommon: boolean
   commonLimit: number

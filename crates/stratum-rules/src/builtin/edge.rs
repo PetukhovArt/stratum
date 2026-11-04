@@ -5,13 +5,14 @@ use stratum_core::{
     edge::Edge,
     ids::{ModuleId, RuleId},
     severity::Severity,
+    text::Text,
     violation::{SourceLocation, Violation},
 };
 use stratum_graph::CompoundGraph;
 
 pub(crate) struct Finding {
-    pub message: String,
-    pub fix: Option<String>,
+    pub message: Text,
+    pub fix: Option<Text>,
 }
 
 pub(crate) type Judge<O> = fn(&CompoundGraph, ModuleId, ModuleId, &O) -> Option<Finding>;
@@ -61,7 +62,7 @@ pub(crate) fn edge_violations(
             Some(Violation {
                 rule,
                 severity,
-                message: finding.message,
+                message: finding.message.en(),
                 file: from.path.clone(),
                 location: graph
                     .import_location(scope, to)
@@ -72,7 +73,9 @@ pub(crate) fn edge_violations(
                     to,
                     kind: *edge.weight(),
                 }),
-                fix: finding.fix,
+                fix: finding.fix.as_ref().map(Text::en),
+                message_text: Some(finding.message),
+                fix_text: finding.fix,
             })
         })
         .collect();

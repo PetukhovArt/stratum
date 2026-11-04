@@ -7,7 +7,6 @@ use stratum_engine::{EngineInput, Features};
 
 use crate::{cli::FeaturesFormat, commands::lint};
 
-/// `features` and `shared` with each module written by `module`; every list ascending.
 #[derive(Debug, Serialize)]
 pub struct Listing<T> {
     features: Vec<FeatureListing<T>>,
@@ -43,8 +42,6 @@ pub fn listing<T: Ord>(features: &Features, module: impl Fn(ModuleId) -> T) -> L
     }
 }
 
-/// # Errors
-/// The first id in `selected` that is not a feature, with the known ids in the message.
 pub fn ensure_known(features: &Features, selected: &[String]) -> miette::Result<()> {
     let Some(unknown) = selected.iter().find(|id| features.get(id).is_none()) else {
         return Ok(());

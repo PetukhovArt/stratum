@@ -1,3 +1,4 @@
+use stratum_core::text::{Key, Text};
 use stratum_core::{
     ids::{ModuleId, RuleId},
     severity::Severity,
@@ -23,7 +24,7 @@ impl Rule for MillerLimit {
         "stratum/miller-limit"
     }
     fn default_severity(&self) -> Severity {
-        Severity::Info
+        Severity::Off
     }
 
     fn check(
@@ -40,20 +41,21 @@ impl Rule for MillerLimit {
         if u32::try_from(fan_in).unwrap_or(u32::MAX) <= options.max_children {
             return vec![];
         }
+        let message = Text::new(Key::MillerLimit)
+            .arg("fan_in", fan_in)
+            .arg("limit", options.max_children);
+        let fix = Text::new(Key::MillerLimitFix);
         vec![Violation {
             rule: self.id(),
             severity,
-            message: format!(
-                "Imported by {fan_in} modules from other containers whose layers depend on this one (limit {limit}); this module is a change hotspot",
-                limit = options.max_children
-            ),
+            message: message.en(),
             file: m.path.clone(),
             location: SourceLocation { line: 1, column: 1 },
             modules: vec![scope],
             edge: None,
-            fix: Some(
-                "Split the module so each consumer reaches only the surface it needs, or move the implementation closer to its consumers.".into(),
-            ),
+            fix: Some(fix.en()),
+            message_text: Some(message),
+            fix_text: Some(fix),
         }]
     }
 }

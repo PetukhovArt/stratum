@@ -71,7 +71,6 @@ export interface Model {
   unitSccs: readonly (readonly number[])[]
   layerHue: (index: number) => number
   isSharedByChosenFeatures: (id: number) => boolean
-  /** True for the path of a snapshot module or container that the scope left out. */
   hides: (path: string) => boolean
   chosenFeatures: readonly string[]
 }
@@ -240,10 +239,6 @@ const narrow = (snapshot: GraphSnapshot, violations: readonly Violation[], scope
 
 const NOT_SHARED = (): boolean => false
 
-/**
- * With a `scope`, the Model holds only the modules it keeps, the edges between them, the
- * containers enclosing them and the findings on them; layers stay whole.
- */
 export const buildModel = (whole: GraphSnapshot, allViolations: readonly Violation[], scope?: ModuleScope | null): Model => {
   const narrowed = scope ? narrow(whole, allViolations, scope) : null
   const snapshot = narrowed?.snapshot ?? whole

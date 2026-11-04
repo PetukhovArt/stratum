@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use camino::Utf8PathBuf;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use stratum_core::{severity::Severity, structure::Structure};
+use stratum_core::{severity::Severity, structure::Structure, text::Messages};
 
 use crate::{FeatureConfig, SystemConfig};
 
@@ -37,6 +37,12 @@ pub struct Config {
     /// child list replaces the `extends` parent's list.
     #[serde(default)]
     pub systems: Vec<SystemConfig>,
+    /// A project's own wording for `lint` output, overriding the built-in text: `titles` by rule
+    /// slug, `texts` by catalog key (`stratum-lint messages` lists both). Display only: the
+    /// baseline and Code Quality fingerprints stay keyed on the built-in text. Merged with the
+    /// `extends` parent key by key.
+    #[serde(default)]
+    pub messages: Messages,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

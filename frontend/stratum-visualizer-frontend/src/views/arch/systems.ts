@@ -93,10 +93,6 @@ const build = (index: SystemIndex, m: Model): SystemsInModel => {
 
 const cache = new WeakMap<SystemIndex, WeakMap<Model, SystemsInModel>>()
 
-/**
- * A contract stays only with its shown callers, and only if one is left: with features chosen, a
- * caller one of them runs; otherwise a caller whose module the Model holds.
- */
 export const systemsOf = (index: SystemIndex, m: Model): SystemsInModel => {
   const byModel = cache.get(index) ?? new WeakMap<Model, SystemsInModel>()
   cache.set(index, byModel)
@@ -116,7 +112,6 @@ export const requestSystems = (): void => {
   fetchSystems().then(setIndex, () => setIndex(null))
 }
 
-/** Requests `/api/systems` on the first read; `null` until it answers, and for good when it fails or answers 404. */
 export const systemIndex = (): SystemIndex | null => {
   requestSystems()
   return index()

@@ -10,7 +10,6 @@ export interface Rect extends Point {
 
 export type RectSide = 'left' | 'right' | 'top' | 'bottom'
 
-/** A line routes may run along: `cost` per px (1 = plain gutter), `room` the half-width a bundle of tracks may spread over. */
 export interface GridLine {
   at: number
   cost: number
@@ -25,10 +24,6 @@ interface RouteGrid {
   blocks: readonly Rect[]
 }
 
-/**
- * One link to route. Links of one `bundle` share their tracks; with `joinAt` they also share one attach point at
- * that end, and the label goes on the branch near the other end. `weight` orders routing: heavier links route first.
- */
 export interface RouteLink {
   key: string
   from: Rect
@@ -39,10 +34,6 @@ export interface RouteLink {
   joinAt?: 'from' | 'to'
 }
 
-/**
- * `obstacles` are the rects no route may cross (the ends of each link included); `lines` replaces the gutters derived
- * from the obstacles; `bend` is the cost of a corner in px of length; `track` the px between neighbouring tracks.
- */
 export interface RouteOptions {
   obstacles: readonly Rect[]
   lines?: { xs: readonly GridLine[]; ys: readonly GridLine[] }
@@ -448,7 +439,6 @@ const markUsage = (usage: Usage, g: RouteGrid, nodes: number[], bundle: number) 
   }
 }
 
-/** Corner points joined by straight runs, each corner rounded to `radius` px; repeated and collinear points are dropped. */
 export const roundedPath = (raw: readonly Point[], radius = CORNER_PX): { d: string; points: Point[] } => {
   const clean = raw.filter((p, i) => i === 0 || Math.abs(p.x - raw[i - 1].x) > 0.01 || Math.abs(p.y - raw[i - 1].y) > 0.01)
   const keep = clean.filter((p, i) => {
@@ -473,20 +463,12 @@ export const roundedPath = (raw: readonly Point[], radius = CORNER_PX): { d: str
 
 const BRANCH_LABEL_PX = 18
 
-/** The spot `px` along the run that starts at `a` toward `b`, or its middle when the run is shorter than twice that. */
 export const alongRun = (a: Point, b: Point, px: number): Point => {
   const len = Math.hypot(b.x - a.x, b.y - a.y)
   const k = len ? Math.min(px, len / 2) / len : 0
   return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k }
 }
 
-/**
- * Orthogonal routes around `options.obstacles` for `links`, heaviest first: the routes of one `bundle` share their
- * tracks and part only near their other ends, routes of different bundles run side by side on one gutter, and every
- * end sits on one of the `sides` of its rect, spread along it by the position of the route's other end. A link with no
- * free route is left out of the result. Each route's `label` sits on its branch near the end opposite `joinAt`, or
- * else on its longest straight part not taken by an earlier label.
- */
 export const routeAround = (links: readonly RouteLink[], options: RouteOptions): Map<string, Route> => {
   const ids = new Map<Rect, number>()
   const cells = new Map<number, Rect>()

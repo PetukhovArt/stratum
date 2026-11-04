@@ -70,7 +70,6 @@ fn files_under(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
-/// `data/` and the page: the files that carry what the export learned about the project.
 fn written_text(out: &Path) -> Vec<(PathBuf, String)> {
     let mut files = files_under(&out.join("data"));
     files.push(out.join("index.html"));

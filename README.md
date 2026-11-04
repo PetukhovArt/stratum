@@ -54,9 +54,9 @@ warning stratum/no-cross-layer-import (1) - stratum-lint explain stratum/no-cros
 </tr>
 </table>
 
-## Part of jig
+## Integrations
 
-Stratum is the architecture gate of **[jig](https://github.com/PetukhovArt/jig)**, a harness for AI coding agents. jig runs Stratum after each edit and blocks the end of a turn while new errors remain. Stratum works on its own too:
+Stratum is a standalone CLI and LSP server; every integration below is optional.
 
 | Where | How |
 |---|---|
@@ -64,13 +64,14 @@ Stratum is the architecture gate of **[jig](https://github.com/PetukhovArt/jig)*
 | Codex, Cursor, other agents | paste [docs/agents-snippet.md](docs/agents-snippet.md) into `AGENTS.md` |
 | GitLab, GitHub CI | native report formats and a baseline check: [docs/ci.md](docs/ci.md) |
 | Any tool | the JSONL contract and exit codes: [docs/harness.md](docs/harness.md) |
+| [jig](https://github.com/PetukhovArt/jig) | runs Stratum after each edit and blocks the end of a turn while new errors remain |
 
 <details>
 <summary><b>Install</b></summary>
 
 - npm, all platforms: `npm install -g @petukhovart/stratum-lint` (ships `stratum-lint` and `stratum-lsp`)
-- Windows: `scoop bucket add stratum https://github.com/PetukhovArt/scoop-stratum-bucket`, then `scoop install stratum-lint`
-- macOS (Apple silicon), Linux (x64): `brew tap petukhovart/stratum`, then `brew install stratum-lint`
+- Windows (x64, arm64): `scoop bucket add stratum https://github.com/PetukhovArt/scoop-stratum-bucket`, then `scoop install stratum-lint`
+- macOS, Linux (x64, arm64): `brew tap petukhovart/stratum`, then `brew install stratum-lint`
 - From source: `cargo install --path crates/stratum-lint` and `cargo install --path crates/stratum-lsp`
 
 Source files: `.ts .tsx .mts .cts .js .jsx .mjs .cjs .vue` (Vue: `<script>` and `<script setup>`).
@@ -98,7 +99,7 @@ Source files: `.ts .tsx .mts .cts .js .jsx .mjs .cjs .vue` (Vue: `<script>` and 
 | `stratum/container-breadth` | A folder holding too much directly inside it: more than `max_kinds` kinds in a container, more than `max_items` items in a segment, collection or sliced layer root, more than `max_root_files` files at a composer's root. |
 | `stratum/zone-breadth` | A private zone with more than `max_kinds` kinds of children. |
 | `stratum/missing-entry` | A folder with segment or private-zone children but no entry file. |
-| `stratum/no-barrel` | An entry file (barrel) inside a segment folder, or at the root of a layer listed in `layers`. |
+| `stratum/no-barrel` | An entry file that only re-exports (barrel) inside a segment folder, or at the root of a layer listed in `layers`. |
 | `stratum/composer-scope` | A stage-4 composer whose private zone has no file matching `scope_file`. |
 | `stratum/naming` | A folder name outside `folder_case`, listed in `reserved`, or a duplicate or plural slice name. |
 | `stratum/module-docs` | A navigation doc (`nav_file`) missing, misplaced, or contradicting the folder's imports. |

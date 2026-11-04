@@ -18,13 +18,10 @@ use crate::{cli::C4Level, commands::features::ensure_known};
 #[derive(Debug, Clone, Copy)]
 pub struct Request<'a> {
     pub level: C4Level,
-    /// Restricts the diagram to the union of these features' modules; empty means every module.
     pub features: &'a [String],
-    /// The top-level layer the component level opens, by its config id.
     pub container: Option<&'a str>,
 }
 
-/// Past this many elements inside the boundary, the smallest give way to one "… N more".
 const MAX_INNER: usize = 60;
 
 pub fn diagram(input: &EngineInput, request: &Request) -> miette::Result<Diagram> {
@@ -53,12 +50,9 @@ pub fn diagram(input: &EngineInput, request: &Request) -> miette::Result<Diagram
     }
 }
 
-/// What a diagram may show: `None` for every module and call.
 type Scope = Option<Selection>;
 
-/// The selected features.
 struct Selection {
-    /// The union of their modules.
     modules: BTreeSet<ModuleId>,
     ids: Vec<String>,
 }
@@ -137,11 +131,8 @@ fn other_systems(
     (outer, by_config_id)
 }
 
-/// Per relationship, each called contract id with its number of call sites.
 type Calls = BTreeMap<(String, String), BTreeMap<String, usize>>;
 
-/// Calls into other systems that a selected feature runs, keyed by `key(module)` and the
-/// system id.
 fn calls(
     systems: Option<&SystemMap>,
     scope: &Scope,
@@ -237,16 +228,11 @@ fn system_level(
     }
 }
 
-/// A layer whose folder sits in no other layer's folder, with the modules in scope under it.
 struct TopLayer<'g> {
     layer: &'g Layer,
-    /// Each module with its ROOT-relative path.
     modules: Vec<(ModuleId, String)>,
 }
 
-/// Every top-level layer, dependents before their dependencies, so most arrows point one way:
-/// a layer comes once no layer left depends on it, the first in config order among those
-/// (the first left on a cycle). A nested layer's `depends_on` counts for the layer holding it.
 fn top_layers<'g>(input: &'g EngineInput, scope: &Scope) -> Vec<TopLayer<'g>> {
     let layers: Vec<&Layer> = input.graph.layers.values().collect();
     let tops: Vec<&Layer> = layers
@@ -307,8 +293,6 @@ fn top_layers<'g>(input: &'g EngineInput, scope: &Scope) -> Vec<TopLayer<'g>> {
         .collect()
 }
 
-/// `N modules`, then `N slices` when slices hold some of them, or `N parts` when nested layers
-/// do too.
 fn layer_description(input: &EngineInput, top: &TopLayer) -> String {
     let mut slices = BTreeSet::new();
     let mut nested = BTreeSet::new();
@@ -345,8 +329,6 @@ fn slashed(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
 
-/// Distinct module pairs `from → to` with both ends in scope, by `key` of each end; pairs
-/// within one key are left out.
 fn imports(
     input: &EngineInput,
     scope: &Scope,
@@ -369,15 +351,11 @@ fn imports(
     counts
 }
 
-/// An inner element with the number of modules it holds, before the cap.
 struct Sized {
     element: Element,
     modules: usize,
 }
 
-/// Keeps the `MAX_INNER - 1` largest elements and folds the rest into one "… N more", whose
-/// relationships are the sums of theirs. Ties go to the earlier name. The kept elements stay
-/// in the order given, "… N more" last.
 fn cap(
     sized: Vec<Sized>,
     imports: &mut BTreeMap<(String, String), usize>,

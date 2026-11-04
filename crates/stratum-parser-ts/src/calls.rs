@@ -11,13 +11,11 @@ use stratum_core::types::{CallArg, CallForm};
 use crate::extractor::{CallPattern, RawCall, TrackedCalls};
 use crate::source_span::SourceSpan;
 
-/// Records the calls of one module that [`TrackedCalls`] asks for, in source order.
 pub(crate) struct CallRecorder<'t> {
     tracked: &'t TrackedCalls,
     aliases: Vec<(String, String)>,
     namespaces: Vec<String>,
     owners: Vec<(Span, String)>,
-    /// The names of `owners`, ascending.
     top_names: Vec<String>,
     local_refs: BTreeMap<String, BTreeSet<String>>,
     clients: Vec<Client>,
@@ -185,8 +183,6 @@ impl<'t> CallRecorder<'t> {
         }
     }
 
-    /// Records `reference` when it names another top-level declaration of the module than the
-    /// one it stands in. Scopes are not resolved: a local that shadows a top-level name counts.
     pub(crate) fn reference(&mut self, reference: &IdentifierReference<'_>) {
         let name = reference.name.as_str();
         if self
@@ -207,8 +203,6 @@ impl<'t> CallRecorder<'t> {
         }
     }
 
-    /// Per top-level declaration with any, ascending by name: the other top-level declarations
-    /// of the module it references, ascending.
     pub(crate) fn local_refs(&self) -> Vec<(String, Vec<String>)> {
         self.local_refs
             .iter()
@@ -216,9 +210,6 @@ impl<'t> CallRecorder<'t> {
             .collect()
     }
 
-    /// The recorded calls in source order. A member call is matched to the client of its
-    /// variable name declared inside the same top-level declaration, the nearest preceding one
-    /// first; without one, to the module-level client of that name, wherever it stands.
     pub(crate) fn finish(mut self) -> Vec<RawCall> {
         let mut used = vec![false; self.clients.len()];
         for member in self.members {

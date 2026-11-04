@@ -515,6 +515,8 @@ mod tests {
             edge: None,
             fix: "fix".into(),
             members: Vec::new(),
+            message_text: None,
+            fix_text: None,
         }
     }
 

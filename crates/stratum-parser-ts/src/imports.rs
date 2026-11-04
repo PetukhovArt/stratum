@@ -27,7 +27,6 @@ pub struct Collected {
     /// Top-level ES exports only; `module.exports` / `exports.x` are not counted.
     pub exports: RawExports,
     pub calls: Vec<RawCall>,
-    /// See [`ExtractedData::local_refs`](crate::ExtractedData::local_refs).
     pub local_refs: Vec<(String, Vec<String>)>,
     pub suppressions: Vec<RawSuppression>,
 }
@@ -69,7 +68,6 @@ thread_local! {
 struct ImportVisitor<'t> {
     calls: CallRecorder<'t>,
     imports: Vec<RawImport>,
-    /// How many type positions the visit is inside.
     in_type: u32,
 }
 

@@ -864,7 +864,6 @@ const scoreOf = (drawn: readonly Drawn[], frame: Frame): number => {
   return SCORE.crossing * cross + SCORE.corner * corners + SCORE.length * length + SCORE.imbalance * imbalance + SCORE.aspect * skew
 }
 
-/** The links a link-level view draws as lines: with nothing selected the rule breaks and the `TOP_LINKS` heaviest of those not drawn as stubs; with a box selected all its links. */
 export const shownLinks = (
   links: readonly BoxLink[],
   selected: string | null,
@@ -879,7 +878,6 @@ export const shownLinks = (
 export const isDrawnUnselected = (links: readonly BoxLink[], link: BoxLink): boolean =>
   link.breaks || links.indexOf(link) < TOP_LINKS
 
-/** The stubs that stay chips while `selected` is selected: all with nothing selected, else those not touching it. */
 export const shownStubs = (stubs: readonly PlacedStub[], selected: string | null): readonly PlacedStub[] =>
   selected === null ? stubs : stubs.filter((s) => s.link.from !== selected && s.link.to !== selected)
 
@@ -1079,11 +1077,6 @@ const build = (
   }
 }
 
-/**
- * Boxes in rows (or columns) by layer rank, ordered and spaced for the fewest crossings, corners and length of the
- * links that show with nothing selected; of `PER_ROW` sub-row widths the lowest score wins. Links into a hub from two
- * or more ranks above that break no rule become stubs beside their source. Box positions never depend on selection.
- */
 export const layoutBoxes = (
   data: Boxes,
   layerRanks: ReadonlyMap<number, number>,
@@ -1113,7 +1106,6 @@ export const layoutBoxes = (
   return best!.layout
 }
 
-/** Orthogonal routes of `shown` and of every flow to a port, with tracks, bundles and ports for exactly this set. */
 export const routeLinks = (
   layout: BoxesLayout,
   shown: readonly BoxLink[],

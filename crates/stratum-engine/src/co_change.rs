@@ -4,10 +4,12 @@ use camino::Utf8Path;
 use stratum_config::{Config, ConfigError};
 use stratum_core::{
     severity::Severity,
+    text::{Arg, Key, Text},
     violation::{SourceLocation, Violation},
 };
 use stratum_rules::{
-    CO_CHANGE, CO_CHANGE_SLUG, CoChangeMiss, CoChangeOptions, EffectiveSeverities,
+    CO_CHANGE, CO_CHANGE_DEFAULT_MESSAGE, CO_CHANGE_SLUG, CoChangeMiss, CoChangeOptions,
+    EffectiveSeverities,
 };
 
 use crate::finding::Finding;
@@ -61,15 +63,22 @@ pub(crate) fn findings(
             .filter(|m| m.path == path.as_std_path())
             .map(|m| m.id)
             .collect();
+        let message = message_text(&miss);
+        let fix = miss
+            .fix
+            .clone()
+            .map_or_else(|| fix_text(&miss), Text::verbatim);
         out.push(input.finding(Violation {
             rule: CO_CHANGE,
             severity: Severity::Error.clamp(Severity::Info, cap),
-            message: message(&miss),
+            message: message.en(),
             file: path.into_std_path_buf(),
             location: SourceLocation { line: 1, column: 1 },
             modules,
             edge: None,
-            fix: Some(miss.fix.clone().unwrap_or_else(|| fix(&miss))),
+            fix: Some(fix.en()),
+            message_text: Some(message),
+            fix_text: Some(fix),
         }));
     }
     Ok(out)
@@ -77,33 +86,37 @@ pub(crate) fn findings(
 
 #[must_use]
 pub fn message(miss: &CoChangeMiss) -> String {
-    let more = match miss.when.len() {
-        1 => String::new(),
-        n => format!(" and {} more", n - 1),
+    message_text(miss).en()
+}
+
+fn message_text(miss: &CoChangeMiss) -> Text {
+    let more: Arg = match miss.when.len() {
+        1 => "".into(),
+        n => Text::new(Key::CoChangeMore).arg("more", n - 1).into(),
     };
-    format!(
-        "{}: `{}`{more} changed, but no file matching {} did",
-        miss.message,
-        miss.when[0],
-        globs(&miss.require)
-    )
+    let own: Arg = if miss.message == CO_CHANGE_DEFAULT_MESSAGE {
+        Key::CoChangeDefault.into()
+    } else {
+        (&miss.message).into()
+    };
+    Text::new(Key::CoChange)
+        .arg("message", own)
+        .arg("first", &miss.when[0])
+        .arg("more", more)
+        .arg("require", globs(&miss.require))
 }
 
-#[must_use]
-pub fn fix(miss: &CoChangeMiss) -> String {
-    format!(
-        "Change a file matching {} in the same change, or acknowledge it: `stratum-ignore {CO_CHANGE_SLUG} -- <reason>` in a comment of `{}`",
-        globs(&miss.require),
-        miss.when[0]
-    )
+fn fix_text(miss: &CoChangeMiss) -> Text {
+    Text::new(Key::CoChangeFix)
+        .arg("require", globs(&miss.require))
+        .arg("first", &miss.when[0])
 }
 
-fn globs(patterns: &[String]) -> String {
-    patterns
-        .iter()
-        .map(|p| format!("`{p}`"))
-        .collect::<Vec<_>>()
-        .join(" or ")
+fn globs(patterns: &[String]) -> Arg {
+    Arg::Join(
+        patterns.iter().map(|p| format!("`{p}`").into()).collect(),
+        Key::ListOr,
+    )
 }
 
 /// `file` holds a `stratum-ignore` directive naming the rule, with a reason, in any comment

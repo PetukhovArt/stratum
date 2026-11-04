@@ -96,11 +96,6 @@ const topLayerOf = (m: Model, unitId: number): { name: string; layer: number | n
   return { name: outer?.name ?? unit?.name ?? String(unitId), layer: outer?.layer ?? unit?.layer ?? null }
 }
 
-/**
- * One box per feature, holding the units under the folder of its entries, then one box per top-level layer for the
- * units no feature folder holds. A feature whose entries sit directly in the folder of an outermost layer has no folder
- * of its own and gets no box; a feature folder that is the root of layers nested in another layer's folder holds them.
- */
 export const featureBoxes = (m: Model, features: readonly Feature[]): Boxes => {
   const layers = [...m.containers.values()].filter((c) => c.parent === null)
   const enclosing = (dir: string) =>
@@ -144,7 +139,6 @@ export const unitBoxes = (m: Model, units: readonly number[]): Boxes =>
 const [features, setFeatures] = createSignal<readonly Feature[] | null>(null)
 let isRequested = false
 
-/** Requests `/api/features` on the first read; `[]` when it fails. Until it answers and without features, the boxes are the top-level layers. */
 export const archFeatures = (): readonly Feature[] | null => {
   if (!isRequested) {
     isRequested = true

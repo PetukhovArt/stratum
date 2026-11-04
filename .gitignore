@@ -22,8 +22,7 @@ target
 
 # AI
 .claude
-.CLAUDE.md
-.CLAUDE.local.md
+CLAUDE.local.md
 
 # Cargo workspace
 /target/

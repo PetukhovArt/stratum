@@ -1,7 +1,5 @@
 use std::collections::BTreeSet;
 
-/// Hands out element ids: `prefix_` and `raw` with every character outside `[A-Za-z0-9]` made
-/// `_`, then `_2`, `_3`… for a sanitized id already given out.
 #[derive(Debug, Default)]
 pub struct Ids {
     given: BTreeSet<String>,
@@ -23,8 +21,6 @@ impl Ids {
     }
 }
 
-/// `label` inside `"…"`: Mermaid does not escape a quote reliably, so `"` becomes `'`, a `\` becomes
-/// `/` so it cannot escape the closing quote, and each line break becomes a space.
 pub fn quoted(label: &str) -> String {
     let flat = label
         .replace("\r\n", "\n")
@@ -34,9 +30,6 @@ pub fn quoted(label: &str) -> String {
     format!("\"{}\"", flat.replace('\n', " "))
 }
 
-/// `text` on one line outside quotes, each line break, `;` and `#` made a space: a Mermaid
-/// title ends at any of them
-/// (<https://github.com/mermaid-js/mermaid/blob/develop/packages/mermaid/src/diagrams/c4/parser/c4Diagram.jison>).
 pub fn bare(text: &str) -> String {
     text.chars()
         .map(|c| {
@@ -49,7 +42,6 @@ pub fn bare(text: &str) -> String {
         .collect()
 }
 
-/// `1 import`, `2 imports`.
 pub fn count(n: usize, noun: &str) -> String {
     if n == 1 {
         format!("1 {noun}")

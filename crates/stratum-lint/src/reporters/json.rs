@@ -1,5 +1,7 @@
+use std::borrow::Cow;
+
 use serde::Serialize;
-use stratum_core::{severity::Severity, violation::SourceLocation};
+use stratum_core::{severity::Severity, text::Messages, violation::SourceLocation};
 use stratum_engine::{EdgeRef, Finding};
 
 use super::Reporter;
@@ -15,30 +17,34 @@ pub struct JsonReporter;
 struct WireFinding<'a> {
     rule: &'a str,
     severity: Severity,
-    message: &'a str,
+    message: Cow<'a, str>,
     file: &'a str,
     location: SourceLocation,
     edge: Option<&'a EdgeRef>,
-    suggestion: &'a str,
+    suggestion: Cow<'a, str>,
 }
 
-impl<'a> From<&'a Finding> for WireFinding<'a> {
-    fn from(f: &'a Finding) -> Self {
+impl<'a> WireFinding<'a> {
+    fn new(f: &'a Finding, messages: &Messages) -> Self {
         Self {
             rule: &f.rule,
             severity: f.severity,
-            message: &f.message,
+            message: f.message_in(messages),
             file: &f.file,
             location: f.location,
             edge: f.edge.as_ref(),
-            suggestion: &f.fix,
+            suggestion: f.fix_in(messages),
         }
     }
 }
 
 impl Reporter for JsonReporter {
     fn write(&self, report: &Report, out: &mut dyn std::io::Write) -> std::io::Result<()> {
-        let violations: Vec<WireFinding<'_>> = report.findings.iter().map(Into::into).collect();
+        let violations: Vec<WireFinding<'_>> = report
+            .findings
+            .iter()
+            .map(|f| WireFinding::new(f, &report.messages))
+            .collect();
         let json = serde_json::to_string_pretty(&serde_json::json!({
             "version": VERSION,
             "summary": report.summary,

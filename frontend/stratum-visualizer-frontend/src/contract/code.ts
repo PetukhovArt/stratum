@@ -21,7 +21,6 @@ const scopeOf = () => ({ view: nav().view, features: (nav().features ?? []).join
 
 const [opened, setOpened] = createSignal<Opened | null>(null)
 
-/** The open target while the view and the feature choice it was opened in are still shown. */
 export const codeTarget = (): CodeTarget | null => {
   const o = opened()
   if (!o) return null

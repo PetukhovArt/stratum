@@ -1,3 +1,4 @@
+use stratum_core::text::{Key, Text};
 use stratum_core::{
     ids::{ModuleId, RuleId},
     severity::Severity,
@@ -59,18 +60,20 @@ pub(crate) fn judge(graph: &CompoundGraph, from: ModuleId, to: ModuleId) -> Opti
         .map(|e| project_relative(graph, e.layer, &e.path));
     Some(match entry {
         Some(entry) => Finding {
-            message: format!("Import of `{target}` reaches inside `{unit}`"),
-            fix: Some(format!(
-                "Import from `{unit}` through its entry `{entry}`, exporting the name there if it is missing."
-            )),
+            message: Text::new(Key::PublicApi)
+                .arg("target", target)
+                .arg("unit", &unit),
+            fix: Some(
+                Text::new(Key::PublicApiFix)
+                    .arg("unit", unit)
+                    .arg("entry", entry),
+            ),
         },
         None => Finding {
-            message: format!(
-                "Import of `{target}` reaches inside `{unit}`, which has no entry file"
-            ),
-            fix: Some(format!(
-                "Add an entry file to `{unit}` (a name from `structure.entries`, e.g. index.ts) that exports what outside code needs, and import through it."
-            )),
+            message: Text::new(Key::PublicApiNoEntry)
+                .arg("target", target)
+                .arg("unit", &unit),
+            fix: Some(Text::new(Key::PublicApiNoEntryFix).arg("unit", unit)),
         },
     })
 }

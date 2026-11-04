@@ -1,6 +1,7 @@
 use globset::GlobSet;
 use serde::Deserialize;
 use stratum_config::Config;
+use stratum_core::text::{Arg, Key, Text};
 use stratum_core::{
     ids::{ModuleId, RuleId},
     severity::Severity,
@@ -99,15 +100,25 @@ impl Rule for RestrictedCalls {
                     .0
                     .iter()
                     .find(|p| p.calls.contains(&call.name) && !p.allow.is_match(&path))?;
+                let message: Arg = if policy.message == DEFAULT_MESSAGE {
+                    Key::RestrictedCallsDefault.into()
+                } else {
+                    (&policy.message).into()
+                };
+                let message = Text::new(Key::RestrictedCall)
+                    .arg("message", message)
+                    .arg("call", &call.name);
                 Some(Violation {
                     rule: self.id(),
                     severity,
-                    message: format!("{} ({}())", policy.message, call.name),
+                    message: message.en(),
                     file: module.path.clone(),
                     location: call.location,
                     modules: vec![scope],
                     edge: None,
                     fix: policy.fix.clone(),
+                    message_text: Some(message),
+                    fix_text: None,
                 })
             })
             .collect()

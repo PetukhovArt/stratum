@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use oxc_ast::ast::{
     Declaration, ExportDefaultDeclarationKind, Expression, ModuleDeclaration, Program,
@@ -99,6 +99,7 @@ pub(crate) fn top_level_exports(program: &Program<'_>, imports: &[RawImport]) ->
             | ModuleDeclaration::TSNamespaceExportDeclaration(_) => {}
         }
     }
+    exports.raw.reexports_only = reexports_only(program);
     exports.raw
 }
 
@@ -114,6 +115,37 @@ fn identifier(expression: Option<&Expression<'_>>) -> Option<String> {
         Expression::Identifier(id) => Some(id.name.to_string()),
         _ => None,
     }
+}
+
+fn reexports_only(program: &Program<'_>) -> bool {
+    let mut imported: HashSet<&str> = HashSet::new();
+    let mut reexported: Vec<&str> = Vec::new();
+    let mut any = false;
+    for stmt in &program.body {
+        match stmt.as_module_declaration() {
+            Some(ModuleDeclaration::ImportDeclaration(import)) => {
+                let Some(specifiers) = &import.specifiers else {
+                    return false;
+                };
+                if specifiers.is_empty() {
+                    return false;
+                }
+                imported.extend(specifiers.iter().map(|s| s.local().name.as_str()));
+            }
+            Some(ModuleDeclaration::ExportNamedDeclaration(export)) => {
+                if export.declaration.is_some() {
+                    return false;
+                }
+                if export.source.is_none() {
+                    reexported.extend(export.specifiers.iter().map(|s| s.local.name().as_str()));
+                }
+                any = true;
+            }
+            Some(ModuleDeclaration::ExportAllDeclaration(_)) => any = true,
+            _ => return false,
+        }
+    }
+    any && reexported.iter().all(|name| imported.contains(name))
 }
 
 const fn span(s: Span) -> SourceSpan {
@@ -211,6 +243,31 @@ mod tests {
              export default 1;"#);
         assert_eq!(count(&e), 7);
         assert_eq!(e.stars, [0]);
+    }
+
+    #[test]
+    fn a_file_of_reexports_only_is_flagged() {
+        let pure = [
+            r#"export * from "./a"; export { b } from "./b"; export type { C } from "./c";"#,
+            r#"import { a } from "./a"; import type { T } from "./t"; export { a, type T };"#,
+            r#"export * as ns from "./ns";"#,
+        ];
+        for source in pure {
+            assert!(ts(source).reexports_only, "{source}");
+        }
+        let own_logic = [
+            "",
+            r#"export { b } from "./b"; export const c = 1;"#,
+            r#"import { a } from "./a"; export { a }; const x = a();"#,
+            r#"import { a } from "./a"; export const load = () => import("./b");"#,
+            r#"export { b } from "./b"; export default b;"#,
+            r#"import "./side-effect"; export * from "./a";"#,
+            "const local = 1; export { local };",
+            r#"import { a } from "./a"; const own = 1; export { a, own };"#,
+        ];
+        for source in own_logic {
+            assert!(!ts(source).reexports_only, "{source}");
+        }
     }
 
     #[test]

@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use stratum_core::text::{Arg, Key, Text};
 
 use stratum_core::{
     ids::{ContainerId, RuleId},
@@ -64,21 +65,27 @@ impl Rule for StageMixing {
             return vec![];
         }
         let list = |names: &BTreeSet<&str>| names.iter().copied().collect::<Vec<_>>().join(", ");
-        let mut others = Vec::new();
+        let mut others: Vec<Arg> = Vec::new();
         if !sub_units.is_empty() {
-            others.push(format!("sub-units ({})", list(&sub_units)));
+            others.push(
+                Text::new(Key::StageMixingSubUnits)
+                    .arg("list", list(&sub_units))
+                    .into(),
+            );
         }
         if !domain_folders.is_empty() {
-            others.push(format!("other folders ({})", list(&domain_folders)));
+            others.push(
+                Text::new(Key::StageMixingOtherFolders)
+                    .arg("list", list(&domain_folders))
+                    .into(),
+            );
         }
         let fix = if sub_units.is_empty() {
-            format!(
-                "Move the code of {} into the segment folders ({}), or turn the segments into sub-units: not both on one level.",
-                list(&domain_folders),
-                list(&segments),
-            )
+            Text::new(Key::StageMixingFoldersFix)
+                .arg("folders", list(&domain_folders))
+                .arg("segments", list(&segments))
         } else {
-            "Pick one split: move the segment folders' code into sub-units, or fold the sub-units back into segments.".into()
+            Text::new(Key::StageMixingSubUnitsFix)
         };
         at_folder(
             graph,
@@ -86,12 +93,10 @@ impl Rule for StageMixing {
             severity,
             &c.path,
             c.entry,
-            format!(
-                "Container '{name}' mixes segment folders ({segments}) with {others} on one level",
-                name = c.name,
-                segments = list(&segments),
-                others = others.join(" and "),
-            ),
+            Text::new(Key::StageMixing)
+                .arg("name", &c.name)
+                .arg("segments", list(&segments))
+                .arg("others", Arg::Join(others, Key::ListAnd)),
             fix,
         )
         .into_iter()

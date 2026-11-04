@@ -17,11 +17,6 @@ const countUses = (features: readonly Feature[]): Map<number, number> => {
   return uses
 }
 
-/**
- * The modules the views show: the union of the chosen features, less the modules that more than
- * `commonLimit` of all features use when hiding common. `null` when nothing narrows the graph.
- * Ids in `chosen` that name no feature are ignored.
- */
 export const scopeOf = (features: readonly Feature[], filter: FeatureFilter): ModuleScope | null => {
   const chosenIds = new Set(filter.chosen)
   const chosen = features.filter((f) => chosenIds.has(f.id))

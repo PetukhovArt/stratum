@@ -1,3 +1,4 @@
+use stratum_core::text::{Key, Text};
 use stratum_core::{
     ids::{ModuleId, RuleId},
     severity::Severity,
@@ -40,25 +41,26 @@ impl Rule for PromotionPressure {
         if pressure < options.threshold {
             return vec![];
         }
+        let layer = graph
+            .layers
+            .get(&m.layer)
+            .map_or_else(|| format!("layer#{}", m.layer.raw()), |l| l.name.clone());
+        let message = Text::new(Key::PromotionPressure)
+            .arg("pressure", pressure)
+            .arg("layer", layer)
+            .arg("limit", options.threshold);
+        let fix = Text::new(Key::PromotionPressureFix);
         vec![Violation {
             rule: self.id(),
             severity,
-            message: format!(
-                "Imported by {pressure} modules from layers that do not depend on '{layer}' (threshold {limit}); consider promoting it to a lower layer",
-                layer = graph
-                    .layers
-                    .get(&m.layer)
-                    .map_or_else(|| format!("layer#{}", m.layer.raw()), |l| l.name.clone()),
-                limit = options.threshold
-            ),
+            message: message.en(),
             file: m.path.clone(),
             location: SourceLocation { line: 1, column: 1 },
             modules: vec![scope],
             edge: None,
-            fix: Some(
-                "Move this module into the lowest layer that every dependent already depends on."
-                    .into(),
-            ),
+            fix: Some(fix.en()),
+            message_text: Some(message),
+            fix_text: Some(fix),
         }]
     }
 }
