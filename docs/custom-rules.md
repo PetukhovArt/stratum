@@ -296,17 +296,33 @@ A diff-mode rule. `options` is a list of policies: when the change touches a fil
 |---|---|
 | `when` | globs of the changed files that trigger the policy (required) |
 | `require` | globs of which at least one file must change too (required, not empty) |
+| `slice` | glob of directories, as in `import-policy`; the policy is checked per directory, below |
 | `message` | text of the violation; the files and globs are appended |
 | `fix` | what to change; replaces the rule's generic fix in the finding |
 
-Globs match every changed path relative to ROOT, source or not, untracked files included. It runs only where there is a diff:
+Globs match every changed path relative to ROOT, source or not, untracked files included.
 
-- `stratum-lint --changed[=REF]`: one finding per broken policy, at line 1 of the first changed `when` file, so the gate fails. Without REF the diff is the uncommitted work against `HEAD`; in CI use `--changed=origin/main`.
+With `slice`, the policy holds per slice directory: every directory matching the glob that holds a changed `when` file needs a changed `require` file under that directory. A file's slice directory is its shallowest parent directory that matches, as in `import-policy`. A `when` file under no slice directory is checked as without `slice`: a changed `require` file anywhere satisfies it.
+
+```jsonc
+{ "slice": "src/domain/*", "when": ["src/domain/*/yaml-dto.ts"], "require": ["src/domain/*/migrations/**"],
+  "message": "DTO changed without a migration step" }
+```
+
+Changing `src/domain/connections/yaml-dto.ts` and `src/domain/scenes/migrations/x.ts` breaks the policy for `src/domain/connections`:
+
+```text
+DTO changed without a migration step: `src/domain/connections/yaml-dto.ts` changed in `src/domain/connections`, but no file under `src/domain/connections` matching `src/domain/*/migrations/**` did
+```
+
+It runs only where there is a diff:
+
+- `stratum-lint --changed[=REF]`: one finding per broken policy, or per broken slice directory, at line 1 of the first changed `when` file, so the gate fails. Without REF the diff is the uncommitted work against `HEAD`; in CI use `--changed=origin/main`.
 - `stratum-lint diff --base REF`: a section "Files that must change together" in the drift report, and exit 1.
 
 Plain `lint`, `baseline` and the LSP never run it.
 
-A false alarm (a typo fix in the schema) is acknowledged in the changed file: `stratum-ignore stratum/co-change -- <reason>` on any line, in any comment syntax (`//`, `#`, `--`, `<!-- -->`), so `.sql`, `.yaml` and `.md` files can hold it too. While a changed `when` file holds it, the policy is not reported for the change. The directive is never reported as hiding nothing, since only a diff reads it; it does stay after the merge and acknowledges every later change of that file, so delete it once the change has landed.
+A false alarm (a typo fix in the schema) is acknowledged in the changed file: `stratum-ignore stratum/co-change -- <reason>` on any line, in any comment syntax (`//`, `#`, `--`, `<!-- -->`), so `.sql`, `.yaml` and `.md` files can hold it too. While a changed `when` file holds it, the policy is not reported for the change; with `slice`, for that file's slice directory. The directive is never reported as hiding nothing, since only a diff reads it; it does stay after the merge and acknowledges every later change of that file, so delete it once the change has landed.
 
 ## `stratum/restricted-calls`: calls allowed only in chosen files
 

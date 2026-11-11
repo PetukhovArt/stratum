@@ -106,6 +106,12 @@ catalog! {
     CoChangeFix {
         en: "Change a file matching {require} in the same change, or acknowledge it: `stratum-ignore stratum/co-change -- <reason>` in a comment of `{first}`",
     }
+    CoChangeInSlice {
+        en: "{message}: `{first}`{more} changed in `{slice}`, but no file under `{slice}` matching {require} did",
+    }
+    CoChangeInSliceFix {
+        en: "Change a file under `{slice}` matching {require} in the same change, or acknowledge it: `stratum-ignore stratum/co-change -- <reason>` in a comment of `{first}`",
+    }
 
     SuppressionForbidden {
         en: "Directive `{written}` is forbidden: `stratum/suppression` `forbid` lists `{listed}`.",

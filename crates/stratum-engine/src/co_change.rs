@@ -99,16 +99,22 @@ fn message_text(miss: &CoChangeMiss) -> Text {
     } else {
         (&miss.message).into()
     };
-    Text::new(Key::CoChange)
-        .arg("message", own)
+    let text = match &miss.slice {
+        Some(slice) => Text::new(Key::CoChangeInSlice).arg("slice", slice),
+        None => Text::new(Key::CoChange),
+    };
+    text.arg("message", own)
         .arg("first", &miss.when[0])
         .arg("more", more)
         .arg("require", globs(&miss.require))
 }
 
 fn fix_text(miss: &CoChangeMiss) -> Text {
-    Text::new(Key::CoChangeFix)
-        .arg("require", globs(&miss.require))
+    let text = match &miss.slice {
+        Some(slice) => Text::new(Key::CoChangeInSliceFix).arg("slice", slice),
+        None => Text::new(Key::CoChangeFix),
+    };
+    text.arg("require", globs(&miss.require))
         .arg("first", &miss.when[0])
 }
 
