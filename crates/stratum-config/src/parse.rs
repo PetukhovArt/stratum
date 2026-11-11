@@ -86,7 +86,32 @@ fn check_entry_points(path: &Utf8Path, config: &Config) -> Result<(), ConfigErro
     }
 }
 
+const NAMES_LAYERS: [&str; 1] = ["stratum/unclaimed-folder"];
+
+fn check_option_layer_refs(config: &Config) -> Result<(), ConfigError> {
+    for slug in NAMES_LAYERS {
+        let named = config
+            .rules
+            .get(slug)
+            .and_then(|rule| rule.options.get("layers"))
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str);
+        for id in named {
+            if !config.layers.iter().any(|l| l.id == id) {
+                return Err(ConfigError::Rule {
+                    slug: slug.to_owned(),
+                    message: format!("option \"layers\": no layer has id {id:?}"),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
 fn check_layer_refs(path: &Utf8Path, config: &Config) -> Result<(), ConfigError> {
+    check_option_layer_refs(config)?;
     for layer in &config.layers {
         for dep in &layer.depends_on {
             if !config.layers.iter().any(|l| &l.id == dep) {
@@ -223,5 +248,12 @@ mod tests {
             "layers": [{ "id": "app", "path": "src/app", "depends_on": ["shraed"] }] }"#;
         let err = parse_str(&path, dep).unwrap_err();
         assert!(err.to_string().contains("shraed"), "{err}");
+        let option = r#"{ "version": 1, "layers": [{ "id": "app", "path": "src/app" }],
+            "rules": { "stratum/unclaimed-folder": { "severity": "error", "options": { "layers": ["ap"] } } } }"#;
+        let err = parse_str(&path, option).unwrap_err().to_string();
+        assert!(
+            err.contains("stratum/unclaimed-folder") && err.contains("\"ap\""),
+            "{err}"
+        );
     }
 }

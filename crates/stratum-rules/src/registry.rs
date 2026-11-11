@@ -188,7 +188,7 @@ impl RuleRegistry {
             promotion_pressure::PromotionPressure, public_api::PublicApi, purity::PurityRule,
             reachability_policy::ReachabilityPolicy, restricted_calls::RestrictedCalls,
             sibling_isolation::SiblingIsolation, slice_fan_in::SliceFanIn,
-            stage_mixing::StageMixing, suppression::Suppression,
+            stage_mixing::StageMixing, suppression::Suppression, unclaimed_folder::UnclaimedFolder,
             unreachable_modules::UnreachableModules, unused_dependencies::UnusedDependencies,
             unused_exports::UnusedExports, visibility_scope::VisibilityScope,
             zone_breadth::ZoneBreadth,
@@ -221,6 +221,7 @@ impl RuleRegistry {
         r.register(UnusedDependencies);
         r.register(ReachabilityPolicy);
         r.register(CoChange);
+        r.register(UnclaimedFolder);
         r
     }
 }

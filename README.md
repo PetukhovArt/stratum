@@ -107,6 +107,7 @@ Source files: `.ts .tsx .mts .cts .js .jsx .mjs .cjs .vue` (Vue: `<script>` and 
 | `stratum/container-breadth` | A folder holding too much directly inside it: more than `max_kinds` kinds in a container, more than `max_items` items in a segment, collection or sliced layer root, more than `max_root_files` files at a composer's root. |
 | `stratum/zone-breadth` | A private zone with more than `max_kinds` kinds of children. |
 | `stratum/missing-entry` | A folder with segment or private-zone children but no entry file. |
+| `stratum/unclaimed-folder` | A folder directly in a layer listed in `layers` that no declared layer, private zone, segment or `allow` glob claims, so it silently gets that layer's `depends_on`. |
 | `stratum/no-barrel` | An entry file that only re-exports (barrel) inside a segment folder, or at the root of a layer listed in `layers`. |
 | `stratum/composer-scope` | A stage-4 composer whose private zone has no file matching `scope_file`. |
 | `stratum/naming` | A folder name outside `folder_case`, listed in `reserved`, or a duplicate or plural slice name. |

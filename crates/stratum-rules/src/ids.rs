@@ -27,8 +27,9 @@ pub const SUPPRESSION: RuleId = RuleId::new(24);
 pub const UNUSED_DEPENDENCIES: RuleId = RuleId::new(25);
 pub const REACHABILITY_POLICY: RuleId = RuleId::new(26);
 pub const CO_CHANGE: RuleId = RuleId::new(27);
+pub const UNCLAIMED_FOLDER: RuleId = RuleId::new(28);
 
-pub const BUILTIN: [RuleId; 27] = [
+pub const BUILTIN: [RuleId; 28] = [
     NO_CROSS_LAYER_IMPORT,
     NO_CIRCULAR_DEPS,
     PURITY,
@@ -56,6 +57,7 @@ pub const BUILTIN: [RuleId; 27] = [
     UNUSED_DEPENDENCIES,
     REACHABILITY_POLICY,
     CO_CHANGE,
+    UNCLAIMED_FOLDER,
 ];
 
 #[must_use]

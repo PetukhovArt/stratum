@@ -239,6 +239,13 @@ catalog! {
         en: "Add {entry} to '{name}' exporting its public surface, or flatten the folder if it is not a unit.",
     }
 
+    UnclaimedFolder {
+        en: "`{folder}` belongs to no layer of its own and falls into `{layer}`, which may import {count} layers",
+    }
+    UnclaimedFolderFix {
+        en: "Declare a layer for `{folder}` with its own `depends_on`, move it into a declared layer, or add it to the rule's `allow`.",
+    }
+
     NoNavDoc {
         en: "Folder '{name}' has no navigation doc '{nav}'",
     }

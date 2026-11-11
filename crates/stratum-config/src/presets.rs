@@ -12,7 +12,7 @@ pub const NAMES: [&str; 2] = [RECOMMENDED, FSD];
 
 const RECOMMENDED_PRIVATE: [&str; 1] = ["_shared"];
 
-const RECOMMENDED_RULES: [(&str, Severity); 21] = [
+const RECOMMENDED_RULES: [(&str, Severity); 22] = [
     ("stratum/no-cross-layer-import", Severity::Warning),
     ("stratum/no-circular-deps", Severity::Error),
     ("stratum/purity", Severity::Warning),
@@ -34,6 +34,7 @@ const RECOMMENDED_RULES: [(&str, Severity); 21] = [
     ("stratum/unused-exports", Severity::Off),
     ("stratum/unreachable-modules", Severity::Off),
     ("stratum/suppression", Severity::Error),
+    ("stratum/unclaimed-folder", Severity::Off),
 ];
 
 const FSD_RULES: [(&str, Severity); 12] = [

@@ -96,6 +96,7 @@ A parent may extend further; a cycle is an error. Merge, child over parent:
 | `stratum/container-breadth` | off | off | off | `max_kinds` (6), `max_items` (20), `max_root_files` (4) |
 | `stratum/zone-breadth` | warning | warning | error | `max_kinds` (6) |
 | `stratum/missing-entry` | warning | warning | error | none |
+| `stratum/unclaimed-folder` | off | off | off | `layers` ([]), `allow` ([]) |
 | `stratum/no-barrel` | warning | warning | error | `layers` ([]) |
 | `stratum/composer-scope` | warning | warning | warning | `scope_file` (unset) |
 | `stratum/naming` | warning | off | warning | `folder_case` (unset), `reserved` ([]), `duplicate_slices` (false) |
@@ -332,6 +333,36 @@ A false alarm (a typo fix in the schema) is acknowledged in the changed file: `s
 ```
 
 A plain identifier callee matches, and so does a local alias of an imported listed name (`import { inject as i }`, then `i()`) or `ns.inject()` on a namespace import. `obj.name` in `calls` matches a member call on the identifier `obj`, `*.name` any member call. The parser collects calls only when the `rules` entry has options and the rule is on there or in some override.
+
+## `stratum/unclaimed-folder`: no folder inherits a wide layer by accident
+
+A module belongs to the layer with the longest matching `path`. A layer such as `editor` (`src/features/editor`) may import everything while its parts are nested layers (`src/features/editor/core`, `src/features/editor/ui`) with narrow `depends_on`. A new folder `src/features/editor/image-picker/` that no layer declares falls into `editor` and gets its rights with no error. This rule makes every such folder a decision:
+
+```jsonc
+"stratum/unclaimed-folder": { "severity": "error", "options": {
+  "layers": ["editor"],
+  "allow": ["src/features/editor/legacy-*"]
+} }
+```
+
+| Key | Meaning (default) |
+|---|---|
+| `layers` | ids of the layers whose direct child folders must be claimed; an id no layer declares fails the run with exit 2 (`[]`) |
+| `allow` | globs of folders, relative to ROOT, that may stay in the parent layer; `*` stays within one folder (`[]`) |
+
+For each listed layer, every direct child folder of its `path` that holds a module (after `project.ignore`) must be claimed:
+
+- it is the `path` of a declared layer, or an ancestor of one (`src/features/editor/panels` when `src/features/editor/panels/props` is a layer);
+- it is a private zone (its name in `structure.private`) or a segment folder (its name in `structure.segments`; in a `slices: true` layer every direct child is a slice, never a segment);
+- or it matches an `allow` glob.
+
+Files directly in the layer folder are fine. One finding per unclaimed folder, at line 1 of its first module by path:
+
+```text
+`src/features/editor/image-picker` belongs to no layer of its own and falls into `editor`, which may import 6 layers
+```
+
+The finding holds every module of the folder, so `--changed` and `--files` report it when any of them is in scope. Off by default and in both presets, zero-config included: it needs declared layers.
 
 ## `stratum/module-docs`: navigation docs that follow the folders
 

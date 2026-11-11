@@ -119,6 +119,15 @@ pub fn builtin(slug: &str) -> Option<RuleDoc> {
             "Add an entry file that exports the unit's public surface, or flatten the folder if it is not a unit.",
             &[],
         ),
+        "stratum/unclaimed-folder" => (
+            "For each layer listed in `layers`, reports a direct child folder of the layer folder that holds a module and that nothing claims: it is not the path of a declared layer or an ancestor of one, not a private zone or a segment folder (its name in `structure.private`, or in `structure.segments` outside a `slices: true` layer), and matches no `allow` glob. Files directly in the layer folder are fine. One finding per folder, at line 1 of its first module by path; the finding holds every module of the folder, so `--changed` and `--files` report it when any of them is in scope. A layer id in `layers` that no layer declares is a config error.",
+            "A module belongs to the layer with the longest matching path. A wide layer whose parts are nested layers with narrow `depends_on` gives a new folder nobody declared the widest rights in silence, and the layer map stops describing the code.",
+            "Declare a layer for the folder with its own `depends_on`, move the folder into a declared layer, or add it to `allow` when the parent layer's rights are what it needs.",
+            &[
+                "layers: ids of the layers whose direct child folders must be claimed ([])",
+                "allow: globs of folders, relative to the project root, that may stay in the parent layer ([])",
+            ],
+        ),
         "stratum/no-barrel" => (
             "Reports an entry file (`structure.entries`) that only re-exports, every statement an `export … from`, an `export * from` or an import whose bindings it re-exports, used as a barrel where it hurts: directly inside a segment folder, and, in the layers named in `layers`, at the layer root.",
             "A segment is a group of files, not a unit. A barrel over it, or over a layer every other layer imports, makes each importer load all of it, hides which file provides a name and invites import cycles.",

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added rule `stratum/unclaimed-folder`: for each layer listed in `layers`, a direct child folder that no declared layer, private zone, segment or `allow` glob claims is reported, so a new folder no longer falls into a wide parent layer and gets its `depends_on` in silence; a layer id no layer declares fails the run with exit 2 (off by default)
+
 ## 0.7.0 (2026-11-04)
 
 - Added a Contract section to the visualizer: selecting an import edge or a bundle lists the names that cross it, each resolved through barrels to its declaration, and a name opens the Code panel on the import line and the declaration

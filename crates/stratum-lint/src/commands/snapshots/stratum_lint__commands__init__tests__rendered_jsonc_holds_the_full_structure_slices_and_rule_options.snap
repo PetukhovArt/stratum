@@ -33,6 +33,7 @@ expression: txt
     "stratum/slice-fan-in": { "severity": "off" },
     "stratum/stage-mixing": { "severity": "off" },
     "stratum/suppression": { "severity": "error" },
+    "stratum/unclaimed-folder": { "severity": "off" },
     "stratum/unreachable-modules": { "severity": "off" },
     "stratum/unused-exports": { "severity": "off" },
     "stratum/visibility-scope": { "severity": "error" },
