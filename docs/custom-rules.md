@@ -96,6 +96,7 @@ A parent may extend further; a cycle is an error. Merge, child over parent:
 | `stratum/container-breadth` | off | off | off | `max_kinds` (6), `max_items` (20), `max_root_files` (4) |
 | `stratum/zone-breadth` | warning | warning | error | `max_kinds` (6) |
 | `stratum/missing-entry` | warning | warning | error | none |
+| `stratum/unclaimed-folder` | off | off | off | `layers` ([]), `allow` ([]) |
 | `stratum/no-barrel` | warning | warning | error | `layers` ([]) |
 | `stratum/composer-scope` | warning | warning | warning | `scope_file` (unset) |
 | `stratum/naming` | warning | off | warning | `folder_case` (unset), `reserved` ([]), `duplicate_slices` (false) |
@@ -295,17 +296,33 @@ A diff-mode rule. `options` is a list of policies: when the change touches a fil
 |---|---|
 | `when` | globs of the changed files that trigger the policy (required) |
 | `require` | globs of which at least one file must change too (required, not empty) |
+| `slice` | glob of directories, as in `import-policy`; the policy is checked per directory, below |
 | `message` | text of the violation; the files and globs are appended |
 | `fix` | what to change; replaces the rule's generic fix in the finding |
 
-Globs match every changed path relative to ROOT, source or not, untracked files included. It runs only where there is a diff:
+Globs match every changed path relative to ROOT, source or not, untracked files included.
 
-- `stratum-lint --changed[=REF]`: one finding per broken policy, at line 1 of the first changed `when` file, so the gate fails. Without REF the diff is the uncommitted work against `HEAD`; in CI use `--changed=origin/main`.
+With `slice`, the policy holds per slice directory: every directory matching the glob that holds a changed `when` file needs a changed `require` file under that directory. A file's slice directory is its shallowest parent directory that matches, as in `import-policy`. A `when` file under no slice directory is checked as without `slice`: a changed `require` file anywhere satisfies it.
+
+```jsonc
+{ "slice": "src/domain/*", "when": ["src/domain/*/yaml-dto.ts"], "require": ["src/domain/*/migrations/**"],
+  "message": "DTO changed without a migration step" }
+```
+
+Changing `src/domain/connections/yaml-dto.ts` and `src/domain/scenes/migrations/x.ts` breaks the policy for `src/domain/connections`:
+
+```text
+DTO changed without a migration step: `src/domain/connections/yaml-dto.ts` changed in `src/domain/connections`, but no file under `src/domain/connections` matching `src/domain/*/migrations/**` did
+```
+
+It runs only where there is a diff:
+
+- `stratum-lint --changed[=REF]`: one finding per broken policy, or per broken slice directory, at line 1 of the first changed `when` file, so the gate fails. Without REF the diff is the uncommitted work against `HEAD`; in CI use `--changed=origin/main`.
 - `stratum-lint diff --base REF`: a section "Files that must change together" in the drift report, and exit 1.
 
 Plain `lint`, `baseline` and the LSP never run it.
 
-A false alarm (a typo fix in the schema) is acknowledged in the changed file: `stratum-ignore stratum/co-change -- <reason>` on any line, in any comment syntax (`//`, `#`, `--`, `<!-- -->`), so `.sql`, `.yaml` and `.md` files can hold it too. While a changed `when` file holds it, the policy is not reported for the change. The directive is never reported as hiding nothing, since only a diff reads it; it does stay after the merge and acknowledges every later change of that file, so delete it once the change has landed.
+A false alarm (a typo fix in the schema) is acknowledged in the changed file: `stratum-ignore stratum/co-change -- <reason>` on any line, in any comment syntax (`//`, `#`, `--`, `<!-- -->`), so `.sql`, `.yaml` and `.md` files can hold it too. While a changed `when` file holds it, the policy is not reported for the change; with `slice`, for that file's slice directory. The directive is never reported as hiding nothing, since only a diff reads it; it does stay after the merge and acknowledges every later change of that file, so delete it once the change has landed.
 
 ## `stratum/restricted-calls`: calls allowed only in chosen files
 
@@ -332,6 +349,36 @@ A false alarm (a typo fix in the schema) is acknowledged in the changed file: `s
 ```
 
 A plain identifier callee matches, and so does a local alias of an imported listed name (`import { inject as i }`, then `i()`) or `ns.inject()` on a namespace import. `obj.name` in `calls` matches a member call on the identifier `obj`, `*.name` any member call. The parser collects calls only when the `rules` entry has options and the rule is on there or in some override.
+
+## `stratum/unclaimed-folder`: no folder inherits a wide layer by accident
+
+A module belongs to the layer with the longest matching `path`. A layer such as `editor` (`src/features/editor`) may import everything while its parts are nested layers (`src/features/editor/core`, `src/features/editor/ui`) with narrow `depends_on`. A new folder `src/features/editor/image-picker/` that no layer declares falls into `editor` and gets its rights with no error. This rule makes every such folder a decision:
+
+```jsonc
+"stratum/unclaimed-folder": { "severity": "error", "options": {
+  "layers": ["editor"],
+  "allow": ["src/features/editor/legacy-*"]
+} }
+```
+
+| Key | Meaning (default) |
+|---|---|
+| `layers` | ids of the layers whose direct child folders must be claimed; an id no layer declares fails the run with exit 2 (`[]`) |
+| `allow` | globs of folders, relative to ROOT, that may stay in the parent layer; `*` stays within one folder (`[]`) |
+
+For each listed layer, every direct child folder of its `path` that holds a module (after `project.ignore`) must be claimed:
+
+- it is the `path` of a declared layer, or an ancestor of one (`src/features/editor/panels` when `src/features/editor/panels/props` is a layer);
+- it is a private zone (its name in `structure.private`) or a segment folder (its name in `structure.segments`; in a `slices: true` layer every direct child is a slice, never a segment);
+- or it matches an `allow` glob.
+
+Files directly in the layer folder are fine. One finding per unclaimed folder, at line 1 of its first module by path:
+
+```text
+`src/features/editor/image-picker` belongs to no layer of its own and falls into `editor`, which may import 6 layers
+```
+
+The finding holds every module of the folder, so `--changed` and `--files` report it when any of them is in scope. Off by default and in both presets, zero-config included: it needs declared layers.
 
 ## `stratum/module-docs`: navigation docs that follow the folders
 

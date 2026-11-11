@@ -38,6 +38,9 @@ pub use builtin::sibling_isolation::SiblingIsolation;
 pub use builtin::slice_fan_in::SliceFanIn;
 pub use builtin::stage_mixing::StageMixing;
 pub use builtin::suppression::Suppression;
+pub use builtin::unclaimed_folder::{
+    UNCLAIMED_FOLDER_SLUG, UnclaimedFolder, UnclaimedFolderOptions,
+};
 pub use builtin::unreachable_modules::UnreachableModules;
 pub use builtin::unused_dependencies::{
     DEFAULT_ENTRIES, DependencyCheck, ManifestField, UnusedDependencies, UnusedDependenciesOptions,
@@ -60,7 +63,7 @@ pub use ids::{
     CO_CHANGE, COMPOSER_SCOPE, CONTAINER_BREADTH, DEEP_MODULE, DEPTH_RATIO, IMPORT_POLICY,
     MILLER_LIMIT, MISSING_ENTRY, MODULE_DOCS, NAMING, NO_BARREL, NO_CIRCULAR_DEPS,
     NO_CROSS_LAYER_IMPORT, PROMOTION_PRESSURE, PUBLIC_API, PURITY, REACHABILITY_POLICY,
-    RESTRICTED_CALLS, SIBLING_ISOLATION, SLICE_FAN_IN, STAGE_MIXING, SUPPRESSION,
+    RESTRICTED_CALLS, SIBLING_ISOLATION, SLICE_FAN_IN, STAGE_MIXING, SUPPRESSION, UNCLAIMED_FOLDER,
     UNREACHABLE_MODULES, UNUSED_DEPENDENCIES, UNUSED_EXPORTS, VISIBILITY_SCOPE, ZONE_BREADTH,
 };
 pub use rule::{EmptyOptions, Rule};

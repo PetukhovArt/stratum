@@ -1,9 +1,11 @@
+use std::collections::BTreeMap;
+
 use globset::GlobSet;
 use serde::Deserialize;
 use stratum_core::{ids::RuleId, severity::Severity, violation::Violation};
 use stratum_graph::CompoundGraph;
 
-use crate::builtin::import_policy::glob_set;
+use crate::builtin::import_policy::{glob_set, slice_dir};
 use crate::ids::CO_CHANGE;
 use crate::rule::Rule;
 use crate::scope::ProjectScope;
@@ -28,6 +30,8 @@ struct CoChangeSpec {
     when: Vec<String>,
     require: Vec<String>,
     #[serde(default)]
+    slice: Option<String>,
+    #[serde(default)]
     message: Option<String>,
     #[serde(default)]
     fix: Option<String>,
@@ -38,6 +42,7 @@ struct CoChangePolicy {
     when: GlobSet,
     require: GlobSet,
     require_patterns: Vec<String>,
+    slice: Option<GlobSet>,
     message: String,
     fix: Option<String>,
 }
@@ -56,6 +61,7 @@ impl TryFrom<Vec<CoChangeSpec>> for CoChangeOptions {
                     when: glob_set(&spec.when)?,
                     require: glob_set(&spec.require)?,
                     require_patterns: spec.require,
+                    slice: spec.slice.map(|p| glob_set(&[p])).transpose()?,
                     message: spec.message.unwrap_or_else(|| DEFAULT_MESSAGE.into()),
                     fix: spec.fix,
                 })
@@ -74,32 +80,48 @@ pub struct CoChangeMiss {
     pub when: Vec<String>,
     /// The `require` globs as written.
     pub require: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slice: Option<String>,
 }
 
 impl CoChangeOptions {
     /// `changed`: paths relative to the project root with `/`.
     #[must_use]
     pub fn misses(&self, changed: &[String]) -> Vec<CoChangeMiss> {
+        let mut changed: Vec<&str> = changed.iter().map(String::as_str).collect();
+        changed.sort_unstable();
+        changed.dedup();
         self.policies
             .iter()
-            .filter(|p| !changed.iter().any(|f| p.require.is_match(f)))
-            .filter_map(|p| {
-                let mut when: Vec<String> = changed
-                    .iter()
-                    .filter(|f| p.when.is_match(f.as_str()))
-                    .cloned()
-                    .collect();
-                if when.is_empty() {
-                    return None;
-                }
-                when.sort();
-                when.dedup();
-                Some(CoChangeMiss {
-                    message: p.message.clone(),
-                    fix: p.fix.clone(),
-                    when,
-                    require: p.require_patterns.clone(),
+            .flat_map(|p| p.misses(&changed))
+            .collect()
+    }
+}
+
+impl CoChangePolicy {
+    fn misses(&self, changed: &[&str]) -> Vec<CoChangeMiss> {
+        let mut by_slice: BTreeMap<Option<&str>, Vec<String>> = BTreeMap::new();
+        for file in changed.iter().filter(|f| self.when.is_match(f)) {
+            let slice = self.slice.as_ref().and_then(|s| slice_dir(s, file));
+            by_slice.entry(slice).or_default().push((*file).to_owned());
+        }
+        by_slice
+            .into_iter()
+            .filter(|(slice, _)| {
+                !changed.iter().any(|f| {
+                    self.require.is_match(f)
+                        && slice.is_none_or(|dir| {
+                            f.strip_prefix(dir)
+                                .is_some_and(|rest| rest.starts_with('/'))
+                        })
                 })
+            })
+            .map(|(slice, when)| CoChangeMiss {
+                message: self.message.clone(),
+                fix: self.fix.clone(),
+                when,
+                require: self.require_patterns.clone(),
+                slice: slice.map(str::to_owned),
             })
             .collect()
     }
@@ -156,6 +178,45 @@ mod tests {
                 { "when": ["a"], "require": [] }
             ]))
             .is_err()
+        );
+    }
+
+    #[test]
+    fn with_a_slice_each_slice_directory_needs_its_own_require_file() {
+        let options: CoChangeOptions = serde_json::from_value(serde_json::json!([{
+            "slice": "src/domain/*",
+            "when": ["src/**/yaml-dto.ts"],
+            "require": ["src/domain/*/migrations/**", "src/legacy/migrations/**"],
+        }]))
+        .unwrap();
+        let changed =
+            |files: &[&str]| -> Vec<String> { files.iter().map(|f| (*f).to_owned()).collect() };
+        let missed = options.misses(&changed(&[
+            "src/domain/connections/yaml-dto.ts",
+            "src/domain/scenes/yaml-dto.ts",
+            "src/domain/scenes/migrations/x.ts",
+        ]));
+        assert_eq!(missed.len(), 1);
+        assert_eq!(missed[0].slice.as_deref(), Some("src/domain/connections"));
+        assert_eq!(missed[0].when, ["src/domain/connections/yaml-dto.ts"]);
+        assert_eq!(
+            options.misses(&changed(&[
+                "src/domain/connections/yaml-dto.ts",
+                "src/domain/connections/migrations/1.ts",
+            ])),
+            []
+        );
+
+        let outside = options.misses(&changed(&["src/legacy/yaml-dto.ts"]));
+        assert_eq!(outside.len(), 1);
+        assert_eq!(outside[0].slice, None);
+        assert_eq!(
+            options.misses(&changed(&[
+                "src/legacy/yaml-dto.ts",
+                "src/domain/scenes/migrations/x.ts",
+            ])),
+            [],
+            "outside every slice directory, any changed require file satisfies the policy"
         );
     }
 }

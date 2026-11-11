@@ -124,6 +124,19 @@ fn glob(pattern: &str) -> Result<globset::Glob, String> {
         .map_err(|e| format!("invalid glob {pattern:?}: {e}"))
 }
 
+fn prefix_ends(dir: &str) -> impl Iterator<Item = usize> + '_ {
+    dir.match_indices('/')
+        .map(|(end, _)| end)
+        .chain([dir.len()])
+}
+
+pub(crate) fn slice_dir<'a>(slice: &GlobSet, file: &'a str) -> Option<&'a str> {
+    let (dir, _) = file.rsplit_once('/')?;
+    prefix_ends(dir)
+        .map(|end| &dir[..end])
+        .find(|prefix| slice.is_match(prefix))
+}
+
 pub(crate) fn glob_set(patterns: &[String]) -> Result<GlobSet, String> {
     let mut builder = GlobSetBuilder::new();
     for p in patterns {
@@ -176,11 +189,7 @@ impl Matcher {
         if self.slice_policy.is_empty() || dir.is_empty() {
             return row;
         }
-        let ends = dir
-            .match_indices('/')
-            .map(|(end, _)| end)
-            .chain([dir.len()]);
-        for end in ends {
+        for end in prefix_ends(dir) {
             for s in self.slices.matches(&dir[..end]) {
                 row[self.slice_policy[s]].get_or_insert(end);
             }

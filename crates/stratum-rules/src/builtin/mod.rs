@@ -22,6 +22,7 @@ pub mod sibling_isolation;
 pub mod slice_fan_in;
 pub mod stage_mixing;
 pub mod suppression;
+pub mod unclaimed_folder;
 pub mod unreachable_modules;
 pub mod unused_dependencies;
 pub mod unused_exports;

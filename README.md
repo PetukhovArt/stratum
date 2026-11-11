@@ -101,12 +101,13 @@ Source files: `.ts .tsx .mts .cts .js .jsx .mjs .cjs .vue` (Vue: `<script>` and 
 | `stratum/sibling-isolation` | An import between two slices or sub-units that share a parent container. |
 | `stratum/import-policy` | Imports denied by `from` / `deny` / `allow` / `slice` globs declared in config. |
 | `stratum/reachability-policy` | A module matching `deny` that a `from` file reaches through a chain of imports, with the chain. |
-| `stratum/co-change` | On a diff (`--changed`, `diff --base`): a changed file matching `when` without any changed file matching `require`. |
+| `stratum/co-change` | On a diff (`--changed`, `diff --base`): a changed file matching `when` without any changed file matching `require`, in the same `slice` directory when the policy sets one. |
 | `stratum/restricted-calls` | A call to a listed function outside the files its policy allows. |
 | `stratum/stage-mixing` | A container holding segment folders next to sub-unit folders or other plain domain folders. |
 | `stratum/container-breadth` | A folder holding too much directly inside it: more than `max_kinds` kinds in a container, more than `max_items` items in a segment, collection or sliced layer root, more than `max_root_files` files at a composer's root. |
 | `stratum/zone-breadth` | A private zone with more than `max_kinds` kinds of children. |
 | `stratum/missing-entry` | A folder with segment or private-zone children but no entry file. |
+| `stratum/unclaimed-folder` | A folder directly in a layer listed in `layers` that no declared layer, private zone, segment or `allow` glob claims, so it silently gets that layer's `depends_on`. |
 | `stratum/no-barrel` | An entry file that only re-exports (barrel) inside a segment folder, or at the root of a layer listed in `layers`. |
 | `stratum/composer-scope` | A stage-4 composer whose private zone has no file matching `scope_file`. |
 | `stratum/naming` | A folder name outside `folder_case`, listed in `reserved`, or a duplicate or plural slice name. |
