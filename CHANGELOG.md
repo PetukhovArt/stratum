@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.8.0 (2026-11-11)
+
 - Added rule `stratum/unclaimed-folder`: for each layer listed in `layers`, a direct child folder that no declared layer, private zone, segment or `allow` glob claims is reported, so a new folder no longer falls into a wide parent layer and gets its `depends_on` in silence; a layer id no layer declares fails the run with exit 2 (off by default)
 - Added a `slice` key to `stratum/co-change` policies: every slice directory that holds a changed `when` file needs a changed `require` file under it, so a DTO changed in `src/domain/connections` is no longer covered by a migration added in `src/domain/scenes`; one finding per directory in `lint --changed` and in the `diff --base` report
 
