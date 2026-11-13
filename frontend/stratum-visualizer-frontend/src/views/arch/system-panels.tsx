@@ -1,11 +1,11 @@
 import { Component, For, Match, Show, Switch } from 'solid-js'
 import { codeTarget, CodeTarget, openCode } from '../../contract/code'
 import { t } from '../../i18n'
-import { ContractCaller, Loc, SystemContract, SystemInfo } from '../../lib/api'
+import { ContractCaller, Loc, SystemContract, SystemInfo, ViaModule } from '../../lib/api'
 import { Model } from '../../render/model'
-import { nav, set } from '../../shell/nav'
+import { go, nav, set } from '../../shell/nav'
 import { PathLabel } from '../../shell/path-text'
-import { contractCode, goToLevel } from './actions'
+import { contractCode, goToLevel, moduleCode } from './actions'
 import { Boxes } from './boxes'
 import { ARCH_CONTAINERS } from './path'
 import { ChannelInUse, SystemsInModel } from './systems'
@@ -85,17 +85,68 @@ const Unattributed: Component<{ n: number }> = (props) => (
   </Show>
 )
 
+const ViaList: Component<{ model: Model; via: readonly ViaModule[] }> = (props) => (
+  <div class="arch-via">
+    <For each={props.via}>
+      {(v) => {
+        const target = () => moduleCode(props.model, v.module)
+        const path = () => props.model.modules.get(v.module)?.path ?? String(v.module)
+        return (
+          <button
+            class={`arch-caller${isOpen(target()) ? ' on' : ''}`}
+            data-testid="arch-via-module"
+            data-module={v.module}
+            title={path()}
+            onClick={() => openCode(target())}
+            onDblClick={() => go({ view: 'focus', focus: v.module })}
+          >
+            <PathLabel path={path()} />
+          </button>
+        )
+      }}
+    </For>
+  </div>
+)
+
+const ViaSection: Component<{ model: Model; via: readonly ViaModule[] }> = (props) => (
+  <Show when={props.via.length}>
+    <div class="det-section" data-testid="arch-via">
+      <h4>{t('arch.channel.viaTitle', { n: props.via.length })}</h4>
+      <p class="arch-note">{t('arch.channel.viaHint')}</p>
+      <ViaList model={props.model} via={props.via} />
+    </div>
+  </Show>
+)
+
 const ChannelCard: Component<{ model: Model; systems: SystemsInModel; channel: ChannelInUse }> = (props) => (
   <div data-testid="arch-channel-details" data-from={props.systems.self.id} data-to={props.channel.to.id}>
     <div class="det-section">
       <h4>
-        {props.systems.self.name} → {props.channel.to.name} · {t('arch.channel.contracts', { n: props.channel.contracts.length })}
+        {props.systems.self.name} → {props.channel.to.name} ·{' '}
+        {props.channel.contracts.length || !props.channel.via.length
+          ? t('arch.channel.contracts', { n: props.channel.contracts.length })
+          : t('arch.channel.via', { n: props.channel.via.length })}
       </h4>
+      <Show when={props.channel.declared}>
+        {(label) => (
+          <p class="arch-note" title={t('arch.link.declared')}>
+            {label()}
+          </p>
+        )}
+      </Show>
       <Unattributed n={props.channel.unattributedCalls} />
-      <Show when={props.channel.contracts.length} fallback={<div class="empty">{t('arch.channel.none')}</div>}>
+      <Show
+        when={props.channel.contracts.length}
+        fallback={
+          <Show when={!props.channel.via.length}>
+            <div class="empty">{t('arch.channel.none')}</div>
+          </Show>
+        }
+      >
         <ContractList model={props.model} contracts={props.channel.contracts} />
       </Show>
     </div>
+    <ViaSection model={props.model} via={props.channel.via} />
   </div>
 )
 
@@ -113,7 +164,7 @@ const ChannelRows: Component<{ systems: SystemsInModel }> = (props) => (
           <span class="nm mono">
             {props.systems.self.name} → {c.to.name}
           </span>
-          <span class="n">{c.contracts.length}</span>
+          <span class="n">{c.contracts.length || (c.via.length ? t('arch.channel.via', { n: c.via.length }) : 0)}</span>
         </button>
       )}
     </For>
@@ -127,6 +178,7 @@ const SystemCard: Component<{ model: Model; systems: SystemsInModel; system: Sys
     <div data-testid="arch-system-details" data-id={props.system.id}>
       <div class="det-section">
         <h4>{props.system.name}</h4>
+        <Show when={props.system.description}>{(d) => <p class="arch-note">{d()}</p>}</Show>
         <Switch>
           <Match when={isSelf()}>
             <p class="arch-note">{t('arch.system.self', { n: props.model.modules.size })}</p>
@@ -142,6 +194,11 @@ const SystemCard: Component<{ model: Model; systems: SystemsInModel; system: Sys
                 {t('arch.system.unavailableReason', { reason: reason() })}
               </p>
             )}
+          </Match>
+          <Match when={props.system.isExternal && !props.system.contractsTotal}>
+            <p class="arch-note" data-testid="arch-system-external-note">
+              {t('arch.system.external')}
+            </p>
           </Match>
           <Match when={!isSelf()}>
             <p class="arch-note">{t('arch.system.contracts', { n: props.system.contractsTotal })}</p>
@@ -217,6 +274,10 @@ export const PortDetails: Component<{ model: Model; systems: SystemsInModel; box
                     {t('arch.channel.contracts', { n: l.contracts.length })}
                   </h4>
                   <ContractList model={props.model} contracts={l.contracts} />
+                  <Show when={l.via.length}>
+                    <h4>{t('arch.channel.viaTitle', { n: l.via.length })}</h4>
+                    <ViaList model={props.model} via={l.via} />
+                  </Show>
                 </div>
               )}
             </For>

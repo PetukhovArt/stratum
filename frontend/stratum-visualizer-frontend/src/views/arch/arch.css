@@ -60,6 +60,11 @@
 .arch-zone-name { font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
 .arch-actor { cursor: default; }
 .arch-system.muted .arch-system-name { fill: oklch(64% 0.01 260); }
+.arch-system-tag text {
+  font-size: 9px; letter-spacing: .06em; text-transform: uppercase; text-anchor: middle; dominant-baseline: central;
+  fill: oklch(80% 0.05 310);
+}
+.arch-via { display: flex; flex-direction: column; margin-bottom: 12px; }
 
 .arch-cts { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
 .arch-ct { padding: 4px 0; border-top: 1px solid var(--bd-1); }

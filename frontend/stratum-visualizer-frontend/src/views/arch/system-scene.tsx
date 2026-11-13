@@ -7,8 +7,8 @@ import { Model } from '../../render/model'
 import { nav, set } from '../../shell/nav'
 import { goToLevel } from './actions'
 import { ARCH_CONTAINERS } from './path'
-import { ActorBox, layoutSystems, LinkArrow, SystemBox, Zone } from './system-layout'
-import { channelWeight, SystemsInModel } from './systems'
+import { ActorBox, layoutSystems, LinkArrow, SystemBox, Zone, zoneTitleBelow } from './system-layout'
+import { ChannelInUse, SystemsInModel } from './systems'
 
 const NAME_CHAR_PX = 6.6
 const META_CHAR_PX = 5.6
@@ -28,11 +28,66 @@ const ZONE_TONE: Record<Zone['kind'], string> = {
   external: 'oklch(66% 0.05 310)',
 }
 const LINK_CHARS = 30
-const DESC_CHARS = 34
+const DESC_LINES = 2
+
+const wrapped = (text: string, chars: number, max: number): string[] => {
+  const lines: string[] = []
+  let line = ''
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    if (line && line.length + 1 + word.length > chars) {
+      lines.push(line)
+      line = word
+    } else line = line ? `${line} ${word}` : word
+  }
+  if (line) lines.push(line)
+  if (lines.length <= max) return lines.map((l) => trunc(l, chars))
+  return [...lines.slice(0, max - 1), trunc(lines.slice(max - 1).join(' '), chars)]
+}
 const MUTED_FILL = 'oklch(22% 0.008 260 / .6)'
 const MUTED_STROKE = 'oklch(45% 0.01 260)'
 const ARROW_WIDTH = 1.6
-const LINK_WIDTH = 1.2
+const LINK_WIDTH = 1.1
+const LINK_DASH = '2 4'
+const LINK_OPACITY = 0.42
+const LINK_LABEL = 'oklch(76% 0.012 260)'
+const EXTERNAL_DASH = '6 3'
+const TAG = { h: 16, charPx: 6, pad: 7, top: 10 } as const
+const LINE_TOP = 43
+const LINE_STEP = 17
+
+const channelText = (c: ChannelInUse): string =>
+  [
+    c.declared ? trunc(c.declared, LINK_CHARS) : null,
+    c.contracts.length || null,
+    c.via.length ? t('arch.channel.via', { n: c.via.length }) : null,
+  ]
+    .filter((part) => part !== null)
+    .join(' · ')
+
+const channelTitle = (self: string, c: ChannelInUse): string =>
+  [
+    `${self} → ${c.to.name}`,
+    c.declared,
+    c.contracts.length ? t('arch.channel.contracts', { n: c.contracts.length }) : null,
+    c.via.length ? t('arch.channel.via', { n: c.via.length }) : null,
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+const ExternalTag: Component<{ boxW: number }> = (props) => {
+  const text = t('arch.system.externalTag')
+  const w = text.length * TAG.charPx + TAG.pad * 2
+  return (
+    <g class="arch-system-tag" data-testid="arch-system-external" transform={`translate(${props.boxW - PAD - w},${TAG.top})`}>
+      <rect width={w} height={TAG.h} rx={TAG.h / 2} fill="none" stroke={EXTERNAL_STROKE} stroke-dasharray="3 2" />
+      <text x={w / 2} y={TAG.h / 2}>
+        {text}
+      </text>
+    </g>
+  )
+}
+
+const tagWidth = (): number => t('arch.system.externalTag').length * TAG.charPx + TAG.pad * 2 + 6
 
 const selectedSystem = (): string | null => {
   const sel = nav().sel
@@ -58,8 +113,14 @@ const SystemMark: Component<{ box: SystemBox; model: Model }> = (props) => {
     if (b.isSelf) return t('arch.system.self', { n: props.model.modules.size })
     if (b.system.unavailableReason) return t('arch.system.unavailable')
     if (b.system.contractsTotal) return t('arch.system.contracts', { n: b.system.contractsTotal })
-    return b.system.isExternal ? t('arch.system.external') : t('arch.system.internal')
+    return b.system.isExternal ? null : t('arch.system.internal')
   }
+  const detail = () => b.system.unavailableReason ?? b.system.description
+  const lines = () =>
+    [
+      { class: 'arch-system-meta', text: meta() },
+      { class: 'arch-system-reason', text: detail() },
+    ].filter((line): line is { class: string; text: string } => line.text !== null)
   const title = () =>
     [b.system.name, b.system.description, b.system.unavailableReason, b.isSelf ? t('arch.system.enterHint') : null]
       .filter(Boolean)
@@ -82,21 +143,21 @@ const SystemMark: Component<{ box: SystemBox; model: Model }> = (props) => {
         fill={tone.fill}
         stroke={isSelected() ? SELECTED_STROKE : tone.stroke}
         stroke-width={isSelected() ? 2 : 1.2}
-        stroke-dasharray={b.system.unavailableReason ? '5 3' : undefined}
+        stroke-dasharray={b.system.unavailableReason ? '5 3' : b.system.isExternal ? EXTERNAL_DASH : undefined}
       />
       <text class="arch-system-name" x={PAD} y={24}>
-        {trunc(b.system.name, Math.floor((b.w - PAD * 2) / NAME_CHAR_PX))}
+        {trunc(b.system.name, Math.floor((b.w - PAD * 2 - (b.system.isExternal ? tagWidth() : 0)) / NAME_CHAR_PX))}
       </text>
-      <text class="arch-system-meta" x={PAD} y={42}>
-        {meta()}
-      </text>
-      <Show when={b.system.unavailableReason ?? b.system.description}>
-        {(line) => (
-          <text class="arch-system-reason" x={PAD} y={60}>
-            {trunc(line(), Math.floor((b.w - PAD * 2) / META_CHAR_PX))}
+      <Show when={b.system.isExternal}>
+        <ExternalTag boxW={b.w} />
+      </Show>
+      <For each={lines()}>
+        {(line, i) => (
+          <text class={line.class} x={PAD} y={LINE_TOP + i() * LINE_STEP}>
+            {trunc(line.text, Math.floor((b.w - PAD * 2) / META_CHAR_PX))}
           </text>
         )}
-      </Show>
+      </For>
       <title>{title()}</title>
     </g>
   )
@@ -116,7 +177,12 @@ const ZoneMark: Component<{ zone: Zone }> = (props) => (
       stroke-opacity="0.45"
       stroke-dasharray="6 4"
     />
-    <text class="arch-zone-name" x={props.zone.x + 14} y={props.zone.y + 20} fill={ZONE_TONE[props.zone.kind]}>
+    <text
+      class="arch-zone-name"
+      x={props.zone.x + 14}
+      y={zoneTitleBelow(props.zone.kind) ? props.zone.y + props.zone.h - 11 : props.zone.y + 20}
+      fill={ZONE_TONE[props.zone.kind]}
+    >
       {t(`arch.zone.${props.zone.kind}`)}
     </text>
   </g>
@@ -132,13 +198,13 @@ const ActorMark: Component<{ box: ActorBox }> = (props) => {
       <text class="arch-system-name" x={PAD + 26} y={26}>
         {trunc(b.actor.name, Math.floor((b.w - PAD * 2 - 26) / NAME_CHAR_PX))}
       </text>
-      <Show when={b.actor.description}>
-        {(d) => (
-          <text class="arch-system-meta" x={PAD} y={54}>
-            {trunc(d(), DESC_CHARS)}
+      <For each={wrapped(b.actor.description ?? '', Math.floor((b.w - PAD * 2) / META_CHAR_PX), DESC_LINES)}>
+        {(line, i) => (
+          <text class="arch-system-reason" x={PAD} y={LINE_TOP + 4 + i() * (LINE_STEP - 3)}>
+            {line}
           </text>
         )}
-      </Show>
+      </For>
       <title>{[b.actor.name, b.actor.description].filter(Boolean).join('\n')}</title>
     </g>
   )
@@ -150,11 +216,19 @@ const LinkMark: Component<{ arrow: LinkArrow; nameOf: (id: string) => string }> 
     <Edge
       d={a.d}
       width={LINK_WIDTH}
+      dash={LINK_DASH}
+      opacity={LINK_OPACITY}
       testId="arch-link"
       class="arch-link"
       data={{ 'data-from': a.link.from, 'data-to': a.link.to }}
-      label={a.link.label ? { ...a.label, text: trunc(a.link.label, LINK_CHARS), class: 'edge-label' } : null}
-      title={`${props.nameOf(a.link.from)} → ${props.nameOf(a.link.to)}${a.link.label ? `\n${a.link.label}` : ''}`}
+      label={
+        a.link.label
+          ? { ...a.label, text: trunc(a.link.label, LINK_CHARS), class: 'edge-label', color: LINK_LABEL }
+          : null
+      }
+      title={[`${props.nameOf(a.link.from)} → ${props.nameOf(a.link.to)}`, a.link.label, t('arch.link.declared')]
+        .filter(Boolean)
+        .join('\n')}
     />
   )
 }
@@ -185,13 +259,9 @@ export const SystemScene: Component<{ model: Model; systems: SystemsInModel }> =
                   'data-contracts': a.channel.contracts.length,
                   'data-via': a.channel.via.length,
                 }}
-                label={{ ...a.label, text: channelWeight(a.channel) }}
+                label={{ ...a.label, text: channelText(a.channel) }}
                 onClick={() => set({ sel: { kind: 'channel', to: a.channel.to.id } })}
-                title={`${props.systems.self.name} → ${a.channel.to.name}\n${
-                  a.channel.contracts.length
-                    ? t('arch.channel.contracts', { n: a.channel.contracts.length })
-                    : t('arch.channel.via', { n: a.channel.via.length })
-                }`}
+                title={channelTitle(props.systems.self.name, a.channel)}
               />
             )}
           </For>
