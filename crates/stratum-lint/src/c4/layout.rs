@@ -14,7 +14,8 @@ const LABEL_HEIGHT: f64 = 14.0;
 const CHAR_WIDTH: f64 = 6.0;
 const DESCRIPTION_CHARS_PER_LINE: usize = 34;
 const NAME_CHARS_PER_LINE: usize = 22;
-const PERSON_ICON: f64 = 48.0;
+const PERSON_HEAD_RADIUS: f64 = 0.23 * WIDTH;
+const PERSON_ICON: f64 = (2.0 - 0.27) * PERSON_HEAD_RADIUS;
 
 const NARROWEST_SCREEN_PX: f64 = 1280.0;
 pub const OTHERS_ID: &str = "others";
@@ -27,6 +28,7 @@ const MAX_SEARCHED_SHAPES: usize = 24;
 const LABEL_WORK: usize = 20_000;
 const SHORTLIST: (usize, usize) = (16, 256);
 const EMPTY_CELL_COST: f64 = 10.0;
+const RANK_INVERSION_COST: f64 = 12.0;
 const LABEL_OVER_SHAPE_COST: f64 = 100.0;
 const LABEL_CROSSED_COST: f64 = 60.0;
 const LABEL_STEP_COST: f64 = 0.5;
@@ -58,7 +60,7 @@ const NESTED: usize = 1;
 const OTHERS: usize = 2;
 
 pub fn arrange(diagram: &Diagram) -> Layout<'_> {
-    let groups: [Vec<&Element>; 3] = if diagram.boundaries.is_empty() {
+    let mut groups: [Vec<&Element>; 3] = if diagram.boundaries.is_empty() {
         [
             diagram.outer.iter().chain(&diagram.inner).collect(),
             Vec::new(),
@@ -71,6 +73,9 @@ pub fn arrange(diagram: &Diagram) -> Layout<'_> {
             diagram.outer.iter().collect(),
         ]
     };
+    for group in &mut groups {
+        group.sort_by_key(|e| Rank::of(diagram, e));
+    }
     let depth = diagram.boundaries.len();
     let widths = row_widths(depth);
     let mut shortlist: Vec<(f64, usize, Placement)> = Vec::new();
@@ -95,6 +100,7 @@ pub fn arrange(diagram: &Diagram) -> Layout<'_> {
             let filled = Cells::fill(&groups, p, cols);
             Scene::new(diagram, &filled, depth, cols).route_cost()
                 + EMPTY_CELL_COST * real(filled.empty)
+                + rank_cost(diagram, &filled, cols)
         };
         shortlist.extend(
             search(groups.each_ref().map(Vec::len), cells, cost)
@@ -136,6 +142,49 @@ pub fn arrange(diagram: &Diagram) -> Layout<'_> {
 }
 
 type Placement = [Vec<usize>; 3];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Rank {
+    Actor,
+    Own,
+    Internal,
+    External,
+}
+
+impl Rank {
+    fn of(diagram: &Diagram, element: &Element) -> Self {
+        match element.kind {
+            Kind::Person => Self::Actor,
+            _ if diagram.inner.iter().any(|e| e.id == element.id) => Self::Own,
+            Kind::SystemExt => Self::External,
+            _ => Self::Internal,
+        }
+    }
+}
+
+fn rank_cost(diagram: &Diagram, cells: &Cells, cols: usize) -> f64 {
+    let mut cost = 0.0;
+    for group in &cells.groups {
+        let ranked: Vec<(usize, Rank)> = group
+            .iter()
+            .enumerate()
+            .filter_map(|(cell, e)| Some((cell / cols, Rank::of(diagram, (*e)?))))
+            .collect();
+        for &(row, rank) in &ranked {
+            for &(other_row, other_rank) in &ranked {
+                if other_rank >= rank {
+                    continue;
+                }
+                if other_rank == Rank::Actor && row <= other_row {
+                    cost += ARROW_BLOCKED;
+                } else if row < other_row {
+                    cost += RANK_INVERSION_COST;
+                }
+            }
+        }
+    }
+    cost
+}
 
 struct Cells<'d> {
     groups: [Vec<Option<&'d Element>>; 3],
@@ -744,7 +793,7 @@ mod tests {
     #[test]
     fn a_person_is_taller_by_its_icon() {
         let extra = height(&shape("a", Kind::Person)) - height(&shape("a", Kind::System));
-        assert!((extra - PERSON_ICON).abs() < f64::EPSILON, "{extra}");
+        assert!((extra - PERSON_ICON).abs() < 1e-9, "{extra}");
     }
 
     #[test]
