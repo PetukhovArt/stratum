@@ -126,7 +126,7 @@ describe('systems in the model', () => {
 })
 
 describe('system level zones', () => {
-  it('puts roles above the system, external systems beside it, and draws a via-only channel and the declared links', () => {
+  it('puts roles above the system, external systems below it, and draws a via-only channel and the declared links', () => {
     const index: SystemIndex = {
       ...INDEX,
       others: [...INDEX.others, { ...system('gateway'), contractsTotal: 0, isExternal: true, description: 'field bus' }],
@@ -138,6 +138,7 @@ describe('system level zones', () => {
       links: [
         { from: 'operator', to: 'ui', label: 'monitors' },
         { from: 'host', to: 'gateway', label: 'reads' },
+        { from: 'ui', to: 'gateway', label: 'stores' },
       ],
     }
     const s = systemsOf(index, only([0, 1, 2, 3]))
@@ -146,8 +147,8 @@ describe('system level zones', () => {
     const zone = (kind: string) => layout.zones.find((z) => z.kind === kind)!
     expect(layout.zones.map((z) => z.kind)).toEqual(['actors', 'system', 'external'])
     expect(zone('actors').y + zone('actors').h).toBeLessThan(zone('system').y)
-    expect(zone('external').x).toBeGreaterThan(zone('system').x + zone('system').w)
-    expect(layout.arrows.map((a) => a.channel.to.id)).toContain('gateway')
+    expect(zone('system').y + zone('system').h).toBeLessThan(zone('external').y)
+    expect(layout.arrows.find((a) => a.channel.to.id === 'gateway')?.channel.declared).toBe('stores')
     expect(layout.links.map((l) => l.link.label)).toEqual(['monitors', 'reads'])
   })
 })

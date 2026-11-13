@@ -19,6 +19,7 @@ pub struct Diagram {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
+    Person,
     System,
     SystemExt,
     Container,

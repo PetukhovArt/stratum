@@ -2,6 +2,43 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
   "definitions": {
+    "ActorConfig": {
+      "additionalProperties": false,
+      "description": "A role of a person who uses the systems.",
+      "properties": {
+        "description": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "`^[\\w.-]+$`, unique across `actors` and `systems`.",
+          "type": "string"
+        },
+        "name": {
+          "default": null,
+          "description": "Shown instead of the id; defaults to the id.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "uses": {
+          "default": [],
+          "description": "The systems this role uses.",
+          "items": {
+            "$ref": "#/definitions/UseConfig"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
     "CallMatcher": {
       "anyOf": [
         {
@@ -319,6 +356,18 @@
           ],
           "default": null
         },
+        "description": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "external": {
+          "default": false,
+          "description": "Outside the product: external infrastructure such as a database or a device. Not with `self`.",
+          "type": "boolean"
+        },
         "id": {
           "description": "`^[\\w.-]+$`; source paths of the system are addressed as `id:rel/path`.",
           "type": "string"
@@ -343,10 +392,47 @@
           "default": false,
           "description": "The system this project is: its modules are the callers. Exactly one system has it.",
           "type": "boolean"
+        },
+        "uses": {
+          "default": [],
+          "description": "Declared relations from this system to other systems.",
+          "items": {
+            "$ref": "#/definitions/UseConfig"
+          },
+          "type": "array"
+        },
+        "via": {
+          "default": [],
+          "description": "Globs relative to the project root of the modules that talk to this system without contract calls, such as a connection driver. Not with `self`.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         }
       },
       "required": [
         "id"
+      ],
+      "type": "object"
+    },
+    "UseConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "default": null,
+          "description": "What the relation does, such as `reads signals`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "to": {
+          "description": "The id of a system in `systems`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "to"
       ],
       "type": "object"
     }
@@ -355,6 +441,14 @@
   "properties": {
     "$schema": {
       "type": "string"
+    },
+    "actors": {
+      "default": [],
+      "description": "The roles of the people who use the systems, drawn above them on the System level. Needs `systems`. A child list replaces the `extends` parent's list.",
+      "items": {
+        "$ref": "#/definitions/ActorConfig"
+      },
+      "type": "array"
     },
     "features": {
       "additionalProperties": {

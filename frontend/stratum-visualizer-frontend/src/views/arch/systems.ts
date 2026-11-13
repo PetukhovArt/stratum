@@ -7,6 +7,7 @@ export interface ChannelInUse {
   contracts: readonly SystemContract[]
   unattributedCalls: number
   via: readonly ViaModule[]
+  declared: string | null
 }
 
 export const channelWeight = (c: { contracts: readonly unknown[]; via: readonly unknown[] }): number =>
@@ -74,8 +75,11 @@ const build = (index: SystemIndex, m: Model): SystemsInModel => {
     const to = byId.get(channel.to)
     if (channel.from !== index.self.id || !to) return []
     const contracts = narrowed(channel.contracts, isShown)
-    return [{ to, contracts, unattributedCalls: channel.unattributedCalls, via: channel.via.filter(isShown) }]
+    const declared = index.links.find((l) => l.from === index.self.id && l.to === to.id)?.label ?? null
+    return [{ to, contracts, unattributedCalls: channel.unattributedCalls, via: channel.via.filter(isShown), declared }]
   })
+  const isMeasured = (link: DeclaredLink): boolean =>
+    link.from === index.self.id && channels.some((c) => c.to.id === link.to && channelWeight(c) > 0)
   const portLinks = portLinksOf(m, channels)
   return {
     self: index.self,
@@ -83,7 +87,7 @@ const build = (index: SystemIndex, m: Model): SystemsInModel => {
     internal: index.others.filter((o) => !o.isExternal),
     external: index.others.filter((o) => o.isExternal),
     actors: index.actors,
-    links: index.links,
+    links: index.links.filter((l) => !isMeasured(l)),
     channels,
     channelTo: (system) => channels.find((c) => c.to.id === system) ?? null,
     portLinks,

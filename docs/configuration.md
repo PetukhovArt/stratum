@@ -33,14 +33,21 @@
     "checkout": { "name": "Checkout", "entry": ["src/pages/checkout/**"] },
     "search":   { "entry": ["src/features/search/index.ts"] }
   },
+  "actors": [
+    { "id": "operator", "name": "Operator", "description": "Watches the plant",
+      "uses": [{ "to": "ui", "label": "monitors the plant" }] }
+  ],
   "systems": [
-    { "id": "ui", "name": "Web UI", "self": true },
+    { "id": "ui", "name": "Web UI", "self": true, "description": "Editor and runtime" },
     { "id": "host", "name": "Desktop host", "root": "../desktop/src",
       "contracts": { "kind": "rust-attr", "attr": "tauri::command" },
       "calls": [{ "callee": "invoke", "name_arg": 0 }] },
     { "id": "api", "name": "Backend", "root": "../backend/proto",
       "contracts": { "kind": "proto" },
-      "calls": [{ "factory": "createClient", "service_arg": 0 }] }
+      "calls": [{ "factory": "createClient", "service_arg": 0 }],
+      "uses": [{ "to": "db", "label": "stores users" }] },
+    { "id": "db", "name": "Database", "external": true },
+    { "id": "disk", "name": "Project files", "external": true, "via": ["src/services/fs/**"] }
   ]
 }
 ```
@@ -53,6 +60,10 @@
   - `rust-attr`: each `fn` in a `*.rs` file under `#[attr]` or `#[attr(…)]` is a contract named after the function; `#[command]` matches `attr: "tauri::command"` too, because the attribute is often imported by its last segment.
   - `calls` say how a module of the project names a contract. `{ "callee": "invoke", "name_arg": 0 }`: a call `invoke("name", …)` with a string literal at argument 0 is the contract `name`; `callee` takes `name`, `obj.name` and `*.name`, as in `stratum/restricted-calls`. `{ "factory": "createClient", "service_arg": 0 }`: `const c = createClient(UserService, …)` and then `c.getUser(…)` in the same module is the contract `UserService.GetUser`; the first letter of the method matches in either case. A client passed to another module, a factory call kept in no variable, or a name that is not a string literal is counted as unattributed.
   - A `root` that does not exist leaves the system without contracts, marked unavailable, and the run goes on. A call that matches no declared contract is listed without a declaration. `stratum-lint visualize` serves the result at `/api/systems`, and files under a `root` at `/api/source?path=id:rel/path`. A child config's `systems` replaces the `extends` parent's.
+  - `description` is one line shown under the name. `external: true` marks a system outside the product (a database, devices, the file system); it cannot be `self`.
+  - `via` lists globs of the project's modules that talk to that system without contract calls (a file-system adapter, a socket client); they make a channel from `self` labelled "via N modules", and a feature counts them when it reaches the module. `self` takes no `via`.
+  - `uses: [{ "to": "id", "label": "…" }]` declares a relation from this system to another one, drawn as a declared arrow; `to` must be a system id. A declared relation from `self` to a system it also calls is drawn as one arrow, labelled with both.
+- `actors`: the people who use the product, drawn above the systems: `id` (`^[\w.-]+$`, unique among actors and systems), `name` (defaults to the id), `description`, and `uses` as above. `actors` without `systems` fail the run with exit 2.
 - `overrides` change severity only. Unknown keys, slugs or options fail the run with exit 2.
 - `.rhai` scripts add project-specific rules without rebuilding Stratum.
 - `messages`: the project's own texts for `lint` output (below).

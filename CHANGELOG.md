@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.9.0 (2026-11-13)
+
+- Added `actors` and, per system, `external`, `description`, `via` and `uses` to the config's `systems`: the visualizer's Architecture → System level draws the roles above the product, external systems below it with a dashed border and an "external" tag, the declared relations as dotted labelled arrows, and a "via N modules" channel whose modules the details list, each opening its code or Module focus; `stratum-lint c4 --level system` draws the same
+
 ## 0.8.0 (2026-11-11)
 
 - Added rule `stratum/unclaimed-folder`: for each layer listed in `layers`, a direct child folder that no declared layer, private zone, segment or `allow` glob claims is reported, so a new folder no longer falls into a wide parent layer and gets its `depends_on` in silence; a layer id no layer declares fails the run with exit 2 (off by default)

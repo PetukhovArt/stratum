@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 
 use camino::{Utf8Path, Utf8PathBuf};
+use globset::{Glob, GlobMatcher};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -26,6 +27,19 @@ pub struct SystemConfig {
     /// How a call in this project names a contract of this system.
     #[serde(default)]
     pub calls: Vec<CallMatcher>,
+    /// Outside the product: external infrastructure such as a database or a device. Not with
+    /// `self`.
+    #[serde(default)]
+    pub external: bool,
+    #[serde(default)]
+    pub description: Option<String>,
+    /// Globs relative to the project root of the modules that talk to this system without
+    /// contract calls, such as a connection driver. Not with `self`.
+    #[serde(default)]
+    pub via: Vec<String>,
+    /// Declared relations from this system to other systems.
+    #[serde(default)]
+    pub uses: Vec<UseConfig>,
 }
 
 impl SystemConfig {
@@ -33,6 +47,57 @@ impl SystemConfig {
     pub fn display_name(&self) -> &str {
         self.name.as_deref().unwrap_or(&self.id)
     }
+
+    /// Each `via` glob as written, with its matcher.
+    ///
+    /// # Errors
+    /// [`ConfigError::BadGlob`] for an entry that is not a valid glob.
+    pub fn via_globs(&self) -> Result<Vec<(&str, GlobMatcher)>, ConfigError> {
+        self.via
+            .iter()
+            .map(|pattern| {
+                Glob::new(pattern)
+                    .map(|g| (pattern.as_str(), g.compile_matcher()))
+                    .map_err(|source| ConfigError::BadGlob {
+                        pattern: pattern.clone(),
+                        source,
+                    })
+            })
+            .collect()
+    }
+}
+
+/// A role of a person who uses the systems.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ActorConfig {
+    /// `^[\w.-]+$`, unique across `actors` and `systems`.
+    pub id: String,
+    /// Shown instead of the id; defaults to the id.
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+    /// The systems this role uses.
+    #[serde(default)]
+    pub uses: Vec<UseConfig>,
+}
+
+impl ActorConfig {
+    #[must_use]
+    pub fn display_name(&self) -> &str {
+        self.name.as_deref().unwrap_or(&self.id)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct UseConfig {
+    /// The id of a system in `systems`.
+    pub to: String,
+    /// What the relation does, such as `reads signals`.
+    #[serde(default)]
+    pub label: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -84,7 +149,12 @@ pub(crate) fn validate(path: &Utf8Path, config: &Config) -> Result<(), ConfigErr
         message,
     };
     if config.systems.is_empty() {
-        return Ok(());
+        if config.actors.is_empty() {
+            return Ok(());
+        }
+        return Err(invalid(
+            "`actors` need `systems` to use: declare the systems first".to_owned(),
+        ));
     }
     let selves = config.systems.iter().filter(|s| s.is_self).count();
     if selves != 1 {
@@ -110,6 +180,17 @@ pub(crate) fn validate(path: &Utf8Path, config: &Config) -> Result<(), ConfigErr
                 "system {id:?} is `self`: its contracts are the project's own, so it takes no `root`, `contracts` or `calls`"
             )));
         }
+        if system.is_self && system.external {
+            return Err(invalid(format!(
+                "system {id:?} is `self`, so it cannot be `external`"
+            )));
+        }
+        if system.is_self && !system.via.is_empty() {
+            return Err(invalid(format!(
+                "system {id:?} is `self`: `via` names the project's modules that talk to another system, so it goes on that system"
+            )));
+        }
+        system.via_globs()?;
         if system.contracts.is_some() != system.root.is_some() {
             return Err(invalid(format!(
                 "system {id:?} needs both `root` and `contracts`, or neither"
@@ -132,6 +213,34 @@ pub(crate) fn validate(path: &Utf8Path, config: &Config) -> Result<(), ConfigErr
                     "system {id:?}: call entry {entry:?} must be `name`, `obj.name` or `*.name` (a factory: `name`)"
                 )));
             }
+        }
+    }
+    for actor in &config.actors {
+        let id = &actor.id;
+        if !is_system_id(id) {
+            return Err(invalid(format!(
+                "actor id {id:?} must match ^[\\w.-]+$: ASCII letters, digits, `_`, `.`, `-`"
+            )));
+        }
+        if !ids.insert(id.as_str()) {
+            return Err(invalid(format!(
+                "actor id {id:?} is declared twice, or is also a system id"
+            )));
+        }
+    }
+    let systems: BTreeSet<&str> = config.systems.iter().map(|s| s.id.as_str()).collect();
+    let uses = config
+        .actors
+        .iter()
+        .map(|a| ("actor", &a.id, &a.uses))
+        .chain(config.systems.iter().map(|s| ("system", &s.id, &s.uses)));
+    for (kind, id, uses) in uses {
+        if let Some(unknown) = uses.iter().find(|u| !systems.contains(u.to.as_str())) {
+            let to = &unknown.to;
+            return Err(invalid(format!(
+                "{kind} {id:?} uses {to:?}, which is not a system id; systems: {}",
+                systems.iter().copied().collect::<Vec<_>>().join(", ")
+            )));
         }
     }
     Ok(())
@@ -226,6 +335,90 @@ mod tests {
             let systems = format!("[{}]", systems.join(", "));
             let err = parse(&systems).unwrap_err();
             assert!(err.to_string().contains(expected), "{systems}: {err}");
+        }
+    }
+
+    fn parse_with_actors(systems: &str, actors: &str) -> Result<crate::Config, ConfigError> {
+        let text = format!(r#"{{ "version": 1, "systems": {systems}, "actors": {actors} }}"#);
+        parse_str(&Utf8PathBuf::from("inline"), &text)
+    }
+
+    #[test]
+    fn actors_and_external_systems_parse_with_their_relations() {
+        let config = parse_with_actors(
+            r#"[{ "id": "ui", "self": true, "uses": [{ "to": "billing" }] },
+                { "id": "billing", "description": "Invoices",
+                  "uses": [{ "to": "opc-gateway", "label": "reads signals" }] },
+                { "id": "opc-gateway", "external": true, "via": ["src/shared/opc/**"] }]"#,
+            r#"[{ "id": "operator", "name": "Operator",
+                  "uses": [{ "to": "ui", "label": "watches the plant" }] }]"#,
+        )
+        .unwrap();
+        let [operator] = config.actors.as_slice() else {
+            unreachable!("one actor");
+        };
+        assert_eq!(operator.display_name(), "Operator");
+        assert_eq!(operator.uses[0].label.as_deref(), Some("watches the plant"));
+        let [ui, billing, gateway] = config.systems.as_slice() else {
+            unreachable!("three systems");
+        };
+        assert_eq!(ui.uses[0].to, "billing");
+        assert_eq!(ui.uses[0].label, None);
+        assert_eq!(billing.description.as_deref(), Some("Invoices"));
+        assert!(!billing.external);
+        assert!(gateway.external);
+        assert_eq!(gateway.via, ["src/shared/opc/**"]);
+    }
+
+    #[test]
+    fn a_bad_actor_or_relation_names_what_is_wrong() {
+        let ui = r#"{ "id": "ui", "self": true }"#;
+        for (systems, actors, expected) in [
+            (
+                vec![r#"{ "id": "ui", "self": true, "external": true }"#],
+                "[]",
+                "cannot be `external`",
+            ),
+            (
+                vec![r#"{ "id": "ui", "self": true, "via": ["src/**"] }"#],
+                "[]",
+                "`via`",
+            ),
+            (
+                vec![ui, r#"{ "id": "db", "via": ["src/[a"] }"#],
+                "[]",
+                "src/[a",
+            ),
+            (
+                vec![ui, r#"{ "id": "db", "uses": [{ "to": "nope" }] }"#],
+                "[]",
+                r#"system "db" uses "nope""#,
+            ),
+            (
+                vec![ui],
+                r#"[{ "id": "op", "uses": [{ "to": "ui", "lable": "x" }] }]"#,
+                "lable",
+            ),
+            (
+                vec![ui],
+                r#"[{ "id": "op", "uses": [{ "to": "op" }] }]"#,
+                r#"actor "op" uses "op""#,
+            ),
+            (vec![ui], r#"[{ "id": "ui" }]"#, "also a system id"),
+            (
+                vec![ui],
+                r#"[{ "id": "op" }, { "id": "op" }]"#,
+                "declared twice",
+            ),
+            (vec![ui], r#"[{ "id": "o p" }]"#, "o p"),
+            (vec![], r#"[{ "id": "op" }]"#, "`actors` need `systems`"),
+        ] {
+            let systems = format!("[{}]", systems.join(", "));
+            let err = parse_with_actors(&systems, actors).unwrap_err();
+            assert!(
+                err.to_string().contains(expected),
+                "{systems} {actors}: {err}"
+            );
         }
     }
 }

@@ -380,14 +380,14 @@ async fn systems_route_lists_the_called_contracts_per_channel_with_their_callers
         parsed,
         serde_json::json!({
             "systems": [
-                { "id": "ui", "name": "Web UI", "self": true, "contracts_total": 0 },
-                { "id": "host", "name": "Desktop host", "self": false, "contracts_total": 2 },
-                { "id": "api", "name": "Backend", "self": false, "contracts_total": 4 },
-                { "id": "billing", "name": "billing", "self": false, "contracts_total": 0,
+                { "id": "ui", "name": "Web UI", "self": true, "contracts_total": 0, "external": false },
+                { "id": "host", "name": "Desktop host", "self": false, "contracts_total": 2, "external": false },
+                { "id": "api", "name": "Backend", "self": false, "contracts_total": 4, "external": false },
+                { "id": "billing", "name": "billing", "self": false, "contracts_total": 0, "external": false,
                   "unavailable": "root ../billing/proto is not a directory" },
             ],
             "channels": [
-                { "from": "ui", "to": "host", "unattributed": 1, "contracts": [
+                { "from": "ui", "to": "host", "unattributed": 1, "via": [], "contracts": [
                     { "id": "greet", "signature": "pub fn greet(name: &str) -> String",
                       "decl": { "path": "host:commands.rs", "line": 4 },
                       "callers": [
@@ -404,7 +404,7 @@ async fn systems_route_lists_the_called_contracts_per_channel_with_their_callers
                             "features": ["checkout"] },
                       ] },
                 ] },
-                { "from": "ui", "to": "api", "unattributed": 1, "contracts": [
+                { "from": "ui", "to": "api", "unattributed": 1, "via": [], "contracts": [
                     { "id": "OrderService.PlaceOrder",
                       "signature": "rpc PlaceOrder(PlaceOrderRequest) returns (Order)",
                       "decl": { "path": "api:order.proto", "line": 6 },
@@ -425,7 +425,56 @@ async fn systems_route_lists_the_called_contracts_per_channel_with_their_callers
                                     "features": ["profile"] }] },
                 ] },
             ],
+            "actors": [],
+            "links": [],
         })
+    );
+}
+
+#[tokio::test]
+async fn systems_route_lists_actors_declared_links_and_via_modules_with_their_features() {
+    let root = Utf8Path::new(SYSTEMS);
+    let config = root.join("zones.config.jsonc");
+    let input = lint::build(root, &lint::load_config(root, Some(&config)).unwrap()).unwrap();
+    let router = build_router(Arc::new(Api::new(input, None, &[]).unwrap()));
+    let snapshot: serde_json::Value =
+        serde_json::from_str(&get_from(router.clone(), "/api/snapshot").await.1).unwrap();
+    let rpc = id_at(&snapshot, "modules", "src/shared/config/rpc.ts");
+    let (status, body) = get_from(router, "/api/systems").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(
+        parsed["systems"][0],
+        serde_json::json!({ "id": "ui", "name": "Web UI", "self": true, "contracts_total": 0,
+                            "external": false, "description": "Browser client" })
+    );
+    assert_eq!(
+        parsed["systems"][4],
+        serde_json::json!({ "id": "opc-gateway", "name": "OPC UA gateway", "self": false,
+                            "contracts_total": 0, "external": true,
+                            "description": "Plant signals" })
+    );
+    assert_eq!(
+        parsed["channels"][2],
+        serde_json::json!({ "from": "ui", "to": "opc-gateway", "contracts": [], "unattributed": 0,
+                            "via": [{ "module": rpc, "features": ["checkout", "profile"] }] })
+    );
+    assert_eq!(
+        parsed["actors"],
+        serde_json::json!([
+            { "id": "operator", "name": "Operator", "description": "Places orders" },
+            { "id": "auditor", "name": "auditor" },
+        ])
+    );
+    assert_eq!(
+        parsed["links"],
+        serde_json::json!([
+            { "from": "operator", "to": "ui", "label": "places orders" },
+            { "from": "auditor", "to": "billing", "label": "reviews invoices" },
+            { "from": "ui", "to": "api", "label": "signs in" },
+            { "from": "api", "to": "billing", "label": "charges orders" },
+            { "from": "billing", "to": "opc-gateway", "label": "reads meter signals" },
+        ])
     );
 }
 

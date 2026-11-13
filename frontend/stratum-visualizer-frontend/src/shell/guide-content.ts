@@ -50,7 +50,7 @@ const en: GuideDoc = {
       { key: '2', name: 'Matrix', text: 'Layers (or units) against layers. A row imports a column. A cell above the diagonal imports against the order; red cells break a rule. Dashed squares are cycles.' },
       { key: '3', name: 'Merge request', text: 'Only with --base. Imports the branch added or removed, rules they break, stage changes. Comment card gives a picture for a review comment.' },
       { key: '5', name: 'Module set', text: 'A group of modules, usually a cycle. Shows the shortest loop and the imports whose removal frees the most modules.' },
-      { key: '6', name: 'Architecture', text: 'C4 levels: System, Containers, Components, Code. System shows the app and the external systems from the systems key of the config, with the calls between them. Containers draws the blocks and the links of imports between them; click a link to see its contract.' },
+      { key: '6', name: 'Architecture', text: 'C4 levels: System, Containers, Components, Code. System shows the people who use the app (actors in the config) on top, the app and the other systems of the product in the middle and the external infrastructure below: solid arrows are measured contract calls or modules that reach a system directly (via), dotted arrows are relations declared in the config (uses). Containers draws the blocks and the links of imports between them; click a link to see its contract.' },
       { key: '9', name: 'Bench', text: 'Measures the views against their targets: speed, number of marks, questions answered in three actions.' },
     ],
   },
@@ -106,6 +106,14 @@ const en: GuideDoc = {
         ],
       },
       {
+        goal: 'Which modules touch the disk or another system without contracts?',
+        steps: [
+          'Architecture (6), level System.',
+          'Click the arrow labelled "via N modules": the details list the modules matched by the via globs of that system.',
+          'Click a module to open its code, double-click it to open its Module focus.',
+        ],
+      },
+      {
         goal: 'How far are we from the declared architecture?',
         steps: [
           'Matrix (2): the share above the diagonal and the number of rule breaks.',
@@ -158,7 +166,7 @@ const ru: GuideDoc = {
       { key: '2', name: 'Matrix', text: 'Слои (или юниты) против слоёв. Строка импортирует столбец. Клетка выше диагонали — импорт против порядка, красная — нарушение. Пунктирный квадрат — цикл.' },
       { key: '3', name: 'Merge request', text: 'Только с --base. Импорты, которые ветка добавила или убрала, их нарушения и смены стадий. Comment card даёт картинку для комментария в ревью.' },
       { key: '5', name: 'Module set', text: 'Группа модулей, обычно цикл. Видно самую короткую петлю и импорты, удаление которых освобождает больше всего модулей.' },
-      { key: '6', name: 'Architecture', text: 'Уровни C4: System, Containers, Components, Code. На System — приложение и внешние системы из ключа systems в конфиге, с вызовами между ними. На Containers — блоки и связи импортов между ними; клик по связи показывает её контракт.' },
+      { key: '6', name: 'Architecture', text: 'Уровни C4: System, Containers, Components, Code. На System сверху люди, которые работают с приложением (actors в конфиге), в середине приложение и другие системы продукта, внизу внешняя инфраструктура: сплошные стрелки — измеренные вызовы контрактов или модули, которые работают с системой напрямую (via), пунктирные — связи, объявленные в конфиге (uses). На Containers — блоки и связи импортов между ними; клик по связи показывает её контракт.' },
       { key: '9', name: 'Bench', text: 'Меряет виды по целям: скорость, число меток, ответ на вопрос за три действия.' },
     ],
   },
@@ -211,6 +219,14 @@ const ru: GuideDoc = {
           'Architecture (6), уровень System.',
           'Клик по линии к системе: её контракты, кто их вызывает и из каких фич.',
           'Клик по вызову откроет код.',
+        ],
+      },
+      {
+        goal: 'Какие модули работают с диском или другой системой без контрактов?',
+        steps: [
+          'Architecture (6), уровень System.',
+          'Клик по стрелке с подписью «через N модулей»: в деталях модули, подходящие под глобы via этой системы.',
+          'Клик по модулю откроет код, двойной клик — его Module focus.',
         ],
       },
       {

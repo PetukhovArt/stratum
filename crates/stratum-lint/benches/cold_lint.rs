@@ -68,6 +68,7 @@ fn tiny_ts_config() -> Config {
         features: std::collections::BTreeMap::new(),
         systems: vec![],
         messages: stratum_core::text::Messages::default(),
+        actors: vec![],
     }
 }
 

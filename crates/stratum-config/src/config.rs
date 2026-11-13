@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use stratum_core::{severity::Severity, structure::Structure, text::Messages};
 
-use crate::{FeatureConfig, SystemConfig};
+use crate::{ActorConfig, FeatureConfig, SystemConfig};
 
 /// The whole `stratum.config.jsonc` document.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -43,6 +43,10 @@ pub struct Config {
     /// `extends` parent key by key.
     #[serde(default)]
     pub messages: Messages,
+    /// The roles of the people who use the systems, drawn above them on the System level.
+    /// Needs `systems`. A child list replaces the `extends` parent's list.
+    #[serde(default)]
+    pub actors: Vec<ActorConfig>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

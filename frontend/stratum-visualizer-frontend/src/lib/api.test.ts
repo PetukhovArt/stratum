@@ -129,6 +129,35 @@ describe('fetchSystems', () => {
       callers: [{ module: 3, line: 12, owner: null, features: null }],
     })
   })
+
+  it('parses actors, external systems, declared links and via modules of the System context', async () => {
+    vi.stubGlobal(
+      'fetch',
+      answer(200, {
+        systems: [
+          { id: 'ui', name: 'Web UI', self: true, contracts_total: 0, description: 'editor' },
+          { id: 'disk', name: 'Files', self: false, contracts_total: 0, external: true },
+        ],
+        channels: [
+          { from: 'ui', to: 'disk', contracts: [], unattributed: 0, via: [{ module: 4, features: ['files'] }, { module: 5 }] },
+        ],
+        actors: [{ id: 'op', name: 'Operator', description: 'watches' }],
+        links: [{ from: 'op', to: 'ui', label: 'monitors' }, { from: 'ui', to: 'disk' }],
+      }),
+    )
+    vi.resetModules()
+    const index = await (await import('./api')).fetchSystems()
+    expect([index.self.description, index.others[0].isExternal]).toEqual(['editor', true])
+    expect(index.channels[0].via).toEqual([
+      { module: 4, features: ['files'] },
+      { module: 5, features: null },
+    ])
+    expect(index.actors).toEqual([{ id: 'op', name: 'Operator', description: 'watches' }])
+    expect(index.links).toEqual([
+      { from: 'op', to: 'ui', label: 'monitors' },
+      { from: 'ui', to: 'disk', label: null },
+    ])
+  })
 })
 
 describe('fetchSource', () => {

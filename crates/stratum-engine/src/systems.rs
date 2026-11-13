@@ -14,12 +14,14 @@ use stratum_core::{
 use stratum_graph::{CompoundGraph, TrackedCalls};
 
 use crate::features::{Features, Reach};
-use crate::paths::canonicalize;
+use crate::paths::{canonicalize, relative};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SystemMap {
     pub systems: Vec<System>,
     pub channels: Vec<Channel>,
+    pub actors: Vec<Actor>,
+    pub links: Vec<Link>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -31,6 +33,9 @@ pub struct System {
     pub contracts_total: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unavailable: Option<String>,
+    pub external: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -39,6 +44,29 @@ pub struct Channel {
     pub to: String,
     pub contracts: Vec<CalledContract>,
     pub unattributed: usize,
+    pub via: Vec<ViaModule>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ViaModule {
+    pub module: ModuleId,
+    pub features: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Actor {
+    pub id: String,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Link {
+    pub from: String,
+    pub to: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -94,17 +122,76 @@ impl SystemMap {
                 is_self: system.is_self,
                 contracts_total: contracts.len(),
                 unavailable,
+                external: system.external,
+                description: system.description.clone(),
             });
             if system.is_self {
                 continue;
             }
-            let channel = channel(graph, &reach, &me.id, system, &contracts);
-            if !channel.contracts.is_empty() || channel.unattributed > 0 {
+            let mut channel = channel(graph, &reach, &me.id, system, &contracts);
+            channel.via = via(graph, &reach, system, project_root);
+            if !channel.contracts.is_empty() || channel.unattributed > 0 || !channel.via.is_empty()
+            {
                 channels.push(channel);
             }
         }
-        Some(Self { systems, channels })
+        let actors = config
+            .actors
+            .iter()
+            .map(|a| Actor {
+                id: a.id.clone(),
+                name: a.display_name().to_owned(),
+                description: a.description.clone(),
+            })
+            .collect();
+        let links = config
+            .actors
+            .iter()
+            .map(|a| (&a.id, &a.uses))
+            .chain(config.systems.iter().map(|s| (&s.id, &s.uses)))
+            .flat_map(|(from, uses)| {
+                uses.iter().map(move |u| Link {
+                    from: from.clone(),
+                    to: u.to.clone(),
+                    label: u.label.clone(),
+                })
+            })
+            .collect();
+        Some(Self {
+            systems,
+            channels,
+            actors,
+            links,
+        })
     }
+}
+
+fn via(
+    graph: &CompoundGraph,
+    reach: &Reach,
+    system: &SystemConfig,
+    project_root: &Utf8Path,
+) -> Vec<ViaModule> {
+    let Ok(globs) = system.via_globs() else {
+        return Vec::new();
+    };
+    if globs.is_empty() {
+        return Vec::new();
+    }
+    let mut found: Vec<ViaModule> = graph
+        .modules
+        .values()
+        .filter(|m| {
+            let path = relative(&m.path, project_root);
+            globs.iter().any(|(_, g)| g.is_match(&path))
+        })
+        .map(|m| ViaModule {
+            module: m.id,
+            features: reach.features_running(m.id, None),
+        })
+        .collect();
+    found.sort_by_key(|v| v.module);
+    found
 }
 
 #[must_use]
@@ -271,6 +358,7 @@ fn channel(
         to: system.id.clone(),
         contracts,
         unattributed,
+        via: Vec::new(),
     }
 }
 
@@ -329,6 +417,10 @@ mod tests {
             root: None,
             contracts: None,
             calls,
+            external: false,
+            description: None,
+            via: Vec::new(),
+            uses: Vec::new(),
         }
     }
 
@@ -450,6 +542,66 @@ mod tests {
             }
         }
         per_feature
+    }
+
+    #[test]
+    fn via_modules_make_a_channel_without_calls_and_actors_and_uses_come_in_config_order() {
+        let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/tiny-systems/web");
+        let config_path = root.join("zones.config.jsonc");
+        let config = crate::config::load(&root, Some(&config_path))
+            .unwrap()
+            .config;
+        let (root, graph, ..) = crate::pipeline::graph(
+            &root,
+            &config,
+            crate::pipeline::Source::Overlaid(Vec::new()),
+        )
+        .unwrap();
+        let features = Features::of(&graph, &config, &root).unwrap();
+        let map = SystemMap::of(&graph, &config, &root, &features).unwrap();
+
+        let gateway = map.systems.iter().find(|s| s.id == "opc-gateway").unwrap();
+        assert!(gateway.external);
+        assert_eq!(gateway.description.as_deref(), Some("Plant signals"));
+        let channels: Vec<(&str, usize, usize)> = map
+            .channels
+            .iter()
+            .map(|c| (c.to.as_str(), c.contracts.len(), c.via.len()))
+            .collect();
+        assert_eq!(
+            channels,
+            [("host", 2, 0), ("api", 4, 0), ("opc-gateway", 0, 1)]
+        );
+        let via = &map.channels[2].via[0];
+        assert_eq!(
+            relative(&graph.modules[&via.module].path, &root),
+            "src/shared/config/rpc.ts"
+        );
+        assert_eq!(via.features, ["checkout", "profile"]);
+        assert_eq!(
+            map.actors
+                .iter()
+                .map(|a| (a.id.as_str(), a.name.as_str(), a.description.as_deref()))
+                .collect::<Vec<_>>(),
+            [
+                ("operator", "Operator", Some("Places orders")),
+                ("auditor", "auditor", None)
+            ]
+        );
+        assert_eq!(
+            map.links
+                .iter()
+                .map(|l| (l.from.as_str(), l.to.as_str(), l.label.as_deref()))
+                .collect::<Vec<_>>(),
+            [
+                ("operator", "ui", Some("places orders")),
+                ("auditor", "billing", Some("reviews invoices")),
+                ("ui", "api", Some("signs in")),
+                ("api", "billing", Some("charges orders")),
+                ("billing", "opc-gateway", Some("reads meter signals")),
+            ]
+        );
     }
 
     #[test]

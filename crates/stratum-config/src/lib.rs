@@ -22,4 +22,4 @@ pub use overrides::{EffectiveRules, Overrides};
 pub use parse::{parse_file, parse_str};
 pub use presets::{recommended_rules, recommended_structure};
 pub use schema::schema;
-pub use systems::{CallMatcher, ContractSource, SystemConfig};
+pub use systems::{ActorConfig, CallMatcher, ContractSource, SystemConfig, UseConfig};
