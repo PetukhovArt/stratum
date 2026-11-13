@@ -112,6 +112,7 @@ fn element_line(element: &Element) -> String {
         quoted(&element.description),
     );
     match element.kind {
+        Kind::Person => format!("Person({id}, {name}, {description})"),
         Kind::System => format!("System({id}, {name}, {description})"),
         Kind::SystemExt => format!("System_Ext({id}, {name}, {description})"),
         Kind::Container => format!(

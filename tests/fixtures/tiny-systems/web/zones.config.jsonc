@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "layers": [
+    { "id": "features", "path": "src/features", "depends_on": ["shared"], "slices": true },
+    { "id": "shared", "path": "src/shared" }
+  ],
+  "actors": [
+    { "id": "operator", "name": "Operator", "description": "Places orders",
+      "uses": [{ "to": "ui", "label": "places orders" }] },
+    { "id": "auditor", "uses": [{ "to": "billing", "label": "reviews invoices" }] }
+  ],
+  "systems": [
+    { "id": "ui", "name": "Web UI", "self": true, "description": "Browser client",
+      "uses": [{ "to": "api", "label": "signs in" }] },
+    { "id": "host", "name": "Desktop host", "root": "../host/src",
+      "contracts": { "kind": "rust-attr", "attr": "tauri::command" },
+      "calls": [{ "callee": "invoke", "name_arg": 0 }] },
+    { "id": "api", "name": "Backend", "root": "../api/proto",
+      "contracts": { "kind": "proto" },
+      "calls": [{ "factory": "createClient", "service_arg": 0 }],
+      "uses": [{ "to": "billing", "label": "charges orders" }] },
+    { "id": "billing", "description": "Invoices",
+      "uses": [{ "to": "opc-gateway", "label": "reads meter signals" }] },
+    { "id": "opc-gateway", "name": "OPC UA gateway", "external": true,
+      "description": "Plant signals", "via": ["src/shared/config/**"] }
+  ]
+}

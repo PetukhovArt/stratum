@@ -10,9 +10,9 @@ System_Boundary(sys_ui, "Web UI") {
   Container(empty_1, "", "", "")
 }
 Boundary(others, "", "") {
-  System_Ext(sys_host, "Desktop host", "2 contracts declared")
-  System_Ext(sys_api, "Backend", "4 contracts declared")
-  System_Ext(sys_billing, "billing", "contracts unavailable: root ../billing/proto is not a directory")
+  System(sys_host, "Desktop host", "2 contracts declared")
+  System(sys_api, "Backend", "4 contracts declared")
+  System(sys_billing, "billing", "contracts unavailable: root ../billing/proto is not a directory")
 }
 Rel(ctr_src_features, ctr_src_shared, "6 imports")
 Rel(ctr_src_features, sys_host, "2 contracts")

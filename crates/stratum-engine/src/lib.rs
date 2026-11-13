@@ -26,7 +26,9 @@ pub use finding::{EdgeRef, Finding};
 pub use pipeline::{EngineError, EngineInput};
 pub use snapshot::{SNAPSHOT_VERSION, Snapshot};
 pub use suppression::{Analysis, Suppressed};
-pub use systems::{CalledContract, Caller, Channel, Decl, System, SystemMap};
+pub use systems::{
+    Actor, CalledContract, Caller, Channel, Decl, Link, System, SystemMap, ViaModule,
+};
 
 pub const SOURCE_EXTENSIONS: [&str; 9] =
     ["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs", "vue"];

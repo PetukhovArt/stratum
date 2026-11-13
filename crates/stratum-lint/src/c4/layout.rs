@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::{Diagram, Element};
+use super::{Diagram, Element, Kind};
 
 const WIDTH: f64 = 216.0;
 const GAP: f64 = 100.0;
@@ -14,6 +14,7 @@ const LABEL_HEIGHT: f64 = 14.0;
 const CHAR_WIDTH: f64 = 6.0;
 const DESCRIPTION_CHARS_PER_LINE: usize = 34;
 const NAME_CHARS_PER_LINE: usize = 22;
+const PERSON_ICON: f64 = 48.0;
 
 const NARROWEST_SCREEN_PX: f64 = 1280.0;
 pub const OTHERS_ID: &str = "others";
@@ -334,7 +335,12 @@ fn height(element: &Element) -> f64 {
     let lines = |text: &str, per_line: usize| text.chars().count().div_ceil(per_line).max(1);
     let name = lines(&element.name, NAME_CHARS_PER_LINE);
     let description = lines(&element.description, DESCRIPTION_CHARS_PER_LINE);
-    70.0 + 17.0 * real(name) + 12.0 * real(description - 1)
+    let icon = if element.kind == Kind::Person {
+        PERSON_ICON
+    } else {
+        0.0
+    };
+    70.0 + icon + 17.0 * real(name) + 12.0 * real(description - 1)
 }
 
 fn grid(cells: &[Option<&Element>], cols: usize, x: f64, y: f64) -> (Vec<Rect>, f64) {
@@ -678,6 +684,67 @@ mod tests {
     fn mermaid_keeps_row(cols: usize, depth: usize, screen: usize) -> bool {
         let first = 50 + 50 * (depth + 1) + 50;
         first + (cols - 1) * (216 + 100) + 216 < screen
+    }
+
+    fn shape(id: &str, kind: Kind) -> Element {
+        Element {
+            id: id.to_owned(),
+            kind,
+            name: id.to_owned(),
+            technology: String::new(),
+            description: String::new(),
+        }
+    }
+
+    fn rel(from: &str, to: &str) -> super::super::Rel {
+        super::super::Rel {
+            from: from.to_owned(),
+            to: to.to_owned(),
+            label: "uses".to_owned(),
+            weight: 1,
+        }
+    }
+
+    #[test]
+    fn at_the_system_level_the_actors_using_the_system_sit_in_a_row_above_it() {
+        let diagram = Diagram {
+            level: crate::cli::C4Level::System,
+            title: String::new(),
+            boundaries: Vec::new(),
+            inner: vec![shape("sys_ui", Kind::System)],
+            outer: vec![
+                shape("act_operator", Kind::Person),
+                shape("act_auditor", Kind::Person),
+                shape("sys_billing", Kind::System),
+                shape("sys_db", Kind::SystemExt),
+            ],
+            rels: vec![
+                rel("act_auditor", "sys_billing"),
+                rel("act_operator", "sys_ui"),
+                rel("sys_billing", "sys_db"),
+                rel("sys_ui", "sys_billing"),
+                rel("sys_ui", "sys_db"),
+            ],
+        };
+
+        let layout = arrange(&diagram);
+
+        let row = |id: &str| {
+            layout
+                .top
+                .iter()
+                .position(|c| c.is_some_and(|e| e.id == id))
+                .map(|cell| cell / layout.shapes_in_row)
+        };
+        assert!(row("sys_ui").is_some() && row("act_operator") < row("sys_ui"));
+        assert!(row("act_auditor").is_some() && row("act_auditor") < row("sys_billing"));
+        assert_eq!(layout.offsets.len(), diagram.rels.len());
+    }
+
+    #[test]
+    fn a_person_is_taller_by_its_icon() {
+        let extra = height(&shape("a", Kind::Person)) - height(&shape("a", Kind::System));
+        assert!((extra - PERSON_ICON).abs() < f64::EPSILON, "{extra}");
     }
 
     #[test]

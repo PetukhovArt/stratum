@@ -114,13 +114,22 @@ fn other_systems(
         .map(|s| {
             let id = ids.take("sys", &s.id);
             by_config_id.insert(s.id.clone(), id.clone());
-            let description = s.unavailable.as_ref().map_or_else(
+            let contracts = s.unavailable.as_ref().map_or_else(
                 || format!("{} declared", count(s.contracts_total, "contract")),
                 |why| format!("contracts unavailable: {why}"),
             );
+            let description = match &s.description {
+                None => contracts,
+                Some(own) if s.contracts_total == 0 && s.unavailable.is_none() => own.clone(),
+                Some(own) => format!("{own}, {contracts}"),
+            };
             Element {
                 id,
-                kind: Kind::SystemExt,
+                kind: if s.external {
+                    Kind::SystemExt
+                } else {
+                    Kind::System
+                },
                 name: s.name.clone(),
                 technology: String::new(),
                 description,
@@ -191,11 +200,30 @@ fn system_level(
         .filter(|&&m| in_scope(scope, m))
         .count();
     me.description = count(modules, "module");
-    let (outer, system_ids) = other_systems(Some(systems), ids);
-    let calls = calls(Some(systems), scope, &system_ids, |_| Some(me.id.clone()));
+    if let Some(own) = systems
+        .systems
+        .iter()
+        .find(|s| s.is_self)
+        .and_then(|s| s.description.as_ref())
+    {
+        me.description = format!("{own}, {}", me.description);
+    }
+    let actors: Vec<Element> = systems
+        .actors
+        .iter()
+        .map(|a| Element {
+            id: ids.take("act", &a.id),
+            kind: Kind::Person,
+            name: a.name.clone(),
+            technology: String::new(),
+            description: a.description.clone().unwrap_or_default(),
+        })
+        .collect();
+    let (others, mut element_ids) = other_systems(Some(systems), ids);
+    let calls = calls(Some(systems), scope, &element_ids, |_| Some(me.id.clone()));
     let mut rels = Vec::new();
     for channel in &systems.channels {
-        let Some(to) = system_ids.get(&channel.to) else {
+        let Some(to) = element_ids.get(&channel.to) else {
             continue;
         };
         let called = calls
@@ -207,24 +235,72 @@ fn system_level(
         } else {
             0
         };
-        if called.is_empty() && unattributed == 0 {
-            continue;
+        let via = channel
+            .via
+            .iter()
+            .filter(|v| {
+                scope
+                    .as_ref()
+                    .is_none_or(|s| v.features.iter().any(|f| s.ids.contains(f)))
+            })
+            .count();
+        let mut rel = match (called.is_empty() && unattributed == 0, via) {
+            (true, 0) => continue,
+            (true, _) => Rel {
+                from: me.id.clone(),
+                to: to.clone(),
+                label: String::new(),
+                weight: 0,
+            },
+            (false, _) => contracts_rel(me.id.clone(), to.clone(), &called, unattributed),
+        };
+        if via > 0 {
+            let through = format!("via {}", count(via, "module"));
+            rel.label = if rel.label.is_empty() {
+                through
+            } else {
+                format!("{}, {through}", rel.label)
+            };
+            rel.weight += via;
         }
-        rels.push(contracts_rel(
-            me.id.clone(),
-            to.clone(),
-            &called,
-            unattributed,
-        ));
+        rels.push(rel);
     }
+    if let Some(me_config) = systems.systems.iter().find(|s| s.is_self) {
+        element_ids.insert(me_config.id.clone(), me.id.clone());
+    }
+    for (actor, element) in systems.actors.iter().zip(&actors) {
+        element_ids.insert(actor.id.clone(), element.id.clone());
+    }
+    add_links(systems, &element_ids, &mut rels);
     rels.sort_by(|a, b| (&a.from, &a.to).cmp(&(&b.from, &b.to)));
     Diagram {
         level: C4Level::System,
         title: format!("System context of {}", me.name),
         boundaries: Vec::new(),
         inner: vec![me],
-        outer,
+        outer: actors.into_iter().chain(others).collect(),
         rels,
+    }
+}
+
+fn add_links(systems: &SystemMap, element_ids: &BTreeMap<String, String>, rels: &mut Vec<Rel>) {
+    for link in &systems.links {
+        let (Some(from), Some(to)) = (element_ids.get(&link.from), element_ids.get(&link.to))
+        else {
+            continue;
+        };
+        let label = link.label.clone().unwrap_or_default();
+        match rels.iter_mut().find(|r| &r.from == from && &r.to == to) {
+            Some(_) if label.is_empty() => {}
+            Some(rel) if rel.label.is_empty() => rel.label = label,
+            Some(rel) => rel.label = format!("{label}, {}", rel.label),
+            None => rels.push(Rel {
+                from: from.clone(),
+                to: to.clone(),
+                label,
+                weight: 1,
+            }),
+        }
     }
 }
 
