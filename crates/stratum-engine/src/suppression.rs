@@ -224,7 +224,6 @@ fn problems<T: Reported>(
 }
 
 /// One violation per comment, in a module, that starts with a directive of the rule's `forbid`.
-/// Read from disk, so an unsaved buffer in the LSP shows the saved file's directives.
 fn forbidden<T: Reported>(input: &EngineInput) -> Result<Vec<T>, ConfigError> {
     let forbid = input
         .config

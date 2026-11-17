@@ -1,6 +1,6 @@
 ---
 name: stratum
-description: Layer-aware edits in TS/Vue projects checked by Stratum (stratum-lint, stratum-lsp). Use before creating, moving or renaming a source file or adding an import across layers or slices; before finishing a change to source files; when a Stratum report or diagnostic names a rule slug; when a Stratum rule looks wrong for the project.
+description: Layer-aware edits in TS/Vue projects checked by Stratum (stratum-lint). Use before creating, moving or renaming a source file or adding an import across layers or slices; before finishing a change to source files; when a Stratum report or diagnostic names a rule slug; when a Stratum rule looks wrong for the project.
 ---
 
 # Stratum

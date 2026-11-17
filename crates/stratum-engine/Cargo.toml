@@ -6,7 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
-description = "Stratum analysis engine shared by the CLI and the LSP."
+description = "Stratum analysis engine behind the CLI and the visualizer."
 
 [lints]
 workspace = true

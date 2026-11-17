@@ -15,7 +15,6 @@ mod systems;
 pub use config::{Config, LayerConfig, OverrideBlock, OverrideRule, ProjectConfig, RuleConfig};
 pub use entry_points::{EntryPoints, literal_dir};
 pub use error::ConfigError;
-pub use extends::config_files;
 pub use features::FeatureConfig;
 pub use ignore::{DEFAULT_IGNORE, IgnoreSet};
 pub use overrides::{EffectiveRules, Overrides};

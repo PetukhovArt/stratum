@@ -54,7 +54,6 @@ ${block(targets.linuxIntel, sha.linuxIntel)}
 
   def install
     bin.install "stratum-lint"
-    bin.install "stratum-lsp" if File.exist?("stratum-lsp")
   end
 
   test do
@@ -80,7 +79,7 @@ if (bucketDir) {
       '64bit': { url: x64, hash: await sha256(x64) },
       arm64: { url: arm64, hash: await sha256(arm64) },
     },
-    bin: ['stratum-lint.exe', 'stratum-lsp.exe'],
+    bin: ['stratum-lint.exe'],
     checkver: 'github',
     autoupdate: {
       architecture: {

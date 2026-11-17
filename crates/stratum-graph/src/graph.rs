@@ -14,7 +14,7 @@ use stratum_core::{
 
 use crate::index::{DirEntries, DirRole, GraphIndex, SliceImporters, slice_importers};
 
-/// The compound graph view used by rules, the LSP, and the visualizer.
+/// The compound graph view used by rules and the visualizer.
 ///
 /// Three views over the same node set:
 /// 1. Dependency DAG — `petgraph::DiGraph<ModuleId, EdgeKind>` (may contain
@@ -64,11 +64,6 @@ impl CompoundGraph {
 
     pub(crate) fn index(&self) -> &GraphIndex {
         self.index.get_or_init(|| GraphIndex::of(self))
-    }
-
-    pub(crate) fn replace_deps(&mut self, deps: DiGraph<ModuleId, EdgeKind>) {
-        self.deps = deps;
-        self.slice_importers = OnceLock::new();
     }
 
     /// Where `from` first imports `to`.

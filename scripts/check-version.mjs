@@ -15,7 +15,7 @@ for (const crate of fs.readdirSync(path.join(root, 'crates'))) {
   const match = read(manifest).match(/^version\s*=\s*"([^"]+)"/m)
   found.push([manifest, match?.[1]])
 }
-for (const plugin of ['claude-plugin', 'claude-plugin-lsp']) {
+for (const plugin of ['claude-plugin']) {
   const manifest = `${plugin}/.claude-plugin/plugin.json`
   found.push([manifest, JSON.parse(read(manifest)).version])
 }

@@ -1,7 +1,7 @@
 {
   "name": "@petukhovart/stratum-lint",
   "version": "0.0.0",
-  "description": "Stratum architecture linter for TypeScript, JavaScript and Vue: stratum-lint CLI and stratum-lsp language server.",
+  "description": "Stratum architecture linter for TypeScript, JavaScript and Vue: the stratum-lint CLI.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -10,8 +10,7 @@
   "homepage": "https://github.com/PetukhovArt/stratum",
   "bugs": "https://github.com/PetukhovArt/stratum/issues",
   "bin": {
-    "stratum-lint": "bin/stratum-lint.js",
-    "stratum-lsp": "bin/stratum-lsp.js"
+    "stratum-lint": "bin/stratum-lint.js"
   },
   "engines": {
     "node": ">=18"

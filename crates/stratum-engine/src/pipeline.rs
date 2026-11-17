@@ -183,13 +183,6 @@ impl EngineInput {
 }
 
 pub fn build(root: &Utf8Path, loaded: &LoadedConfig) -> Result<EngineInput, EngineError> {
-    build_with_builder(root, loaded).map(|(input, _)| input)
-}
-
-pub fn build_with_builder(
-    root: &Utf8Path,
-    loaded: &LoadedConfig,
-) -> Result<(EngineInput, GraphBuilder), EngineError> {
     let config = &loaded.config;
     let identity = match &loaded.source {
         ConfigSource::File(path) => canonicalize(path)
@@ -197,19 +190,16 @@ pub fn build_with_builder(
             .into_string(),
         ConfigSource::Inferred => "zero-config".to_owned(),
     };
-    let (root_abs, graph, cache, builder) = graph(root, config, Source::Disk { identity })?;
+    let (root_abs, graph, cache, _) = graph(root, config, Source::Disk { identity })?;
     let registry = registry(&root_abs, config)?;
 
-    Ok((
-        EngineInput {
-            graph: Arc::new(graph),
-            cache,
-            config: Arc::new(config.clone()),
-            project_root: root_abs,
-            registry: Arc::new(registry),
-        },
-        builder,
-    ))
+    Ok(EngineInput {
+        graph: Arc::new(graph),
+        cache,
+        config: Arc::new(config.clone()),
+        project_root: root_abs,
+        registry: Arc::new(registry),
+    })
 }
 
 pub(crate) enum Source {

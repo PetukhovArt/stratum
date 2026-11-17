@@ -9,7 +9,7 @@
       "hash": "FILL_AT_RELEASE"
     }
   },
-  "bin": ["stratum-lint.exe", "stratum-lsp.exe"],
+  "bin": ["stratum-lint.exe"],
   "checkver": "github",
   "autoupdate": {
     "architecture": {

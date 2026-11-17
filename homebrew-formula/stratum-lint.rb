@@ -22,7 +22,6 @@ class StratumLint < Formula
 
   def install
     bin.install "stratum-lint"
-    bin.install "stratum-lsp" if File.exist?("stratum-lsp")
   end
 
   test do

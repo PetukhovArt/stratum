@@ -28,7 +28,6 @@ use cache::{Cache, Prior, Stat, Written};
 pub use cache::{CacheState, CacheStats};
 
 mod cache;
-mod incremental;
 
 /// On Windows, `canonicalize` returns extended-length paths (`\\?\D:\...`).
 /// `oxc_resolver` returns the non-prefixed form. Strip the prefix so both
