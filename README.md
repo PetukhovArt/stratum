@@ -4,7 +4,7 @@
 
 # Stratum
 
-**A universal architecture linter for TypeScript, JavaScript and Vue.**<br/>
+**An architecture linter for any codebase. TypeScript, JavaScript and Vue today.**<br/>
 Fast enough to run on every edit, written for AI coding agents and CI.
 
 [![CI](https://github.com/PetukhovArt/stratum/actions/workflows/ci.yml/badge.svg)](https://github.com/PetukhovArt/stratum/actions/workflows/ci.yml)
