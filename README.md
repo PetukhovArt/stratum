@@ -16,6 +16,12 @@ Fast enough to run on every edit, written for AI coding agents and CI.
 
 </div>
 
+## What is Stratum
+
+Stratum checks that the imports in a codebase follow its architecture. You describe the layers, for example `shared → entities → features → pages`, and which of them may import which. Stratum builds the module graph and reports each import that breaks a rule, together with the fix.
+
+It started as part of [jig](https://github.com/PetukhovArt/jig). AI coding agents write code fast and quietly break the layering a team agreed on, and review finds it late or not at all. The check had to run after every edit of an agent, finish in a fraction of a second on a large project and tell the agent what to change. Stratum is that check, and it works the same for people and for CI.
+
 ## Why Stratum
 
 - **Any architecture.** Layers, slices, segments and private zones come from your config or a preset (`stratum:recommended`, `stratum:fsd`). No folder name is wired in.
