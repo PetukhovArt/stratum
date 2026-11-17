@@ -56,16 +56,6 @@ stratum-lint init                         # write a config inferred from your fo
 stratum-lint --changed --format agent     # check what you changed
 ```
 
-```text
-stratum: 9 errors, 2 warnings, 27 info, 0.08s
-error stratum/public-api (1) - stratum-lint explain stratum/public-api
-  src/features/checkout/model/discount.ts:1 -> src/features/add-to-cart/model/use-add-to-cart.ts  Import of `src/features/add-to-cart/model/use-add-to-cart.ts` reaches inside `src/features/add-to-cart`
-  fix: Import from `src/features/add-to-cart` through its entry `src/features/add-to-cart/index.ts`, exporting the name there if it is missing.
-warning stratum/no-cross-layer-import (1) - stratum-lint explain stratum/no-cross-layer-import
-  src/shared/lib/analytics.ts:1 -> src/entities/user/index.ts  Module imports from layer 'entities' which 'shared' does not depend on
-  fix: Move the imported symbol into a layer 'shared' may reach, or add 'entities' to 'shared'.depends_on if the dependency is legitimate.
-```
-
 <table>
 <tr>
 <td width="50%"><a href="docs/assets/visualizer-comment-card.webp"><img src="docs/assets/visualizer-comment-card.webp" alt="Merge request comment card: imports that break rules, stage changes and fixed violations" /></a></td>
