@@ -40,7 +40,6 @@ The rules are known engineering principles turned into checks on the import grap
 - **Information hiding** (Parnas): other code uses a module only through its entry file; its internals and private zones stay private. `public-api`, `visibility-scope`, `sibling-isolation`, `no-barrel`.
 - **Functional core, imperative shell**: pure code does not import code with side effects. `purity`.
 - **Deep modules** (Ousterhout, *A Philosophy of Software Design*): a small interface with much behind it. `deep-module`, `depth-ratio`.
-- **Miller's 7 ± 2**: a folder or a module stays small enough to keep in mind. `container-breadth`, `zone-breadth`, `miller-limit`, `slice-fan-in`.
 - **Stable dependencies principle**: code that many slices use moves to a lower layer. `promotion-pressure`.
 - **Structure that grows in stages**: a slice grows from a file to a folder, then to segments, then to sub-units, and never mixes two stages. `stage-mixing`, `composer-scope`.
 - **Change coupling**: files that must change together do. `co-change`.
