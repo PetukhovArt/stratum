@@ -24,12 +24,12 @@ It started as part of [jig](https://github.com/PetukhovArt/jig). AI coding agent
 
 ## Why Stratum
 
-- **Any architecture.** Layers, slices, segments and private zones come from your config or a preset (`stratum:recommended`, `stratum:fsd`). No folder name is wired in.
-- **24 rules out of the box.** Cross-layer imports, cycles, public API bypass, sibling coupling, import policies, restricted calls, folder structure, unused exports and unreachable modules. Custom rules in Rhai, no rebuild.
-- **Every finding says what to do.** Each one carries a `fix`, so an agent repairs it without asking.
-- **Fast.** Rust, a graph cache and a git-aware scope: about 0.15 s for the changed files of a 4,000-module project. Works offline.
-- **Adopt on a legacy codebase.** `baseline` accepts what exists today in a one-line-per-entry file; later runs report only new violations, and `diff --base main` shows what a merge request changes.
-- **See it.** `stratum-lint visualize` opens the dependency graph, the layer matrix and the C4 architecture in the browser.
+- **Better code through deterministic checks.** The architecture is a config, not a habit. 24 rules check layers, cycles, public APIs, folder structure and dead code the same way on every run, for people and agents alike.
+- **Fewer review tokens.** An agent gets each break with a `fix` right after its edit and repairs it on its own. Review no longer spends tokens or time on imports and folders.
+- **An architecture health check in CI.** Native GitLab and GitHub reports, and a ratchet against a `baseline`: the debt of today is accepted, any new break fails the pipeline.
+- **A replacement for slow ESLint boundary rules.** Rust, a graph cache and a git-aware scope: about 0.15 s for the changed files of a 4,000-module project. A config translates from eslint-plugin-boundaries.
+- **A visual merge request.** `diff --base main` and the visualizer show what an MR changes: new imports, broken rules and fixed ones, as a comment card or a graph.
+- **Fits any project on its stack.** TypeScript, JavaScript and Vue. Layers, slices, segments and private zones come from your config or a preset (`stratum:recommended`, `stratum:fsd`); no folder name is wired in. Custom rules in Rhai, no rebuild.
 
 ### What it builds on
 
