@@ -39,8 +39,3 @@ pub fn load(root: &Utf8Path, explicit: Option<&Utf8Path>) -> Result<LoadedConfig
         },
     })
 }
-
-#[must_use]
-pub fn watched_files(path: &Utf8Path) -> Vec<Utf8PathBuf> {
-    stratum_config::config_files(path).unwrap_or_else(|_| vec![path.to_path_buf()])
-}

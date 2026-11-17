@@ -12,13 +12,6 @@
       "description": "Architecture validation for TS/Vue: a layer-aware skill that runs the stratum-lint CLI.",
       "category": "code-quality",
       "tags": ["architecture", "lint", "typescript", "vue"]
-    },
-    {
-      "name": "stratum-lsp",
-      "source": "./claude-plugin-lsp",
-      "description": "stratum-lsp diagnostics for TS/Vue. Only for projects without the typescript-lsp plugin.",
-      "category": "code-quality",
-      "tags": ["architecture", "lint", "typescript", "vue", "lsp"]
     }
   ]
 }

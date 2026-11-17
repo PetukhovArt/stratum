@@ -1,6 +1,6 @@
 # Configuration and custom rules
 
-`stratum.config.jsonc` at the project root (ROOT) configures everything; `--config PATH` points the CLI elsewhere, while `stratum-lsp` always reads `ROOT/stratum.config.jsonc`. Without a config (zero-config), every folder under `src/` becomes a layer, with no `depends_on`, slices and segments are inferred from the folders (see [configuration.md](configuration.md)), and the `stratum:recommended` severities apply, except that `stratum/zone-breadth` and `stratum/missing-entry` are off, and so are `stratum/public-api` and `stratum/sibling-isolation` unless some layer is inferred sliced: without declared layers and structure they flood the first run. `stratum/visibility-scope` stays on, since private zones are found by folder name. `stratum-lint init` writes the inferred config.
+`stratum.config.jsonc` at the project root (ROOT) configures everything; `--config PATH` points the CLI elsewhere. Without a config (zero-config), every folder under `src/` becomes a layer, with no `depends_on`, slices and segments are inferred from the folders (see [configuration.md](configuration.md)), and the `stratum:recommended` severities apply, except that `stratum/zone-breadth` and `stratum/missing-entry` are off, and so are `stratum/public-api` and `stratum/sibling-isolation` unless some layer is inferred sliced: without declared layers and structure they flood the first run. `stratum/visibility-scope` stays on, since private zones are found by folder name. `stratum-lint init` writes the inferred config.
 Editors and agents validate the file against [`stratum.schema.json`](../stratum.schema.json): add `"$schema": "<path or URL>/stratum.schema.json"`.
 
 Customization goes from cheapest to most flexible: a preset via `extends`, `layers` and `structure`, rule `severity` / `options` and `overrides`, the declarative `stratum/import-policy` and `stratum/restricted-calls` rules, and Rhai scripts.
@@ -18,7 +18,7 @@ Customization goes from cheapest to most flexible: a preset via `extends`, `laye
 | `rules` | by slug: `{ severity, options?, script? }` |
 | `overrides` | `[{ files, rules: { <slug>: { severity } } }]` |
 
-Errors fail every command that loads the config with exit code 2 and are reported by `stratum-lsp` via `window/showMessage`: an unknown key at any level (`project.root` included), an unknown rule slug in `rules` or `overrides`, an option the rule does not take or a wrongly typed one (the message names the slug and the key), `options` or `script` in an override, a `depends_on` naming an undeclared layer, an invalid `project.ignore` or `overrides[].files` glob, an unknown preset, an `extends` cycle.
+Errors fail every command that loads the config with exit code 2: an unknown key at any level (`project.root` included), an unknown rule slug in `rules` or `overrides`, an option the rule does not take or a wrongly typed one (the message names the slug and the key), `options` or `script` in an override, a `depends_on` naming an undeclared layer, an invalid `project.ignore` or `overrides[].files` glob, an unknown preset, an `extends` cycle.
 
 ## Layers and slices
 
@@ -320,7 +320,7 @@ It runs only where there is a diff:
 - `stratum-lint --changed[=REF]`: one finding per broken policy, or per broken slice directory, at line 1 of the first changed `when` file, so the gate fails. Without REF the diff is the uncommitted work against `HEAD`; in CI use `--changed=origin/main`.
 - `stratum-lint diff --base REF`: a section "Files that must change together" in the drift report, and exit 1.
 
-Plain `lint`, `baseline` and the LSP never run it.
+Plain `lint` and `baseline` never run it.
 
 A false alarm (a typo fix in the schema) is acknowledged in the changed file: `stratum-ignore stratum/co-change -- <reason>` on any line, in any comment syntax (`//`, `#`, `--`, `<!-- -->`), so `.sql`, `.yaml` and `.md` files can hold it too. While a changed `when` file holds it, the policy is not reported for the change; with `slice`, for that file's slice directory. The directive is never reported as hiding nothing, since only a diff reads it; it does stay after the merge and acknowledges every later change of that file, so delete it once the change has landed.
 
@@ -517,6 +517,6 @@ fn doc() {
 ### Sandbox, loading, ids
 
 - The engine is Rhai's standard package with `eval` disabled, `max_expr_depths(64, 32)`, `max_call_levels(32)`, `max_operations(100_000)` per call, `max_string_size(8_192)` and `max_array_size(4_096)`. Filesystem, network and process access are not available. `print` and `debug` go to stderr.
-- The CLI loads each script at startup; `--watch` reloads it on the next file event. `stratum-lsp` watches every script referenced from the config and rebuilds when one changes.
+- The CLI loads each script at startup; `--watch` reloads it on the next file event.
 - Scripts run once per module. No benchmark gates their overhead yet.
 - Plugin rules get internal ids from `1000` up, in alphabetical slug order; outputs only ever show slugs.

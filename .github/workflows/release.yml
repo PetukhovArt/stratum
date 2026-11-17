@@ -93,18 +93,18 @@ jobs:
           npm install --no-audit --no-fund
           npm run build
       - name: build
-        run: cargo build --release --target ${{ matrix.target }} -p stratum-lint -p stratum-lsp
+        run: cargo build --release --target ${{ matrix.target }} -p stratum-lint
       - name: package
         shell: bash
         run: |
           dir=target/${{ matrix.target }}/release
           name=stratum-lint-${{ matrix.target }}
           if [ "${{ runner.os }}" = Windows ]; then
-            7z a -tzip "$name.zip" "./$dir/stratum-lint.exe" "./$dir/stratum-lsp.exe" README.md LICENSE CHANGELOG.md
+            7z a -tzip "$name.zip" "./$dir/stratum-lint.exe" README.md LICENSE CHANGELOG.md
           else
-            tar -czf "$name.tar.gz" -C "$dir" stratum-lint stratum-lsp -C "$GITHUB_WORKSPACE" README.md LICENSE CHANGELOG.md
+            tar -czf "$name.tar.gz" -C "$dir" stratum-lint -C "$GITHUB_WORKSPACE" README.md LICENSE CHANGELOG.md
           fi
-          for bin in "$dir"/stratum-lint* "$dir"/stratum-lsp*; do
+          for bin in "$dir"/stratum-lint*; do
             case "$bin" in *.d|*.pdb) continue ;; esac
             size=$(stat -f%z "$bin" 2>/dev/null || stat -c%s "$bin")
             echo "$bin: $size bytes"

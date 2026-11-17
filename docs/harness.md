@@ -7,27 +7,13 @@ Integration surfaces, in order of preference:
 
 | Surface | Use | Loop |
 |---|---|---|
-| `stratum-lsp` | per-edit diagnostics in any LSP-capable harness (Cursor, Codex…; Claude Code plugin `stratum-lsp` only without `typescript-lsp`) | warm, incremental |
 | `stratum-lint --files F --format jsonl` | per-edit check of the files just written; one JSON finding per line ([Finding contract](#finding-contract---format-jsonl)) | scoped, within the one-file [budget](#budgets) |
 | `stratum-lint --changed=<base> --format jsonl\|agent` | end-of-turn / pre-commit / CI gate (write the `=`) | scoped report, within the changed-files [budget](#budgets) |
 | `stratum-lint context <file>` | before editing: where the file sits and what it may import | preventive |
 | `stratum-lint explain <rule>` | on demand, only when a rule is unfamiliar | judgement aid |
 | CI Template (GitLab, GitHub) | MR/PR gate with `--format gitlab` / `github`, `baseline --check` ratchet, advisory `diff --base` report; wiring in [ci.md](ci.md) | cold, whole project |
 
-Source files: `.ts .tsx .mts .cts .js .jsx .mjs .cjs .vue`. No editor extensions are shipped: any LSP client can launch `stratum-lsp` over stdio.
-
-## LSP contract
-
-- `stratum-lsp` takes no arguments and speaks JSON-RPC over stdio.
-- Root: first `workspaceFolders` entry, else `rootUri`, else `rootPath`, else the process cwd. `file:///c%3A/...` URIs are accepted.
-- `initialize` answers at once; the whole-project analysis runs in the background and its result is published for every open document. Capabilities: open/close + full-text change sync, `hover` (the diagnostic on that line), `documentLink`. No code actions.
-- Config: `ROOT/stratum.config.jsonc` if present, else zero-config. Editing it, a config file it `extends`, a plugin script referenced from it, `ROOT/tsconfig.json` or `ROOT/stratum.baseline.json` triggers a full rebuild. A broken config, plugin or baseline is reported via `window/showMessage` (once per distinct error) and the last good diagnostics stay.
-- Baseline: violations matched by `ROOT/stratum.baseline.json` are not published, as in the CLI.
-- Unsaved buffers count. The graph stays in memory: `didOpen` / `didChange` re-parse that document from its buffer text, replace its outgoing edges and re-run the rules; nothing re-runs when its imports, purity, exports and tracked calls are unchanged. `didClose` clears the file's diagnostics and reverts it to the text on disk. A full rebuild re-applies every open buffer.
-- A full rebuild also runs on a `workspace/didChangeWatchedFiles` create or delete (the server registers a watcher for the source extensions when the client supports dynamic registration), for a document created after the last build, and when an incremental update fails. A watched change to a closed file re-parses it from disk.
-- Diagnostics are published only for open documents whose diagnostics changed. Each has `source: "stratum"`, `code` = rule slug (`stratum/no-cross-layer-import`, plugin slugs too), `message` = violation message, then the fix on the next line. `relatedInformation` points at the imported module of an import violation, or at up to 10 other members of a multi-module violation such as a cycle, which is reported on each member.
-- stdout carries JSON-RPC only; logs go to `window/logMessage` (filter with `RUST_LOG`, default `warn,stratum_lsp=info`). The process exits on `exit`: code 0 after `shutdown`, else 1.
-- Claude Code routes each file extension to one LSP server, so `stratum-lsp` and a TypeScript server cannot both serve `.ts` there. Hence the separate `stratum-lsp` plugin.
+Source files: `.ts .tsx .mts .cts .js .jsx .mjs .cjs .vue`.
 
 ## CLI contract (stable, versioned)
 
@@ -212,7 +198,7 @@ Each entry is `<rule> <file> <digest>[ x<count>][ <touch>...]`, separated by sin
 - `x<count>`: how many identical violations the entry accepts, omitted when 1.
 - `touch`: the digest of each other file the violation involves (edge endpoints, cycle members), so `--files` / `--changed` on one of them counts the entry as fixed in scope.
 
-`stratum-lint baseline` and `baseline --prune` always write version 2. Version 1, `{ "version": 1, "violations": [{ rule, file, message, count?, touches? }] }` with one object per entry and the message in full, is still read: `lint`, the LSP Server and `baseline --check` accept it on either side, and the next `baseline` or `baseline --prune` rewrites it as version 2 with the same matches.
+`stratum-lint baseline` and `baseline --prune` always write version 2. Version 1, `{ "version": 1, "violations": [{ rule, file, message, count?, touches? }] }` with one object per entry and the message in full, is still read: `lint` and `baseline --check` accept it on either side, and the next `baseline` or `baseline --prune` rewrites it as version 2 with the same matches.
 
 `baseline --check[=REF]` is the ratchet: it compares the working-tree baseline (`--out`, else `ROOT/stratum.baseline.json`) with the same ROOT-relative path at REF, reads no config and builds no graph. **Baseline Growth** is any fingerprint whose count rose. A fixed entry does not pay for a new one, so a swap at the same total grows, and so does a file move (the file is part of the fingerprint). On growth it prints `Baseline <file> grew by N since <REF>:`, then `+N <slug> <file> <digest>` per grown fingerprint (the digest of its line in the file), the first 20, then `... N more`. Otherwise it prints one line: not grown, introduced (absent at REF, so adopting a baseline passes), or nothing to check.
 
@@ -242,13 +228,13 @@ Measured on a generated project of 4,000 modules (`stratum-budget generate`), on
 
 ### Graph cache
 
-Every graph built from disk (`lint`, `baseline`, `context`, `snapshot`, `visualize`, and the LSP Server's full rebuilds) goes through one cache file per project and config: `DIR/stratum-<hash of ROOT and config path>.graph`. DIR is `--cache-dir`, else `STRATUM_CACHE_DIR`, else the OS user cache directory + `stratum` (`%LOCALAPPDATA%\stratum`, `~/Library/Caches/stratum`, `$XDG_CACHE_HOME/stratum`); with none of them the cache is off. To run without it, point `--cache-dir` at an empty temporary directory.
+Every graph built from disk (`lint`, `baseline`, `context`, `snapshot`, `visualize`) goes through one cache file per project and config: `DIR/stratum-<hash of ROOT and config path>.graph`. DIR is `--cache-dir`, else `STRATUM_CACHE_DIR`, else the OS user cache directory + `stratum` (`%LOCALAPPDATA%\stratum`, `~/Library/Caches/stratum`, `$XDG_CACHE_HOME/stratum`); with none of them the cache is off. To run without it, point `--cache-dir` at an empty temporary directory.
 
 - What it holds: per module, the parsed facts (imports with their names, exports, tracked calls, suppressions, purity) and the modules each import resolved to.
 - When a file is parsed again: its size or mtime changed, or it was changed within 2 s before the cache was written; then its content hash decides, and an equal hash keeps the facts.
 - When every import is resolved again: the set of module paths changed, or a ROOT-level `*.json`, `pnpm-lock.yaml` or `yarn.lock`, or any `tsconfig*.json`, `jsconfig*.json` or `package.json` in the walked folders changed. An edited file re-resolves only its own imports.
 - When the whole file is dropped: another `stratum-lint` binary or other tracked calls wrote it, or it is corrupt (a checksum or decode failure counts as a missing file).
-- Guarantees: the findings are the same in every format, byte for byte apart from `elapsed_ms` and `summary.cache`, whatever the cache holds; a cache that cannot be read or written never fails a run; writes go to a temporary file renamed over the old one; cache files of this kind untouched for 30 days are deleted on write. Overlay text never enters it: `diff --base` builds without the cache, and the LSP Server's unsaved buffers stay in memory. Rules always run on the whole graph, so `--files F` reports what a full run reports for F.
+- Guarantees: the findings are the same in every format, byte for byte apart from `elapsed_ms` and `summary.cache`, whatever the cache holds; a cache that cannot be read or written never fails a run; writes go to a temporary file renamed over the old one; cache files of this kind untouched for 30 days are deleted on write. Overlay text never enters it: `diff --base` builds without the cache. Rules always run on the whole graph, so `--files F` reports what a full run reports for F.
 - Known gap: a file created outside the walked folders that changes how an import inside them resolves (e.g. a new package in `node_modules` without a lock file change) is not seen until one of the files above changes.
 
 ### Cycles
@@ -329,7 +315,7 @@ violations: 2 (2 error)
 
 Everything an architecture rule does is configurable without forking: layers and slices, `structure` folder names, per-rule `severity` / `options`, `overrides` by glob (severity only), `project.ignore`, `extends` (a local file or the presets `stratum:recommended`, `stratum:fsd`), the declarative `stratum/import-policy` and `stratum/restricted-calls` rules, and `.rhai` plugin rules with an optional `fn doc()` that makes them show up in `rules` / `explain` like built-ins. Configs reference `stratum.schema.json` (repo root, generated from the config types) with `"$schema"`.
 
-Invalid config fails loudly, with exit 2 in every command that loads it and `window/showMessage` in the LSP: unknown keys (`project.root` included), unknown rule slugs, bad options (the message names slug and key), a `depends_on` naming an undeclared layer, bad `ignore` / `overrides[].files` globs, `options` or `script` in an override, an unknown preset, extends cycles.
+Invalid config fails loudly, with exit 2 in every command that loads it: unknown keys (`project.root` included), unknown rule slugs, bad options (the message names slug and key), a `depends_on` naming an undeclared layer, bad `ignore` / `overrides[].files` globs, `options` or `script` in an override, an unknown preset, extends cycles.
 
 Reference: [custom-rules.md](custom-rules.md), which includes a config translated from eslint-plugin-boundaries.
 Built-in rule docs (`explain`, `rules`) live in `crates/stratum-rules/src/docs.rs`.

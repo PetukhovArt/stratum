@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Breaking: removed `stratum-lsp` and the `stratum-lsp` Claude Code plugin; for per-edit checks run `stratum-lint --files <edited files> --format jsonl` from your harness, or `stratum-lint --changed --format agent` before finishing
+
 ## 0.9.0 (2026-11-13)
 
 - Added `actors` and, per system, `external`, `description`, `via` and `uses` to the config's `systems`: the visualizer's Architecture → System level draws the roles above the product, external systems below it with a dashed border and an "external" tag, the declared relations as dotted labelled arrows, and a "via N modules" channel whose modules the details list, each opening its code or Module focus; `stratum-lint c4 --level system` draws the same

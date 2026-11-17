@@ -64,12 +64,11 @@ warning stratum/no-cross-layer-import (1) - stratum-lint explain stratum/no-cros
 
 ## Integrations
 
-Stratum is a standalone CLI and LSP server; every integration below is optional.
+Stratum is a standalone CLI; every integration below is optional.
 
 | Where | How |
 |---|---|
-| Claude Code | the [`stratum` plugin](claude-plugin/README.md); optional warm diagnostics through [`stratum-lsp`](claude-plugin-lsp/README.md) |
-| Codex, Cursor, other agents | paste [docs/agents-snippet.md](docs/agents-snippet.md) into `AGENTS.md` |
+| Any AI agent, any model | Claude Code: the [`stratum` plugin](claude-plugin/README.md); any other agent: paste [docs/agents-snippet.md](docs/agents-snippet.md) into `AGENTS.md` |
 | GitLab, GitHub CI | native report formats and a baseline check: [docs/ci.md](docs/ci.md) |
 | Any tool | the JSONL contract and exit codes: [docs/harness.md](docs/harness.md) |
 | [jig](https://github.com/PetukhovArt/jig) | runs Stratum after each edit and blocks the end of a turn while new errors remain |
@@ -77,10 +76,10 @@ Stratum is a standalone CLI and LSP server; every integration below is optional.
 <details>
 <summary><b>Install</b></summary>
 
-- npm, all platforms: `npm install -g @petukhovart/stratum-lint` (ships `stratum-lint` and `stratum-lsp`)
+- npm, all platforms: `npm install -g @petukhovart/stratum-lint`
 - Windows (x64, arm64): `scoop bucket add stratum https://github.com/PetukhovArt/scoop-stratum-bucket`, then `scoop install stratum-lint`
 - macOS, Linux (x64, arm64): `brew tap petukhovart/stratum`, then `brew install stratum-lint`
-- From source: `cargo install --path crates/stratum-lint` and `cargo install --path crates/stratum-lsp`
+- From source: `cargo install --path crates/stratum-lint`
 
 Source files: `.ts .tsx .mts .cts .js .jsx .mjs .cjs .vue` (Vue: `<script>` and `<script setup>`).
 

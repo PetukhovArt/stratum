@@ -104,11 +104,10 @@
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Stratum Tooling** | The whole product: **Linter**, **LSP Server**, **Visualizer**, **Harness Plugins**, **CI Templates**, and the shared Rust core. | the toolchain, the suite |
+| **Stratum Tooling** | The whole product: **Linter**, **Visualizer**, **Harness Plugins**, **CI Templates**, and the shared Rust core. | the toolchain, the suite |
 | **Linter** | The CLI binary `stratum-lint`: lint, **Gate**, **Baseline**, **Brief**, `explain`, `rules`, `init`, `snapshot`, `visualize`. | scanner, checker |
-| **LSP Server** | `stratum-lsp`, the stdio language server AI harnesses launch for per-edit **Violations**. Analysis runs in the background after `initialize`; the graph stays in memory and each open document is re-parsed from its unsaved buffer on change; **Config**, **Baseline**, plugin or `tsconfig.json` changes trigger a full rebuild. No code actions. | language server |
-| **Rule Engine** | The `stratum-engine` crate shared by the **Linter** and the **LSP Server**: loads the **Config**, builds the **Compound DAG**, runs the **Rules**, names **Violations** by **Rule Slug** with root-relative paths. | rule runner |
-| **Harness Plugin** | A Claude Code plugin that wires Stratum in: `stratum` (a skill) and `stratum-lsp` (the **LSP Server**, only for projects without `typescript-lsp`). Not a **Plugin**. | extension, editor extension |
+| **Rule Engine** | The `stratum-engine` crate behind the **Linter** and the **Visualizer**: loads the **Config**, builds the **Compound DAG**, runs the **Rules**, names **Violations** by **Rule Slug** with root-relative paths. | rule runner |
+| **Harness Plugin** | A Claude Code plugin that wires Stratum in: `stratum`, a skill. Not a **Plugin**. | extension, editor extension |
 | **CI Template** | The CI-side adapter for one platform: `ci/gitlab/templates/stratum.yml` (GitLab `include`) or `ci/github` (GitHub composite action). It installs the **Linter** from the job's npm registry and runs the **Gate** in the platform's format, the **Baseline Growth** check and the **Drift** report. All platform knowledge lives here; the binary reads no CI environment. Not a **Harness Plugin**: it wires Stratum into a pipeline, not into an agent. | CI component, CI plugin, pipeline |
 | **Visualizer** | The browser UI for the **Compound DAG** and its **Violations**: `stratum-lint visualize` serves the **Graph Snapshot** at `/api/snapshot`, the violations at `/api/violations`, a file's **Brief** at `/api/context?path=`, with `--base REF` the **Drift** at `/api/drift` (404 without it), the **Edge Contract** at `/api/edge`, source lines at `/api/source`, the **Features** at `/api/features`, the **Channels** at `/api/systems`, and the bundled SolidJS frontend, which shows them as SVG views: Module focus, Matrix, Merge request (with the **Drift**), Module set, Architecture and Bench. `stratum-lint export` writes the same as a static site. | viewer, graph UI |
 | **Watch Mode** | `stratum-lint --watch`: re-runs the lint on any file event under the project root, with a 200 ms debounce. | live mode |
@@ -137,7 +136,7 @@
 | **Rhai Script** | A **Plugin** written in the Rhai DSL: `fn check(m)` or `fn check(m, options)` returning an array of maps, plus an optional `fn doc()`. No build step; the tool compiles it at load. | dsl rule, scripted rule |
 | **Plugin API** | What a **Rhai Script** sees and returns: a **Module View**, the rule's `options`, and an array of maps, each one **Violation** (`message`, optional `line`, optional `fix`; the old key `suggestion` is read with a deprecation warning). The engine is sandboxed: no filesystem, network or process; `eval` disabled; bounded recursion and operations. | extension API, SDK |
 | **Module View** | The read-only projection of a **Module** a **Rhai Script** sees: `id`, `path` (absolute, forward slashes), `layer`, `container`, `purity`, `dependents`, `imports` (`#{ path, layer, kind, specifier, line, type_only }` per **Edge**), `metadata` (reserved). Package imports are not exposed. | rhai module, plugin module |
-| **Plugin Hot-Reload** | Picking up a changed **Rhai Script** without restarting: the **LSP Server** watches every script referenced from the **Config** and rebuilds; **Watch Mode** re-runs on the next file event. | rhai reload, live plugin |
+| **Plugin Hot-Reload** | Picking up a changed **Rhai Script** without restarting: **Watch Mode** re-runs on the next file event. | rhai reload, live plugin |
 
 ## Visualization
 
@@ -157,7 +156,7 @@
 - From outside a **Container**, only its **Entry** may be imported (`public-api`); sibling **Slices** and sibling **Sub-units** may not import each other at all (`sibling-isolation`).
 - A **Rule** reads the **Compound DAG** and emits zero or more **Violations**; a **Rule** operates over exactly one **Rule Scope**.
 - A **Violation** has one **Severity**, one **Source Location**, and points at one or more **Modules** (and optionally one **Edge**).
-- The **Linter** and the **LSP Server** share the **Violation** type through the **Rule Engine**; the **Visualizer** gets violations at `/api/violations` next to the **Graph Snapshot**.
+- The **Linter** gets **Violations** from the **Rule Engine**; the **Visualizer** gets violations at `/api/violations` next to the **Graph Snapshot**.
 - A **Rhai Script** registers a **Custom Rule** through the **Plugin API**.
 - A **Language Extractor** consumes raw source text and produces **Extracted Data**.
 

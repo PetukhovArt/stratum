@@ -1,6 +1,6 @@
 # Release procedure
 
-This document walks through cutting a `stratum-lint` / `stratum-lsp` release. Treat it as the source of truth — when something changes, update this file in the same PR.
+This document walks through cutting a `stratum-lint` release. Treat it as the source of truth — when something changes, update this file in the same PR.
 
 ## Pre-flight
 
@@ -48,7 +48,6 @@ npm install --offline --ignore-scripts --no-audit --no-fund \
   /path/to/stratum/target/npm/petukhovart-stratum-lint-X.Y.Z.tgz \
   /path/to/stratum/target/npm/petukhovart-stratum-lint-<platform>-<arch>-X.Y.Z.tgz
 npx stratum-lint --help
-npx stratum-lsp < /dev/null    # starts, exits when stdin closes
 # missing platform package: exit 2 naming it
 rm -rf node_modules/@petukhovart/stratum-lint-<platform>-<arch>
 npx stratum-lint --help; echo "exit $?"
@@ -64,12 +63,10 @@ On a clean machine (or VM):
 # Linux x64
 curl -L https://github.com/PetukhovArt/stratum/releases/download/vX.Y.Z/stratum-lint-x86_64-unknown-linux-gnu.tar.gz | tar -xz
 ./stratum-lint --help
-test -x ./stratum-lsp    # the archive bundles stratum-lsp too
 
 # npm install path
 npm i -g --ignore-scripts @petukhovart/stratum-lint
 stratum-lint --help
-command -v stratum-lsp
 
 # Homebrew (macOS arm64 or Linux x64)
 brew tap petukhovart/stratum

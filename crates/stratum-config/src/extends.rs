@@ -45,39 +45,6 @@ fn resolve_chain(
     Ok(merge(parent, child))
 }
 
-/// The config file at `path` followed by every file it pulls in through `extends`,
-/// nearest parent first; built-in presets are not files and are left out.
-///
-/// # Errors
-/// [`ConfigError::Io`] / [`ConfigError::Parse`] for a file in the chain that cannot be read,
-/// [`ConfigError::ExtendsCycle`] when the chain loops.
-pub fn config_files(path: &Utf8Path) -> Result<Vec<Utf8PathBuf>, ConfigError> {
-    let mut files = vec![path.to_path_buf()];
-    loop {
-        let current = &files[files.len() - 1];
-        let document = read_jsonc(current)?;
-        let Some(extends) = document.pointer("/project/extends").and_then(Value::as_str) else {
-            return Ok(files);
-        };
-        if extends.starts_with(presets::PREFIX) {
-            return Ok(files);
-        }
-        let next = current.parent().unwrap_or(Utf8Path::new("")).join(extends);
-        let key = chain_key(&next);
-        let cycle = files.iter().any(|f| chain_key(f) == key);
-        files.push(next);
-        if cycle {
-            return Err(ConfigError::ExtendsCycle {
-                chain: files
-                    .iter()
-                    .map(|f| f.as_str())
-                    .collect::<Vec<_>>()
-                    .join(" -> "),
-            });
-        }
-    }
-}
-
 fn chain_key(path: &Utf8Path) -> String {
     path.canonicalize_utf8()
         .map_or_else(|_| path.to_string(), |p| p.to_string())
@@ -190,28 +157,6 @@ mod tests {
                 { "id": "shared", "path": "src/shared" },
                 { "id": "core", "path": "src/core" },
             ])
-        );
-    }
-
-    #[test]
-    fn config_files_lists_the_file_chain_without_presets() {
-        let dir = tempfile::tempdir().unwrap();
-        let dir = Utf8Path::from_path(dir.path()).unwrap();
-        std::fs::create_dir(dir.join("base")).unwrap();
-        let child = dir.join("stratum.config.jsonc");
-        std::fs::write(
-            &child,
-            r#"{ "project": { "extends": "./base/team.jsonc" } }"#,
-        )
-        .unwrap();
-        std::fs::write(
-            dir.join("base/team.jsonc"),
-            r#"{ "project": { "extends": "stratum:fsd" } }"#,
-        )
-        .unwrap();
-        assert_eq!(
-            config_files(&child).unwrap(),
-            vec![child.clone(), dir.join("base/team.jsonc")]
         );
     }
 
