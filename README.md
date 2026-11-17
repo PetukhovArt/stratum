@@ -31,6 +31,23 @@ It started as part of [jig](https://github.com/PetukhovArt/jig). AI coding agent
 - **Adopt on a legacy codebase.** `baseline` accepts what exists today in a one-line-per-entry file; later runs report only new violations, and `diff --base main` shows what a merge request changes.
 - **See it.** `stratum-lint visualize` opens the dependency graph, the layer matrix and the C4 architecture in the browser.
 
+### What it builds on
+
+The rules are known engineering principles turned into checks on the import graph:
+
+- **Layered architecture and the dependency rule** (Clean Architecture, Feature-Sliced Design): code depends only on the layers below it. `no-cross-layer-import`, `import-policy`.
+- **Acyclic dependencies principle**: no import cycles. `no-circular-deps`.
+- **Information hiding** (Parnas): other code uses a module only through its entry file; its internals and private zones stay private. `public-api`, `visibility-scope`, `sibling-isolation`, `no-barrel`.
+- **Functional core, imperative shell**: pure code does not import code with side effects. `purity`.
+- **Deep modules** (Ousterhout, *A Philosophy of Software Design*): a small interface with much behind it. `deep-module`, `depth-ratio`.
+- **Miller's 7 ± 2**: a folder or a module stays small enough to keep in mind. `container-breadth`, `zone-breadth`, `miller-limit`, `slice-fan-in`.
+- **Stable dependencies principle**: code that many slices use moves to a lower layer. `promotion-pressure`.
+- **Structure that grows in stages**: a slice grows from a file to a folder, then to segments, then to sub-units, and never mixes two stages. `stage-mixing`, `composer-scope`.
+- **Change coupling**: files that must change together do. `co-change`.
+- **No dead code**: `unused-exports`, `unreachable-modules`, `unused-dependencies`.
+- **Baseline and ratchet**: accept the debt of today, block new debt.
+- **C4 model**: the visualizer goes from systems to containers, components and code.
+
 ## Quick start
 
 ```sh
